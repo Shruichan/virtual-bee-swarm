@@ -81,6 +81,7 @@ namespace VirtualBeeSwarm.Editor
                 so.FindProperty("whatIfHandsOff").boolValue = handsOff;
                 so.FindProperty("waitForOnlineSeconds").floatValue = online ? 25f : 0f;
                 so.FindProperty("ignoreForeignExceptions").boolValue = true; // Meta natives don't exist in a desktop player
+                so.FindProperty("forceHornet").boolValue = Environment.GetEnvironmentVariable("SMOKE_FORCE_HORNET") == "1"; // the cut hornet beat
                 so.FindProperty("requireClips").boolValue = requireClips;
                 so.ApplyModifiedPropertiesWithoutUndo();
                 if (!EditorSceneManager.SaveScene(scene)) throw new Exception("could not save " + scenePath);
