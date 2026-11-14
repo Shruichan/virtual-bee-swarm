@@ -1,0 +1,19 @@
+{
+    "name": "VirtualBeeSwarm.BeeVAT.Editor",
+    "rootNamespace": "VirtualBeeSwarm.BeeVatEditor",
+    "references": [
+        "VirtualBeeSwarm",
+        "VirtualBeeSwarm.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

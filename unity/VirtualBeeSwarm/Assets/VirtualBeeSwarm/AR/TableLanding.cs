@@ -78,6 +78,7 @@ namespace VirtualBeeSwarm.AR
             _mat = GameMaterials.Create("VBS_LandingBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh); // wings flap in the shader; _WingFlap 0 stills the landed ones
+            BeeVat.Apply(ref _mesh, ref _mat, "table landing"); // swarm.vat: Daniel's animated bee, Walk while landed (_WingFlap 0)
             _mpb = new MaterialPropertyBlock();
         }
 
