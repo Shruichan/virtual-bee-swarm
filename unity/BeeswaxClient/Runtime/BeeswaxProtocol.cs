@@ -1,12 +1,18 @@
-// C# mirror of hive/src/protocol.ts (PROTOCOL_VERSION 2). That file is the source of truth:
+// C# mirror of hive/src/protocol.ts (PROTOCOL_VERSION 2, v2.1 additions). That file is the source of truth:
 // change both together and log the change in PLAN.md.
+//
+// v2.1 (additive, still version 2): choice.request (operator twin of a station choice, the game applies it like the
+// player's own), fx.force (Board → Hive; the Quest receives it as a plain fx), whatif.force (Board → Hive only),
+// score, optional OrbisRequest.want, custom what-ifs (topic "custom", scene "whatif_custom", Intent.custom_prompt).
 //
 // JsonUtility has no unions and no nullable types, so:
 //   * Parse() peeks at "type" with a tiny Envelope, then fills the concrete class.
 //   * A string that is null or missing in JSON becomes ""   (e.g. ScanVerdict.line_id, Intent.topic, OrbisStatus.scene).
 //   * A number that is null or missing becomes -1           (ScanVerdict.socket, BeatRequest.n, ScanPhoto.width/height,
-//     OrbisStatus.stage, OrbisRequest.stage, Welcome.beat, Fx.delay_ms/duration_ms). Check HasSocket / HasN / HasDelay.
-//   * Optional fields the Quest sends are left out of the JSON when unset (OrbisRequest.stage/scene).
+//     OrbisStatus.stage, OrbisRequest.stage, Welcome.beat, Fx.delay_ms/duration_ms, Score.elapsed_s/grievances).
+//     Check HasSocket / HasN / HasDelay / HasElapsed.
+//   * Optional fields are left out of the JSON when unset (OrbisRequest.want/stage/scene, Fx.delay_ms/duration_ms,
+//     WhatIfForce.topic/undo).
 //
 // Field names are snake_case on purpose: JsonUtility maps fields to JSON keys by name.
 
@@ -63,11 +69,14 @@ namespace Beeswax
         {
             Scene.Meadow, Scene.SmokerSettle, Scene.SmokerAngry, Scene.FeedSick, Scene.FeedRecover, Scene.WaspsRaid,
             Scene.WaspsLeave, Scene.HeatStress, Scene.HeatDrink, Scene.WhatIfFire, Scene.FireOut, Scene.WhatIfRain,
-            Scene.WhatIfFlowers, Scene.WhatIfSpray, Scene.WhatIfWinter, Scene.FullBloom, Scene.Moon,
+            Scene.WhatIfFlowers, Scene.WhatIfSpray, Scene.WhatIfWinter, Scene.WhatIfCustom, Scene.FullBloom, Scene.Moon,
         };
 
         /// <summary>WHATIF_TOPICS.</summary>
-        public static readonly string[] WhatIfTopics = { WhatIfTopic.Fire, WhatIfTopic.Rain, WhatIfTopic.Flowers, WhatIfTopic.Spray, WhatIfTopic.Winter };
+        public static readonly string[] WhatIfTopics =
+        {
+            WhatIfTopic.Fire, WhatIfTopic.Rain, WhatIfTopic.Flowers, WhatIfTopic.Spray, WhatIfTopic.Winter, WhatIfTopic.Custom,
+        };
 
         /// <summary>FX: effect cues the Hive can trigger (Unity owns how they look).</summary>
         public static readonly string[] Fx =
@@ -136,11 +145,17 @@ namespace Beeswax
         public static int StationBeat(string station) => IsStation(station) ? BeatIndex(station) : -1;
 
         public static bool IsScene(string scene) => Array.IndexOf(Scenes, scene) >= 0;
+
+        /// <summary>
+        /// False for a scene with no recorded fallback clip: whatif_custom (an unplanned what-if whose Orbis prompt
+        /// Claude writes on the spot). While the window shows it, clips mode keeps the previous scene's clip.
+        /// </summary>
+        public static bool SceneHasClip(string scene) => IsScene(scene) && scene != Scene.WhatIfCustom;
         public static bool IsWhatIfTopic(string topic) => Array.IndexOf(WhatIfTopics, topic) >= 0;
         public static bool IsFx(string name) => Array.IndexOf(Fx, name) >= 0;
         public static bool IsIntent(string name) => Array.IndexOf(Intents, name) >= 0;
 
-        /// <summary>The window scene for a what-if topic ("fire" → "whatif_fire"), or "" if there is none.</summary>
+        /// <summary>The window scene for a what-if topic ("fire" → "whatif_fire", "custom" → "whatif_custom"), or "" if there is none.</summary>
         public static string SceneOfWhatIf(string topic)
         {
             if (!IsWhatIfTopic(topic)) return "";
@@ -152,7 +167,7 @@ namespace Beeswax
 
         // JsonUtility cannot put JSON null into an int/float field, so numeric nulls become -1 first.
         static readonly Regex NumericNull = new Regex(
-            "\"(socket|n|width|height|stage|beat|sample_rate|delay_ms|duration_ms)\"\\s*:\\s*null", RegexOptions.CultureInvariant);
+            "\"(socket|n|width|height|stage|beat|sample_rate|delay_ms|duration_ms|elapsed_s|grievances)\"\\s*:\\s*null", RegexOptions.CultureInvariant);
 
         [Serializable] class Envelope { public string type = ""; }
 
@@ -280,12 +295,16 @@ namespace Beeswax
         public const string HeatStress = "heat_stress", HeatDrink = "heat_drink";
         public const string WhatIfFire = "whatif_fire", FireOut = "fire_out";
         public const string WhatIfRain = "whatif_rain", WhatIfFlowers = "whatif_flowers", WhatIfSpray = "whatif_spray", WhatIfWinter = "whatif_winter";
+        /// <summary>v2.1: an unplanned what-if (Claude writes a safe Orbis prompt). No recorded clip: clips mode keeps the last clip.</summary>
+        public const string WhatIfCustom = "whatif_custom";
         public const string FullBloom = "full_bloom", Moon = "moon";
     }
 
     public static class WhatIfTopic
     {
         public const string Fire = "fire", Rain = "rain", Flowers = "flowers", Spray = "spray", Winter = "winter";
+        /// <summary>v2.1: anything else ("what if a dragon shows up?"). Intent.custom_prompt holds Claude's prompt, "" if refused.</summary>
+        public const string Custom = "custom";
     }
 
     public static class FxName
@@ -372,6 +391,11 @@ namespace Beeswax
         public const string Transcript = "transcript";
         public const string Intent = "intent";
         public const string Fx = "fx";
+        // v2.1
+        public const string ChoiceRequest = "choice.request";
+        public const string FxForce = "fx.force";
+        public const string WhatIfForce = "whatif.force";
+        public const string Score = "score";
     }
 
     // ---------------------------------------------------------------- messages
@@ -591,8 +615,9 @@ namespace Beeswax
     }
 
     /// <summary>
-    /// Board|Quest → Hive: switch the window layer (want) and/or scene. stage = -1 and scene = "" when absent;
-    /// both are left out of the JSON when unset.
+    /// Board|Quest → Hive: switch the window layer (want) and/or scene. want = "", stage = -1 and scene = "" when
+    /// absent; each is left out of the JSON when unset. v2.1: a request carrying scene/stage only switches the scene;
+    /// only `want` changes live/clips/off (a v2 Hive still requires want on every request, so the Quest sends it).
     /// </summary>
     [Serializable]
     public class OrbisRequest : BusMessage
@@ -601,12 +626,13 @@ namespace Beeswax
         public int stage = -1;
         public string scene = "";
         public OrbisRequest() { type = MsgType.OrbisRequest; }
+        public bool HasWant => want.Length > 0;
         public bool HasScene => scene.Length > 0;
         internal override void Normalize() { base.Normalize(); want = BeeswaxProtocol.S(want); scene = BeeswaxProtocol.S(scene); }
         internal override string CustomJson()
         {
-            var sb = new StringBuilder("{\"type\":").Append(BeeswaxProtocol.JsonString(type))
-                .Append(",\"want\":").Append(BeeswaxProtocol.JsonString(want));
+            var sb = new StringBuilder("{\"type\":").Append(BeeswaxProtocol.JsonString(type));
+            if (!string.IsNullOrEmpty(want)) sb.Append(",\"want\":").Append(BeeswaxProtocol.JsonString(want));
             if (stage >= 0) sb.Append(",\"stage\":").Append(stage.ToString(CultureInfo.InvariantCulture));
             if (!string.IsNullOrEmpty(scene)) sb.Append(",\"scene\":").Append(BeeswaxProtocol.JsonString(scene));
             return sb.Append('}').ToString();
@@ -712,6 +738,8 @@ namespace Beeswax
     /// <summary>
     /// Hive → all: what the player meant. what_if → window scene + fx + line; undo ("put it out") → back;
     /// ask → live Beeswax answer (tts); ack/unknown → a canned acknowledgement. topic = "" unless what_if.
+    /// v2.1: topic "custom" = an unplanned what-if; custom_prompt = the safe Orbis prompt Claude wrote, "" when it refused
+    /// (or for any other topic). Beeswax says the refusal line by himself (a normal say).
     /// </summary>
     [Serializable]
     public class Intent : BusMessage
@@ -721,12 +749,18 @@ namespace Beeswax
         public string text = "";
         public string path = "";
         public double ms;
+        public string custom_prompt = "";
         public Intent() { type = MsgType.Intent; }
         public bool HasTopic => topic.Length > 0;
+        /// <summary>An unplanned what-if (topic "custom"), refused or not.</summary>
+        public bool IsCustom => name == IntentName.WhatIf && topic == WhatIfTopic.Custom;
+        /// <summary>A custom what-if Claude refused (no prompt): the window stays where it is and Beeswax says the refusal line.</summary>
+        public bool CustomRefused => IsCustom && custom_prompt.Length == 0;
         internal override void Normalize()
         {
             base.Normalize();
             name = BeeswaxProtocol.S(name); topic = BeeswaxProtocol.S(topic); text = BeeswaxProtocol.S(text); path = BeeswaxProtocol.S(path);
+            custom_prompt = BeeswaxProtocol.S(custom_prompt);
         }
     }
 
@@ -751,6 +785,80 @@ namespace Beeswax
         }
     }
 
+    // ---------------------------------------------------------------- v2.1: operator ops + score
+
+    /// <summary>
+    /// Board → Hive → Quest: the operator's twin of a player's station choice. Apply it exactly as if the player chose it
+    /// (hexagon, swarm, line: call BeeswaxStations.Choose, which reports choice.made as usual). You may ignore it outside
+    /// that station's beat. BeeswaxBus.OnChoiceRequest; BeeswaxStations.applyChoiceRequests does it for you.
+    /// </summary>
+    [Serializable]
+    public class ChoiceRequest : BusMessage
+    {
+        public string station = "";
+        public string choice = "";
+        public ChoiceRequest() { type = MsgType.ChoiceRequest; }
+        /// <summary>The pair is in CHOICES.</summary>
+        public bool IsValid => BeeswaxProtocol.IsValidChoice(station, choice);
+        internal override void Normalize() { base.Normalize(); station = BeeswaxProtocol.S(station); choice = BeeswaxProtocol.S(choice); }
+    }
+
+    /// <summary>Board → Hive: force an effect. The Hive forwards it to the Quest as a plain fx, so BeeswaxBus.OnFx covers it.</summary>
+    [Serializable]
+    public class FxForce : BusMessage
+    {
+        public string name = "";
+        public FxForce() { type = MsgType.FxForce; }
+        internal override void Normalize() { base.Normalize(); name = BeeswaxProtocol.S(name); }
+    }
+
+    /// <summary>
+    /// Board → Hive only: the operator's twin of a voice what-if (topic) or "put it out" (undo). The Hive runs the same
+    /// act() path as a spoken one, so the Quest sees the usual say/orbis/fx, but NO transcript or intent (OnIntent does
+    /// not fire): key what-if feel off the window scene (OrbisWindow.OnSceneChanged) or the fx. A custom what-if is not
+    /// a whatif.force (the Board posts its words to /board/custom, which does send an intent). topic = "" when absent.
+    /// </summary>
+    [Serializable]
+    public class WhatIfForce : BusMessage
+    {
+        public string topic = "";
+        public bool undo;
+        public WhatIfForce() { type = MsgType.WhatIfForce; }
+        internal override void Normalize() { base.Normalize(); topic = BeeswaxProtocol.S(topic); }
+        internal override string CustomJson()
+        {
+            var sb = new StringBuilder("{\"type\":").Append(BeeswaxProtocol.JsonString(type));
+            if (!string.IsNullOrEmpty(topic)) sb.Append(",\"topic\":").Append(BeeswaxProtocol.JsonString(topic));
+            if (undo) sb.Append(",\"undo\":true");
+            return sb.Append('}').ToString();
+        }
+    }
+
+    /// <summary>
+    /// Hive → all: the run's score, sent when the escape beat starts. text is ready for the score card
+    /// ("Hive saved in 2:47"); grievances = wrong picks this group. elapsed_s / grievances = -1 when missing.
+    /// </summary>
+    [Serializable]
+    public class Score : BusMessage
+    {
+        public double elapsed_s = -1;
+        public string text = "";
+        public int grievances = -1;
+        public Score() { type = MsgType.Score; }
+        public bool HasElapsed => elapsed_s >= 0;
+        /// <summary>elapsed_s as m:ss ("2:47"), or "" when missing.</summary>
+        public string Clock
+        {
+            get
+            {
+                if (!HasElapsed) return "";
+                int s = (int)Math.Round(elapsed_s, MidpointRounding.AwayFromZero); // like the Hive's Math.round (state.ts formatClock)
+                return (s / 60).ToString(CultureInfo.InvariantCulture) + ":" + (s % 60).ToString("00", CultureInfo.InvariantCulture);
+            }
+        }
+        internal override void Normalize() { base.Normalize(); text = BeeswaxProtocol.S(text); }
+    }
+
     // ---------------------------------------------------------------- glasses HTTP API + model output shapes
     // Not used by the Quest; mirrored so this file stays one-to-one with protocol.ts.
 
@@ -769,8 +877,8 @@ namespace Beeswax
     [Serializable] public class UtteranceRequest { public string text = ""; public double at; }
     [Serializable]
     public class UtteranceResponse { public string intent = "", topic = "", line_id = "", audio_url = "", caption = ""; }
-    /// <summary>What the intent router model returns (Hive side).</summary>
-    [Serializable] public class RouterOutput { public string intent = "", topic = "", answer = ""; }
+    /// <summary>What the intent router model returns (Hive side). custom_prompt: v2.1, topic "custom" only.</summary>
+    [Serializable] public class RouterOutput { public string intent = "", topic = "", answer = "", custom_prompt = ""; }
     /// <summary>What the scan model returns (Hive side).</summary>
     [Serializable]
     public class DirectorOutput

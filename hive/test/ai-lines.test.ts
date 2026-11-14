@@ -37,9 +37,9 @@ describe("lines.json", () => {
     expect(Object.keys(LINES).length).toBe(entries.length);
   });
 
-  test("has 55-75 lines", () => {
+  test("has 55-90 lines", () => {
     expect(entries.length).toBeGreaterThanOrEqual(55);
-    expect(entries.length).toBeLessThanOrEqual(75);
+    expect(entries.length).toBeLessThanOrEqual(90);
   });
 
   test("load-bearing lines are at most 15 words, ear lines at most 10, and nothing runs past 30", () => {
@@ -64,7 +64,7 @@ describe("lines.json", () => {
     expect(lineText("room_t0_1")).toBe("...I'm still going. Ticket's non-refundable.");
     expect(lineText("room_t0_2")).toBe("TAKE ME TO THE MOON!");
     expect(lineText("room_t0_3")).toBe("...Not one flower. Only planet with flowers.");
-    expect(lineText("room_map")).toBe("Same time tomorrow? There are six more hives.");
+    expect(lineText("room_map")).toStartWith("Same time tomorrow? Other hives have it worse.");
     const all = entries.map((l) => l.text).join(" ");
     for (const phrase of ["Motion carried.", "Grievance filed.", "Noted for the minutes.", "I'll allow it."]) expect(all).toContain(phrase);
   });

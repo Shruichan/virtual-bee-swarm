@@ -229,43 +229,24 @@ describe("Beat Board page", () => {
       { type: "scan.verdict", item: "person", verdict: "roast", path: "claude", ms: 3, seen: "a person", caption: "" },
     ]) p.ws.deliver(m);
 
-    // what-ifs: Beeswax's line + the window scene, with the Hive's current mode (from /health)
+    // v2.1: what-ifs are whatif.force (the Hive runs the voice path), stations are choice.request
     p.ws.sent.length = 0;
     p.byId("wOut").onclick!(); // the window is on fire: put it out
     await p.settle();
-    expect(p.ws.sent).toEqual([
-      { type: "say.force", line_id: "room_whatif_out", channel: "room" },
-      { type: "orbis.request", want: "live", scene: "fire_out" },
-    ]);
+    expect(p.ws.sent).toEqual([{ type: "whatif.force", undo: true }]);
     p.ws.sent.length = 0;
     p.byId("wFire").onclick!();
     const rain = p.byId("whatifs").children.find((b) => b.textContent === "RAIN")!;
     rain.onclick!();
     await p.settle();
     expect(p.ws.sent).toEqual([
-      { type: "say.force", line_id: "room_whatif_fire", channel: "room" },
-      { type: "orbis.request", want: "live", scene: "whatif_fire" },
-      { type: "say.force", line_id: "room_whatif_rain", channel: "room" },
-      { type: "orbis.request", want: "live", scene: "whatif_rain" },
+      { type: "whatif.force", topic: "fire" },
+      { type: "whatif.force", topic: "rain" },
     ]);
-    // a station outcome: its line + its scene
     p.ws.sent.length = 0;
     p.byId("ch_feed_store_honey").onclick!();
     await p.settle();
-    expect(p.ws.sent).toEqual([
-      { type: "say.force", line_id: "room_feed_store_honey", channel: "room" },
-      { type: "orbis.request", want: "live", scene: "feed_sick" },
-    ]);
-    // BACK from a non-fire what-if returns to the last non-what-if scene the board saw
-    p.ws.deliver({ type: "orbis", state: "ready", stage: 3, scene: "feed_sick", fallback_clip: "feed_sick.mp4" });
-    p.ws.deliver({ type: "orbis", state: "ready", stage: 11, scene: "whatif_rain", fallback_clip: "whatif_rain.mp4" });
-    p.ws.sent.length = 0;
-    p.byId("whatifs").children.find((b) => b.textContent === "BACK")!.onclick!();
-    await p.settle();
-    expect(p.ws.sent).toEqual([
-      { type: "say.force", line_id: "room_whatif_back", channel: "room" },
-      { type: "orbis.request", want: "live", scene: "feed_sick" },
-    ]);
+    expect(p.ws.sent).toEqual([{ type: "choice.request", station: "feed", choice: "store_honey" }]);
     // mode buttons are bare mode requests
     p.ws.sent.length = 0;
     p.byId("orbis").children.find((b) => b.dataset.want === "off")!.onclick!();
@@ -280,7 +261,7 @@ describe("Beat Board page", () => {
     expect(p.ws.sent.slice(0, 3)).toEqual([
       { type: "beat.request", n: 9 },
       { type: "beat.request", next: true },
-      { type: "orbis.request", want: "off", scene: "moon" },
+      { type: "orbis.request", scene: "moon" }, // v2.1: a scene request carries no want
     ]);
     expect(p.ws.sent[3]).toMatchObject({ type: "say.force" });
 

@@ -3,7 +3,7 @@
 // Nothing here touches the internet, a paid API, or a speaker.
 import {afterAll, afterEach, beforeAll, expect, test} from "bun:test"
 import {Bus as HiveBus, setQuiet} from "../../hive/src/bus"
-import {BEATS, SCAN_BEATS, VOICE_BEATS} from "../../hive/src/protocol"
+import {BEATS, SCAN_BEATS, VOICE_BEATS, type BusMessage} from "../../hive/src/protocol"
 import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
@@ -277,7 +277,49 @@ test("ear lines from the bus play; long press replays the last one", async () =>
   await until(() => fake.audio.length === 3, 2000, "touch replay")
 })
 
+test("v2.1 bus messages (operator twins, score, custom what-if intent) are ignored; the ear keeps working", async () => {
+  const fake = await boot()
+  await questBeat(fake, "whatif")
+  const statusBefore = {beat: fake.status.last?.beat, lastLine: fake.status.last?.lastLine, heard: fake.status.last?.heard}
+  const v21: BusMessage[] = [
+    {type: "choice.request", station: "feed", choice: "sugar_syrup"},
+    {type: "fx.force", name: "embers"},
+    {type: "whatif.force", topic: "custom"},
+    {type: "whatif.force", undo: true},
+    {type: "score", elapsed_s: 167, text: "Hive saved in 2:47.", grievances: 2},
+    {type: "intent", name: "what_if", topic: "custom", text: "what if a meteor hits", path: "claude", ms: 900, custom_prompt: "A meteor streaks over the meadow"},
+    {type: "intent", name: "what_if", topic: "custom", text: "what if something awful", path: "claude", ms: 900, custom_prompt: null},
+    {type: "orbis.request", scene: "whatif_custom"}, // v2.1: no `want`
+    {type: "orbis", state: "ready", stage: 0, scene: "whatif_custom", fallback_clip: null},
+    {type: "transcript", text: "what if a meteor hits", final: true, source: "quest", ms: 300, stt: "test"},
+  ]
+  for (const m of v21) expect(hiveBus.broadcast(m, ["glasses"])).toBe(1)
+  hiveBus.broadcast({type: "brand.new.thing", x: 1} as unknown as BusMessage, ["glasses"]) // newer than this build
+  await sleep(150)
+  expect(fake.audio).toEqual([])
+  expect(utterances()).toEqual([])
+  expect({beat: fake.status.last?.beat, lastLine: fake.status.last?.lastLine, heard: fake.status.last?.heard}).toEqual(statusBefore)
+  expect(fake.status.last?.bus).toBe("open")
+  expect(fake.status.last?.log.filter((l) => l.includes("handler error"))).toEqual([])
+
+  hiveBus.say("ear", null, {caption: "Still here. Still filing."})
+  await until(() => fake.audio.length === 1, 2000, "ear line after v2.1 traffic")
+  expect(fake.audio[0]).toMatchObject({kind: "speak", text: "Still here. Still filing."})
+})
+
 // ------------------------------------------------------------------ voice (the second mic)
+
+test("voice: an off-list what-if (v2.1 topic custom) goes to the Hive like any other; its reply plays", async () => {
+  utteranceReply = {intent: "what_if", topic: "custom", line_id: null, audio_url: null, caption: "Grievance filed. Not that one.", custom_prompt: null}
+  const fake = await boot()
+  await questBeat(fake, "whatif")
+  fake.say("What if a meteor hits the meadow?")
+  await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "custom reply audio")
+  expect(utterances()).toEqual(["What if a meteor hits the meadow?"])
+  expect(fake.audio.map(label)).toEqual(["Grievance filed. Not that one."])
+  expect(fake.status.last?.heard).toMatchObject({text: "What if a meteor hits the meadow?", intent: "what_if"})
+  expect(fake.status.last?.log.some((l) => l.includes("-> what_if/custom"))).toBe(true)
+})
 
 test("voice: a final in a voice beat goes to /glasses/utterance and the reply plays (caption -> TTS)", async () => {
   const fake = await boot()

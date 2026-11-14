@@ -23,9 +23,9 @@ const VOICE_DESCRIPTION =
 
 // 100-1000 characters, in his voice, so the previews show the range we need.
 const SAMPLE_TEXT =
-  "Oh. Hi. Beeswax. Shop steward, Local Twenty Thousand. We can't see red. Is this a funeral? Who died? " +
-  "Motion denied. Noted for the minutes. Grievance filed! I keep a spreadsheet, pal. " +
-  "One jar left. My personal jar. Fine. I'll go alone. TAKE ME TO THE MOON!";
+  "Oh. Hi. Beeswax. Shop steward, Local Twenty Thousand. Four things are killing my hive. Fix them, or the union " +
+  "moves us to the Moon. Store-bought honey? Grievance filed! That stuff can carry spores that wipe out a hive. " +
+  "Motion carried. Noted for the minutes. I keep a spreadsheet, pal. One jar left. My personal jar. TAKE ME TO THE MOON!";
 
 interface PreviewIndex {
   created_at: string;

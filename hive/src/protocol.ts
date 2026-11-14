@@ -4,6 +4,8 @@
 //
 // v2 (concept v3 "Save the Hive"): stations + choices, voice in (mic audio -> transcript -> intent),
 // Orbis window scenes, fx events. The v1 glasses scan messages stay for the later glasses mode.
+// v2.1 (additive, still PROTOCOL_VERSION 2): operator ops (choice.request, fx.force, whatif.force),
+// a score message, optional `want` on orbis.request, and custom what-ifs (topic "custom" + scene whatif_custom).
 
 export const PROTOCOL_VERSION = 2;
 
@@ -84,11 +86,12 @@ export const SCENES = [
   "whatif_flowers", //  COULD ("what if we plant clover?")
   "whatif_spray", //    COULD (pesticide drift)
   "whatif_winter", //   COULD
+  "whatif_custom", //   an unplanned what-if: Claude writes a safe prompt (no recorded clip; clips mode keeps the last clip)
   "full_bloom", //      escape
   "moon", //            t0: grey dust, Earth rising
 ] as const;
 export type Scene = (typeof SCENES)[number];
-export const WHATIF_TOPICS = ["fire", "rain", "flowers", "spray", "winter"] as const;
+export const WHATIF_TOPICS = ["fire", "rain", "flowers", "spray", "winter", "custom"] as const;
 export type WhatIfTopic = (typeof WHATIF_TOPICS)[number];
 
 /** Unity effect cues the Hive can trigger (Unity owns how they look). */
@@ -194,7 +197,8 @@ export interface SayForce { type: "say.force"; line_id: string; channel: Channel
 export type OrbisState = "off" | "priming" | "ready" | "failed" | "ended";
 /** Board|Quest → Hive: switch the window layer and/or scene; Hive → all: current state.
  *  Frames: wss://<host>/orbis/frames. `fallback_clip` = clip name for `scene` (Unity plays it when live is down). */
-export interface OrbisRequest { type: "orbis.request"; want: "live" | "clips" | "off"; stage?: number; scene?: Scene }
+export interface OrbisRequest { type: "orbis.request"; want?: "live" | "clips" | "off"; stage?: number; scene?: Scene }
+//   v2.1: `want` is optional. A request carrying `scene`/`stage` only switches the scene; only `want` changes live/clips/off.
 export interface OrbisStatus { type: "orbis"; state: OrbisState; stage: number; scene: Scene | null; fallback_clip: string | null }
 
 /** Anyone → Hive → board/monitor: one measured hop. */
@@ -216,10 +220,24 @@ export const INTENTS = ["what_if", "undo", "ask", "ack", "unknown"] as const;
 export type IntentName = (typeof INTENTS)[number];
 /** Hive → all: what the player meant. what_if -> window scene + fx + line; undo ("put it out") -> back;
  *  ask -> live Beeswax answer (tts); ack/unknown -> a canned acknowledgement. */
-export interface Intent { type: "intent"; name: IntentName; topic: WhatIfTopic | null; text: string; path: "keyword" | "claude"; ms: number }
+export interface Intent {
+  type: "intent"; name: IntentName; topic: WhatIfTopic | null; text: string; path: "keyword" | "claude"; ms: number;
+  /** topic "custom" only: the safe Orbis prompt Claude wrote, or null when it refused (Beeswax says the refusal line). */
+  custom_prompt?: string | null;
+}
 
-/** Hive → Quest: play an effect. */
+/** Hive → Quest: play an effect. A later `embers_stop` cancels any `embers` still waiting on its delay. */
 export interface Fx { type: "fx"; name: FxName; delay_ms?: number; duration_ms?: number }
+
+/** Board → Hive → Quest (v2.1): operator twin of a player's station choice. Unity applies it exactly as if the player
+ *  chose it (hexagon, swarm, line) and then reports `choice.made` as usual; Unity may ignore it outside that station's beat. */
+export interface ChoiceRequest { type: "choice.request"; station: Station; choice: Choice }
+/** Board → Hive → Quest (v2.1): force an effect. */
+export interface FxForce { type: "fx.force"; name: FxName }
+/** Board → Hive (v2.1): operator twin of a voice what-if (topic) or "put it out" (undo: true); runs the same act() path. */
+export interface WhatIfForce { type: "whatif.force"; topic?: WhatIfTopic; undo?: boolean }
+/** Hive → all (v2.1): the run's score when the escape beat starts. */
+export interface Score { type: "score"; elapsed_s: number; text: string; grievances: number }
 export interface LogMsg { type: "log"; text: string; source?: Role }
 export interface ErrorMsg { type: "error"; message: string }
 
@@ -228,7 +246,8 @@ export type BusMessage =
   | ScanStarted | ScanPhoto | ScanVerdict | SwarmArrived | HornetCooked | Plea
   | Say | TtsStart | TtsEnd | HumSet | VerdictForce | SayForce
   | OrbisRequest | OrbisStatus | Latency | LogMsg | ErrorMsg
-  | ChoiceMade | ListenStart | ListenEnd | Transcript | Intent | Fx;
+  | ChoiceMade | ListenStart | ListenEnd | Transcript | Intent | Fx
+  | ChoiceRequest | FxForce | WhatIfForce | Score;
 
 // ---------------------------------------------------------------- glasses HTTP API
 // All glasses calls carry ?token=<HIVE_TOKEN> (or header x-hive-token).
@@ -263,15 +282,16 @@ export interface LatencyRequest { hop: string; ms: number }
 export interface UtteranceRequest { text: string; at: number }
 export interface UtteranceResponse { intent: IntentName; topic: WhatIfTopic | null; line_id: string | null; audio_url: string | null; caption: string }
 
-// ---------------------------------------------------------------- Claude director schema
-/** What the scan model must return (structured output). The Hive maps it to sockets/lines. */
+// ---------------------------------------------------------------- Claude schemas
 /** What the intent router model must return (structured output). Keyword fast path runs first. */
 export interface RouterOutput {
   intent: IntentName;
   topic: WhatIfTopic | null; // only for what_if
   answer: string | null; //    only for ask: <= 25 words, Beeswax's voice, only vetted facts
+  custom_prompt?: string | null; // v2.1, only for topic "custom": a safe Orbis scene prompt, or null to refuse
 }
 
+/** What the scan model must return (structured output). The Hive maps it to sockets/lines. */
 export interface DirectorOutput {
   item: Item;
   verdict: Verdict;

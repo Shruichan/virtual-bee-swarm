@@ -19,6 +19,11 @@ namespace Beeswax
     /// plays the line, switches the window and fires fx. If the bus is offline, or nothing comes back within
     /// hiveGraceSeconds, it plays the same outcome locally (voice line, window scene, fx via BeeswaxBus.OnFx), so
     /// Unity's offline timers still show the right thing. Static TryGet/Resolve work without the component.
+    ///
+    /// v2.1 operator choices: the Board's choice.request reaches BeeswaxBus.OnChoiceRequest. Either handle it in the game
+    /// (call the same code a player's pick runs), or turn on applyChoiceRequests and this component calls Choose for it
+    /// (only in that station's beat, by default), so OnChoice fires exactly as for the player (IsOperatorChoice is true
+    /// meanwhile). Don't do both: a second Choose of the same pair within repeatIgnoreSeconds is ignored anyway.
     /// </summary>
     public class BeeswaxStations : MonoBehaviour
     {
@@ -54,6 +59,13 @@ namespace Beeswax
         [Tooltip("The same station+choice again within this is ignored (a double-fired grab). The Hive drops such a " +
                  "repeat too, so sending it would only make the outcome replay locally after hiveGraceSeconds.")]
         [SerializeField] float repeatIgnoreSeconds = 1.5f;
+        [Header("Operator choices (v2.1 choice.request)")]
+        [Tooltip("Apply the Board's choice.request here by calling Choose, as if the player had picked it. Off = the game " +
+                 "handles BeeswaxBus.OnChoiceRequest itself.")]
+        [SerializeField] bool applyChoiceRequests;
+        [Tooltip("With applyChoiceRequests: ignore a request for another station than the beat the Quest last reported " +
+                 "(BeeswaxBus.LastBeat; any beat if none was reported yet).")]
+        [SerializeField] bool onlyInStationBeat = true;
 
         /// <summary>Every Choose: (outcome, sentToHive). Light the hexagon / count the score here.</summary>
         public event Action<Outcome, bool> OnChoice;
@@ -61,6 +73,21 @@ namespace Beeswax
         public event Action<Outcome> OnPlayedLocally;
 
         public int PendingCount => _watches.Count;
+        /// <summary>True while OnChoice runs for an operator choice.request applied by this component (and OnPlayedLocally when
+        /// that plays at once because the bus is offline; a later local play after hiveGraceSeconds is not flagged).</summary>
+        public bool IsOperatorChoice { get; private set; }
+
+        /// <summary>See applyChoiceRequests. Can be switched at runtime.</summary>
+        public bool ApplyChoiceRequests
+        {
+            get => applyChoiceRequests;
+            set
+            {
+                if (applyChoiceRequests == value) return;
+                applyChoiceRequests = value;
+                if (_bound != null) { Unbind(); Bind(); }
+            }
+        }
 
         sealed class Watch { public Outcome outcome; public float deadline; public bool heard; }
         readonly List<Watch> _watches = new List<Watch>();
@@ -87,6 +114,8 @@ namespace Beeswax
             b.OnSay += HandleSay;
             b.OnOrbis += HandleOrbis;
             b.OnGroupReset += HandleGroupReset;
+            // Subscribed only when on, so the bus can warn about a choice.request nobody handles.
+            if (applyChoiceRequests) b.OnChoiceRequest += HandleChoiceRequest;
         }
 
         void Unbind()
@@ -95,6 +124,7 @@ namespace Beeswax
             _bound.OnSay -= HandleSay;
             _bound.OnOrbis -= HandleOrbis;
             _bound.OnGroupReset -= HandleGroupReset;
+            _bound.OnChoiceRequest -= HandleChoiceRequest;
             _bound = null;
         }
 
@@ -127,7 +157,36 @@ namespace Beeswax
             return o;
         }
 
-        /// <summary>Play an outcome here, without the Hive: line (Beeswax), window scene, fx (through BeeswaxBus.OnFx).</summary>
+        /// <summary>
+        /// The Board's choice.request, applied like the player's own pick (applyChoiceRequests). Returns the outcome, or
+        /// null when the pair is invalid or the Quest is in another station's beat (onlyInStationBeat).
+        /// </summary>
+        public Outcome ApplyChoiceRequest(ChoiceRequest r)
+        {
+            if (r == null || !r.IsValid) return null;
+            Bind();
+            int beat = _bound != null ? _bound.LastBeat : -1;
+            int want = BeeswaxProtocol.StationBeat(r.station);
+            if (onlyInStationBeat && beat >= 0 && beat != want)
+            {
+                // Tell the Board too (the Hive shows Quest logs there): otherwise the operator's button just does nothing.
+                string why = $"operator choice {r.station}:{r.choice} ignored: the Quest is in beat {BeeswaxProtocol.BeatName(beat)}, not {r.station}";
+                Debug.Log("[Beeswax] " + why + ".");
+                _bound.SendLog(why);
+                return null;
+            }
+            Debug.Log($"[Beeswax] operator choice {r.station}:{r.choice}.");
+            IsOperatorChoice = true;
+            try { return Choose(r.station, r.choice); }
+            finally { IsOperatorChoice = false; }
+        }
+
+        void HandleChoiceRequest(ChoiceRequest r)
+        {
+            if (applyChoiceRequests) ApplyChoiceRequest(r);
+        }
+
+        /// <summary>Play an outcome here, without the Hive: line (Beeswax), window scene, fx (through BeeswaxBus.OnFx/OnFxDue).</summary>
         public void PlayLocally(Outcome o)
         {
             if (o == null) return;

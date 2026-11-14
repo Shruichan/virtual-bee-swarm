@@ -30,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from relay import GEN_H, GEN_W, HERE, SCENE_FILE, Config, ReactorSource, load_scene_file, render_test_pattern
+from relay import CLIPLESS_SCENES, GEN_H, GEN_W, HERE, SCENE_FILE, Config, ReactorSource, load_scene_file, render_test_pattern
 
 log = logging.getLogger("record")
 
@@ -304,6 +304,12 @@ def main() -> int:
             log.error("unknown scene id(s): %s", ", ".join(sorted(unknown)))
             return 2
         scenes = [s for s in scenes if s["id"] in wanted]
+    else:
+        # whatif_custom has no recorded clip by design (protocol.ts SCENES): name it in --only to record one anyway.
+        skipped = [s["id"] for s in scenes if s["id"] in CLIPLESS_SCENES]
+        if skipped:
+            log.info("skipping %s: no recorded clip by design (name it in --only to record it anyway)", ", ".join(skipped))
+        scenes = [s for s in scenes if s["id"] not in CLIPLESS_SCENES]
     if not scenes:
         log.error("no scenes to record (check %s)", args.scenes)
         return 2

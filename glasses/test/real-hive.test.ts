@@ -6,7 +6,7 @@ import {afterAll, afterEach, beforeAll, expect, test} from "bun:test"
 import {setQuiet} from "../../hive/src/bus"
 import * as hiveLines from "../../hive/src/lines"
 import {BEATS, type Channel, type Item, type Verdict} from "../../hive/src/protocol"
-import {route, setRouterClient, type RouterClient} from "../../hive/src/router"
+import {keywordRoute, route, setRouterClient, type RouterClient} from "../../hive/src/router"
 import {startHive, type Hive, type HiveDeps, type JudgeInputLike} from "../../hive/src/server"
 import {start} from "../src/background/app"
 import {Hive as HiveClient} from "../src/background/hive"
@@ -265,6 +265,28 @@ test("real Hive, no Quest: the glasses alone hear Beeswax's answer in the ear (k
     app = null
     await solo.stop()
   }
+})
+
+test("real Hive router: no room line, as speech-to-text may write it, gets past the glasses guard into an action", async () => {
+  // The glasses mic hears Beeswax across the table. Anything the Hive's keyword path would ACT on (a what-if or an
+  // undo) must be caught: "Fire's out" written "Fires out" re-ignites the window in the whatif beat; "Undo what?
+  // Nothing's on fire" as an undo replays itself forever. Catalog-driven, so a line edit that adds one fails here.
+  const {RoomGuard, asrSpellings} = await import("../src/background/voice")
+  const {ROOM_TEXTS} = await import("../src/background/lines")
+  const guard = new RoomGuard(ROOM_TEXTS)
+  const acts: string[] = []
+  for (const line of ROOM_TEXTS) {
+    for (const v of [line, ...asrSpellings(line)]) {
+      for (const piece of [v, ...v.split(/(?<=[.?!…])\s+/)]) {
+        if (!piece.trim() || guard.match(piece)) continue
+        for (const b of ["whatif", "heat"] as const) {
+          const r = keywordRoute(piece, b)
+          if (r && (r.intent === "what_if" || r.intent === "undo")) acts.push(`${b}: "${piece}" -> ${r.intent}${r.topic ? `/${r.topic}` : ""}`)
+        }
+      }
+    }
+  }
+  expect(acts).toEqual([])
 })
 
 test("real Hive: a wrong token is refused and the ear says so", async () => {

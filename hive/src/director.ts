@@ -24,7 +24,9 @@ export const DEFAULT_MODEL = "claude-haiku-5-5";
 export const DEFAULT_TIMEOUT_MS = 6000;
 const MAX_TOKENS = 400;
 const MAX_IMAGE_EDGE = 1024;
-const WARM_FOR_MS = 50 * 60_000; // system prompt is cached with a 1 h TTL; re-warm before it lapses
+// The system prompt is cached with a 1 h TTL. This guard only skips back-to-back warm-ups: it must stay below the Hive's
+// schedule (server.ts re-warms 50 min after the last warm-up, and on group.reset after 45 min), or those re-warms no-op.
+const WARM_FOR_MS = 40 * 60_000;
 
 export const FALLBACK_LINE = lineText("ear_canned_unclear") || "What IS that? Bring me a FLOWER.";
 const PERSON_LINE = lineText("room_verdict_person") || "That's a person. I review plants, not people.";

@@ -6,10 +6,12 @@ import {
   BEATS,
   BINARY_KIND,
   CHOICES,
+  FX,
   ITEMS,
   PROTOCOL_VERSION,
   SCENES,
   STATIONS,
+  WHATIF_TOPICS,
   type BinaryKind,
   type BusMessage,
   type Channel,
@@ -22,6 +24,7 @@ import {
   type Say,
   type Scene,
   type Station,
+  type WhatIfTopic,
 } from "./protocol";
 import { isValidBeat, reset, type GroupState } from "./state";
 
@@ -84,6 +87,10 @@ export interface BusHooks {
   onOrbisRequest?(msg: OrbisRequest, from: Client): void;
   /** Quest (authoritative): a station choice, already checked against CHOICES. */
   onChoice?(station: Station, choice: Choice, questSaysCorrect: boolean | null): void;
+  /** v2.1 board ops, already validated: the operator twin of a station choice, an fx, and a voice what-if/undo. */
+  onChoiceRequest?(station: Station, choice: Choice, from: Client): void;
+  onFxForce?(name: FxName, from: Client): void;
+  onWhatIfForce?(msg: { topic: WhatIfTopic | null; undo: boolean }, from: Client): void;
   /** Voice in (quest|glasses): listen.start, MIC_PCM16 payloads (kind byte stripped), listen.end. */
   onListenStart?(ws: Client, mode: "ptt" | "vad"): void;
   onMic?(ws: Client, pcm: Uint8Array): void;
@@ -480,10 +487,17 @@ export class Bus {
         if (role !== "board" && role !== "quest") {
           return this.send(ws, { type: "error", message: "orbis.request comes from the board or the quest" });
         }
-        if (m.want !== "live" && m.want !== "clips" && m.want !== "off") {
+        // v2.1: want is optional (a scene/stage request only switches the scene), but if present it must be valid.
+        const hasWant = m.want !== undefined && m.want !== null;
+        if (hasWant && m.want !== "live" && m.want !== "clips" && m.want !== "off") {
           return this.send(ws, { type: "error", message: "orbis.request want must be live|clips|off" });
         }
-        const msg: OrbisRequest = { type: "orbis.request", want: m.want };
+        const hasScene = (m.scene !== undefined && m.scene !== null && m.scene !== "") || (m.stage !== undefined && m.stage !== null);
+        if (!hasWant && !hasScene) {
+          return this.send(ws, { type: "error", message: "orbis.request needs want (live|clips|off) or a scene/stage" });
+        }
+        const msg: OrbisRequest = { type: "orbis.request" };
+        if (hasWant) msg.want = m.want as OrbisRequest["want"];
         if (m.stage !== undefined && m.stage !== null) {
           // Unity parses stage into an int; in v2 a stage is an index into SCENES.
           if (!Number.isInteger(m.stage) || (m.stage as number) < 0) {
@@ -502,18 +516,11 @@ export class Bus {
       }
 
       case "orbis": {
-        // A client (e.g. Unity's window) reporting its own state: pass it on, validated.
-        this.broadcast(
-          {
-            type: "orbis",
-            state: (["off", "priming", "ready", "failed", "ended"] as const).find((s) => s === m.state) ?? "off",
-            stage: typeof m.stage === "number" ? m.stage : 0,
-            scene: SCENES.includes(m.scene as Scene) ? (m.scene as Scene) : null,
-            fallback_clip: str(m.fallback_clip, 200) || null,
-          },
-          "all",
-          ws,
-        );
+        // orbis{} is Hive → all (protocol.ts OrbisStatus): the Hive owns the window. A client's own report is only
+        // logged for the board/monitor, never re-broadcast, so it can't flip the Quest's scene/clip or the pages' window.
+        // To change the window, a client sends orbis.request.
+        const scene = SCENES.includes(m.scene as Scene) ? (m.scene as Scene) : null;
+        this.observe({ type: "log", text: `${role} reported window ${str(m.state, 20) || "?"}${scene ? ` on ${scene}` : ""} (not relayed: the Hive owns orbis)`, source: role }, ws);
         return;
       }
 
@@ -525,6 +532,42 @@ export class Bus {
           return this.send(ws, { type: "error", message: `unknown choice ${str(m.choice, 40)} for ${station}` });
         }
         this.hooks.onChoice?.(station, m.choice as Choice, typeof m.correct === "boolean" ? m.correct : null);
+        return;
+      }
+
+      case "choice.request": {
+        if (!boardOnly()) return;
+        const station = m.station as Station;
+        if (!STATIONS.includes(station)) return this.send(ws, { type: "error", message: `unknown station ${str(m.station, 40)}` });
+        if (!(CHOICES[station] as readonly string[]).includes(m.choice as string)) {
+          return this.send(ws, { type: "error", message: `unknown choice ${str(m.choice, 40)} for ${station}` });
+        }
+        this.hooks.onChoiceRequest?.(station, m.choice as Choice, ws);
+        return;
+      }
+
+      case "fx.force": {
+        if (!boardOnly()) return;
+        if (!FX.includes(m.name as FxName)) return this.send(ws, { type: "error", message: `unknown fx ${str(m.name, 40)}` });
+        if (this.hooks.onFxForce) this.hooks.onFxForce(m.name as FxName, ws);
+        else this.fx(m.name as FxName);
+        return;
+      }
+
+      case "whatif.force": {
+        if (!boardOnly()) return;
+        if (m.undo === true) {
+          this.hooks.onWhatIfForce?.({ topic: null, undo: true }, ws);
+          return;
+        }
+        if (m.topic === "custom") {
+          // No prompt field on whatif.force: the Board sends the words to POST /board/custom, which routes them like speech.
+          return this.send(ws, { type: "error", message: "a custom what-if needs its words: POST /board/custom {text}" });
+        }
+        if (!WHATIF_TOPICS.includes(m.topic as WhatIfTopic)) {
+          return this.send(ws, { type: "error", message: `whatif.force needs undo: true or a topic (${WHATIF_TOPICS.filter((t) => t !== "custom").join("|")})` });
+        }
+        this.hooks.onWhatIfForce?.({ topic: m.topic as WhatIfTopic, undo: false }, ws);
         return;
       }
 

@@ -85,11 +85,30 @@ namespace Beeswax
         public event Action<Transcript> OnTranscript;
         /// <summary>Hive: what the player meant (what_if + topic, undo, ask, ack, unknown).</summary>
         public event Action<Intent> OnIntent;
-        /// <summary>Hive: play an effect (embers, swarm_calm, ...). Fires on receipt; honour delay_ms yourself.</summary>
+        /// <summary>
+        /// Hive: play an effect (embers, swarm_calm, ...). Fires on receipt: honour delay_ms yourself, and make a later
+        /// embers_stop cancel an embers still waiting on its delay. Or use OnFxDue, which does both. The Board's fx.force
+        /// reaches the Quest as a plain fx, so this covers it too. Use OnFx or OnFxDue, not both, for the same effect.
+        /// </summary>
         public event Action<Fx> OnFx;
+        /// <summary>
+        /// The same effects as OnFx, raised when they should start: at once, or after delay_ms. A later fx of the same name
+        /// or its opposite (embers_stop for embers, swarm_angry for swarm_calm, hive_glow_off for hive_glow_red, and back)
+        /// cancels one still waiting, so "put it out" before the embers land means no embers. group.reset clears them.
+        /// </summary>
+        public event Action<Fx> OnFxDue;
         /// <summary>listen.start/listen.end from the bus. The Hive never rebroadcasts them (InjectLocal only).</summary>
         public event Action<ListenStart> OnListenStart;
         public event Action<ListenEnd> OnListenEnd;
+        // v2.1
+        /// <summary>
+        /// Board (via the Hive): the operator's twin of a player's station choice. Apply it exactly like the player's own
+        /// (call BeeswaxStations.Choose, which reports choice.made as usual); you may ignore it outside that station's beat.
+        /// BeeswaxStations.ApplyChoiceRequests does that for you. Only pairs in CHOICES are raised.
+        /// </summary>
+        public event Action<ChoiceRequest> OnChoiceRequest;
+        /// <summary>Hive: the run's score, sent when the escape beat starts (also kept in LastScore).</summary>
+        public event Action<Score> OnScore;
         /// <summary>Every text message, known or not: (type, raw json). Handy for debug HUDs.</summary>
         public event Action<string, string> OnMessage;
 
@@ -119,6 +138,10 @@ namespace Beeswax
         public string CurrentListenMode { get; private set; } = "";
         public int MicFramesSent { get; private set; }
         public long MicBytesSent { get; private set; }
+        /// <summary>The last score message of this group (null before escape, and after group.reset).</summary>
+        public Score LastScore { get; private set; }
+        /// <summary>Effects waiting on their delay_ms for OnFxDue.</summary>
+        public int PendingFxCount => _pendingFx.Count;
 
         readonly BeeswaxSocket _socket = new BeeswaxSocket();
         readonly List<(float at, string json)> _outbox = new List<(float, string)>();
@@ -131,6 +154,10 @@ namespace Beeswax
         ScanPhoto _pendingPhoto;
         string _lastScanId = "", _currentTtsId = "";
         bool _listenOpen;
+        // OnFxDue: effects waiting on delay_ms; fx.force/fx de-duplication
+        readonly List<(Fx fx, float due)> _pendingFx = new List<(Fx, float)>();
+        string _lastFxName = "", _lastForcedFxName = "";
+        float _lastFxAt = -100f, _lastForcedFxAt = -100f;
         // return-to-primary probe (only while connected to a fallback host after an automatic failover)
         UnityWebRequest _probe;
         bool _onFallback;
@@ -166,6 +193,7 @@ namespace Beeswax
             if (Instance != this) return;
             Instance = null;
             _wantConnected = false;
+            _pendingFx.Clear();
             CancelProbe();
             _socket.Close();
         }
@@ -194,6 +222,7 @@ namespace Beeswax
             if (Instance != this) return;
             _frameMs = Mathf.Lerp(_frameMs, Time.unscaledDeltaTime * 1000f, 0.05f);
             _socket.Tick();
+            if (_pendingFx.Count > 0) RaiseDueFx(); // works offline too (InjectLocal, BeeswaxStations' local outcomes)
 
             float now = Time.realtimeSinceStartup;
             if (_wantConnected && _socket.State == BeeswaxSocket.Status.Idle && _nextAttemptAt >= 0f && now >= _nextAttemptAt)
@@ -434,6 +463,8 @@ namespace Beeswax
                     case MsgType.GroupReset:
                         var g = BeeswaxProtocol.Parse<GroupReset>(json);
                         if (g.group_id.Length > 0) GroupId = g.group_id;
+                        LastScore = null;
+                        CancelPendingFx();
                         Raise(OnGroupReset, g);
                         break;
                     case MsgType.ScanStarted:
@@ -460,7 +491,40 @@ namespace Beeswax
                     case MsgType.ChoiceMade: Raise(OnChoiceMade, BeeswaxProtocol.Parse<ChoiceMade>(json)); break;
                     case MsgType.Transcript: Raise(OnTranscript, BeeswaxProtocol.Parse<Transcript>(json)); break;
                     case MsgType.Intent: Raise(OnIntent, BeeswaxProtocol.Parse<Intent>(json)); break;
-                    case MsgType.Fx: Raise(OnFx, BeeswaxProtocol.Parse<Fx>(json)); break;
+                    case MsgType.Fx:
+                        var fx = BeeswaxProtocol.Parse<Fx>(json);
+                        // The Hive forwards the Board's fx.force as this fx; if it ever sent both, play it once.
+                        if (fx.name == _lastForcedFxName && Time.realtimeSinceStartup - _lastForcedFxAt < 1f) { _lastForcedFxName = ""; break; }
+                        _lastFxName = fx.name;
+                        _lastFxAt = Time.realtimeSinceStartup;
+                        DispatchFx(fx);
+                        break;
+                    case MsgType.FxForce:
+                        // Normally never reaches the Quest (the Hive turns it into a plain fx). If a Hive forwards it
+                        // unchanged, play it like an fx, unless that fx just arrived.
+                        var ff = BeeswaxProtocol.Parse<FxForce>(json);
+                        if (!BeeswaxProtocol.IsFx(ff.name)) { Debug.LogWarning($"[Beeswax] fx.force '{ff.name}' is not one of FX; ignored."); break; }
+                        if (ff.name == _lastFxName && Time.realtimeSinceStartup - _lastFxAt < 1f) break;
+                        _lastForcedFxName = ff.name;
+                        _lastForcedFxAt = Time.realtimeSinceStartup;
+                        DispatchFx(new Fx { name = ff.name });
+                        break;
+                    case MsgType.ChoiceRequest:
+                        var cr = BeeswaxProtocol.Parse<ChoiceRequest>(json);
+                        if (!cr.IsValid) { Debug.LogWarning($"[Beeswax] choice.request '{cr.station}:{cr.choice}' is not in CHOICES; ignored."); break; }
+                        if (OnChoiceRequest == null)
+                        {
+                            Debug.LogWarning($"[Beeswax] choice.request {cr.station}:{cr.choice} arrived but nothing handles it: subscribe to " +
+                                             "BeeswaxBus.OnChoiceRequest, or turn on BeeswaxStations.applyChoiceRequests.");
+                            // The Hive applies a choice.request itself only when no Quest is connected, so tell the Board.
+                            if (!local) SendLog($"operator choice {cr.station}:{cr.choice} ignored: nothing on the Quest handles choice.request");
+                        }
+                        Raise(OnChoiceRequest, cr);
+                        break;
+                    case MsgType.Score:
+                        LastScore = BeeswaxProtocol.Parse<Score>(json);
+                        Raise(OnScore, LastScore);
+                        break;
                     case MsgType.ListenStart: Raise(OnListenStart, BeeswaxProtocol.Parse<ListenStart>(json)); break;
                     case MsgType.ListenEnd: Raise(OnListenEnd, BeeswaxProtocol.Parse<ListenEnd>(json)); break;
                     case MsgType.Error:
@@ -471,7 +535,7 @@ namespace Beeswax
                     case "":
                         Debug.LogWarning("[Beeswax] ignored frame without a type: " + (json.Length > 120 ? json.Substring(0, 120) : json));
                         break;
-                    // Anything else (log, verdict.force, ...) is only visible through OnMessage.
+                    // Anything else (log, verdict.force, whatif.force, ...) is only visible through OnMessage.
                 }
             }
             catch (Exception ex)
@@ -548,14 +612,22 @@ namespace Beeswax
         }
 
         /// <summary>
-        /// Ask the Hive for a window layer (OrbisWant.Live | Clips | Off) and/or scene (one of SCENES; "" = keep).
-        /// OrbisWindow.RequestScene wraps this and also switches the local fallback clip right away.
+        /// Ask the Hive for a window layer (OrbisWant.Live | Clips | Off; "" = leave the mode alone) and/or scene (one of
+        /// SCENES; "" = keep). v2.1: a request with a scene/stage only switches the scene and only `want` changes the mode,
+        /// but a v2 Hive rejects a request without want, so OrbisWindow.RequestScene still sends one. It wraps this and
+        /// also switches the local fallback clip right away.
         /// </summary>
         public bool SendOrbisRequest(string want, string scene = "", int stage = -1)
         {
-            if (want != OrbisWant.Live && want != OrbisWant.Clips && want != OrbisWant.Off)
+            want = want ?? "";
+            if (want.Length > 0 && want != OrbisWant.Live && want != OrbisWant.Clips && want != OrbisWant.Off)
             {
                 Debug.LogError($"[Beeswax] orbis.request want '{want}' is not live|clips|off; not sent.");
+                return false;
+            }
+            if (want.Length == 0 && string.IsNullOrEmpty(scene) && stage < 0)
+            {
+                Debug.LogError("[Beeswax] orbis.request needs a want, a scene or a stage; not sent.");
                 return false;
             }
             if (!string.IsNullOrEmpty(scene) && !BeeswaxProtocol.IsScene(scene))
@@ -564,6 +636,65 @@ namespace Beeswax
                 return false;
             }
             return Send(new OrbisRequest { want = want, scene = scene ?? "", stage = stage });
+        }
+
+        // ---------------------------------------------------------------- fx timing (OnFxDue)
+        /// <summary>
+        /// Drop effects still waiting on their delay: all of them (name = null) or one name. A later embers_stop already
+        /// cancels a waiting embers by itself; group.reset cancels all.
+        /// </summary>
+        public void CancelPendingFx(string name = null)
+        {
+            int removed = _pendingFx.RemoveAll(p => name == null || p.fx.name == name);
+            if (removed > 0 && logTraffic) Debug.Log($"[Beeswax] cancelled {removed} waiting fx" + (name == null ? "" : " " + name));
+        }
+
+        /// <summary>The effect that undoes `name` (embers ↔ embers_stop, swarm_calm ↔ swarm_angry, hive_glow_red ↔ hive_glow_off), or "".</summary>
+        public static string OppositeFx(string name)
+        {
+            switch (name)
+            {
+                case FxName.Embers: return FxName.EmbersStop;
+                case FxName.EmbersStop: return FxName.Embers;
+                case FxName.SwarmCalm: return FxName.SwarmAngry;
+                case FxName.SwarmAngry: return FxName.SwarmCalm;
+                case FxName.HiveGlowRed: return FxName.HiveGlowOff;
+                case FxName.HiveGlowOff: return FxName.HiveGlowRed;
+                default: return "";
+            }
+        }
+
+        void DispatchFx(Fx f)
+        {
+            Raise(OnFx, f);
+            // The newest instruction wins: a waiting fx of the same name (rescheduled) or its opposite is dropped.
+            string opposite = OppositeFx(f.name);
+            for (int i = _pendingFx.Count - 1; i >= 0; i--)
+            {
+                string pending = _pendingFx[i].fx.name;
+                if (pending != f.name && pending != opposite) continue;
+                _pendingFx.RemoveAt(i);
+                Debug.Log(pending == f.name
+                    ? $"[Beeswax] fx {pending} was still waiting on its delay; replaced by the newer one."
+                    : $"[Beeswax] fx {pending} was still waiting on its delay; cancelled by {f.name}.");
+            }
+            if (f.HasDelay) _pendingFx.Add((f, Time.realtimeSinceStartup + f.delay_ms / 1000f));
+            else Raise(OnFxDue, f);
+        }
+
+        void RaiseDueFx()
+        {
+            float now = Time.realtimeSinceStartup;
+            while (true)
+            {
+                int next = -1;
+                for (int i = 0; i < _pendingFx.Count; i++)
+                    if (_pendingFx[i].due <= now && (next < 0 || _pendingFx[i].due < _pendingFx[next].due)) next = i;
+                if (next < 0) return;
+                var f = _pendingFx[next].fx;
+                _pendingFx.RemoveAt(next);
+                Raise(OnFxDue, f);
+            }
         }
 
         /// <summary>

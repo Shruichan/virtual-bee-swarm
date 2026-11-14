@@ -1,10 +1,11 @@
 // The Beat Board: one self-contained page for the operator's phone (iPhone Safari first).
 // Served at GET /board?token=...; talks to the bus as role=board.
 //
-// The Board can't make Unity apply a station choice (choice.made is Quest-only), so its station and what-if
-// buttons use existing ops only: say.force (Beeswax's line) + orbis.request{scene} (the window). The Hive adds
-// the fire's embers itself whenever the window enters whatif_fire, and embers_stop when it leaves.
-import { BEATS, CHOICES, CORRECT_CHOICE, ITEMS, PROTOCOL_VERSION, SCAN_BEATS, SCENES, STATIONS, VOICE_BEATS, WHATIF_TOPICS } from "./protocol";
+// v2.1 operator ops: station buttons send choice.request (Unity applies it and reports choice.made; with no Quest the
+// Hive plays the outcome itself), effect buttons fx.force, what-if buttons whatif.force (the same path as the player's
+// voice), and the text box POSTs /board/custom {text}, routed exactly as if the player had said it (off-list what-ifs
+// become a Claude prompt for the live window). "What fired" shows what each action set off, and by which path.
+import { BEATS, CHOICES, CORRECT_CHOICE, FX, ITEMS, PROTOCOL_VERSION, SCAN_BEATS, SCENES, STATIONS, VOICE_BEATS, WHATIF_TOPICS } from "./protocol";
 
 export interface BoardStation { intro_line: string | null; choices: Partial<Record<string, { correct: boolean; line_id: string; scene: string }>> }
 
@@ -54,8 +55,22 @@ const PAGE = `<!doctype html>
   #next { width: 100%; min-height: 72px; margin-top: 8px; font-size: 24px; font-weight: 800; background: var(--honey); color: #1b1408; border: 0; }
   .seg button.on { background: var(--blue); color: #071526; border-color: var(--blue); font-weight: 700; }
   .choice { font-weight: 700; }
-  .choice.good { border-color: #2f6b38; } .choice.bad { border-color: #7a2f2a; }
-  .choice.made { box-shadow: inset 0 0 0 2px var(--honey); }
+  .choice.good { background: #173a1f; border-color: var(--good); color: #c9f5cf; } .choice.bad { border-color: #7a2f2a; }
+  .choice.good small { color: #8fd49a; }
+  .choice.made { box-shadow: inset 0 0 0 3px var(--honey); }
+  .fxb { font-size: 14px; min-height: 48px; }
+  #custom { margin-top: 8px; }
+  #customSend { flex: 0 0 84px; background: var(--roast); color: #160b29; border: 0; font-weight: 800; }
+  #fired { display: grid; gap: 6px; }
+  #fired .f { border-left: 3px solid var(--line); padding: 4px 8px; }
+  #fired .h { font-size: 15px; font-weight: 600; }
+  #fired .s { font-size: 13px; color: var(--dim); margin-top: 2px; word-break: break-word; }
+  .path { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; padding: 2px 6px;
+    border-radius: 6px; margin-right: 6px; vertical-align: 2px; background: #2c2519; color: var(--dim); }
+  .path.keyword { background: #173a5a; color: #9fd0ff; } .path.claude { background: #2f1f4a; color: #d6c2ff; }
+  .path.operator { background: #4a3510; color: #ffd98a; } .path.quest { background: #173a1f; color: #9be8a7; }
+  #heard .u .p { font-size: 13px; color: #d6c2ff; margin-top: 2px; font-style: italic; }
+  #heard .u .p.refused { color: var(--bad); font-style: normal; font-weight: 700; }
   .intro { font-size: 13px; min-height: 44px; color: var(--dim); }
   .whatif { font-weight: 800; font-size: 18px; min-height: 64px; }
   #wFire { background: #4a2008; border-color: var(--fire); color: #ffd2b0; grid-column: span 2; font-size: 22px; }
@@ -103,6 +118,7 @@ const PAGE = `<!doctype html>
     <span>voice out <b id="tts">?</b></span>
     <span>voice in <b id="stt">?</b></span>
     <span>window <b id="winMeta">-</b></span>
+    <span>grievances <b id="griev">0</b></span>
     <span>group <b id="group">-</b></span>
   </div>
   <div id="score"></div>
@@ -117,6 +133,14 @@ const PAGE = `<!doctype html>
   <button class="whatif" id="wFire">FIRE</button>
   <button class="whatif" id="wOut">PUT IT OUT</button>
 </div>
+<div class="row" id="custom">
+  <input type="text" id="customText" placeholder="type what they said: what if..." autocomplete="off" maxlength="300">
+  <button id="customSend">ASK</button>
+</div>
+<div class="sub">Typed words go through the router like speech. An off-list what-if gets a Claude prompt (live window only).</div>
+
+<h2>What fired</h2>
+<div class="card"><div id="fired"><div class="sub">nothing fired yet</div></div></div>
 
 <h2>Voice</h2>
 <div class="card">
@@ -124,8 +148,11 @@ const PAGE = `<!doctype html>
   <div class="lat"><span>stt <b id="lStt">-</b></span><span>route <b id="lRoute">-</b></span><span>total <b id="lTotal">-</b></span></div>
 </div>
 
-<h2>Stations <span class="sub">(line + window only: Unity's hexagons need the real choice)</span></h2>
+<h2>Stations <span class="sub">(sent to the Quest; with no Quest the Hive plays it)</span></h2>
 <div id="stations"></div>
+
+<h2>Effects</h2>
+<div class="grid g3" id="fx"></div>
 
 <h2>Window (Orbis)</h2>
 <div class="card" id="window"><div class="big" id="winScene">-</div><div class="sub" id="winState">-</div></div>
@@ -165,7 +192,8 @@ const PAGE = `<!doctype html>
   var qs = new URLSearchParams(location.search);
   var token = qs.get("token") || "";
   var ws = null, backoff = 500, beat = 0, humTimer = null, humPending = null, lastWelcome = 0;
-  var want = null, scene = "meadow", baseScene = "meadow";
+  var want = null, scene = "meadow";
+  var scoreCard = null, griev = 0, typedPending = null, pendingChoice = {};
   var HELLO = JSON.stringify({ type: "hello", role: "board", client: "beat-board", version: CFG.VERSION });
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -182,16 +210,35 @@ const PAGE = `<!doctype html>
     log.insertBefore(row, log.firstChild);
     while (log.childNodes.length > 150) log.removeChild(log.lastChild);
   }
-  function isWhatIf(s) { return s.indexOf("whatif_") === 0; }
 
-  // ---- window requests carry the Hive's current mode (from /health) so a scene switch never flips live/clips
-  function withWant(cb) {
-    if (want) return cb(want);
-    fetch("/health").then(function (r) { return r.json(); }).then(function (h) {
-      want = (h.orbis && h.orbis.want) || "clips"; cb(want);
-    }).catch(function () { cb("clips"); });
+  // ---- what fired: each action (voice, typed text, operator button, Quest choice) and what it set off, by path
+  var fired = [], cur = null;
+  function fire(label, path) {
+    cur = { at: Date.now(), label: label, path: path, steps: [] };
+    fired.unshift(cur);
+    if (fired.length > 6) fired.length = 6;
+    renderFired();
   }
-  function sendScene(s) { withWant(function (w) { send({ type: "orbis.request", want: w, scene: s }); }); }
+  function step(text) {
+    if (!cur || Date.now() - cur.at > 8000 || cur.steps[cur.steps.length - 1] === text) return;
+    cur.steps.push(text);
+    renderFired();
+  }
+  function renderFired() {
+    var box = $("fired"); box.textContent = "";
+    if (!fired.length) { box.appendChild(el("div", "sub", "nothing fired yet")); return; }
+    fired.forEach(function (f) {
+      var row = el("div", "f"), head = el("div", "h");
+      head.appendChild(el("span", "path " + f.path, f.path));
+      head.appendChild(document.createTextNode(f.label));
+      row.appendChild(head);
+      if (f.steps.length) row.appendChild(el("div", "s", "→ " + f.steps.join("  →  ")));
+      box.appendChild(row);
+    });
+  }
+
+  // ---- window: a scene request only switches the scene (v2.1); LIVE/CLIPS/OFF alone change the mode
+  function sendScene(s) { send({ type: "orbis.request", scene: s }); }
   function sayRoom(id) { if (id) send({ type: "say.force", line_id: id, channel: "room" }); }
 
   // ---- beats
@@ -209,33 +256,47 @@ const PAGE = `<!doctype html>
     Array.prototype.forEach.call($("beats").children, function (b) { b.classList.toggle("now", Number(b.dataset.n) === n); });
   }
 
-  // ---- what-ifs: Beeswax's line + the window scene (the Hive adds the embers)
+  // ---- what-ifs: whatif.force runs the voice path in the Hive (line, window, embers)
   var TOPIC_LABEL = { fire: "FIRE", rain: "RAIN", flowers: "FLOWERS", spray: "SPRAY", winter: "WINTER" };
   CFG.WHATIF_TOPICS.forEach(function (t) {
-    if (t === "fire") return;
+    if (t === "fire" || t === "custom") return;
     var b = el("button", "whatif", TOPIC_LABEL[t] || t.toUpperCase());
     b.onclick = function () { whatIf(t); };
     $("whatifs").appendChild(b);
   });
-  var back = el("button", "whatif", "BACK");
-  back.onclick = function () { undo(); };
-  $("whatifs").appendChild(back);
   function whatIf(t) {
-    sayRoom("room_whatif_" + t);
-    sendScene("whatif_" + t);
-    addLog("operator what-if " + t, "hi");
+    if (send({ type: "whatif.force", topic: t })) fire("what-if " + t, "operator");
   }
+  // undo: the Hive picks the line from the window (room_whatif_out on fire, room_whatif_back, room_whatif_nothing)
   function undo() {
-    if (scene === "whatif_fire") { sayRoom("room_whatif_out"); sendScene("fire_out"); }
-    else if (isWhatIf(scene) || scene === "fire_out") { sayRoom("room_whatif_back"); sendScene(baseScene); }
-    else { sayRoom("room_whatif_nothing"); }
-    addLog("operator undo (window " + scene + ")", "hi");
+    if (send({ type: "whatif.force", undo: true })) fire("put it out / undo (window " + pretty(scene) + ")", "operator");
   }
   $("wFire").onclick = function () { whatIf("fire"); };
   $("wOut").onclick = undo;
 
-  // ---- stations
-  var made = {};
+  // ---- typed what-if: POST /board/custom, routed as if the player said it
+  function sendCustom() {
+    var t = $("customText").value.trim(), b = $("customSend");
+    if (!t || b.disabled) return;
+    b.disabled = true; b.textContent = "...";
+    typedPending = t;
+    fire("typed “" + t + "”", "operator");
+    fetch("/board/custom?token=" + encodeURIComponent(token), {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: t })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.ok) { addLog("typed what-if failed: " + ((j && j.error) || "no answer"), "err"); return; }
+      $("customText").value = "";
+      var info = "typed → " + j.intent + (j.topic ? "/" + j.topic : "") + " via " + j.path + " " + j.ms + " ms";
+      if (j.topic === "custom") info += j.custom_prompt ? " prompt: " + j.custom_prompt : " REFUSED" + (j.blocked ? " (" + j.blocked + ")" : "");
+      addLog(info, "hi");
+    }).catch(function (e) { addLog("typed what-if failed: " + e, "err"); }).then(function () {
+      b.disabled = false; b.textContent = "ASK";
+    });
+  }
+  $("customSend").onclick = sendCustom;
+  $("customText").addEventListener("keydown", function (e) { if (e.key === "Enter") sendCustom(); });
+
+  // ---- stations: choice.request (Unity applies it; no Quest = the Hive plays the outcome)
   CFG.STATIONS.forEach(function (st) {
     var cfg = CFG.TABLE[st] || { intro_line: null, choices: {} };
     var h = el("h3", "", pretty(st));
@@ -252,27 +313,40 @@ const PAGE = `<!doctype html>
       var good = CFG.CORRECT[st] === ch;
       var b = el("button", "choice " + (good ? "good" : "bad"));
       b.id = "ch_" + st + "_" + ch;
-      b.appendChild(document.createTextNode((good ? "\\u2713 " : "") + pretty(ch)));
+      b.appendChild(document.createTextNode((good ? "✓ " : "") + pretty(ch)));
       b.appendChild(el("small", "", o ? pretty(o.scene) : "no outcome"));
       b.onclick = function () {
-        if (!o) return addLog("no outcome for " + st + "/" + ch, "err");
-        sayRoom(o.line_id); sendScene(o.scene);
-        addLog("operator outcome " + st + "/" + ch, "hi");
+        if (!send({ type: "choice.request", station: st, choice: ch })) return;
+        pendingChoice[st + "/" + ch] = Date.now();
+        fire("choice " + pretty(st) + ": " + pretty(ch) + (good ? " ✓" : " ✗"), "operator");
       };
       grid.appendChild(b);
     });
     $("stations").appendChild(grid);
   });
   function showChoice(m) {
-    made[m.station + "/" + m.choice] = true;
     var b = $("ch_" + m.station + "_" + m.choice); if (b) b.classList.add("made");
     if (m.correct) { var hx = $("hex_" + m.station); hx.textContent = "LIT"; hx.className = "hex lit"; }
+    else showGriev(griev + 1);
+    var key = m.station + "/" + m.choice, asked = pendingChoice[key];
+    delete pendingChoice[key];
+    var label = "choice " + pretty(m.station) + ": " + pretty(m.choice) + (m.correct ? " ✓" : " ✗ grievance");
+    if (asked && Date.now() - asked < 10000) step("applied" + (m.correct ? " ✓" : " ✗ grievance"));
+    else fire(label, "quest");
   }
   function clearChoices() {
-    made = {};
+    pendingChoice = {};
     Array.prototype.forEach.call(document.querySelectorAll(".choice.made"), function (b) { b.classList.remove("made"); });
     CFG.STATIONS.forEach(function (st) { var hx = $("hex_" + st); hx.textContent = "not yet"; hx.className = "hex"; });
   }
+
+  // ---- effects: fx.force
+  CFG.FX.forEach(function (name) {
+    var b = el("button", "fxb", pretty(name));
+    b.id = "fx_" + name;
+    b.onclick = function () { if (send({ type: "fx.force", name: name })) fire("fx " + pretty(name), "operator"); };
+    $("fx").appendChild(b);
+  });
 
   // ---- window
   CFG.SCENES.forEach(function (s) {
@@ -289,25 +363,28 @@ const PAGE = `<!doctype html>
   }
   function showWindow(st, sc) {
     if (sc) {
-      scene = sc; if (!isWhatIf(sc) && sc !== "fire_out") baseScene = sc;
+      scene = sc;
       $("winScene").textContent = pretty(sc);
       Array.prototype.forEach.call($("scenes").children, function (b) { b.classList.toggle("now", b.dataset.scene === sc); });
     }
-    if (st) $("winState").textContent = "stream " + st + (want ? "  \\u00b7  mode " + want : "");
+    if (st) $("winState").textContent = "stream " + st + (want ? "  ·  mode " + want : "");
     $("winMeta").textContent = pretty(scene) + (st ? " (" + st + ")" : "");
   }
 
-  // ---- voice
+  // ---- voice (and typed text): transcript, intent, and a custom what-if's prompt
   var heard = [];
   function renderHeard() {
     var box = $("heard"); box.textContent = "";
     if (!heard.length) { box.appendChild(el("div", "sub", "nothing heard yet")); return; }
     heard.forEach(function (u) {
       var row = el("div", "u " + (u.intent ? u.intent.name : "") + (u.text ? "" : " empty"));
-      row.appendChild(el("div", "t", u.text ? "\\u201c" + u.text + "\\u201d" : "(heard nothing)"));
-      var info = u.source + "  \\u00b7  " + u.stt + " " + u.ms + " ms";
-      if (u.intent) info += "  \\u2192  " + u.intent.name + (u.intent.topic ? "/" + u.intent.topic : "") + " via " + u.intent.path + " " + u.intent.ms + " ms";
+      row.appendChild(el("div", "t", u.text ? "“" + u.text + "”" : "(heard nothing)"));
+      var info = u.stt === "board" ? "typed on the board" : u.source + "  ·  " + u.stt + " " + u.ms + " ms";
+      if (u.intent) info += "  →  " + u.intent.name + (u.intent.topic ? "/" + u.intent.topic : "") + " via " + u.intent.path + " " + u.intent.ms + " ms";
       row.appendChild(el("div", "i", info));
+      if (u.intent && u.intent.topic === "custom") {
+        row.appendChild(u.intent.custom_prompt ? el("div", "p", "prompt: " + u.intent.custom_prompt) : el("div", "p refused", "refused: Grievance filed. Not that one."));
+      }
       box.appendChild(row);
     });
   }
@@ -316,7 +393,18 @@ const PAGE = `<!doctype html>
     if (heard.length > 8) heard.length = 8;
     renderHeard();
   }
+  function intentLabel(m) {
+    var s = m.name + (m.topic ? "/" + m.topic : "");
+    if (m.topic === "custom") s += m.custom_prompt ? " (prompt ready)" : " (refused)";
+    return s;
+  }
   function onIntent(m) {
+    if (typedPending !== null && m.text === typedPending && cur && cur.path === "operator") {
+      typedPending = null;
+      cur.label += "  →  " + intentLabel(m) + " via " + m.path; renderFired();
+    } else {
+      fire("“" + m.text + "” → " + intentLabel(m), m.path);
+    }
     for (var i = 0; i < heard.length; i++) if (!heard[i].intent && heard[i].text === m.text) { heard[i].intent = m; renderHeard(); return; }
     heard.unshift({ text: m.text, source: "?", stt: "-", ms: 0, intent: m }); renderHeard();
   }
@@ -358,7 +446,7 @@ const PAGE = `<!doctype html>
       var b = el("button", "line");
       b.appendChild(el("span", "ch " + l.channel, l.channel.toUpperCase()));
       b.appendChild(document.createTextNode(l.text || l.id));
-      b.appendChild(el("small", "", l.id + (l.beat ? "  \\u00b7  " + l.beat : "")));
+      b.appendChild(el("small", "", l.id + (l.beat ? "  ·  " + l.beat : "")));
       b.onclick = function () { if (send({ type: "say.force", line_id: l.id, channel: l.channel })) addLog("say.force " + l.id); };
       box.appendChild(b);
     });
@@ -386,7 +474,14 @@ const PAGE = `<!doctype html>
     send({ type: "group.reset" });
   };
 
-  function showScore(text) { var s = $("score"); s.textContent = text || ""; s.className = text ? "on" : ""; }
+  // ---- score card: {elapsed_s, text, grievances} from the score message or /health (a bare string from older logs)
+  function showScore(card) {
+    var s = $("score");
+    if (!card) { s.textContent = ""; s.className = ""; return; }
+    var text = typeof card === "string" ? card : card.text + (typeof card.grievances === "number" ? "  ·  Grievances filed: " + card.grievances : "");
+    s.textContent = text; s.className = "on";
+  }
+  function showGriev(n) { griev = n; $("griev").textContent = String(n); }
 
   // ---- health poll
   function poll() {
@@ -397,7 +492,9 @@ const PAGE = `<!doctype html>
       var stt = h.stt ? (h.stt.provider || "?") + (h.stt.elevenlabs || h.stt.whisper ? "" : " (down)") : "off";
       $("stt").textContent = stt; $("stt").className = h.stt && (h.stt.elevenlabs || h.stt.whisper) ? "" : "off";
       if (h.orbis) { want = h.orbis.want || want; showWant(); showWindow(h.orbis.state, h.orbis.scene); }
-      if (h.score) showScore(h.score);
+      if (h.score && typeof h.score === "object") { scoreCard = h.score; showScore(h.score); }
+      else if (h.score && !scoreCard) showScore(h.score);
+      if (typeof h.grievances === "number") showGriev(h.grievances);
       (h.solved || []).forEach(function (st) { var hx = $("hex_" + st); if (hx) { hx.textContent = "LIT"; hx.className = "hex lit"; } });
     }).catch(function () {});
   }
@@ -410,27 +507,37 @@ const PAGE = `<!doctype html>
       case "beat.set": showBeat(m.n); addLog("beat " + m.n + " " + m.name); break;
       case "mode": showMode(m.mode); addLog("mode " + m.mode); break;
       case "group.reset": $("group").textContent = m.group_id; addLog("NEW GROUP " + m.group_id, "hi");
-        heard = []; renderHeard(); clearChoices(); showScore(""); $("lastScan").textContent = "-"; break;
+        heard = []; renderHeard(); clearChoices(); scoreCard = null; showScore(null); showGriev(0); $("lastScan").textContent = "-";
+        fired = []; cur = null; renderFired(); break;
       case "choice.made": showChoice(m); addLog("CHOICE " + m.station + ": " + m.choice + (m.correct ? " (correct)" : " (wrong)"), "hi"); break;
       case "transcript": onTranscript(m); break;
-      case "intent": onIntent(m); addLog("intent " + m.name + (m.topic ? "/" + m.topic : "") + " \\u201c" + m.text + "\\u201d", "hi"); break;
-      case "fx": addLog("fx " + m.name + (m.delay_ms ? " in " + m.delay_ms + " ms" : "")); break;
-      case "orbis": showWindow(m.state, m.scene); addLog("window " + (m.scene || "-") + " (" + m.state + ")" + (m.fallback_clip ? " clip " + m.fallback_clip : "")); break;
+      case "intent":
+        onIntent(m);
+        addLog("intent " + intentLabel(m) + " “" + m.text + "”" + (m.custom_prompt ? " prompt: " + m.custom_prompt : ""), "hi"); break;
+      case "fx": step("fx " + m.name + (m.delay_ms ? " +" + m.delay_ms + " ms" : "")); addLog("fx " + m.name + (m.delay_ms ? " in " + m.delay_ms + " ms" : "")); break;
+      case "orbis":
+        if (m.scene && m.scene !== scene) step("window " + pretty(m.scene));
+        showWindow(m.state, m.scene); addLog("window " + (m.scene || "-") + " (" + m.state + ")" + (m.fallback_clip ? " clip " + m.fallback_clip : "")); break;
+      case "score":
+        scoreCard = m; showScore(m); showGriev(m.grievances); step(m.text);
+        addLog("SCORE " + m.text + " (" + m.elapsed_s + " s), grievances filed: " + m.grievances, "hi"); break;
       case "scan.started": addLog("scan started " + m.scan_id); $("lastScan").textContent = "scanning..."; break;
       case "scan.verdict":
         $("lastScan").textContent = pretty(m.item) + " / " + m.verdict + " (" + m.path + ", " + m.ms + " ms)";
         addLog("VERDICT " + m.item + "/" + m.verdict + " via " + m.path + " " + m.ms + " ms", "hi");
         break;
       case "plea": addLog("plea: " + m.text); break;
-      case "say": addLog("say " + m.channel + ": " + (m.line_id || m.tts_id || "") + (m.caption ? " \\u201c" + m.caption + "\\u201d" : "")); break;
+      case "say":
+        step("says " + (m.line_id || (m.tts_id ? "live voice" : "caption")));
+        addLog("say " + m.channel + ": " + (m.line_id || m.tts_id || "") + (m.caption ? " “" + m.caption + "”" : "")); break;
       case "latency":
         if (m.hop === "voice.stt") $("lStt").textContent = m.ms + " ms";
-        else if (m.hop === "voice.route") $("lRoute").textContent = m.ms + " ms";
-        else if (m.hop === "voice.total" || m.hop === "utterance.total") $("lTotal").textContent = m.ms + " ms";
+        else if (m.hop === "voice.route" || m.hop === "board.route") $("lRoute").textContent = m.ms + " ms";
+        else if (m.hop === "voice.total" || m.hop === "utterance.total" || m.hop === "board.total") $("lTotal").textContent = m.ms + " ms";
         addLog(m.hop + " " + m.ms + " ms (" + m.source + ")", "lat"); break;
       case "log":
-        if (/^score: /.test(m.text)) showScore(m.text.slice(7));
-        addLog((m.source ? m.source + ": " : "") + m.text, /^score: /.test(m.text) ? "hi" : ""); break;
+        if (/^score: /.test(m.text) && !scoreCard) showScore(m.text.slice(7));
+        addLog((m.source ? m.source + ": " : "") + m.text, /^score: |^operator /.test(m.text) ? "hi" : ""); break;
       case "error": addLog("error: " + m.message, "err"); break;
       case "swarm.arrived": addLog("swarm arrived at socket " + m.socket); break;
       case "hornet.cooked": addLog("hornet cooked" + (m.overshoot ? " (overshoot!)" : ""), "hi"); break;
@@ -473,6 +580,7 @@ const PAGE = `<!doctype html>
   });
   showBeat(0);
   showWindow(null, "meadow");
+  renderFired();
   loadLines();
   connect();
 })();
@@ -494,6 +602,7 @@ export function boardHtml(stations: Partial<Record<string, BoardStation>> = {}):
     CORRECT: CORRECT_CHOICE,
     SCENES,
     WHATIF_TOPICS,
+    FX,
     ITEMS,
     TABLE: stations,
     VERSION: PROTOCOL_VERSION,

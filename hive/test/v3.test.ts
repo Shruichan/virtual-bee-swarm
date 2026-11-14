@@ -451,7 +451,7 @@ describe("window, beats and score", () => {
     await monitor.waitFor("log", (m) => m.text.startsWith("score: "));
     expect((await quest.waitFor("orbis", (m) => m.scene === "full_bloom")).fallback_clip).toBe("full_bloom.mp4");
     const h = await (await fetch(`${hive.url}/health`)).json();
-    expect(h.score).toBe("Hive saved in 2:47");
+    expect(h.score).toEqual({ elapsed_s: 167, text: "Hive saved in 2:47", grievances: 0 }); // v2.1: the score card
     expect(h.solved).toEqual(["smoker"]);
     quest.send({ type: "beat.set", n: 9, name: "escape" }); // Unity reconnect re-sends its beat
     await setBeat(quest, board, "t0", 10);

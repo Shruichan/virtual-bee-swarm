@@ -2,7 +2,9 @@
 
 Networking, audio and textures for the "Save the Hive" Quest app (concept v3): the Hive bus, station choices, the player's voice, Beeswax's voice in the room, the future window (Orbis), and the hum detector. It has **no Meta SDK dependency**: gameplay (beat machine, stations, swarm, Beeswax's body, embers) stays with the Quest team and just calls these components and listens to C# events.
 
-The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_VERSION 2). `Runtime/BeeswaxProtocol.cs` mirrors all of it (beats, stations, choices, scenes, what-if topics, fx, intents, every message), so change both together.
+The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_VERSION 2, with the additive v2.1 messages). `Runtime/BeeswaxProtocol.cs` mirrors all of it (beats, stations, choices, scenes, what-if topics, fx, intents, every message), so change both together.
+
+**v2.1** (still version 2, nothing removed): the Board's operator buttons (`choice.request` for a station choice, `fx.force`, `whatif.force`), the `score` message, custom what-ifs (topic `custom`, scene `whatif_custom`, `Intent.custom_prompt`), and an optional `want` on `orbis.request`.
 
 ## The v3 flow in one picture
 
@@ -11,8 +13,14 @@ The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_V
 | Enters a beat | `bus.SendBeatSet(n)` | the window scene for escape/T-0/map | `OnOrbis`, the window switches by itself |
 | Picks a choice at a station | `stations.Choose(station, choice)` (sends `choice.made`) | `say` (Beeswax's line), `orbis{scene}`, `fx` | the voice and window react by themselves; `OnFx` for swarm/hive glow |
 | Holds the talk button / pinch | `voiceIn.BeginTalk()` … `voiceIn.EndTalk()` | `transcript`, `intent`, then a line, scene and fx | `OnTranscript`, `OnIntent`, `OnFx` |
-| "What if a fire starts?" | (voice, as above) | `intent{what_if, fire}`, `orbis{whatif_fire}`, `fx{embers, delay_ms}` | spawn embers out of the portal on `OnFx("embers")`, stop on `embers_stop` |
-| "Put it out!" | (voice) | `intent{undo}`, `orbis{fire_out}`, `fx{embers_stop}` | stop the embers |
+| "What if a fire starts?" | (voice, as above) | `intent{what_if, fire}`, `orbis{whatif_fire}`, `fx{embers, delay_ms}` | spawn embers out of the portal on `OnFxDue("embers")` (it waits out `delay_ms`), stop on `embers_stop` |
+| "Put it out!" | (voice) | `intent{undo}`, `orbis{fire_out}`, `fx{embers_stop}` | stop the embers (an `embers` still waiting on its delay is cancelled for `OnFxDue`) |
+| "What if a dragon shows up?" (unplanned) | (voice) | `intent{what_if, custom, custom_prompt}` and Beeswax's line; with the live stream up also `orbis{whatif_custom}` (in clips mode the Hive leaves the scene alone and Beeswax says the clips line); if Claude refused: `custom_prompt` empty, the refusal line, no scene change | live: the window morphs; if live drops while on `whatif_custom`, the previous scene's clip plays (there is no `whatif_custom` clip). `i.IsCustom`, `i.CustomRefused` |
+| *(Board)* taps a station choice | your `OnChoiceRequest` handler calls the same code as the player's pick (or tick `BeeswaxStations.applyChoiceRequests`) | `choice.request{station, choice}`, then the usual `say`/`orbis`/`fx` for the `choice.made` you send | `OnChoiceRequest`, then `stations.OnChoice` as for the player |
+| *(Board)* forces an fx | | a plain `fx` (the Hive turns `fx.force` into one) | `OnFx` / `OnFxDue`, nothing new |
+| *(Board)* forces a what-if / "put it out" | | the same `orbis`, `fx` and line as the spoken one, but no `transcript`/`intent` (`whatif.force` itself never reaches the Quest) | as for voice, minus `OnIntent`: key what-if feel off `window.OnSceneChanged` / the fx |
+| *(Board)* types an unplanned what-if | | `transcript`, `intent{what_if, custom, custom_prompt}` and the line, as if the player said it (POST `/board/custom`) | as for voice |
+| Enters escape | `bus.SendBeatSet(Beat.Escape)` | `score{elapsed_s, text, grievances}` | `OnScore` (also `bus.LastScore`): put `text` on the score card. The score is frozen at the first escape; re-entering escape sends the same one again |
 
 **Unity is the only beat clock.** If the Hive is down, `BeeswaxStations` plays the same outcome locally (line, window clip, fx), so your offline timers still finish every beat with the right line and clip.
 
@@ -20,12 +28,12 @@ The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_V
 
 | Component | What it does |
 |---|---|
-| `BeeswaxBus` | One per app, in the first scene (it persists). Connects to `wss://<host>/bus?role=quest&token=…`, sends `hello`, reconnects with backoff, fails over between hosts, and raises one C# event per message type on the main thread. Send helpers: `SendBeatSet`, `SendChoiceMade(station, choice)` (computes `correct`), `SendListenStart(mode)` / `SendMicFrame(pcm16)` / `SendListenEnd(cancel)`, `SendOrbisRequest(want, scene)`, `SendSwarmArrived`, `SendHornetCooked`, `SendLatency`, `SendLog`. Events (v2): `OnTranscript`, `OnIntent`, `OnFx`, `OnChoiceMade`, `OnListenStart/End`. `InjectLocal(msg)` raises the events for a message as if the Hive had sent it (offline fallbacks, editor testing). |
-| `BeeswaxStations` | Station choices. `Choose(station, choice)` sends `choice.made`; if the bus is offline, or neither the line nor the scene comes back within 1.5 s, it plays the outcome locally. Static `Resolve`/`TryGet`/`IntroLine` read an offline copy of `hive/lines/stations.json` (see below). Events: `OnChoice(outcome, sentToHive)`, `OnPlayedLocally(outcome)`. |
+| `BeeswaxBus` | One per app, in the first scene (it persists). Connects to `wss://<host>/bus?role=quest&token=…`, sends `hello`, reconnects with backoff, fails over between hosts, and raises one C# event per message type on the main thread. Send helpers: `SendBeatSet`, `SendChoiceMade(station, choice)` (computes `correct`), `SendListenStart(mode)` / `SendMicFrame(pcm16)` / `SendListenEnd(cancel)`, `SendOrbisRequest(want, scene)`, `SendSwarmArrived`, `SendHornetCooked`, `SendLatency`, `SendLog`. Events (v2): `OnTranscript`, `OnIntent`, `OnFx`, `OnFxDue`, `OnChoiceMade`, `OnListenStart/End`; (v2.1) `OnChoiceRequest`, `OnScore`. `InjectLocal(msg)` raises the events for a message as if the Hive had sent it (offline fallbacks, editor testing). |
+| `BeeswaxStations` | Station choices. `Choose(station, choice)` sends `choice.made`; if the bus is offline, or neither the line nor the scene comes back within 1.5 s, it plays the outcome locally. Static `Resolve`/`TryGet`/`IntroLine` read an offline copy of `hive/lines/stations.json` (see below). Events: `OnChoice(outcome, sentToHive)`, `OnPlayedLocally(outcome)`. Operator choices: `applyChoiceRequests` (off by default) makes it call `Choose` for the Board's `choice.request` in that station's beat (`IsOperatorChoice` is true during that `OnChoice`); `ApplyChoiceRequest(r)` does it by hand. |
 | `BeeswaxVoiceInput` | The player's voice. Push-to-talk `BeginTalk()` / `EndTalk()` / `Cancel()` to bind to any input, plus an optional energy VAD (`Mode = Vad`, `VadArmed = true`). Streams 16 kHz PCM16 in 40 ms `MIC_PCM16` frames between `listen.start` and `listen.end`, with 0.25 s of pre-roll and a 0.15 s release tail, capped at 15 s. `OnDuck(bool)` (and optional mixer snapshots) so game audio can duck while listening. `AwaitingReply` is true between `listen.end` and the intent (show "thinking"). |
 | `BeeswaxMic` | The one shared microphone recording (static). `HumDetector` and `BeeswaxVoiceInput` both read it, so they can run at the same time. Never call `Microphone.Start/End` yourself while either is in the scene. |
 | `BeeswaxRoomVoice` | Put it on Beeswax. Plays room lines one at a time: pre-rendered clips by `line_id` and live PCM16 lines (`tts.start` → chunks → `tts.end`). Exposes `Amplitude` (0..1, for mouth flaps) and `OnLineStarted/OnLineEnded(caption)`. |
-| `OrbisWindow` | The future window. Live JPEG frames from `wss://<bus host>/orbis/frames`, newest frame only. Whenever live is down (no frame for 8 s, `orbis{failed\|ended\|off}`, or the Board chose `clips`) it loops the recorded clip **for the current scene**. The scene follows `orbis{scene}` from the Hive, the Board's `orbis.request{scene}`, or your `RequestScene(scene)`. `OnSceneChanged(scene)`. |
+| `OrbisWindow` | The future window. Live JPEG frames from `wss://<bus host>/orbis/frames`, newest frame only. Whenever live is down (no frame for 8 s, `orbis{failed\|ended\|off}`, or the Board chose `clips`) it loops the recorded clip **for the current scene** (`whatif_custom` has none, so it keeps the previous scene's clip: `ClipScene`). The scene follows `orbis{scene}` from the Hive, the Board's `orbis.request{scene}`, or your `RequestScene(scene)`. `OnSceneChanged(scene)`. |
 | `HumDetector` | YIN pitch detector on the shared mic for the hornet beat. `Voiced` once a pitch in 80–500 Hz holds for 300 ms. `Level`, `HumSeconds`, `Heat` (0..1 thermometer). `hum.set` from the Board overrides `Heat`. |
 | `PolaroidFeed` | (Glasses real-prop mode, later.) `scan.photo` JPEG → one reused `Texture2D`. |
 | `LatencyReporter` | `Mark`/`Lap`/`Report` hop timings to the Board. The voice input reports `quest.listen_end_to_transcript` and `quest.listen_end_to_intent`. |
@@ -68,7 +76,7 @@ It ends up inside the APK, which is fine for a sideloaded demo build but not for
 - Beeswax's body: an `AudioSource` + `BeeswaxRoomVoice`. Add pre-rendered lines to its list, or drop the mp3s from `hive/out/unity/` into `Resources/BeeswaxLines/<line_id>`.
 - On `BeeswaxStations`: assign `voice` (Beeswax) and `window` (the portal), so offline outcomes play.
 - On `BeeswaxVoiceInput`: assign `ignoreWhileSpeaking` = Beeswax's voice (VAD won't trigger on him), and either the two mixer snapshots or your own `OnDuck` handler.
-- Window: `OrbisWindow` with `targetRenderer` = the portal pane. Fallback clips per scene: fill `sceneClips` (scene → VideoClip), or put `<scene>.mp4` files in `Assets/StreamingAssets/` (or a subfolder named in `sceneClipFolder`). The scene names are `BeeswaxProtocol.Scenes` (`meadow`, `smoker_settle`, `smoker_angry`, `feed_sick`, `feed_recover`, `wasps_raid`, `wasps_leave`, `heat_stress`, `heat_drink`, `whatif_fire`, `fire_out`, `whatif_rain`, `whatif_flowers`, `whatif_spray`, `whatif_winter`, `full_bloom`, `moon`). A missing file is skipped (logged once), and the pane hides if nothing plays.
+- Window: `OrbisWindow` with `targetRenderer` = the portal pane. Fallback clips per scene: fill `sceneClips` (scene → VideoClip), or put `<scene>.mp4` files in `Assets/StreamingAssets/` (or a subfolder named in `sceneClipFolder`). The scene names are `BeeswaxProtocol.Scenes` (`meadow`, `smoker_settle`, `smoker_angry`, `feed_sick`, `feed_recover`, `wasps_raid`, `wasps_leave`, `heat_stress`, `heat_drink`, `whatif_fire`, `fire_out`, `whatif_rain`, `whatif_flowers`, `whatif_spray`, `whatif_winter`, `whatif_custom`, `full_bloom`, `moon`). `whatif_custom` needs no clip (the window keeps the one it has; give it one only through `sceneClips`). A missing file is skipped (logged once), and the pane hides if nothing plays.
 
 Every component finds `BeeswaxBus.Instance` by itself if you leave its `bus` field empty.
 
@@ -93,8 +101,10 @@ public class HiveBridge : MonoBehaviour
     {
         var bus = BeeswaxBus.Instance;
         bus.OnBeatRequest += OnBeatRequest;
-        bus.OnFx += OnFx;
+        bus.OnFxDue += OnFx;                     // OnFxDue waits out delay_ms and drops an embers that embers_stop beat
         bus.OnIntent += OnIntent;
+        bus.OnChoiceRequest += OnChoiceRequest;  // the Board's operator twin of a station choice
+        bus.OnScore += OnScore;
         bus.OnGroupReset += OnGroupReset;
         stations.OnChoice += OnChoice;
         voiceIn.OnDuck += duck => AudioMixerHelper.Duck(duck);  // or assign the mixer snapshots instead
@@ -106,8 +116,10 @@ public class HiveBridge : MonoBehaviour
         var bus = BeeswaxBus.Instance;
         if (bus == null) return;
         bus.OnBeatRequest -= OnBeatRequest;
-        bus.OnFx -= OnFx;
+        bus.OnFxDue -= OnFx;
         bus.OnIntent -= OnIntent;
+        bus.OnChoiceRequest -= OnChoiceRequest;
+        bus.OnScore -= OnScore;
         bus.OnGroupReset -= OnGroupReset;
     }
 
@@ -127,15 +139,25 @@ public class HiveBridge : MonoBehaviour
         if (o.correct) beats.LightHexagon(o.station);   // the line, window scene and fx are handled for you
     }
 
+    // The Board picked for the player (their hands failed, or the judge cut). Run the same code as a real pick.
+    // You may ignore it outside that station's beat. (Or skip this and tick BeeswaxStations.applyChoiceRequests.)
+    void OnChoiceRequest(ChoiceRequest r)
+    {
+        if (beats.Current == BeeswaxProtocol.StationBeat(r.station)) Pick(r.station, r.choice);
+    }
+
+    void OnScore(Score s) => beats.ShowScoreCard(s.text, s.grievances);   // "Hive saved in 2:47", wrong picks
+
     // Bind these to the talk input (a held pinch, a controller button, a poke button...).
     public void OnTalkPressed() => voiceIn.BeginTalk();
     public void OnTalkReleased() => voiceIn.EndTalk();
 
+    // From OnFxDue: already at the right time (embers come delay_ms after the line, covering the 2-4 s Orbis morph).
     void OnFx(Fx f)
     {
         switch (f.name)
         {
-            case FxName.Embers: embers.Play(delaySeconds: f.HasDelay ? f.delay_ms / 1000f : 0f); break; // after the 2-4 s Orbis morph
+            case FxName.Embers: embers.Play(); break;
             case FxName.EmbersStop: embers.Stop(); break;
             case FxName.SwarmCalm: swarm.Calm(); break;
             case FxName.SwarmAngry: swarm.Angry(); break;
@@ -147,7 +169,10 @@ public class HiveBridge : MonoBehaviour
     void OnIntent(Intent i)
     {
         // The Hive already sends the line, the scene and the fx. React here only for extra feel, e.g.:
+        // (the Board's what-if buttons send no intent, only the line/scene/fx: for feel that must also run then,
+        // use window.OnSceneChanged(Scene.WhatIfFire) instead)
         if (i.name == IntentName.WhatIf && i.topic == WhatIfTopic.Fire) beats.WhatIfFireStarted();
+        if (i.CustomRefused) beats.BeeswaxShakesHead();  // an unplanned what-if Claude wouldn't draw
     }
 
     void OnBeatRequest(BeatRequest r)
@@ -160,9 +185,11 @@ public class HiveBridge : MonoBehaviour
 }
 ```
 
+**Fx timing:** `OnFx` fires the moment an fx arrives, so with it you honour `delay_ms` yourself and must make a later `embers_stop` cancel an `embers` still waiting on its delay (the Hive sends `embers` with a 2.5 s delay, and a quick "put it out!" can beat it). `OnFxDue` does both: it fires each fx when it should start, and a later fx of the same name or its opposite (`embers_stop`↔`embers`, `swarm_angry`↔`swarm_calm`, `hive_glow_off`↔`hive_glow_red`) cancels one still waiting. `group.reset` cancels all; `bus.CancelPendingFx(name)` and `PendingFxCount` are there too. Subscribe to one of the two per effect, not both. The Board's `fx.force` arrives as a plain `fx` (if a Hive ever forwarded `fx.force` itself, the bus plays it as an fx, once).
+
 Other hooks: `OnTranscript` (captions: "You said: …"), `voiceIn.AwaitingReply` (Beeswax "hmm" pose), `voiceIn.OnTalkEnded(reason, seconds)` (`Released`, `Cancelled`, `Capped`, `Silence`, `TooShort`, `Disabled`), `window.OnSceneChanged`, `window.RequestScene(scene)` (rarely needed: the Hive sets the scene from choices, beats and voice), `OnModeChanged`, `OnSay` (the voice already plays `channel:"room"`), `OnConnectionChanged(state, host)`, `OnMessage(type, json)` for anything else. `SendSwarmArrived`, `SendHornetCooked` and `SendChoiceMade` are queued for 10 s while offline; everything else is dropped while offline (the voice input keeps its own audio, below).
 
-**Nullable fields** (JsonUtility has no nulls): a null/missing string becomes `""` and a null/missing number `-1`. So `Intent.topic == ""` unless it's a what-if (`HasTopic`), `Fx.delay_ms == -1` means now (`HasDelay`), `OrbisStatus.scene == ""` means none, `BeatRequest.n == -1` means "next" (`HasN`).
+**Nullable fields** (JsonUtility has no nulls): a null/missing string becomes `""` and a null/missing number `-1`. So `Intent.topic == ""` unless it's a what-if (`HasTopic`), `Intent.custom_prompt == ""` unless it's a custom what-if Claude accepted (`IsCustom`, `CustomRefused`), `Fx.delay_ms == -1` means now (`HasDelay`), `OrbisStatus.scene == ""` means none, `OrbisRequest.want == ""` means no mode change (`HasWant`), `BeatRequest.n == -1` means "next" (`HasN`), `Score.elapsed_s`/`grievances == -1` mean missing (`HasElapsed`; `Score.Clock` formats it as `2:47`).
 
 ### Voice details
 
@@ -179,7 +206,8 @@ Other hooks: `OnTranscript` (captions: "You said: …"), `voiceIn.AwaitingReply`
 - Only the Hive sets the scene. The relay's own status on the frames socket only updates `State` (so `failed`/`ended` switch to clips at once): after a stop the relay keeps reporting the last scene it streamed, which would otherwise pull the window back to an old clip on every frames reconnect.
 - The Hive sends `orbis{}` only when something changes, so after every (re)connect the window reads the Hive's current scene and Board mode from `GET /health` (`syncOnWelcome`). A Quest that restarts or reconnects mid-demo shows the right clip at once. Any `orbis{}`/`orbis.request` that arrives first wins.
 - `RequestScene(scene)` switches the local clip now and sends `orbis.request{want, scene}`. Offline, it is re-sent after the next welcome, and Hive statuses naming another scene are ignored until the Hive confirms ours.
-- The `want` it carries (`RequestWant`): a running stream (`priming`/`ready`) → `live`; else the Board's mode; else `clips`. The Hive ignores `want` on a request that carries a scene, so the Quest can't start or stop the billed stream either way.
+- The `want` it carries (`RequestWant`): a running stream (`priming`/`ready`) → `live`; else the Board's mode; else `clips`. The Hive ignores `want` on a request that carries a scene (v2.1 makes `want` optional and says so), so the Quest can't start or stop the billed stream either way. It still sends one because a v2 Hive rejects an `orbis.request` without `want`. `bus.SendOrbisRequest("", scene)` sends a scene-only request for a v2.1 Hive.
+- **Custom what-ifs (`whatif_custom`)** have a live prompt Claude writes on the spot but no recorded clip. While the window is on it, clips mode keeps playing the clip of the last scene that had one (`ClipScene`; the Hive's `fallback_clip` for it names that same kept clip, but the window goes by its own `ClipScene`), so the pane never goes blank. Live mode shows the morph as usual. A `sceneClips` entry for `whatif_custom` (say, a generic "something strange in the meadow" loop) is used if you add one; `StreamingAssets/whatif_custom.mp4` is not looked for.
 - Clip lookup per scene: `sceneClips` → the Hive's `fallback_clip` name (matched against `sceneClips`/`stageClips`/`stageClipFiles`) → `StreamingAssets/<sceneClipFolder>/<fallback_clip>` when it isn't `<scene>.mp4` (e.g. a `*_pingpong.mp4` loop named in `hive/lines/orbis_scenes.json`) → `StreamingAssets/<sceneClipFolder>/<scene>.mp4` → the v1 stage clips.
 
 ### The hum
@@ -209,7 +237,7 @@ NativeWebSocket hands text and binary frames to the same `OnMessage(byte[])`, so
 
 - **Editor:** Play mode works (NativeWebSocket uses .NET's `ClientWebSocket` off-WebGL). Set the token via `HIVE_TOKEN` or the inspector, turn on `logTraffic`, and add `BeeswaxDebugHUD`.
 - **Against the Hive:** `cd hive && bun run start`, then put `ws://<laptop-LAN-IP>:<port>` first in the bus hosts. Pick a station choice: the HUD shows the Hive's `say`, `orbis{scene}` and `fx`. Hold talk, say "what if a fire starts", release: `HEARD`, `INTENT what_if fire`, `FX embers`.
-- **Without the network:** `stations.Choose(...)` plays outcomes locally after 1.5 s; `bus.InjectLocal(new Fx { name = FxName.Embers })` (or any message) fires the same events as the Hive; `voiceIn.FeedSamples(...)`, `HumDetector.FeedSamples(...)`, `PolaroidFeed.Show(jpeg)` and `BeeswaxRoomVoice.Play(lineId, caption)` work offline.
+- **Without the network:** `stations.Choose(...)` plays outcomes locally after 1.5 s; `bus.InjectLocal(new Fx { name = FxName.Embers })` (or any message: `new ChoiceRequest { station = Station.Feed, choice = Choice.SugarSyrup }`, `new Score { elapsed_s = 167, text = "Hive saved in 2:47", grievances = 1 }`, an `Intent` with `topic = WhatIfTopic.Custom`) fires the same events as the Hive; `voiceIn.FeedSamples(...)`, `HumDetector.FeedSamples(...)`, `PolaroidFeed.Show(jpeg)` and `BeeswaxRoomVoice.Play(lineId, caption)` work offline.
 
 ## Robustness notes
 
@@ -218,6 +246,7 @@ NativeWebSocket hands text and binary frames to the same `OnMessage(byte[])`, so
 - A connect attempt times out after 6 s. A link that drops after it was healthy (≥ 5 s) retries the same host after 0.5 s. Failed connects back off 0.5 → 8 s, and after 3 in a row the bus moves to the next host; after a failover it checks the first host's `/health` every 30 s and moves back on a 200. `UseHost(i)` / `Reconnect()` switch by hand. **Still check on the Board that the Quest and the glasses are on the same Hive.**
 - Heartbeat every 10 s: `hello` (the Hive answers with `welcome`) plus `latency{hop:"quest.frame"}`. Nothing at all for 30 s → reconnect. Welcomes re-send `beat.set` if the Hive lost the beat. After 15 s paused (headset off) the bus reconnects.
 - **Station outcomes offline:** `BeeswaxStations` plays line + clip + fx locally and queues `choice.made` (10 s). When the queued choice reaches the Hive, its repeat of the same line is skipped once (`SuppressNextFromBus`), and its scene is confirmed; a later local scene wins.
-- The same station + choice again within 1.5 s (a double-fired grab) is ignored by `BeeswaxStations.Choose` (no send, no `OnChoice`). The Hive drops such a repeat too, so sending it would only replay the outcome locally.
+- The same station + choice again within 1.5 s (a double-fired grab) is ignored by `BeeswaxStations.Choose` (no send, no `OnChoice`). The Hive drops such a repeat too, so sending it would only replay the outcome locally. That also makes an operator `choice.request` handled twice (your handler and `applyChoiceRequests`) harmless for the choice itself.
+- A `choice.request` that nothing handles logs a warning (subscribe to `OnChoiceRequest` or turn on `applyChoiceRequests`); one naming a pair outside CHOICES is logged and dropped. With a Quest connected the Hive does **not** apply the choice itself (it only does that when no Quest is on the bus), so an unhandled request means the Board's station button does nothing. The Quest then sends the Board a `log` ("operator choice wasps:bigger_door ignored: nothing on the Quest handles choice.request"), and `applyChoiceRequests` does the same when it skips a request for another station's beat. `BeeswaxDebugHUD` shows operator choices without subscribing, so it never hides that warning.
 - Voice lines: a missing clip still shows its caption for a reading-time estimate. The same `line_id` from `say` and `scan.verdict` within 3 s plays once. A live line with no `tts.end` finishes after 4 s without audio. Lines that waited more than 15 s in the queue are skipped. `group.reset` clears everything.
 - JPEG decoding runs on the main thread (about 1 ms for 640×480 on a desktop CPU, more on the Quest). A JPEG that fails to decode keeps the previous image. The window decodes at most one frame per rendered frame and drops stale frames.

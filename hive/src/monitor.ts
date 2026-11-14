@@ -1,5 +1,6 @@
 // Spectator monitor: the beat, the four station hexagons, the future window's scene, what the player said and
-// what Beeswax took it to mean, Beeswax's captions, and the score. The polaroid shows up only for glasses scans.
+// what Beeswax took it to mean, Beeswax's captions, and the score card (time + grievances filed). An off-script
+// what-if on the live window shows its prompt. The polaroid shows up only for glasses scans.
 // Served at GET /monitor?token=...; talks to the bus as role=monitor (receives binary SCAN_PHOTO).
 import { BEATS, BINARY_KIND, PROTOCOL_VERSION, STATIONS } from "./protocol";
 
@@ -23,6 +24,10 @@ const PAGE = `<!doctype html>
   .label { font-size: 1.8vh; letter-spacing: 3px; text-transform: uppercase; color: var(--honey); }
   #beat b { font-size: 5vh; display: block; letter-spacing: 1px; color: var(--text); text-transform: uppercase; }
   #score { font-size: 5.5vh; font-weight: 800; color: var(--good); min-height: 1em; }
+  #griev { font-size: 3vh; font-weight: 700; color: var(--bad); min-height: 1em; margin-top: -2vh; }
+  #griev.zero { color: var(--honey); }
+  #custom { display: none; margin-top: 1vh; font-size: 2.3vh; font-style: italic; color: #e8dcff; border-left: 3px solid var(--ask); padding-left: 1vw; }
+  #custom.on { display: block; }
   .hexes { display: flex; gap: 1.6vw; flex-wrap: wrap; }
   .hex { width: 11vh; height: 12.6vh; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #2c2519;
     display: grid; place-items: center; text-align: center; font-size: 1.7vh; font-weight: 700; color: var(--dim); text-transform: uppercase;
@@ -66,8 +71,9 @@ const PAGE = `<!doctype html>
   <div class="col">
     <div id="beat" class="label">beat<b>-</b></div>
     <div id="score"></div>
+    <div id="griev"></div>
     <div><div class="label">the hive</div><div class="hexes" id="hexes"></div></div>
-    <div class="card"><div class="label">the future window</div><div id="scene">meadow</div><div id="stream">-</div></div>
+    <div class="card"><div class="label">the future window</div><div id="scene">meadow</div><div id="custom"></div><div id="stream">-</div></div>
     <div class="polaroid" id="polaroid">
       <div class="frame" id="frame"><div class="blank">developing...</div></div>
       <div class="pcap" id="pcap">&nbsp;</div>
@@ -86,7 +92,7 @@ const PAGE = `<!doctype html>
   var CFG = __CONFIG__;
   var token = new URLSearchParams(location.search).get("token") || "";
   var ws = null, backoff = 500, photoUrl = null, lastWelcome = 0, fxTimer = null;
-  var wrong = {};
+  var wrong = {}, scoreCard = null, customPrompt = null, scene = "meadow";
   var HELLO = JSON.stringify({ type: "hello", role: "monitor", client: "monitor-page", version: CFG.VERSION });
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -115,14 +121,32 @@ const PAGE = `<!doctype html>
     while (box.childNodes.length > 4) box.removeChild(box.lastChild);
   }
   function showBeat(n) { $("beat").lastChild.textContent = (CFG.BEATS[n] || "?"); }
-  function showScore(t) { $("score").textContent = t || ""; }
-  function showScene(scene, state) {
-    if (scene) { $("scene").textContent = pretty(scene).replace(/^whatif /, "what if: "); $("scene").className = /fire/.test(scene) && scene !== "fire_out" ? "fire" : ""; }
+  // score card: {elapsed_s, text, grievances} (the score message or /health), or a bare string (older logs)
+  function showScore(card) {
+    var t = !card ? "" : typeof card === "string" ? card : card.text;
+    $("score").textContent = t || "";
+    var g = card && typeof card === "object" && typeof card.grievances === "number" ? card.grievances : null;
+    $("griev").textContent = g === null ? "" : "Grievances filed: " + g;
+    $("griev").className = g === 0 ? "zero" : "";
+  }
+  function sceneName(sc) { return sc === "whatif_custom" ? "what if: off the script" : pretty(sc).replace(/^whatif /, "what if: "); }
+  // the prompt Claude wrote, minus the shared camera sentence
+  function showCustom() {
+    var on = scene === "whatif_custom" && !!customPrompt;
+    $("custom").textContent = on ? customPrompt.replace(/\\s*Wide shot[^.]*\\.\\s*$/i, "") : "";
+    $("custom").className = on ? "on" : "";
+  }
+  function showScene(sc, state) {
+    if (sc) { scene = sc; $("scene").textContent = sceneName(sc); $("scene").className = /fire/.test(sc) && sc !== "fire_out" ? "fire" : ""; showCustom(); }
     if (state) $("stream").textContent = state === "ready" ? "live Orbis stream" : state === "priming" ? "stream starting..." : "recorded clip";
   }
   var MEANT = { what_if: "what if", undo: "put it back", ask: "question", ack: "noted for the minutes", unknown: "noted for the minutes" };
   function showSaid(text) { $("said").textContent = text ? "\\u201c" + text + "\\u201d" : "(couldn't hear that)"; $("said").className = text ? "" : "empty"; $("meant").textContent = text ? "thinking..." : "try again"; $("meant").className = ""; }
-  function showMeant(m) { $("meant").textContent = (MEANT[m.name] || m.name) + (m.topic ? ": " + m.topic : ""); $("meant").className = m.name; }
+  function showMeant(m) {
+    var topic = m.topic === "custom" ? (m.custom_prompt ? "off the script" : "grievance filed") : m.topic;
+    $("meant").textContent = (MEANT[m.name] || m.name) + (topic ? ": " + topic : ""); $("meant").className = m.name;
+    if (m.topic === "custom" && m.custom_prompt) customPrompt = m.custom_prompt;
+  }
   function flashFx(text) {
     var f = $("fx"); f.textContent = text; f.className = "on";
     if (fxTimer) clearTimeout(fxTimer);
@@ -146,8 +170,10 @@ const PAGE = `<!doctype html>
   function sync() {
     fetch("/health").then(function (r) { return r.json(); }).then(function (h) {
       showBeat(h.beat);
+      if (h.orbis && h.orbis.custom_prompt) customPrompt = h.orbis.custom_prompt;
       if (h.orbis) showScene(h.orbis.scene, h.orbis.state);
-      showScore(h.score || "");
+      if (h.score && typeof h.score === "object") scoreCard = h.score;
+      showScore(h.score || scoreCard || "");
       (h.solved || []).forEach(lightHex);
     }).catch(function () {});
   }
@@ -157,6 +183,7 @@ const PAGE = `<!doctype html>
       case "welcome": lastWelcome = Date.now(); showBeat(m.beat); break;
       case "beat.set": showBeat(m.n); break;
       case "group.reset":
+        scoreCard = null; customPrompt = null;
         clearHexes(); showScore(""); showScene("meadow", null); $("captions").textContent = "";
         $("said").textContent = "Ask the window: \\u201cwhat if...?\\u201d"; $("said").className = "empty"; $("meant").textContent = "listening"; $("meant").className = "";
         $("polaroid").className = "polaroid"; break;
@@ -165,7 +192,8 @@ const PAGE = `<!doctype html>
       case "intent": showMeant(m); break;
       case "orbis": showScene(m.scene, m.state); break;
       case "fx": if (m.name === "embers") flashFx("EMBERS INCOMING"); break;
-      case "log": if (/^score: /.test(m.text)) showScore(m.text.slice(7)); break;
+      case "score": scoreCard = m; showScore(m); break;
+      case "log": if (/^score: /.test(m.text) && !scoreCard) showScore(m.text.slice(7)); break;
       case "say": caption(m.caption, m.channel, m.channel === "ear" ? "in the scout's ear" : "Beeswax"); break;
       case "plea": caption(m.text, "plea", "noted for the minutes"); break;
       case "scan.started":

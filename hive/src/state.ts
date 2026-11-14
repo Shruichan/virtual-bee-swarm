@@ -1,5 +1,16 @@
 // Group state: one judging group at a time. The Quest owns the beat; the Hive mirrors it.
-import { BEATS, CORRECT_CHOICE, type BeatName, type Choice, type Item, type Mode, type Scene, type Station, type WhatIfTopic } from "./protocol";
+import {
+  BEATS,
+  CORRECT_CHOICE,
+  type BeatName,
+  type Choice,
+  type Item,
+  type Mode,
+  type Scene,
+  type Score,
+  type Station,
+  type WhatIfTopic,
+} from "./protocol";
 
 export interface Memory {
   // v3 game
@@ -34,6 +45,10 @@ export interface GroupState {
   /** Score clock: when the hook beat started, and hook -> escape once the hive is saved. */
   clock_start: number | null;
   saved_ms: number | null;
+  /** v2.1: the score card, frozen when the escape beat starts (null until then). */
+  score: Score | null;
+  /** v2.1: the vetted Orbis prompt of the last custom what-if (shown while scene is whatif_custom). */
+  custom_prompt: string | null;
 }
 
 export function newGroupId(): string {
@@ -68,6 +83,8 @@ export function createState(): GroupState {
     base_scene: "meadow",
     clock_start: null,
     saved_ms: null,
+    score: null,
+    custom_prompt: null,
   };
 }
 
@@ -80,6 +97,8 @@ export function reset(state: GroupState, group_id?: string): GroupState {
   state.base_scene = "meadow";
   state.clock_start = null;
   state.saved_ms = null;
+  state.score = null;
+  state.custom_prompt = null;
   return state;
 }
 
@@ -126,4 +145,23 @@ export function formatClock(ms: number): string {
 
 export function scoreText(state: GroupState): string | null {
   return state.saved_ms === null ? null : `Hive saved in ${formatClock(state.saved_ms)}`;
+}
+
+/** Wrong choices this group: "Grievances filed: N" on the score card. */
+export function grievances(state: GroupState): number {
+  return state.memory.wrong.length;
+}
+
+/** Stop the score clock (once per group) and freeze the score card. Null if the clock never started. */
+export function saveScore(state: GroupState, now = Date.now()): Score | null {
+  if (state.score) return state.score;
+  if (state.clock_start === null) return null;
+  state.saved_ms ??= Math.max(0, now - state.clock_start);
+  state.score = {
+    type: "score",
+    elapsed_s: Math.max(0, Math.round(state.saved_ms / 1000)),
+    text: scoreText(state)!,
+    grievances: grievances(state),
+  };
+  return state.score;
 }

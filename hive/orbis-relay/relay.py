@@ -38,6 +38,9 @@ log = logging.getLogger("orbis")
 HERE = Path(__file__).resolve().parent
 SCENE_FILE = HERE.parent / "lines" / "orbis_scenes.json"  # v2 named window scenes (protocol.ts SCENES)
 SCENE_ID = re.compile(r"^[a-z0-9_]{1,40}$")  # also the clip file name: clips/<scene>.mp4
+# protocol.ts SCENES without a recorded clip: whatif_custom is an unplanned what-if whose prompt Claude writes on the
+# spot, so no clip can show it (Unity keeps the previous clip). record_clips.py skips these; status names no clip.
+CLIPLESS_SCENES = frozenset({"whatif_custom"})
 MODEL = "reactor/visko-orbis-stable"
 GEN_W, GEN_H = 832, 480  # what Orbis generates
 # Smallest delivery tiers first: we downscale to <= ORBIS_MAX_W anyway, so a bigger tier only costs bandwidth.
@@ -528,7 +531,10 @@ class Relay:
 
     def status(self) -> dict[str, Any]:
         staged = self.scene_for(self.stage)
-        clip = f"{self.scene}.mp4" if self.scene else f"{staged['id']}.mp4" if staged else None
+        if self.scene:
+            clip = None if self.scene in CLIPLESS_SCENES else f"{self.scene}.mp4"
+        else:
+            clip = f"{staged['id']}.mp4" if staged else None
         return {
             "type": "orbis",
             "state": self.state,

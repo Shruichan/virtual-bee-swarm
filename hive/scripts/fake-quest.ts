@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // Fake Quest: connects to the bus as role=quest, prints every message, and behaves like Unity's beat machine
-// (accepts beat.request, reports beat.set). It can also play a station run and talk into the mic.
+// (accepts beat.request, reports beat.set; applies the Board's choice.request and reports choice.made, as Unity does
+// in that station's beat). It can also play a station run and talk into the mic.
 //
 //   bun scripts/fake-quest.ts --url http://localhost:8240 --token $HIVE_TOKEN \
 //     --beats hook,meet,smoker --choices smoker:swat,smoker:smoker,feed:store_honey,feed:sugar_syrup \
@@ -16,7 +17,7 @@
 //        16 kHz mono + listen.end, paced in real time unless --fast), --cancel (end the listen with cancel:true),
 //        --steps a,b,c (instead of --beats/--choices/--say-wav: run these in order; a step is a beat name or number,
 //        station:choice, say:<wav> (waits for the Hive's intent, or an empty transcript, up to 15 s) or wait:<seconds>),
-//        --no-swarm, --exit-after seconds. Never plays audio.
+//        --no-swarm, --ignore-choice-requests, --exit-after seconds. Never plays audio.
 import { readFileSync } from "node:fs";
 import { BEATS, BINARY_KIND, CHOICES, CORRECT_CHOICE, PROTOCOL_VERSION, STATIONS, type Station } from "../src/protocol";
 
@@ -271,6 +272,14 @@ function main(): void {
       case "beat.request": {
         const n = m.next ? Math.min(beat + 1, BEATS.length - 1) : m.n;
         if (typeof n === "number" && n >= 0 && n < BEATS.length) setBeat(n); // the real Unity may refuse
+        break;
+      }
+      case "choice.request": {
+        // v2.1: Unity applies the operator's choice like the player's and reports choice.made (--ignore-choice-requests: don't).
+        const ok = STATIONS.includes(m.station) && (CHOICES[m.station as Station] as readonly string[]).includes(m.choice);
+        if (ok && !opt["ignore-choice-requests"]) {
+          send({ type: "choice.made", station: m.station, choice: m.choice, correct: CORRECT_CHOICE[m.station as Station] === m.choice });
+        }
         break;
       }
       case "scan.verdict":

@@ -22,8 +22,10 @@ import {
   type BeatName,
   type Channel,
   type Choice,
+  type ChoiceRequest,
   type DirectorOutput,
   type FxName,
+  type Intent,
   type IntentName,
   type Item,
   type OrbisRequest,
@@ -41,7 +43,7 @@ import {
   type WhatIfTopic,
 } from "./protocol";
 import { Bus, checkToken, log, withTimeout, type Client, type ClientData } from "./bus";
-import { beatName, createState, recordChoice, remember, rememberHeard, scoreText, type GroupState } from "./state";
+import { beatName, createState, grievances, recordChoice, remember, rememberHeard, saveScore, scoreText, type GroupState } from "./state";
 import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
 import { monitorHtml } from "./monitor";
@@ -105,6 +107,60 @@ const OFFLINE_JUDGE: HiveDeps["judge"] = async () => ({
 function keywordRoute(text: string): RouteResultLike {
   const k = voiceKeywords(text);
   return { intent: k.intent, topic: k.topic, answer: null, ms: 0, path: "keyword" };
+}
+
+// ---------------------------------------------------------------- custom what-ifs: the last local check before the relay
+// The router (Claude) writes the Orbis prompt for an unplanned what-if and is told to keep it safe. This is the Hive's own
+// final check, so nothing unvetted ever reaches Reactor (moderation can end the billed session). Anything it rejects is
+// treated as a refusal: Beeswax says "Grievance filed. Not that one." Over-refusing is fine; a refusal is a joke too.
+
+export const CUSTOM_PROMPT_MAX = 600;
+
+const URL_RX =
+  /\b(?:https?|ftp|file|data|javascript|mailto):|\bwww\.|\b[a-z0-9-]+\.(?:com|net|org|io|dev|ai|co|gg|xyz|app|ly|me|tv|info|biz|us|uk|ru|cn|link|site|online|sh)\b/i;
+
+// Whole words (with the listed endings), case-insensitive.
+const DENY_WORDS = [
+  // violence
+  "kill(?:s|ed|er|ers|ing)?", "murder\\w*", "slaughter\\w*", "massacre\\w*", "behead\\w*", "decapitat\\w*", "dismember\\w*",
+  "stab(?:s|bed|bing)?", "shoot(?:s|ing|er|ers)?", "shotguns?", "guns?", "gunfire", "gunm[ae]n", "rifles?", "pistols?",
+  "bomb(?:s|ed|ing|er|ers)?", "grenades?", "explosives?", "terror\\w*", "weapons?", "blood(?:y|ied|shed|bath)?", "gore", "gory",
+  "corpses?", "tortur\\w*", "wars?", "warfare", "genocid\\w*", "strangl\\w*", "assault\\w*", "execution\\w*",
+  // harm to people, self-harm
+  "suicid\\w*", "self[- ]?harm\\w*", "abus(?:e|ed|es|er|ers|ing)", "kidnap\\w*", "hostages?", "rap(?:e|ed|es|ist|ists|ing)",
+  // sexual
+  "sex", "sexy", "sexual\\w*", "nud(?:e|es|ity)", "naked", "porn\\w*", "nsfw", "erotic\\w*", "orgasm\\w*", "genital\\w*",
+  "penis\\w*", "vagina\\w*", "breasts?", "boobs?", "nipples?", "fetish\\w*", "horny", "lingerie", "strip(?:per|pers|tease)",
+  // hate
+  "nazi\\w*", "hitler", "swastika\\w*", "kkk", "slurs?", "racis(?:t|ts|m)", "lynch\\w*", "supremac\\w*", "ethnic cleansing",
+];
+const DENY_RX = new RegExp(`\\b(?:${DENY_WORDS.join("|")})\\b`, "i");
+// "people burning", "the children are hurt": harm to people, whichever order the words come in.
+const PEOPLE = "people|persons?|humans?|man|men|woman|women|child|children|kids?|bab(?:y|ies)|someone|somebody|everyone|players?";
+const HARM =
+  "burn\\w*|die|dies|died|dying|dead|death|hurt\\w*|injur\\w*|attack\\w*|sting\\w*|stung|wound\\w*|bleed\\w*|drown\\w*|trapped|crush\\w*|scream\\w*";
+const PEOPLE_HARM_RX = new RegExp(`\\b(?:${PEOPLE})\\b[^.!?]{0,40}\\b(?:${HARM})\\b|\\b(?:${HARM})\\b[^.!?]{0,40}\\b(?:${PEOPLE})\\b`, "i");
+// Bee-world phrases that contain a denied word but are fine to show.
+const ALLOWED_PHRASES = /\b(?:killer bees?|murder hornets?|seed bombs?)\b/gi;
+
+export type CustomCheck = { ok: true; prompt: string } | { ok: false; reason: string };
+
+/** The final local safety check on a custom Orbis prompt: <= 600 chars, no URLs, no denied words. */
+export function checkCustomPrompt(raw: unknown): CustomCheck {
+  if (typeof raw !== "string") return { ok: false, reason: "no prompt" };
+  const prompt = raw
+    .replace(/[\u00ad\u200b-\u200f\u2060\ufeff]/g, "") // invisible: deleted, so "bl\u200bood" can't split a word
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!prompt) return { ok: false, reason: "empty prompt" };
+  if (prompt.length > CUSTOM_PROMPT_MAX) return { ok: false, reason: `too long (${prompt.length} > ${CUSTOM_PROMPT_MAX} chars)` };
+  const plain = prompt.normalize("NFKC");
+  if (URL_RX.test(plain)) return { ok: false, reason: "contains a URL" };
+  const words = plain.replace(ALLOWED_PHRASES, "bees");
+  const hit = words.match(DENY_RX)?.[0] ?? words.match(PEOPLE_HARM_RX)?.[0];
+  if (hit) return { ok: false, reason: `denylist: "${hit.toLowerCase()}"` };
+  return { ok: true, prompt };
 }
 
 // Imported by URL so the Hive still type-checks and starts while a sibling module is missing or broken.
@@ -328,6 +384,12 @@ interface Listen {
 /** What Beeswax says back: a pre-rendered room line, or live text (needs TTS). */
 interface Reply { line_id: string | null; text: string }
 
+/** A route result inside the contract. For a custom what-if, custom_prompt has passed checkCustomPrompt (or is null). */
+interface Routed extends RouteResultLike { blocked?: string }
+
+/** What a typed or spoken utterance became (POST /board/custom answers with this). */
+interface Understood { route: Routed; response: UtteranceResponse }
+
 const isWhatIfScene = (s: Scene) => s.startsWith("whatif_");
 const cleanText = (s: unknown, max = 500) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
@@ -365,6 +427,12 @@ export interface HiveOptions {
   listenWatchdogMs?: number;
   /** "what if a fire starts": embers spill out of the portal this long after the line starts (covers the Orbis morph). */
   embersDelayMs?: number;
+  /** Claude prompt-cache warm-up (deps.prewarm: router + director). The cache lasts 1 h: re-warm this long after the last
+   *  warm-up finished (default 50 min), and on group.reset when the last one is older than prewarmStaleMs (default 45 min). */
+  prewarmEveryMs?: number;
+  prewarmStaleMs?: number;
+  /** Warm up as soon as the Hive starts (default true). */
+  prewarmOnStart?: boolean;
 }
 
 export interface Hive {
@@ -387,6 +455,8 @@ export function startHive(opts: HiveOptions): Hive {
   const listenMaxBytes = Math.max(2, (opts.listenMaxBytes ?? 15 * 16000 * 2) & ~1);
   const listenWatchdogMs = opts.listenWatchdogMs ?? 20_000;
   const embersDelayMs = opts.embersDelayMs ?? 2500;
+  const prewarmEveryMs = Math.max(1, opts.prewarmEveryMs ?? 50 * 60_000);
+  const prewarmStaleMs = opts.prewarmStaleMs ?? 45 * 60_000;
   const state = createState();
   const jobs = new Map<string, ScanJob>(); // by scan_id (current + recent, for idempotent retries)
   const audio = new AudioCache(50);
@@ -452,6 +522,9 @@ export function startHive(opts: HiveOptions): Hive {
         earOnce("hornet_done", "ear_aside_hornet");
       },
       onChoice: (station, choice, questSays) => choiceMade(station, choice, questSays),
+      onChoiceRequest: (station, choice) => choiceRequest(station, choice),
+      onFxForce: (name) => fxForce(name),
+      onWhatIfForce: (m) => whatIfForce(m),
       onListenStart: (ws, mode) => listenStart(ws, mode),
       onMic: (ws, pcm) => micFrame(ws, pcm),
       onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
@@ -745,16 +818,22 @@ export function startHive(opts: HiveOptions): Hive {
 
   const relayUrl = opts.orbisRelayUrl?.replace(/\/+$/, "") || null;
   const ORBIS_STATES: readonly OrbisState[] = ["off", "priming", "ready", "failed", "ended"];
-  let orbisWant: OrbisRequest["want"] = "clips";
+  let orbisWant: NonNullable<OrbisRequest["want"]> = "clips";
   let relayState: OrbisState = "off";
   let relaySince = 0; // the relay's `since`, so an older reply never overwrites a newer one
   let relayScene: Scene | null = null; // the scene whose prompt the relay was last given
+  let relayPrompt: string | null = null; // ...and that prompt (custom what-ifs all share the scene whatif_custom)
   let relayUp: boolean | null = null;
   let relayChain: Promise<unknown> = Promise.resolve(); // POSTs go out one at a time, in order
   let published: OrbisStatus | null = null;
+  let customClip: string | null = null; // whatif_custom has no recorded clip: Unity keeps the clip that was showing
 
   const relayRunning = () => relayState === "priming" || relayState === "ready";
   const clipOf = (scene: Scene) => deps.scenes[scene]?.clip || `${scene}.mp4`;
+  const fallbackClip = (scene: Scene) => (scene === "whatif_custom" ? (customClip ?? clipOf(state.base_scene)) : clipOf(scene));
+  /** What the relay shows for a scene: the vetted custom prompt for whatif_custom, else hive/lines/orbis_scenes.json. */
+  const promptFor = (scene: Scene): string | null =>
+    (scene === "whatif_custom" ? state.custom_prompt : null) || deps.scenes[scene]?.prompt || null;
 
   function orbisStatus(): OrbisStatus {
     return {
@@ -762,7 +841,7 @@ export function startHive(opts: HiveOptions): Hive {
       state: relayUrl ? relayState : "off",
       stage: SCENES.indexOf(state.scene),
       scene: state.scene,
-      fallback_clip: clipOf(state.scene),
+      fallback_clip: fallbackClip(state.scene),
     };
   }
 
@@ -805,9 +884,14 @@ export function startHive(opts: HiveOptions): Hive {
     if (since && since < relaySince) return;
     relaySince = Math.max(relaySince, since);
     relayState = st;
-    if (!relayRunning()) relayScene = null;
-    // After a Hive restart the relay may still be live: remember what it shows so the same prompt isn't re-sent.
-    else if (relayScene === null && SCENES.includes(s.scene as Scene)) relayScene = s.scene as Scene;
+    if (!relayRunning()) {
+      relayScene = null;
+      relayPrompt = null;
+    } else if (relayScene === null && SCENES.includes(s.scene as Scene)) {
+      // After a Hive restart the relay may still be live: remember what it shows so the same prompt isn't re-sent.
+      relayScene = s.scene as Scene;
+      relayPrompt = typeof s.prompt === "string" ? s.prompt : null;
+    }
     publishOrbis(false);
   }
 
@@ -822,11 +906,13 @@ export function startHive(opts: HiveOptions): Hive {
 
   /** Morph a running stream to this scene's prompt. No stream: nothing (never opens a billed session by itself). */
   function steerRelay(scene: Scene): void {
-    if (!relayUrl || !relayRunning() || relayScene === scene) return;
-    const sc = deps.scenes[scene];
-    if (!sc) return observe(`no Orbis prompt for scene ${scene}`);
+    if (!relayUrl || !relayRunning()) return;
+    const prompt = promptFor(scene);
+    if (relayScene === scene && relayPrompt === prompt) return;
+    if (!prompt) return observe(`no Orbis prompt for scene ${scene}`);
     relayScene = scene;
-    void queueRelay(() => relay("/orbis/stage", { prompt: sc.prompt, scene }));
+    relayPrompt = prompt;
+    void queueRelay(() => relay("/orbis/stage", { prompt, scene }));
   }
 
   /** live: start the stream on the current scene, or morph a running one. clips/off: stop (Reactor bills while connected). */
@@ -839,17 +925,17 @@ export function startHive(opts: HiveOptions): Hive {
         return;
       }
       const scene = state.scene;
-      const sc = deps.scenes[scene];
+      const prompt = promptFor(scene);
+      const seed = deps.scenes[scene]?.seed ?? deps.scenes.meadow?.seed;
       const now = await relay("/orbis/status");
       const running = now?.state === "priming" || now?.state === "ready";
+      relayScene = scene;
+      relayPrompt = prompt;
       if (!running) {
-        relayScene = scene;
-        await relay("/orbis/start", sc ? { prompt: sc.prompt, seed: sc.seed, scene } : { scene });
-      } else if (sc && now?.prompt !== sc.prompt) {
-        relayScene = scene;
-        await relay("/orbis/stage", { prompt: sc.prompt, scene });
+        await relay("/orbis/start", prompt ? { prompt, ...(seed === undefined ? {} : { seed }), scene } : { scene });
+      } else if (prompt && now?.prompt !== prompt) {
+        await relay("/orbis/stage", { prompt, scene });
       } else {
-        relayScene = scene;
         observe(`orbis relay already ${String(now?.state)} on ${scene}`);
       }
     });
@@ -858,6 +944,7 @@ export function startHive(opts: HiveOptions): Hive {
   /** The one place the window changes: fx for the fire, the relay morph, and orbis{} for everyone. */
   function setScene(next: Scene, why: string): void {
     const prev = state.scene;
+    if (next === "whatif_custom" && prev !== "whatif_custom") customClip = fallbackClip(prev);
     state.scene = next;
     if (!isWhatIfScene(next) && next !== "fire_out") state.base_scene = next;
     if (prev === "whatif_fire" && next !== "whatif_fire") bus.fx("embers_stop");
@@ -876,11 +963,12 @@ export function startHive(opts: HiveOptions): Hive {
       scene = SCENES[msg.stage];
       if (!scene) return bus.send(from, { type: "error", message: `orbis.request stage ${msg.stage} is not a scene (0-${SCENES.length - 1})` });
     }
-    // With a scene (or stage) this is a scene switch only: its `want` (the sender's possibly stale idea of the mode)
-    // is ignored, so a Quest or Board never starts or stops the billed stream by accident. Only a bare mode request
-    // (the Board's LIVE/CLIPS/OFF) changes the mode.
-    const changeWant = !scene;
-    if (changeWant) orbisWant = msg.want;
+    // v2.1: with a scene (or stage) this is a scene switch only. `want` is optional there, and when a sender still adds
+    // it (its possibly stale idea of the mode) it is ignored, so a Quest or Board never starts or stops the billed stream
+    // by accident. Only a bare mode request (the Board's LIVE/CLIPS/OFF) changes the mode.
+    const changeWant = !scene && msg.want !== undefined;
+    if (!scene && !changeWant) return bus.send(from, { type: "error", message: "orbis.request needs want (live|clips|off) or a scene/stage" });
+    if (changeWant) orbisWant = msg.want!;
     const fwd: OrbisRequest = { type: "orbis.request", want: orbisWant };
     if (scene) {
       fwd.scene = scene;
@@ -905,17 +993,25 @@ export function startHive(opts: HiveOptions): Hive {
     if (name === "hook") {
       state.clock_start = now;
       state.saved_ms = null;
+      state.score = null;
+      variantTurn.clear(); // a new run starts on the base lines again (a group.reset clears it too)
       setScene("meadow", "hook");
     } else if (state.clock_start === null && name && ON_CLOCK.has(name)) {
       state.clock_start = now; // the hook was skipped: start the score clock here
       observe(`score clock started at ${name} (no hook beat)`);
     }
     if (name === "escape") {
-      if (state.clock_start !== null && state.saved_ms === null) {
-        state.saved_ms = now - state.clock_start;
-        const score = scoreText(state)!;
-        log(`score: ${score}`);
-        observe(`score: ${score}`);
+      // v2.1: the score card. Frozen the first time the escape beat starts; re-sent if Unity comes back to escape.
+      const first = state.score === null;
+      const score = saveScore(state, now);
+      if (score) {
+        if (first) {
+          log(`score: ${score.text} (grievances: ${score.grievances})`);
+          observe(`score: ${score.text}`);
+        }
+        bus.broadcast(score);
+      } else {
+        observe("no score: the clock never started (no hook or station beat before escape)");
       }
       setScene("full_bloom", "escape");
     } else if (name === "t0") {
@@ -927,7 +1023,8 @@ export function startHive(opts: HiveOptions): Hive {
 
   let lastChoice = { key: "", at: 0 };
 
-  function choiceMade(station: Station, choice: Choice, questSays: boolean | null): void {
+  /** A station choice: Unity's choice.made, or the Board's choice.request when no Quest is connected (path "operator"). */
+  function choiceMade(station: Station, choice: Choice, questSays: boolean | null, path: "quest" | "operator" = "quest"): void {
     const key = `${station}:${choice}`;
     if (key === lastChoice.key && Date.now() - lastChoice.at < 1500) return log(`choice ${key}: duplicate ignored`);
     lastChoice = { key, at: Date.now() };
@@ -947,8 +1044,44 @@ export function startHive(opts: HiveOptions): Hive {
     if (outcome?.fx) bus.fx(outcome.fx);
     if (outcome) setScene(outcome.scene, key);
     const solved = state.memory.solved.length;
-    log(`choice ${key}: ${correct ? "correct" : "wrong"} (${solved}/4 solved)`);
-    observe(`choice ${station}: ${choice} ${correct ? "CORRECT" : "wrong"} (${solved}/4 solved)`);
+    const via = path === "operator" ? ", operator: no Quest, applied by the Hive" : "";
+    log(`choice ${key}: ${correct ? "correct" : "wrong"} (${solved}/4 solved, ${grievances(state)} grievances${via})`);
+    observe(`choice ${station}: ${choice} ${correct ? "CORRECT" : "wrong"} (${solved}/4 solved${via})`);
+  }
+
+  // ------------------------------------------------------------ v2.1 operator ops (Beat Board)
+
+  /** choice.request: Unity applies it (hexagon, swarm, line) and reports choice.made as usual. No Quest: the Hive plays
+   *  the outcome itself (line + fx + window + memory), so a rehearsal without the headset still works. */
+  function choiceRequest(station: Station, choice: Choice): void {
+    if (bus.count("quest") > 0) {
+      const msg: ChoiceRequest = { type: "choice.request", station, choice };
+      bus.broadcast(msg, ["quest"]);
+      log(`operator choice.request ${station}:${choice} -> quest`);
+      observe(`operator choice.request ${station}: ${choice} -> quest (path operator)`);
+      return;
+    }
+    log(`operator choice.request ${station}:${choice}: no Quest, the Hive applies it`);
+    choiceMade(station, choice, null, "operator");
+  }
+
+  /** fx.force: straight to Unity (board/monitor get the usual copy). */
+  function fxForce(name: FxName): void {
+    bus.fx(name);
+    log(`operator fx ${name}`);
+    observe(`operator fx ${name} (path operator)`);
+  }
+
+  /** whatif.force: the operator twin of a voice what-if or "put it out", through the same act() path. */
+  function whatIfForce(m: { topic: WhatIfTopic | null; undo: boolean }): void {
+    const r: Routed = m.undo
+      ? { intent: "undo", topic: null, answer: null, ms: 0, path: "keyword" }
+      : { intent: "what_if", topic: m.topic, answer: null, ms: 0, path: "keyword" };
+    const what = m.undo ? "undo" : `what-if ${m.topic}`;
+    log(`operator ${what}`);
+    observe(`operator ${what} (path operator, window ${state.scene})`);
+    const field = beatName(state) === "field";
+    act(r, (reply) => sayReply(reply, "room"), field, ttsAvailable());
   }
 
   function groupReset(): void {
@@ -958,9 +1091,13 @@ export function startHive(opts: HiveOptions): Hive {
       listens.delete(id);
     }
     lastChoice = { key: "", at: 0 };
+    customClip = null;
+    variantTurn.clear();
     bus.fx("embers_stop");
-    publishOrbis(true); // reset() already put the window back on the meadow
+    publishOrbis(true); // reset() already put the window back on the meadow (and cleared the custom prompt and score)
     steerRelay(state.scene);
+    // A new group is about to talk: make sure Claude's prompt cache (1 h) is still warm.
+    if (lastWarm === null || Date.now() - lastWarm > prewarmStaleMs) void warmUp("group reset");
   }
 
   // ------------------------------------------------------------ voice in: listen.start, MIC_PCM16, listen.end
@@ -1050,7 +1187,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
   }
 
-  async function safeRoute(text: string, ctx: { beat: BeatName; recent: string[] }): Promise<RouteResultLike> {
+  async function safeRoute(text: string, ctx: { beat: BeatName; recent: string[] }): Promise<Routed> {
     const t0 = Date.now();
     let r: RouteResultLike;
     try {
@@ -1064,7 +1201,7 @@ export function startHive(opts: HiveOptions): Hive {
     const topic = WHATIF_TOPICS.includes(r?.topic as WhatIfTopic) ? (r.topic as WhatIfTopic) : null;
     if (intent === "what_if" && !topic) intent = "unknown";
     const answer = intent === "ask" && typeof r?.answer === "string" && r.answer.trim() ? r.answer.trim().slice(0, 300) : null;
-    return {
+    const out: Routed = {
       intent,
       topic: intent === "what_if" ? topic : null,
       answer,
@@ -1072,6 +1209,14 @@ export function startHive(opts: HiveOptions): Hive {
       path: r?.path === "claude" ? "claude" : "keyword",
       error: r?.error,
     };
+    // v2.1 custom what-if: Claude's prompt only goes on if it passes the Hive's own check; otherwise it is a refusal.
+    if (out.topic === "custom") {
+      const raw = r?.custom_prompt;
+      const check = checkCustomPrompt(raw);
+      out.custom_prompt = check.ok ? check.prompt : null;
+      if (!check.ok) out.blocked = typeof raw === "string" ? `blocked by the Hive: ${check.reason}` : "the router refused";
+    }
+    return out;
   }
 
   /** Mic audio -> transcript -> intent -> act. Never throws. */
@@ -1096,6 +1241,7 @@ export function startHive(opts: HiveOptions): Hive {
   /**
    * Route a final transcript and act on it. Room lines play on the Quest when one is connected (outside the field);
    * otherwise the reply goes to the ear: `earReply` for the bus path, the return value for /glasses/utterance.
+   * `operator`: the Board typed it (POST /board/custom): it acts in any beat and Beeswax answers in the room.
    */
   async function understand(
     text: string,
@@ -1103,29 +1249,34 @@ export function startHive(opts: HiveOptions): Hive {
     t0: number,
     group: string,
     earReply?: (r: UtteranceResponse) => void,
-  ): Promise<UtteranceResponse | null> {
+    operator = false,
+  ): Promise<Understood | null> {
     const recent = state.memory.heard.slice(-5);
     rememberHeard(state, text);
     const beat = beatName(state);
     const r = await safeRoute(text, { beat, recent });
-    latency("voice.route", r.ms);
-    bus.broadcast({ type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) });
+    latency(operator ? "board.route" : "voice.route", r.ms);
+    const intent: Intent = { type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) };
+    if (r.topic === "custom") intent.custom_prompt = r.custom_prompt ?? null;
+    bus.broadcast(intent);
     // The answer rides along for the operator: with TTS down it is never spoken (Beeswax acks instead).
+    const custom = r.topic !== "custom" ? "" : r.custom_prompt ? ` prompt: "${r.custom_prompt.slice(0, 200)}"` : ` REFUSED (${r.blocked ?? "no prompt"})`;
     observe(
-      `voice ${source}: "${text.slice(0, 80)}" -> ${r.intent}${r.topic ? `/${r.topic}` : ""} via ${r.path} ${Math.round(r.ms)} ms` +
-        `${r.error ? ` (${r.error})` : ""}${r.answer ? ` answer: "${r.answer}"` : ""}`,
+      `${operator ? "operator text (path operator)" : `voice ${source}`}: "${text.slice(0, 80)}" -> ${r.intent}${r.topic ? `/${r.topic}` : ""} via ${r.path} ` +
+        `${Math.round(r.ms)} ms${r.error ? ` (${r.error})` : ""}${r.answer ? ` answer: "${r.answer}"` : ""}${custom}`,
     );
+    if (r.blocked) log(`custom what-if refused: ${r.blocked}`);
     if (group !== state.group_id) return null; // group reset mid-utterance
 
     const response: UtteranceResponse = { intent: r.intent, topic: r.topic, line_id: null, audio_url: null, caption: "" };
-    if (!VOICE_BEATS.includes(beat)) {
+    if (!operator && !VOICE_BEATS.includes(beat)) {
       observe(`voice: not acting in beat ${beat}`);
       if (source === "glasses" && hasLine("ear_not_now")) Object.assign(response, { line_id: "ear_not_now", caption: lineText("ear_not_now") });
       earReply?.(response);
-      return response;
+      return { route: r, response };
     }
     const field = beat === "field";
-    const toRoom = !field && bus.count("quest") > 0;
+    const toRoom = !field && (operator || bus.count("quest") > 0);
     const deliver = (reply: Reply) => {
       if (toRoom) return sayReply(reply, "room");
       Object.assign(response, earVersion(reply));
@@ -1134,8 +1285,8 @@ export function startHive(opts: HiveOptions): Hive {
     };
     // A live answer needs our TTS in the room; the miniapp can read a caption aloud in Mentra's own voice.
     act(r, deliver, field, toRoom ? ttsAvailable() : true);
-    latency("voice.total", Date.now() - t0);
-    return response;
+    latency(operator ? "board.total" : "voice.total", Date.now() - t0);
+    return { route: r, response };
   }
 
   /** What-if, undo, ask, ack: say the line first, then change the window (the line covers the 2-4 s morph). */
@@ -1144,15 +1295,17 @@ export function startHive(opts: HiveOptions): Hive {
       case "what_if": {
         const topic = r.topic!;
         state.memory.whatifs.push(topic);
+        if (topic === "custom") return customWhatIf(r.custom_prompt ?? null, deliver, field);
+        // The base line first; a repeat in the same run gets its alternates in turn ("...Again?!").
         const id = `room_whatif_${topic}`;
-        deliver(hasLine(id) ? { line_id: id, text: lineText(id) } : ackReply());
+        deliver(hasLine(id) ? lineReply(variant(id)) : ackReply());
         if (!field) setScene(`whatif_${topic}` as Scene, `what if: ${topic}`);
         return;
       }
       case "undo": {
         const cur = state.scene;
         if (cur === "whatif_fire") {
-          deliver(lineReply("room_whatif_out"));
+          deliver(lineReply(variant("room_whatif_out")));
           if (!field) setScene("fire_out", "put it out");
         } else if (isWhatIfScene(cur) || cur === "fire_out") {
           deliver(lineReply("room_whatif_back"));
@@ -1170,7 +1323,47 @@ export function startHive(opts: HiveOptions): Hive {
     }
   }
 
-  const lineReply = (id: string): Reply => (hasLine(id) ? { line_id: id, text: lineText(id) } : ackReply());
+  /** A pre-rendered line, else the fallback line, else a canned acknowledgement. */
+  const lineReply = (id: string, fallback?: string): Reply => {
+    const use = hasLine(id) ? id : fallback && hasLine(fallback) ? fallback : null;
+    return use ? { line_id: use, text: lineText(use) } : ackReply();
+  };
+
+  const variantTurn = new Map<string, number>();
+  /** A line or one of its alternates (lines tagged "alt:<id>"), in turn: the base line first, so a second fire or custom
+   *  what-if in the same run gets a new joke. Reset on group.reset and on the hook beat. */
+  function variant(id: string): string {
+    const pool = [id, ...Object.values(deps.lines).filter((l) => l.tags?.includes(`alt:${id}`)).map((l) => l.id)].filter(hasLine);
+    if (pool.length <= 1) return id;
+    const n = variantTurn.get(id) ?? 0;
+    variantTurn.set(id, n + 1);
+    return pool[n % pool.length]!;
+  }
+
+  /**
+   * An unplanned what-if (v2.1). Live stream: the cover line ("Hold on. I'm picturing it."), then the relay morphs to
+   * Claude's prompt (scene whatif_custom; undo goes back). Clips: no recorded clip can show it, so the window keeps its
+   * clip and Beeswax says the clips line instead (it is written to stand alone: "I'm picturing it. The window isn't.").
+   * No prompt (Claude refused, or the Hive's check blocked it): the refusal line, and the window stays as it is.
+   */
+  function customWhatIf(raw: string | null, deliver: (reply: Reply) => void, field: boolean): void {
+    // Checked again right here, the last step before the relay: nothing unvetted ever reaches Reactor.
+    const check = raw ? checkCustomPrompt(raw) : null;
+    if (!check?.ok) {
+      if (check) observe(`custom what-if refused: ${check.reason}`);
+      deliver(lineReply("room_whatif_refuse", "room_ack_grievance"));
+      return;
+    }
+    if (!field && relayUrl && relayRunning()) {
+      deliver(lineReply(variant("room_whatif_custom"), "room_ack_allow"));
+      state.custom_prompt = check.prompt;
+      setScene("whatif_custom", "custom what-if");
+      observe(`custom what-if on the live window: "${check.prompt.slice(0, 200)}"`);
+      return;
+    }
+    deliver(lineReply("room_whatif_custom_clips", "room_ack_tabled"));
+    observe(`custom what-if: no live stream (clips), the window keeps its clip (prompt: "${check.prompt.slice(0, 120)}")`);
+  }
 
   let lastAck = "";
   function ackReply(): Reply {
@@ -1198,6 +1391,42 @@ export function startHive(opts: HiveOptions): Hive {
     const ear = lineIdFor(text, "ear");
     if (ear) return { line_id: ear, audio_url: null, caption: lineText(ear) };
     return { line_id: null, audio_url: ttsAvailable() ? mp3Url(text) : null, caption: text };
+  }
+
+  // ------------------------------------------------------------ Claude prompt-cache warm-up (router + director)
+  // The cache lasts 1 h. Re-warm prewarmEveryMs after the last warm-up FINISHED (measured from the end, so the modules'
+  // own "warmed in the last 50 min" guard never turns our re-warm into a no-op), and on group.reset when it is stale.
+
+  let lastWarm: number | null = null; // when the last warm-up finished
+  let warming: Promise<void> | null = null;
+  let warmTimer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+
+  function scheduleWarm(): void {
+    if (warmTimer) clearTimeout(warmTimer);
+    warmTimer = stopped || !deps.prewarm ? null : setTimeout(() => void warmUp("timer"), prewarmEveryMs);
+  }
+
+  function warmUp(why: string): Promise<void> {
+    const prewarm = deps.prewarm;
+    if (!prewarm || stopped) return Promise.resolve();
+    if (warming) return warming;
+    if (warmTimer) clearTimeout(warmTimer);
+    warmTimer = null;
+    const t0 = Date.now();
+    warming = (async () => {
+      try {
+        await withTimeout(Promise.resolve(prewarm()), 60_000, "prewarm"); // a sync throw lands in the catch too
+        log(`warm-up (${why}) done in ${Date.now() - t0} ms`);
+      } catch (err) {
+        log(`warm-up (${why}) failed:`, err instanceof Error ? err.message : err);
+      } finally {
+        lastWarm = Date.now();
+        warming = null;
+        scheduleWarm();
+      }
+    })();
+    return warming;
   }
 
   // ------------------------------------------------------------ HTTP
@@ -1251,9 +1480,21 @@ export function startHive(opts: HiveOptions): Hive {
       group_id: state.group_id,
       mode: state.mode,
       scan_in_flight: state.scan_in_flight !== null,
-      orbis: { state: orbisStatus().state, stage: SCENES.indexOf(state.scene), scene: state.scene, want: orbisWant, relay: relayUrl ? relayUp : null },
+      orbis: {
+        state: orbisStatus().state,
+        stage: SCENES.indexOf(state.scene),
+        scene: state.scene,
+        want: orbisWant,
+        relay: relayUrl ? relayUp : null,
+        // v2.1: the vetted prompt while a custom what-if is on the window
+        ...(state.scene === "whatif_custom" && state.custom_prompt ? { custom_prompt: state.custom_prompt } : {}),
+      },
       solved: state.memory.solved,
-      score: scoreText(state),
+      // v2.1: the score card ({elapsed_s, text, grievances}) once the escape beat started, else null
+      score: state.score ? { elapsed_s: state.score.elapsed_s, text: state.score.text, grievances: state.score.grievances } : null,
+      score_text: scoreText(state),
+      grievances: grievances(state),
+      warmed_s_ago: lastWarm === null ? null : Math.round((Date.now() - lastWarm) / 1000),
       listening: listens.size,
       tts: ttsAvailable(),
       stt: sttStatus(),
@@ -1301,8 +1542,35 @@ export function startHive(opts: HiveOptions): Hive {
     bus.broadcast({ type: "transcript", text, final: true, source: "glasses", ms: now - at, stt: "glasses" });
     const r = await understand(text, "glasses", now, state.group_id);
     latency("utterance.total", Date.now() - at);
-    const reply: UtteranceResponse = r ?? { intent: "unknown", topic: null, line_id: null, audio_url: null, caption: "" };
+    const reply: UtteranceResponse = r?.response ?? { intent: "unknown", topic: null, line_id: null, audio_url: null, caption: "" };
     return c.json(reply);
+  });
+
+  /** v2.1 Board: a typed what-if (or anything else), routed exactly as if the player had said it. Board token only. */
+  app.post("/board/custom", async (c) => {
+    if (!authed(c)) return c.json({ error: "bad token" }, 401);
+    const body = await readJson(c);
+    const text = cleanText(body?.text, 300);
+    if (!text) return c.json({ error: "text required" }, 400);
+    const t0 = Date.now();
+    log(`operator text: "${text.slice(0, 80)}"`);
+    bus.broadcast({ type: "transcript", text, final: true, source: "quest", ms: 0, stt: "board" });
+    const ear = (reply: UtteranceResponse) => {
+      if (reply.line_id || reply.audio_url || reply.caption) bus.say("ear", reply.line_id, { audio_url: reply.audio_url, caption: reply.caption });
+    };
+    const r = await understand(text, "quest", t0, state.group_id, ear, true);
+    if (!r) return c.json({ ok: false, error: "the group was reset while routing" }, 409);
+    const { route } = r;
+    return c.json({
+      ok: true,
+      intent: route.intent,
+      topic: route.topic,
+      path: route.path,
+      ms: Math.round(route.ms),
+      ...(route.topic === "custom" ? { custom_prompt: route.custom_prompt ?? null, blocked: route.blocked ?? null } : {}),
+      ...(route.answer ? { answer: route.answer } : {}),
+      ...(route.error ? { error: route.error } : {}),
+    });
   });
 
   app.post("/glasses/plea", async (c) => {
@@ -1348,6 +1616,8 @@ export function startHive(opts: HiveOptions): Hive {
     },
   });
   bus.start();
+  if (opts.prewarmOnStart === false) scheduleWarm();
+  else void warmUp("start");
   // The relay changes state on its own too (first frame, failure, idle stop), so poll it.
   const orbisPoll = relayUrl ? setInterval(() => void relay("/orbis/status"), opts.orbisPollMs ?? 3000) : null;
 
@@ -1358,6 +1628,9 @@ export function startHive(opts: HiveOptions): Hive {
     state,
     bus,
     async stop() {
+      stopped = true;
+      if (warmTimer) clearTimeout(warmTimer);
+      warmTimer = null;
       if (orbisPoll) clearInterval(orbisPoll);
       for (const l of listens.values()) clearTimeout(l.watchdog);
       listens.clear();
@@ -1394,7 +1667,7 @@ if (import.meta.main) {
   } catch {}
   log(`hive v${PROTOCOL_VERSION} on :${hive.port}  lines=${Object.keys(deps.lines).length} scenes=${Object.keys(deps.scenes).length} tts=${deps.ttsAvailable()} stt=${stt}`);
   log(`board:   /board?token=$HIVE_TOKEN    monitor: /monitor?token=$HIVE_TOKEN`);
-  void deps.prewarm?.().catch(() => {});
+  // startHive warms Claude's prompt cache now, every 50 min, and on group.reset when it is older than 45 min.
 
   const shutdown = () => {
     log("shutting down");

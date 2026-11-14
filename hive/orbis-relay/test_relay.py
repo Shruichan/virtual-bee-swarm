@@ -308,6 +308,9 @@ async def named_scenes() -> None:
         s = await post("/orbis/stage?wait=1", {"scene": "fire_out", "prompt": "The fire goes out and the meadow recovers."})
         assert (s["scene"], s["fallback_clip"]) == ("fire_out", "fire_out.mp4"), s  # passthrough: not in the file
         assert (await (await client.get("/orbis/status")).json())["scene"] == "fire_out"
+        # v2.1 custom what-if: the Hive's vetted prompt under scene whatif_custom, which has no recorded clip
+        s = await post("/orbis/stage?wait=1", {"scene": "whatif_custom", "prompt": "The same meadow under a rainbow. Static camera."})
+        assert (s["scene"], s["fallback_clip"], s["prompt"]) == ("whatif_custom", None, "The same meadow under a rainbow. Static camera."), s
         await post("/orbis/stage", {"scene": "moon"}, 400)  # unknown scene and no prompt
         await post("/orbis/stage", {"scene": "Bad Id", "prompt": "x"}, 400)  # not a clip-safe id
         await post("/orbis/stage", {"scene": 3}, 400)

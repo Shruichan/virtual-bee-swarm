@@ -74,6 +74,9 @@ describe("keyword fast path", () => {
     ["What happens if the farmer sprays pesticide?", "whatif", "what_if/spray"],
     ["what if winter comes", "whatif", "what_if/winter"],
     ["What'll happen if it snows?", "whatif", "what_if/winter"],
+    ["What if it snowed in July?", "feed", "what_if/winter"],
+    ["Show me snow on the hive.", "map", "what_if/winter"],
+    ["Can you show me a wildfire?", "whatif", "what_if/fire"],
     ["Imagine a wildfire.", "whatif", "what_if/fire"],
     ["Put it out!", "whatif", "undo"],
     ["Quick, put out the fire!", "whatif", "undo"],
@@ -105,6 +108,12 @@ describe("keyword fast path", () => {
     ["what if we pour water on the fire", "whatif", null],
     ["Don't put it out!", "whatif", null],
     ["What if a hornet attacks?", "hornet", null],
+    // off-list what-ifs go to Claude, which writes a custom prompt (keywords never return "custom")
+    ["What if the bees were giant?", "whatif", null],
+    ["What happens if a hot air balloon lands?", "escape", null],
+    ["Show me the bees on the Moon.", "whatif", null],
+    ["Make the bees giant.", "whatif", null],
+    ["Show me how to use the smoker.", "smoker", null],
     // questions go to Claude for an answer
     ["Why does smoke calm the bees?", "smoker", null],
     ["How many bee species are there", "meet", null],
@@ -138,7 +147,8 @@ describe("claude path", () => {
     expect(s.properties.intent.enum).toEqual([...INTENTS]);
     expect(s.properties.topic.anyOf).toEqual([{ type: "string", enum: [...WHATIF_TOPICS] }, { type: "null" }]);
     expect(s.properties.answer.anyOf).toEqual([{ type: "string" }, { type: "null" }]);
-    expect([...s.required].sort()).toEqual(["answer", "intent", "topic"]);
+    expect(s.properties.custom_prompt.anyOf).toEqual([{ type: "string" }, { type: "null" }]);
+    expect([...s.required].sort()).toEqual(["answer", "custom_prompt", "intent", "topic"]);
     expect(s.additionalProperties).toBe(false);
   });
 
@@ -146,7 +156,7 @@ describe("claude path", () => {
     expect(SYSTEM_PROMPT.length / 4).toBeGreaterThan(700); // > 512-token cache minimum with margin
     for (const i of INTENTS) expect(SYSTEM_PROMPT).toContain(`- ${i}:`);
     for (const t of WHATIF_TOPICS) expect(SYSTEM_PROMPT).toContain(`  - ${t}:`);
-    for (const fact of ["bananas", "foulbrood", "fewer guard bees", "forty-six degrees", "pebbles", "more than half"]) {
+    for (const fact of ["bananas", "foulbrood", "fewer guards are needed", "~46 °C", "landing spots", "more than half"]) {
       expect(SYSTEM_PROMPT).toContain(fact);
     }
     expect(SYSTEM_PROMPT).toContain("rate hives, not people");

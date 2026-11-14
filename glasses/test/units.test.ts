@@ -228,13 +228,57 @@ test("voice: Beeswax's room lines heard across the table are dropped; the script
   for (const t of ROOM_TEXTS) if (t.split(/\s+/).length >= 2) expect(real.isRoomLine(t)).toBe(true)
   expect(real.isRoomLine("Undo what?")).toBe(ROOM_TEXTS.some((t) => t.startsWith("Undo what?"))) // else "undo" -> "Undo what?" -> undo...
   // If a catalog edit trips this, a room line now contains one of these phrases: the wearer could no longer say it.
-  const wearer = [
-    "what if a fire starts", "what if a fire starts?", "what happens if a fire starts", "a fire starts", "put it out", "put it out!", "put the fire out",
-    "put out the fire", "stop the fire", "is the fire out", "go back", "undo that", "undo", "what if it rains", "make it rain", "what if it snows",
-    "what if winter comes", "what if we plant clover", "what if we plant more flowers", "what if they spray pesticides", "what if there's a wildfire",
-    "what if we make the door bigger", "why are the bees angry", "tell me about the queen", "how do bees cool the hive", "on the hive all week",
+  const {WEARER_PHRASES, roomGuardProblems} = await import("../src/background/voice")
+  expect(WEARER_PHRASES.length).toBeGreaterThan(30)
+  for (const t of WEARER_PHRASES) expect([t, real.isRoomLine(t)]).toEqual([t, false])
+  expect(roomGuardProblems()).toEqual([]) // what build.ts warns about
+})
+
+test("voice: the room-line guard follows catalog text edits (the pitch's planned lines, typography)", async () => {
+  const {RoomGuard, WEARER_PHRASES, roomGuardProblems, words} = await import("../src/background/voice")
+  const {ROOM_TEXTS} = await import("../src/background/lines")
+  // pitch/script-and-build-asks.md's line edits, on top of tonight's lines (a superset only catches more).
+  const planned = [
+    "See that window? That's the meadow. Every choice you make shows up in there.",
+    'Your turn. Ask me "what if," and the window shows it.',
+    "My cousins in Japan do this. Never tried it. Make a fist.",
+    "Same time tomorrow? Other hives have it worse.",
+    "Where'd the honey go? ...Rocket fuel. Next question.",
+    "Light, right? That's bad.",
+    "Grievance filed. Not that one.",
+    "Water? Now they're wet AND angry. Grievance filed. Try again.",
   ]
-  for (const t of wearer) expect([t, real.isRoomLine(t)]).toEqual([t, false])
+  expect(roomGuardProblems([...ROOM_TEXTS, ...planned])).toEqual([])
+  const guard = new RoomGuard(planned)
+  for (const heardBack of ["Ask me what if", "and the window shows it", "rocket fuel next question", "Not that one.", "my cousins in japan do this", "other hives have it worse"])
+    expect([heardBack, guard.match(heardBack)]).not.toEqual([heardBack, null])
+  for (const t of WEARER_PHRASES) expect([t, guard.match(t)]).toEqual([t, null])
+
+  // A catalog written with curly quotes, an ellipsis and dashes still catches the plain transcript.
+  expect(words("Don\u2019t. Say. That.")).toEqual(["don't", "say", "that"])
+  const typographic = new RoomGuard(["Don\u2019t. Say. That. \u2026You said it \u2014 look at the window.", "Rocket fuel \u2013 next question."])
+  for (const t of ["don't say that", "You said it.", "look at the window", "next question"]) expect([t, typographic.match(t)]).not.toEqual([t, null])
+  expect(typographic.match("what if the window catches fire")).toBeNull()
+
+  // Speech-to-text spellings: "Fire's out" sounds like "Fires out" (which the Hive's whatif-beat keyword path reads
+  // as a NEW fire what-if), and contractions may come back spelled out.
+  const spoken = new RoomGuard([
+    "Fire's out. I'm not crying, that's smoke. Motion carried.",
+    "Undo what? Nothing's on fire. Yet.",
+    "A deep bowl? That's a pool. Bees drown in deep water, and the lifeguard's on strike. Grievance filed.",
+  ])
+  for (const t of ["Fires out.", "fire is out", "Fire's out!", "Nothings on fire.", "nothing is on fire yet", "Undo what? Nothings on fire. Yet.", "I am not crying, that is smoke", "Thats a pool."])
+    expect([t, spoken.match(t)]).not.toEqual([t, null])
+  // ...while the wearer's own follow-up about that line, and the scripted lines, still get through.
+  for (const t of ["what if the bees drown", "why do bees drown in deep water", "what if a fire starts", "put it out", "put the fire out", "is the fire out", "undo"])
+    expect([t, spoken.match(t)]).toEqual([t, null])
+  expect(roomGuardProblems(["Fire's out. Motion carried."], ["fires out"])).toEqual([
+    `the wearer can no longer say "fires out": room line "Fire's out. Motion carried." swallows it`,
+  ])
+
+  // A planted collision is reported, with the line that swallows it.
+  const problems = roomGuardProblems(["Put it out, or I'm filing.", "Okay"], ["put it out", "what if it rains"])
+  expect(problems).toEqual([`the wearer can no longer say "put it out": room line "Put it out, or I'm filing." swallows it`])
 })
 
 test("ear: onSpeak fires for every line that starts, fillers too; cancelFillers cuts only fillers", async () => {

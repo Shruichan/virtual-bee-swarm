@@ -129,6 +129,20 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
         return push()
       case "error":
         return log(`hive says: ${msg.message}`)
+      // The Quest's, Board's and monitor's business, not the ear's. Named here so a contract rename
+      // fails typecheck. v2.1: operator twins (choice.request, fx.force, whatif.force), the score card,
+      // and intent.custom_prompt (an unplanned what-if's window prompt) are all ignored.
+      case "intent":
+      case "transcript":
+      case "choice.request":
+      case "fx.force":
+      case "whatif.force":
+      case "score":
+      case "orbis.request":
+      case "orbis":
+        return
+      default:
+        return // anything else, including message types newer than this build
     }
   }
 

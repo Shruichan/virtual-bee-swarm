@@ -31,6 +31,11 @@
 import {rm} from "fs/promises"
 import {backgroundRuntimeGuardPlugin, reactSingletonPlugin} from "@mentra/miniapp-cli/build-helpers"
 import "./scripts/ensure-config"
+import {roomGuardProblems} from "./src/background/voice"
+
+// The room-line guard (voice.ts) is built from hive/lines/lines.json's room texts. Warn (don't fail:
+// a line edit at demo time must still build) when a catalog edit lets a room line swallow a wearer phrase.
+for (const problem of roomGuardProblems()) console.warn(`⚠ room-line guard: ${problem} (hive/lines/lines.json, src/background/voice.ts)`)
 
 const distDir = "./dist"
 

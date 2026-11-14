@@ -74,6 +74,11 @@
     "seed": 20000,
     "clip": "whatif_winter.mp4"
   },
+  "whatif_custom": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft blue sky. A soft golden shimmer ripples through the grass and the air around the hive as the meadow begins to change. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_custom.mp4"
+  },
   "full_bloom": {
     "prompt": "A meadow in full bloom, with clover, purple salvia, lavender and sunflowers filling every inch around a white wooden beehive on a low stand in the center, and oak trees glowing in golden afternoon light. Hundreds of honeybees stream out of the hive and across the flowers. Wide shot, eye-level, static camera, deep depth of field.",
     "seed": 20000,

@@ -1,8 +1,8 @@
 {
   "name": "com.virtualbeeswarm.beeswax-client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "Beeswax Client (Save the Hive)",
-  "description": "Hive bus (protocol v2), station choices with offline fallback, push-to-talk/VAD voice input, Beeswax's room voice, the Orbis future window with per-scene clips, and the hum detector for the Quest app. Needs com.endel.nativewebsocket (git URL, see README).",
+  "description": "Hive bus (protocol v2.1), station choices with offline fallback and operator choices, push-to-talk/VAD voice input, Beeswax's room voice, the Orbis future window with per-scene clips, and the hum detector for the Quest app. Needs com.endel.nativewebsocket (git URL, see README).",
   "unity": "6000.0",
   "license": "MIT",
   "dependencies": {}
