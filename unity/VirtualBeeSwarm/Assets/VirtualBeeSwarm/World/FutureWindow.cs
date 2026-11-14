@@ -6,7 +6,8 @@ namespace VirtualBeeSwarm
     /// The portal next to the hive. Shows the Orbis picture (live frames or the recorded clip, both via
     /// GameNet -> the client's OrbisWindow) on livePane. When there's neither, fallbackPane shows a local
     /// stand-in: scrolling noise tinted per scene, morphing over ~2.5 s like Orbis does. Scenes come from
-    /// GameNet.SceneChanged (the Hive's orbis{scene}, or local RequestScene calls).
+    /// GameNet.SceneChanged (the Hive's orbis{scene}, or local RequestScene calls). SetOverride puts another picture
+    /// (ForecastMoment's clips at the hook) on livePane in front of the Hive's until it is cleared.
     /// Modeler: replace frame/glow; keep the two panes (same size, livePane in front), and portalRoot (scaled).
     /// </summary>
     public class FutureWindow : MonoBehaviour
@@ -25,6 +26,8 @@ namespace VirtualBeeSwarm
         [SerializeField] float moonScale = 2.4f;
 
         public bool IsOpen => _openTarget > 0.5f;
+        /// <summary>Seconds from Open() to fully open.</summary>
+        public float OpenSeconds => openSeconds;
         public bool ShowingOrbis { get; private set; }
         public Transform PaneTransform => fallbackPane != null ? fallbackPane.transform : transform;
         public string Scene => _scene;
@@ -35,7 +38,7 @@ namespace VirtualBeeSwarm
         bool _fromFlicker, _toFlicker;
         float _morphStart = -100f;
         string _scene = "";
-        Texture _liveTex;
+        Texture _liveTex, _override;
         MaterialPropertyBlock _mpb;
 
         void Awake()
@@ -79,8 +82,12 @@ namespace VirtualBeeSwarm
         public void SwellToMoon() => _sizeTarget = moonScale;
         public void NormalSize() => _sizeTarget = 1f;
 
+        /// <summary>Show this texture instead of the Hive's live/clip picture (null: back to the Hive's).</summary>
+        public void SetOverride(Texture tex) => _override = tex;
+
         public void ResetWindow()
         {
+            _override = null;
             _openTarget = _open = 0f;
             _sizeTarget = _size = 1f;
             _scene = "";
@@ -112,8 +119,8 @@ namespace VirtualBeeSwarm
             if (_open != prevOpen || _size != prevSize) ApplyOpen(_open);
             if (_open <= 0.001f) return;
 
-            // live / clip picture from the Hive
-            Texture tex = net != null ? net.OrbisTexture : null;
+            // live / clip picture from the Hive (or the override in front of it)
+            Texture tex = _override != null ? _override : net != null ? net.OrbisTexture : null;
             bool showLive = tex != null;
             if (livePane != null)
             {
@@ -191,6 +198,8 @@ namespace VirtualBeeSwarm
                 case GameIds.Scene.WhatIfWinter: a = new Color(0.85f, 0.9f, 0.95f); b = new Color(0.6f, 0.7f, 0.85f); break;
                 case GameIds.Scene.FullBloom: a = new Color(0.5f, 0.95f, 0.45f); b = new Color(1f, 0.6f, 0.85f); break;
                 case GameIds.Scene.Moon: a = new Color(0.55f, 0.55f, 0.58f); b = new Color(0.25f, 0.25f, 0.3f); break;
+                case GameIds.Scene.ForecastPeaceful: a = new Color(0.45f, 0.7f, 0.95f); b = new Color(0.45f, 0.82f, 0.35f); break;
+                case GameIds.Scene.ForecastRavaged: a = new Color(0.95f, 0.3f, 0.08f); b = new Color(0.35f, 0.05f, 0.05f); flicker = true; break;
                 default: a = new Color(0.15f, 0.2f, 0.15f); b = new Color(0.25f, 0.3f, 0.2f); break;
             }
         }

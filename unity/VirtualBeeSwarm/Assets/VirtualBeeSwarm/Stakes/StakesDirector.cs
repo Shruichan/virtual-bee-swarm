@@ -66,6 +66,9 @@ namespace VirtualBeeSwarm.Stakes
 
         public const string DimKey = "stakes";
 
+        /// <summary>The swarm pours: the words "angry swarms" are now (or the fallback timer). The window's forecast cuts here.</summary>
+        public static event Action Poured;
+
         /// <summary>Wrong picks this run (the score card's "GRIEVANCES FILED: N").</summary>
         public int Grievances { get; private set; }
         public int Fixes { get; private set; }
@@ -357,6 +360,7 @@ namespace VirtualBeeSwarm.Stakes
             _pourAt = -1f;
             if (StakesFlags.Swarm && swarm != null) swarm.PourOut(hookCount);
             PassthroughDim.Request(DimKey, StakesFlags.DimHook, dimHookSeconds);
+            try { Poured?.Invoke(); } catch (Exception e) { Debug.LogException(e); }
         }
 
         // ------------------------------------------------------------------ frame

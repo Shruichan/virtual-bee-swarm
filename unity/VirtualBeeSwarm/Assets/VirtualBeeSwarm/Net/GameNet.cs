@@ -129,6 +129,15 @@ namespace VirtualBeeSwarm
         /// <summary>Clips PreloadVoice found in Resources/BeeswaxLines.</summary>
         public int VoiceClipsPreloaded => _preloaded.Count;
 
+        /// <summary>Length of a pre-rendered line PreloadVoice loaded (0 when it has no clip or isn't loaded yet).</summary>
+        public float ClipSeconds(string lineId)
+        {
+            if (string.IsNullOrEmpty(lineId)) return 0f;
+            foreach (var c in _voiceClips)
+                if (c != null && c.name == lineId) return c.length;
+            return 0f;
+        }
+
         Beeswax.BeeswaxBus _bound;
         Beeswax.BeeswaxRoomVoice _boundVoice;
         AudioSource _voiceSource;

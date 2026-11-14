@@ -100,6 +100,8 @@ namespace VirtualBeeSwarm
             public const string WhatIfSpray = "whatif_spray", WhatIfWinter = "whatif_winter";
             public const string WhatIfCustom = "whatif_custom"; // v2.1: an unplanned what-if (Claude writes the prompt)
             public const string FullBloom = "full_bloom", Moon = "moon";
+            // the hook's forecast in the window (room_hook_1): peaceful Paris, cut on "angry swarms" to the ravaged one
+            public const string ForecastPeaceful = "forecast_peaceful", ForecastRavaged = "forecast_ravaged";
         }
 
         public static readonly string[] Scenes =
@@ -107,6 +109,7 @@ namespace VirtualBeeSwarm
             Scene.Meadow, Scene.SmokerSettle, Scene.SmokerAngry, Scene.FeedSick, Scene.FeedRecover, Scene.WaspsRaid,
             Scene.WaspsLeave, Scene.HeatStress, Scene.HeatDrink, Scene.WhatIfFire, Scene.FireOut, Scene.WhatIfRain,
             Scene.WhatIfFlowers, Scene.WhatIfSpray, Scene.WhatIfWinter, Scene.WhatIfCustom, Scene.FullBloom, Scene.Moon,
+            Scene.ForecastPeaceful, Scene.ForecastRavaged,
         };
 
         /// <summary>Index of a scene in SCENES, or -1.</summary>

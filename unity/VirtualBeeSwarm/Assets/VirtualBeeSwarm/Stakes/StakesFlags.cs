@@ -13,6 +13,8 @@ namespace VirtualBeeSwarm.Stakes
     ///   stakes.dimMethod    brightness | opacity   how the Meta output dims passthrough (see StakesPassthroughDimmer)
     ///   stakes.display      true   the rocket display states (false: GameDirector's own T-m:ss text stays)
     ///   stakes.strikeLine   true   room_strike_lookup after the first grievance
+    ///   stakes.forecast     true   the window's forecast at the stakes line (peaceful Paris, cut to the ravaged one + SFX);
+    ///                              false: the hook as before (the window opens, room_hook_1 starts at once)
     ///   comfort             false  fewer bees (60 at most), no overhead pass, no dives
     /// Desktop: F3 toggles comfort (StakesDirector.comfortKey).
     /// </summary>
@@ -25,6 +27,7 @@ namespace VirtualBeeSwarm.Stakes
         public static bool UseOpacity;
         public static bool Display = true;
         public static bool StrikeLine = true;
+        public static bool Forecast = true;
 
         static bool _comfort;
         public static bool Comfort
@@ -54,6 +57,7 @@ namespace VirtualBeeSwarm.Stakes
                 case "stakes.dimStations": return TryFloat(value, ref DimStations);
                 case "stakes.display": return TryBool(value, ref Display);
                 case "stakes.strikeLine": return TryBool(value, ref StrikeLine);
+                case "stakes.forecast": return TryBool(value, ref Forecast);
                 case "stakes.dimMethod":
                     if (value == "opacity") { UseOpacity = true; return true; }
                     if (value == "brightness") { UseOpacity = false; return true; }

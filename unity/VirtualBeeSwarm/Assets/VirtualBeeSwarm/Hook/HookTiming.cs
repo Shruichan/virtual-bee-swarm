@@ -12,6 +12,8 @@ namespace VirtualBeeSwarm
     public static class HookTiming
     {
         public const string ThreatWords = "angry swarms";
+        /// <summary>Seconds into room_hook_1 when the words' position can't be estimated (StakesDirector's pourDelayIntoLine).</summary>
+        public const float DefaultThreatOffset = 1.3f;
 
         /// <summary>Seconds into a line at which `words` are spoken, or `fallback`.</summary>
         public static float WordOffset(float clipSeconds, string caption, string words, float fallback)

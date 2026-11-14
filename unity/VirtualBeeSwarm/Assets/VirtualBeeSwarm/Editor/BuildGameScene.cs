@@ -237,6 +237,18 @@ namespace VirtualBeeSwarm.Editor
             Set(window, "fallbackPane", fallbackPane.GetComponent<Renderer>());
             Set(window, "glow", portalGlow.GetComponent<Renderer>());
             Set(window, "fallbackNoise", LoadOrCreateTexture("VBS_Noise", () => GameMeshes.CreateNoiseTexture()));
+            // the hook's forecast (room_hook_1): its clips are StreamingAssets/forecast_*.mp4, its SFX play from here
+            var forecast = windowT.gameObject.AddComponent<ForecastMoment>();
+            Set(forecast, "window", window);
+            Set(forecast, "net", net);
+            Set(forecast, "director", director);
+            foreach (var (field, file) in new[] { ("swarmSfx", "forecast_swarm"), ("laserSfx", "forecast_laser"),
+                                                  ("towerSfx", "forecast_tower"), ("screamSfx", "forecast_scream") })
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(_root + "/Audio/Sfx/" + file + ".ogg");
+                if (clip == null) Debug.LogWarning("[VBS] no " + _root + "/Audio/Sfx/" + file + ".ogg: the forecast plays without it");
+                Set(forecast, field, clip);
+            }
 
             // embers out of the portal (particle +Z = toward the player). On the window root, not under Portal:
             // FutureWindow deactivates Portal while closed, and the embers must keep listening for fx.
@@ -353,6 +365,7 @@ namespace VirtualBeeSwarm.Editor
             Set(intro, "delivery", delivery);
             Set(intro, "rocket", rocket);
             Set(intro, "signHere", signHere);
+            Set(intro, "forecast", forecast);
             behaviours.Add(intro);
 
             var stations = Child("Stations", anchor, Vector3.zero);
