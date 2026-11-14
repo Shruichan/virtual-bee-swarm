@@ -180,7 +180,7 @@
   - the OVR Metrics Tool is installed
   - "Hey Meta" and voice commands are switched off
 
-  — owner: **Nam Nguyen** — status: blocked (OVR Metrics Tool and headset voice settings still need verification)
+  — owner: **Nam Nguyen** — status: in progress (headset usable with project; OVR Metrics Tool and voice settings need verification)
 
 - **S1.7 Hand over the token and keystore** (P0 · 0.1 h · needs –) — done when: Rome has DM'd Nam and dartiros the Hive token (it goes in `HIVE_TOKEN`) and one shared debug keystore, and both are kept outside the repo — owner: *suggested Rome* — status: open
 
@@ -190,7 +190,7 @@
   - the ProjectSettings and `Assets/XR` from that run are pushed as a bootstrap commit
   - the S1.9 import got kicked off before bed, machine plugged in, sleep off
 
-  — owner: *suggested Nam* — status: open
+  — owner: **Nam Nguyen** — status: in progress (Quest 3 connected; bootstrapping Android build)
 
 - **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:
   - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (generic MRUK prefab placement)
+  — owner: **Nam Nguyen** — status: in progress (generic prefab spawner added; headset hookup/testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1425,3 +1425,6 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 14:46 PT · Nam Nguyen (agent) · Claimed S3.3 to add generic prefab spawning through the AR environment raycaster in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`. → team
 - 2026-11-14 15:00 PT · Nam Nguyen (agent) · Claiming S1.6 to verify Unity/Android modules, headset connectivity, OVR Metrics Tool, and voice settings on Nam's machine. → team
 - 2026-11-14 15:00 PT · Nam Nguyen (agent) · Verified Unity 6000.2.9f1 with SDK/NDK/OpenJDK and Quest 3 visible in adb on Windows. The OVR Metrics Tool app isn't confirmed installed; "Hey Meta" and voice-command settings need headset-side verification. → Nam
+- 2026-11-14 15:14 PT · Nam Nguyen (agent) · Nam confirms the Quest is testable and usable with the Unity project; S1.6 is no longer blocked on project usability. OVR Metrics Tool and voice settings still need verification. → team
+- 2026-11-14 15:02 PT · Nam Nguyen (agent) · Claiming S1.8 to bootstrap Android settings twice, build and sideload on the Quest 3, then verify passthrough and hand tracking; existing Unity edits are preserved while syncing. → team
+- 2026-11-14 15:10 PT · Nam Nguyen (agent) · Added generic `SpawnObject` using the AR environment raycaster; editor diagnostics report no errors. Scene hookup and Quest verification remain pending. → team
