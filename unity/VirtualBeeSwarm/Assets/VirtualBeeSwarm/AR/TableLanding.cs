@@ -38,6 +38,8 @@ namespace VirtualBeeSwarm.AR
         Matrix4x4[] _matrices;
         Vector4[] _colors;
         float[] _bias;
+        float[] _flap; // per-instance _WingFlap: 0 = landed (wings still), 1 = flying
+        static readonly int WingFlapId = Shader.PropertyToID("_WingFlap");
         System.Random _rnd = new System.Random(4242);
         int _nextSpot;
         bool _escapeLanding;
@@ -66,6 +68,7 @@ namespace VirtualBeeSwarm.AR
             _matrices = new Matrix4x4[_n];
             _colors = new Vector4[_n];
             _bias = new float[_n];
+            _flap = new float[_n];
             for (int i = 0; i < _n; i++)
             {
                 _until[i] = Time.time + Rand(waitSeconds) + i * 0.4f;
@@ -74,6 +77,7 @@ namespace VirtualBeeSwarm.AR
             _mesh = GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_LandingBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
+            WingClock.EnableOn(_mat, _mesh); // wings flap in the shader; _WingFlap 0 stills the landed ones
             _mpb = new MaterialPropertyBlock();
         }
 
@@ -162,11 +166,12 @@ namespace VirtualBeeSwarm.AR
                 s = _state[i];
                 if (s == Home) continue;
                 if (s == Landed) landed++; else flying++;
-                Pose(i, now, s, out var pos, out var rot, out float flick);
-                _matrices[drawn] = Matrix4x4.TRS(pos, rot, new Vector3(beeLength * flick, beeLength, beeLength));
+                Pose(i, now, s, out var pos, out var rot);
+                _matrices[drawn] = Matrix4x4.TRS(pos, rot, new Vector3(beeLength, beeLength, beeLength));
                 _colors[drawn] = color * brightness;
                 _colors[drawn].w = 1f;
                 _bias[drawn] = s == Landed ? ArTuning.DepthBiasContact : 0f;
+                _flap[drawn] = s == Landed ? 0f : 1f;
                 drawn++;
             }
             LandedCount = landed;
@@ -174,12 +179,14 @@ namespace VirtualBeeSwarm.AR
             if (drawn == 0) return;
             _mpb.SetVectorArray(ColorId, _colors);
             _mpb.SetFloatArray(ArMaterials.BiasId, _bias);
+            _mpb.SetFloatArray(WingFlapId, _flap);
             if (SystemInfo.supportsInstancing)
                 Graphics.DrawMeshInstanced(_mesh, 0, _mat, _matrices, drawn, _mpb, ShadowCastingMode.Off, false, gameObject.layer);
             else
                 for (int i = 0; i < drawn; i++)
                 {
                     _mpb.SetColor(ColorId, _colors[i]);
+                    _mpb.SetFloat(WingFlapId, _flap[i]);
                     Graphics.DrawMesh(_mesh, _matrices[i], _mat, gameObject.layer, null, 0, _mpb, ShadowCastingMode.Off, false);
                 }
         }
@@ -222,20 +229,19 @@ namespace VirtualBeeSwarm.AR
 
         Vector3 CurrentPos(int i, float now)
         {
-            Pose(i, now, _state[i], out var p, out _, out _);
+            Pose(i, now, _state[i], out var p, out _);
             return p;
         }
 
-        void Pose(int i, float now, byte s, out Vector3 pos, out Quaternion rot, out float flick)
+        void Pose(int i, float now, byte s, out Vector3 pos, out Quaternion rot)
         {
-            flick = 1f;
             if (s == Landed)
             {
                 pos = _to[i];
                 Vector3 n = _toNormal[i];
                 Vector3 tangent = Quaternion.AngleAxis(_yaw[i], n) * (Mathf.Abs(n.y) > 0.9f ? Vector3.forward : Vector3.up);
                 tangent = Vector3.ProjectOnPlane(tangent, n);
-                // wings still: no shimmer; a tiny walk-turn now and then
+                // wings still (_WingFlap 0); a tiny walk-turn now and then
                 float turn = Mathf.Sin(now * 0.7f + i) * 8f;
                 rot = Quaternion.LookRotation(Quaternion.AngleAxis(turn, n) * tangent.normalized, n);
                 pos += n * (beeLength * 0.18f);
@@ -251,7 +257,6 @@ namespace VirtualBeeSwarm.AR
             pos += new Vector3(Mathf.Sin(now * 13f + i), Mathf.Sin(now * 11f + i * 2f), Mathf.Cos(now * 12f + i)) * 0.006f;
             Vector3 vel = p1 - p0;
             rot = vel.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(vel.normalized, Vector3.up) : Quaternion.identity;
-            flick = 1f + 0.06f * Mathf.Sin(now * 60f + i * 3f);
         }
     }
 }

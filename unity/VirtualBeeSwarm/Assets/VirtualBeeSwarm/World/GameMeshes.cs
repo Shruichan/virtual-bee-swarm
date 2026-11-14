@@ -8,7 +8,8 @@ namespace VirtualBeeSwarm
     {
         /// <summary>
         /// A low-poly bee pointing +Z, 1 unit long (scale it to 3-4 cm): striped spindle body with vertex colors + two
-        /// wing quads. ~50 vertices. Needs a material with vertex colors on (VirtualBeeSwarm/Unlit _UseVertexColor = 1).
+        /// wing quads (tagged in uv1/uv2 so VirtualBeeSwarm/Unlit flaps them). ~50 vertices. Needs a material with vertex
+        /// colors on (VirtualBeeSwarm/Unlit _UseVertexColor = 1).
         /// </summary>
         public static Mesh CreateBeeMesh()
         {
@@ -52,7 +53,8 @@ namespace VirtualBeeSwarm
                 t.Add(nose); t.Add(last + s); t.Add(last + (s + 1) % seg);
             }
 
-            // wings (double-sided quads, pale)
+            // wings (double-sided quads, pale); uv1/uv2 tag them for the shader flap (hinge on the body, axis = Z)
+            int wingStart = v.Count;
             var wing = new Color(0.85f, 0.93f, 1f, 1f);
             AddQuad(v, c, t, wing, new Vector3(-0.03f, 0.17f, 0.16f), new Vector3(-0.48f, 0.34f, 0.12f),
                 new Vector3(-0.46f, 0.31f, -0.16f), new Vector3(-0.03f, 0.17f, -0.04f));
@@ -63,6 +65,16 @@ namespace VirtualBeeSwarm
             mesh.SetVertices(v);
             mesh.SetColors(c);
             mesh.SetTriangles(t, 0);
+            var hinge = new List<Vector2>(v.Count);
+            var flag = new List<Vector2>(v.Count);
+            for (int i = 0; i < v.Count; i++)
+            {
+                bool w = i >= wingStart;
+                hinge.Add(w ? new Vector2(Mathf.Sign(v[i].x) * 0.03f, 0.17f) : Vector2.zero);
+                flag.Add(w ? new Vector2(Mathf.Sign(v[i].x), 0f) : Vector2.zero);
+            }
+            mesh.SetUVs(1, hinge);
+            mesh.SetUVs(2, flag);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;

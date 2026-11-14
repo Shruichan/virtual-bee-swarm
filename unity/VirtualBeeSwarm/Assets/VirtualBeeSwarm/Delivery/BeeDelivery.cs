@@ -230,6 +230,7 @@ namespace VirtualBeeSwarm
             if (beeMesh == null) beeMesh = GameMeshes.CreateBeeMesh();
             if (beeMaterial == null) beeMaterial = GameMaterials.Create("VBS_DeliveryBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
+            WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
             _instancing = SystemInfo.supportsInstancing;
 
             _bPos = new Vector3[MaxBees];
@@ -1541,7 +1542,6 @@ namespace VirtualBeeSwarm
                 }
                 Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up);
                 float ph = _bPhase[b];
-                float flick = 1f + 0.06f * Mathf.Sin(now * 60f + ph * 10f);
                 float scale = beeLength;
                 if (j.phase == Phase.Depart)
                 {
@@ -1549,7 +1549,7 @@ namespace VirtualBeeSwarm
                     float kd = Mathf.Clamp01((now - j.start - _bDelay[b]) / j.duration);
                     scale *= 1f - Mathf.Clamp01((kd - 0.85f) / 0.15f) * 0.8f;
                 }
-                _matrices[n] = Matrix4x4.TRS(p, rot, new Vector3(scale * flick, scale, scale));
+                _matrices[n] = Matrix4x4.TRS(p, rot, new Vector3(scale, scale, scale)); // wings flap in the shader
                 float shade = 0.85f + 0.3f * (ph / 6.2832f);
                 Vector4 c4 = j.repo ? repo : courier;
                 _colors[n] = new Vector4(c4.x * shade, c4.y * shade, c4.z * shade, 1f);
