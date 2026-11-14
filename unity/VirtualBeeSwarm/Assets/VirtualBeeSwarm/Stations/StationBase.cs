@@ -30,13 +30,15 @@ namespace VirtualBeeSwarm
         [SerializeField] protected float minOutcomeSeconds = 3f;
         [SerializeField] protected float maxOutcomeSeconds = 10f;
         [SerializeField] protected float retryPauseSeconds = 0.8f;
+        [Tooltip("Delivered choices: wait at most this long for every choice to park before they accept pokes.")]
+        [SerializeField] protected float maxParkWaitSeconds = 4f;
 
         public GameStation Station => station;
         public bool Solved { get; private set; }
         public bool Busy { get; private set; }
         public bool Choosing { get; private set; }
 
-        Coroutine _intro;
+        Coroutine _intro, _offerWait;
         bool _correctPending;   // the right choice is playing out (hexagon not lit yet)
         bool _timeoutPending;   // max duration hit while a wrong choice was playing: solve right after it
         bool _timeoutSolving;
@@ -99,7 +101,17 @@ namespace VirtualBeeSwarm
         /// <summary>Desktop keys when the buttons are gone (e.g. the modeler replaced them with props): 1-3 = CHOICES order.</summary>
         protected virtual void Update()
         {
-            if (!IsActive || !Choosing || Busy || HasButtons()) return;
+            if (!IsActive || !Choosing || Busy) return;
+            if (delivery != null && delivery.Active)
+            {
+                // a delivered choice takes pokes only while parked (an offer that gave up waiting unlocks them as they land)
+                for (int i = 0; i < buttons.Length; i++)
+                {
+                    var b = buttons[i];
+                    if (b != null) b.SetInteractable(!b.MarkedWrong && IsChoiceAllowed(b.ChoiceId) && delivery.AcceptsPoke(b.ChoiceId));
+                }
+            }
+            if (HasButtons()) return;
             var list = GameIds.Choices[(int)station];
             for (int i = 0; i < list.Length; i++)
                 if (GameInput.DigitDown(i + 1)) { Choose(list[i]); return; }
@@ -116,6 +128,8 @@ namespace VirtualBeeSwarm
         {
             if (_intro != null) StopCoroutine(_intro);
             _intro = null;
+            if (_offerWait != null) StopCoroutine(_offerWait);
+            _offerWait = null;
         }
 
         // ------------------------------------------------------------ beat
@@ -124,6 +138,7 @@ namespace VirtualBeeSwarm
             Solved = false;
             Busy = false;
             Choosing = false;
+            _offerWait = null;
             _correctPending = _timeoutPending = _timeoutSolving = false;
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i] != null) { buttons[i].MarkWrong(false); buttons[i].SetInteractable(false); }
@@ -142,6 +157,7 @@ namespace VirtualBeeSwarm
             Choosing = false;
             Busy = false;
             _intro = null;
+            _offerWait = null;
             ShowButtons(false);
             if (delivery != null) delivery.OnStationExit(Solved); // flights snap: the right one on its spot, the rest gone
             OnStationExit();
@@ -163,6 +179,7 @@ namespace VirtualBeeSwarm
             Busy = false;
             Choosing = false;
             _intro = null;
+            _offerWait = null;
             _correctPending = _timeoutPending = _timeoutSolving = false;
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i] != null) buttons[i].MarkWrong(false);
@@ -192,14 +209,42 @@ namespace VirtualBeeSwarm
             OfferChoices();
         }
 
+        /// <summary>
+        /// The choices accept pokes. Delivered: only once every choice still in play is parked (never mid-flight), so
+        /// Choosing (what the autopilot waits for) means "parked"; gives up waiting after maxParkWaitSeconds.
+        /// </summary>
         protected void OfferChoices()
         {
             if (Solved) return;
-            if (delivery != null) delivery.EnsureParked();
+            if (delivery != null && !delivery.EnsureParked())
+            {
+                if (_offerWait == null) _offerWait = StartCoroutine(OfferWhenParked());
+                return;
+            }
+            Offer(0f);
+        }
+
+        IEnumerator OfferWhenParked()
+        {
+            float start = Time.time;
+            while (!delivery.AllParked && Time.time - start < maxParkWaitSeconds) yield return null;
+            _offerWait = null;
+            if (!IsActive || Busy || Solved) yield break;
+            if (!delivery.AllParked)
+                Debug.LogWarning("[VBS][Delivery] " + GameIds.StationName(station) + ": choices still not parked after " +
+                                 maxParkWaitSeconds.ToString("0.0") + " s; offering anyway (each unlocks as it parks)");
+            Offer(Time.time - start);
+        }
+
+        void Offer(float waited)
+        {
             Choosing = true;
             ShowButtons(true);
             for (int i = 0; i < buttons.Length; i++)
-                if (buttons[i] != null) buttons[i].SetInteractable(!buttons[i].MarkedWrong && IsChoiceAllowed(buttons[i].ChoiceId));
+                if (buttons[i] != null)
+                    buttons[i].SetInteractable(!buttons[i].MarkedWrong && IsChoiceAllowed(buttons[i].ChoiceId) &&
+                                               (delivery == null || delivery.AcceptsPoke(buttons[i].ChoiceId)));
+            if (delivery != null) delivery.OnChoicesOffered(waited);
         }
 
         /// <summary>Override to lock a choice for now (e.g. feed: show the honey mistake first).</summary>
@@ -208,6 +253,11 @@ namespace VirtualBeeSwarm
         void HandlePressed(ChoiceButton b)
         {
             if (!IsActive || Busy || Solved || !Choosing) return;
+            if (delivery != null && !delivery.AcceptsPoke(b.ChoiceId))
+            {
+                Debug.Log("[VBS][Delivery] poke on " + b.ChoiceId + " ignored: still flying");
+                return;
+            }
             Choose(b.ChoiceId);
         }
 

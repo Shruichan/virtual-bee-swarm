@@ -8,12 +8,16 @@ namespace VirtualBeeSwarm
     /// 3-2-1, launch (through the ceiling), passthrough dims (optional IPassthroughDimmer), the window swells into the
     /// Moon while Moon + Earth placeholders appear in the room (Earth rising). "...Not one flower." He crashes back
     /// onto the real table, dusty. "Same time tomorrow? There are six more hives."
+    /// V16: Beeswax first flies to his perch on the rocket (rocketPerch, else the rocket's "Perch"), then says room_t0_1.
     /// </summary>
     public class T0Sequence : BeatBehaviour
     {
         [Header("Rocket")]
         [SerializeField] Transform rocket;
         [SerializeField] Transform rocketSeat;
+        [Tooltip("Where Beeswax lands before room_t0_1 (V16). Empty: the rocket's child named Perch.")]
+        [SerializeField] Transform rocketPerch;
+        [SerializeField] float perchFlightMaxSeconds = 4f;
         [SerializeField] GameObject flame;
         [SerializeField] TextMesh rocketDisplay;
         [SerializeField] float launchHeight = 3f;
@@ -70,7 +74,18 @@ namespace VirtualBeeSwarm
         IEnumerator Run()
         {
             if (swarm != null && swarm.Mode == SwarmMode.PourOut) swarm.SetMode(SwarmMode.Calm);
-            if (beeswax != null) beeswax.GoPresent();
+            // V16: to his perch on the rocket first, then the line
+            var perch = Perch();
+            if (beeswax != null && perch != null)
+            {
+                beeswax.FlyTo(perch);
+                float p0 = Time.time;
+                while (!beeswax.Arrived && Time.time - p0 < perchFlightMaxSeconds) yield return null;
+                beeswax.AttachTo(perch);
+                Debug.Log("[VBS][T0] Beeswax on his perch after " + (Time.time - p0).ToString("0.0") + " s" +
+                          (Time.time - p0 >= perchFlightMaxSeconds ? " (snapped)" : "") + ", then " + GameLines.T0Going.id);
+            }
+            else if (beeswax != null) beeswax.GoPresent();
             yield return SayAndWait(GameLines.T0Going, 2f, 6f);
 
             // board
@@ -174,6 +189,17 @@ namespace VirtualBeeSwarm
 
             yield return SayAndWait(GameLines.T0Back, 2.5f, 7f);
             Complete(1f);
+        }
+
+        Transform Perch()
+        {
+            if (rocketPerch != null) return rocketPerch;
+            if (rocket == null) return null;
+            Transform found = null;
+            foreach (var t in rocket.GetComponentsInChildren<Transform>(true))
+                if (t.name == "Perch" && (found == null || t.gameObject.activeInHierarchy)) found = t; // the art's Perch wins over a leftover placeholder
+            rocketPerch = found;
+            return found;
         }
 
         /// <summary>V16: up to the ceiling (measured, else ar.ceilingY) minus 5 cm, never more than launchHeight.</summary>
