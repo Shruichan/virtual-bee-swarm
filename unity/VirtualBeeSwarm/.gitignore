@@ -55,3 +55,10 @@
 # Meta XR dev-agent settings: Meta writes an access token here when the editor opens. Never commit.
 Assets/Resources/DevAgentSettings.asset
 Assets/Resources/DevAgentSettings.asset.meta
+
+# editor junk (crash recovery, temp assemblies, Meta simulator session ids)
+Assets/_Recovery/
+Assets/_Recovery.meta
+TempAssembly.dll
+Assets/#Meta/
+Assets/#Meta.meta
