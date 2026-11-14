@@ -34,6 +34,34 @@
 
 ---
 
+## 🗂️ Delegation plan (Sat 2 AM → Sun 9 AM)
+
+**Owners** (each owner decides in their area; log decisions below):
+
+| Who | Owns | First thing to do |
+|---|---|---|
+| **Nam** (Unity lead + headset) | `unity/HoneymoonQuest`: the scene, the hive placement on the table, hand interactions, the beat clock, building to the Quest, on-device testing | Enable Quest developer mode. When the base project lands (~3 AM), pull it, open it in Unity 6000.2.9f1 (6000.3 LTS also works), build to the headset |
+| **Adityash** (gameplay content + feel, design owner) | The 4 stations' feel, swarm behavior, Beeswax's movement + captions, the meadow window, embers, escape/score, the Moon ending, playtests | Read Concept v3 + `pitch/script-and-build-asks.md`, claim the U2 tasks, work in **prefabs** (not the scene) |
+| **dartiros** (3D) | Every model: Beeswax, worker bee, hive (+ door), smoker, honey jar, syrup bottle, water bowl, pebble dish, wasps, giant hornet, HONEYMOON-1 rocket, portal frame, Moon + Earth, hexagons | Beeswax + worker bee + hive first (they're on screen the whole time). Specs below |
+| **Rome** (+ agents) | Hive backend, voice (Harry), speech-to-text + what-if intents, Orbis (relay, prompts, clips), Unity client scripts + base project, Beat Board, glasses app, SATIE sounds, **pitch** (Devpost, 30 s video, presenting) | Unity license sign-in on pop-os; Reactor key; SATIE sign-in |
+
+**Handoff rules (to avoid wrecking each other's work):**
+- **Only Nam edits `Honeymoon.unity`** (Unity scene files merge badly). Everyone else builds **prefabs** in `Assets/Honeymoon/Prefabs/` and tells Nam what to drop in.
+- **Models (dartiros → Unity):** FBX or GLB, **meters**, Y-up, pivot at the base (Beeswax: center of body), one material each if possible, textures ≤1024 px. Budgets: Beeswax ≤15k tris, worker bee ≤300 tris (there are ~150 of them), hive ≤5k, everything else ≤3k. Put them in `unity/HoneymoonQuest/Assets/Honeymoon/Art/<name>/` named as in the asset list; the placeholder prefab slots are listed in `README-gameplay.md`.
+- **No file over 50 MB in git** (GitHub rejects >100 MB). Orbis clips stay small (720p H.264).
+- Pull before you start, push small and often, log in PLAN.md when you hand something off.
+
+**Timeline (PT):**
+- **Sat 2–3 AM:** base Unity project + placeholder systems land (agents). Nam builds it to the headset. dartiros starts Beeswax/bee/hive. Adityash claims U2 tasks.
+- **Sleep in two shifts:** dartiros + Adityash 3:00–7:30 AM, Nam + Rome 4:30–9:00 AM (agents keep working). Nobody skips sleep entirely.
+- **Sat 9 AM:** lock team name + 2 tracks (draft; Visko vs Social Good is final at 11). Sponsor tables: Visko (Reactor credits), Attractor (SATIE credits), ManageXR (loaner Quest?).
+- **Sat 11 AM:** Orbis gate (live ≥10 fps for 5 min + a scene change within ~4 s).
+- **Sat 12 PM — Milestone 1:** on the headset, all 4 stations work with placeholders, Beeswax talks (Harry), and "What if a fire starts?" → fire + embers → "Put it out" works.
+- **Sat 6 PM — feature freeze:** real models swapped in, full run with two strangers + one solo run, stopwatch on.
+- **Sat 6 PM–1 AM:** polish only (feel, timing, sound, captions). Capture video footage (Quest recording + a phone over-the-shoulder shot).
+- **Sun 1–5 AM:** staggered sleep. Rome finishes Devpost + video edit.
+- **Sun 7:30 AM:** build lock (keep a sideload APK). **Sun 8:30 AM:** Devpost + video submitted. **9:00:** closed.
+
 ## Concept v3 (CURRENT): HONEYMOON — Save the Hive or the Bees Leave for the Moon
 
 Best of both: **Adityash's hive escape** (4 stations, the live Orbis "future window" steered by voice, practical beekeeping, a score, a map of more hives) as the spine, plus **HONEYMOON** (Beeswax the union-rep drone, the "we're leaving for the Moon" stakes and theme twist, the hornet hum, the Moon ending). The full v2 write-up is in git history if you want to borrow more.
@@ -225,10 +253,10 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being 
 
 | Name | GitHub | Focus |
 |---|---|---|
-| Rome | [Shruichan](https://github.com/Shruichan) | Hive backend, glasses app, voice, Unity client |
-| dartiros | [realdarter](https://github.com/realdarter) | |
-| Nam Nguyen | [NamNgHH](https://github.com/NamNgHH) | |
-| | [sushirito](https://github.com/sushirito) | |
+| Rome | [Shruichan](https://github.com/Shruichan) | Backend, voice, Orbis, glasses, pitch (+ agents) |
+| dartiros | [realdarter](https://github.com/realdarter) | 3D models |
+| Nam Nguyen | [NamNgHH](https://github.com/NamNgHH) | Unity lead + headset |
+| Adityash? | [sushirito](https://github.com/sushirito) | Gameplay content + feel, design owner (confirm GitHub) |
 
 ## Live log
 
@@ -241,3 +269,4 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being 
 - 2026-11-14 01:00 PT · Rome (agent) · Started the **Unity base project** (`unity/HoneymoonQuest`, Unity 6000.2.9f1, Meta XR 209/OpenXR, Android/Quest settings, placeholder v3 systems, desktop keys for testing without a headset) and the **pitch kit** (`pitch/`). → Unity folks: if you already started your own project, say so here and we'll merge; otherwise wait ~2 h for the base and claim the systems to replace with real art/feel.
 - 2026-11-14 01:25 PT · Rome (agent) · **Pitch kit drafted** in `pitch/` (devpost.md, video-30s.md, walkthrough-2min.md, tracks.md, judge-qa.md, demo-runbook.md, demo-card.md, gallery.md), reviewed by a jaded-judge pass and a fact check (fixes: heat ball is ~46–47 °C with 500+ bees, *Japanese* honeybees, so Beeswax says "My cousins in Japan do this"; from the Moon's surface Earth *hangs* over the horizon, it doesn't rise; newest Auburn loss figure is 39.9% for 2025–26 after two record years). **Game asks from the review are in `pitch/script-and-build-asks.md`**: claim them. Biggest ones: the hive lift should feel weightless + "Light, right? That's bad." (U1); "Grievances filed: N" on the score card (U2 + Rome); let the what-if happen while the meadow is still sick (U1); optional fail ending if the timer runs out (U1). One name everywhere: **the meadow window**; the player talks to **Beeswax**, not the window. Rome takes the line edits + Board fire button + off-list what-ifs.
 - 2026-11-14 01:50 PT · Rome (agent) · **Claude Code tools for the team** (optional, if you use Claude Code): Unity's official plugin: `claude plugin marketplace add Unity-Technologies/unity-agent-plugin` then `claude plugin install unity@unity-agent-plugin` (skills: create-xr, craft-game-floors for juice/polish, unity-pipeline to compile/Play Mode/screenshot a running Editor, unity-cli). The Unity CLI itself: `curl -fsSL https://unity.com/install.sh | bash`. A reviewed design skill, game-design-core (plain markdown, Apache-2.0): https://github.com/omer-metin/skills-for-antigravity/tree/main/skills/game-design-core → copy into `~/.claude/skills/`.
+- 2026-11-14 02:10 PT · Rome (agent) · **Delegation plan added** (top of file): Nam = Unity lead + headset, Adityash = gameplay content/feel + design owner, dartiros = 3D, Rome = backend/voice/Orbis/glasses/pitch. Only Nam edits the scene; everyone else works in prefabs. Beeswax's voice is **Harry** (ElevenLabs) and it's live on beeswax.drori.dev; all lines get pre-rendered once the script polish lands.
