@@ -1,0 +1,2792 @@
+{
+ "project": "Virtual Bee Swarm (Immerse the Bay 2026) - temp stylized art set",
+ "generated": "2026-11-14 (art-director pass)",
+ "location": "pop-os:~/immerse-the-bay/art-staging/final/",
+ "conventions": {
+  "units": "meters",
+  "up": "+Y",
+  "front": "+Z (Unity)",
+  "transforms": "no rotation or scale on any node (all applied)",
+  "formats": "GLB (glTF 2.0) + FBX 7.4 (UnitScaleFactor 100, Y-up; import with Convert Units on) + .blend",
+  "materials": "VBS_Palette (emission 0.08), VBS_Palette_Bee (emission 0.45, bees/wasps/hornet/Beeswax, reads in passthrough), VBS_Glow (emission 1.0: embers, flame, lit hex), VBS_GlowSoft (alpha 0.35 halo), VBS_PaneLive / VBS_PaneFallback (portal panes, real UVs)",
+  "colour": "Every face has BOTH a UV at the center of one 8x8-cell 64 px palette texture (_shared/VBS_Palette.png, use Point filtering, no mips needed) AND an sRGB vertex colour (FBX only, for the Honeymoon/Unlit shader). GLB has no COLOR_0 on purpose: glTF multiplies it with the texture.",
+  "palette": "amber #F2A900, honey #FFC845, cream #FFF3D6, charcoal #2B2B2B, leaf #5BAA4A, sky #7EC8E3, fire #FF6B2C (+ helpers; full list in _source/scripts/common.py PALETTE)",
+  "rebuild": "blender -b --factory-startup --python _source/scripts/build_all.py -- --out OUT_DIR (about 20 s for all 20); contact sheet: _source/tools/contact_sheet.py",
+  "art_director_changes": "smoker (steel/copper, pleated red leather bellows), giant_hornet (pincer mandibles, scaled 0.8 to ~0.26 m), moon (readable craters), worker_bee (eyes spread apart), 5 palette colours appended (steel_mid, copper, leather, leather_dark, moon_light)"
+ },
+ "summary": {
+  "items": 20,
+  "procedural": 20,
+  "downloaded_meshes_used": 0,
+  "third_party_files": "Kenney Particle Pack sprites (CC0) in smoker/vfx_kenney_cc0 and ember/vfx_kenney_cc0 only",
+  "missing": []
+ },
+ "items": {
+  "beeswax": {
+   "file": "beeswax/beeswax.glb",
+   "fbx": "beeswax/beeswax.fbx",
+   "blend": "beeswax/beeswax.blend",
+   "preview": "beeswax/beeswax_preview.png",
+   "all_files": [
+    "beeswax/beeswax.blend",
+    "beeswax/beeswax.fbx",
+    "beeswax/beeswax.glb",
+    "beeswax/beeswax_preview.png",
+    "beeswax/beeswax_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 6508,
+   "tri_budget": 15000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.1512,
+      -0.1415,
+      -0.134
+     ],
+     "max": [
+      0.1512,
+      0.243,
+      0.1083
+     ],
+     "size": [
+      0.3023,
+      0.3845,
+      0.2423
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.1512,
+      -0.1415,
+      -0.134
+     ],
+     "max": [
+      0.1512,
+      0.243,
+      0.1083
+     ],
+     "size": [
+      0.3023,
+      0.3845,
+      0.2423
+     ]
+    }
+   },
+   "size_m": [
+    0.3023,
+    0.3845,
+    0.2423
+   ],
+   "pivot": "body center (chest)",
+   "objects": [
+    {
+     "name": "Beeswax",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Body",
+     "type": "empty",
+     "parent": "Beeswax",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Torso",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 2744,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Head",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 1308,
+     "pivot_unity_m": [
+      -0.0,
+      0.12,
+      0.012
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Eyes",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 1040,
+     "pivot_unity_m": [
+      -0.0,
+      0.134,
+      0.068
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Mouth",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 180,
+     "pivot_unity_m": [
+      -0.0,
+      0.099,
+      0.075
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingL",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 136,
+     "pivot_unity_m": [
+      -0.032,
+      0.05,
+      -0.036
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingR",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 136,
+     "pivot_unity_m": [
+      0.032,
+      0.05,
+      -0.036
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Lanyard",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 504,
+     "pivot_unity_m": [
+      -0.0,
+      0.004,
+      0.058
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Clipboard",
+     "type": "mesh",
+     "parent": "Body",
+     "tris": 460,
+     "pivot_unity_m": [
+      0.07,
+      -0.052,
+      0.084
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "HandR",
+     "type": "empty",
+     "parent": "Body",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.096,
+      -0.04,
+      0.07
+     ],
+     "material": null
+    },
+    {
+     "name": "HandL",
+     "type": "empty",
+     "parent": "Body",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.074,
+      -0.058,
+      -0.028
+     ],
+     "material": null
+    },
+    {
+     "name": "CaptionAnchor",
+     "type": "empty",
+     "parent": "Beeswax",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.27,
+      -0.0
+     ],
+     "material": null
+    }
+   ],
+   "animate": "Body (empty): BeeswaxController scales it while talking. Mouth: pivot on its top edge, scale local Y to open (Y=0 closed). WingL / WingR: pivot at the wing root, rotate on Unity Z to flap. Empties: HandR (holds the Clipboard), HandL, CaptionAnchor.",
+   "notes": "No skeleton; everything animates by transforms, like the placeholder. Names match BuildHoneymoonScene.cs (Mouth, WingL, WingR). For BeeswaxController.dustyRenderers assign the Torso and Head renderers (as the placeholder does). Clipboard is a separate child mesh (hide/swap freely). ~0.38 m tall incl. antennae. Bee material is slightly emissive for passthrough.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/beeswax/armabee_42djT5zJnx.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/42djT5zJnx",
+     "tris": 2280,
+     "suggested_uniform_scale": 0.08132,
+     "animations": [
+      "CharacterArmature|Death",
+      "CharacterArmature|Fast_Flying",
+      "CharacterArmature|Flying_Idle",
+      "CharacterArmature|Headbutt",
+      "CharacterArmature|HitReact",
+      "CharacterArmature|No",
+      "CharacterArmature|Punch",
+      "CharacterArmature|Yes"
+     ],
+     "attribution_text": "\"Armabee\" by Quaternius (https://poly.pizza/m/42djT5zJnx), CC0 1.0 public domain (credit optional)"
+    },
+    {
+     "path": "art-staging/downloaded/beeswax/bee_enemy_6HsU6GQt3a.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/6HsU6GQt3a",
+     "tris": 3040,
+     "suggested_uniform_scale": 0.12207,
+     "animations": [
+      "MonsterArmature|Bite_Front",
+      "MonsterArmature|Death",
+      "MonsterArmature|Flying",
+      "MonsterArmature|HitRecieve"
+     ],
+     "attribution_text": "\"Bee Enemy\" by Quaternius (https://poly.pizza/m/6HsU6GQt3a), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "worker_bee": {
+   "file": "worker_bee/worker_bee.glb",
+   "fbx": "worker_bee/worker_bee.fbx",
+   "blend": "worker_bee/worker_bee.blend",
+   "preview": "worker_bee/worker_bee_preview.png",
+   "all_files": [
+    "worker_bee/worker_bee.blend",
+    "worker_bee/worker_bee.fbx",
+    "worker_bee/worker_bee.glb",
+    "worker_bee/worker_bee_preview.png",
+    "worker_bee/worker_bee_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 262,
+   "tri_budget": 300,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0146,
+      -0.0074,
+      -0.0189
+     ],
+     "max": [
+      0.0146,
+      0.0161,
+      0.0164
+     ],
+     "size": [
+      0.0292,
+      0.0235,
+      0.0353
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0146,
+      -0.0074,
+      -0.0189
+     ],
+     "max": [
+      0.0146,
+      0.0161,
+      0.0164
+     ],
+     "size": [
+      0.0292,
+      0.0235,
+      0.0353
+     ]
+    }
+   },
+   "size_m": [
+    0.0292,
+    0.0235,
+    0.0353
+   ],
+   "pivot": "body center",
+   "objects": [
+    {
+     "name": "WorkerBee",
+     "type": "mesh",
+     "parent": null,
+     "tris": 262,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette_Bee"
+    }
+   ],
+   "animate": "None as transforms: ONE mesh, ONE material/submesh for GPU instancing (x150). The two wings are part of the mesh; flap them in a vertex shader if wanted (wing verts are the sky-blue palette cell).",
+   "notes": "~3.5 cm long, +Z forward, pivot = body center. FBX carries vertex colours (Honeymoon/Unlit); GLB uses the palette texture. Meets S11.3 (<=300 tris).",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/worker_bee/bee_HvfIku26CK_dec300.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/HvfIku26CK",
+     "tris": 300,
+     "suggested_uniform_scale": 0.14595,
+     "animations": [],
+     "attribution_text": "\"Bee\" by Quaternius (https://poly.pizza/m/HvfIku26CK), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "hive": {
+   "file": "hive/hive.glb",
+   "fbx": "hive/hive.fbx",
+   "blend": "hive/hive.blend",
+   "preview": "hive/hive_preview.png",
+   "all_files": [
+    "hive/hive.blend",
+    "hive/hive.fbx",
+    "hive/hive.glb",
+    "hive/hive_preview.png",
+    "hive/hive_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2599,
+   "tri_budget": 5000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.195,
+      0.0,
+      -0.225
+     ],
+     "max": [
+      0.195,
+      0.446,
+      0.285
+     ],
+     "size": [
+      0.39,
+      0.446,
+      0.51
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.195,
+      0.0,
+      -0.225
+     ],
+     "max": [
+      0.195,
+      0.446,
+      0.285
+     ],
+     "size": [
+      0.39,
+      0.446,
+      0.51
+     ]
+    }
+   },
+   "size_m": [
+    0.39,
+    0.446,
+    0.51
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "Hive",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "LiftRoot",
+     "type": "empty",
+     "parent": "Hive",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Stand",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 264,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "BoxLower",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 475,
+     "pivot_unity_m": [
+      -0.0,
+      0.057,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "BoxUpper",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 1476,
+     "pivot_unity_m": [
+      -0.0,
+      0.237,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Lid",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 132,
+     "pivot_unity_m": [
+      -0.0,
+      0.377,
+      -0.22
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Door",
+     "type": "empty",
+     "parent": "LiftRoot",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0695,
+      0.201
+     ],
+     "material": null
+    },
+    {
+     "name": "DoorSlot",
+     "type": "mesh",
+     "parent": "Door",
+     "tris": 12,
+     "pivot_unity_m": [
+      -0.0,
+      0.0695,
+      0.201
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "DoorPoint",
+     "type": "empty",
+     "parent": "LiftRoot",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0695,
+      0.22
+     ],
+     "material": null
+    },
+    {
+     "name": "SwarmCenter",
+     "type": "empty",
+     "parent": "LiftRoot",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.217,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Hexagons",
+     "type": "empty",
+     "parent": "LiftRoot",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.3098,
+      0.203
+     ],
+     "material": null
+    },
+    {
+     "name": "HexSlot1",
+     "type": "empty",
+     "parent": "Hexagons",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.075,
+      0.3098,
+      0.203
+     ],
+     "material": null
+    },
+    {
+     "name": "HexSlot2",
+     "type": "empty",
+     "parent": "Hexagons",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.025,
+      0.3098,
+      0.203
+     ],
+     "material": null
+    },
+    {
+     "name": "HexSlot3",
+     "type": "empty",
+     "parent": "Hexagons",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.025,
+      0.3098,
+      0.203
+     ],
+     "material": null
+    },
+    {
+     "name": "HexSlot4",
+     "type": "empty",
+     "parent": "Hexagons",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.075,
+      0.3098,
+      0.203
+     ],
+     "material": null
+    },
+    {
+     "name": "HeatGlow",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 108,
+     "pivot_unity_m": [
+      -0.0,
+      0.217,
+      -0.0
+     ],
+     "material": "VBS_GlowSoft",
+     "disabled_by_default": true
+    },
+    {
+     "name": "EntranceReducer",
+     "type": "mesh",
+     "parent": "LiftRoot",
+     "tris": 132,
+     "pivot_unity_m": [
+      -0.0,
+      0.057,
+      0.25
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "LiftRoot: rotate/raise to tip or heft the hive (everything below hangs off it). Lid: pivot on the back-bottom edge, rotate on X to open or move up to lift. Door: pivot at the entrance, scale.x = entrance width (HiveBody 'Door widths (scale.x)'). EntranceReducer: separate wooden cleat resting on the landing board, pivot at its base: slide it into the slot at station 3. HeatGlow: soft glow box, disabled by default, enable for the heat wave. HexSlot1-4 (under Hexagons): parent hexagon_tile instances here. DoorPoint, SwarmCenter: empties kept from the placeholder.",
+   "notes": "Entrance faces +Z. The placeholder scene's door faces -Z, so if the slot loader keeps the placeholder's orientation, rotate the prefab 180 deg on Y. BoxUpper is open on top with frames + comb inside (visible when the Lid lifts). 'LOCAL 20,000' plaque on the brood box (small text).",
+   "downloaded_alternates_not_used": []
+  },
+  "hexagon_tile": {
+   "file": "hexagon_tile/hexagon_tile.glb",
+   "fbx": "hexagon_tile/hexagon_tile.fbx",
+   "blend": "hexagon_tile/hexagon_tile.blend",
+   "preview": "hexagon_tile/hexagon_tile_preview.png",
+   "all_files": [
+    "hexagon_tile/hexagon_tile.blend",
+    "hexagon_tile/hexagon_tile.fbx",
+    "hexagon_tile/hexagon_tile.glb",
+    "hexagon_tile/hexagon_tile_preview.png",
+    "hexagon_tile/hexagon_tile_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 312,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0491,
+      -0.0211,
+      -0.0
+     ],
+     "max": [
+      0.0491,
+      0.0211,
+      0.0107
+     ],
+     "size": [
+      0.0981,
+      0.0422,
+      0.0107
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0491,
+      -0.0211,
+      -0.0
+     ],
+     "max": [
+      0.0491,
+      0.0211,
+      0.0107
+     ],
+     "size": [
+      0.0981,
+      0.0422,
+      0.0107
+     ]
+    }
+   },
+   "size_m": [
+    0.0981,
+    0.0422,
+    0.0107
+   ],
+   "pivot": "back face center",
+   "objects": [
+    {
+     "name": "HexTile",
+     "type": "mesh",
+     "parent": null,
+     "tris": 68,
+     "pivot_unity_m": [
+      0.03,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Face",
+     "type": "mesh",
+     "parent": "HexTile",
+     "tris": 88,
+     "pivot_unity_m": [
+      0.03,
+      0.0,
+      0.0086
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "HexTile_Lit",
+     "type": "mesh",
+     "parent": null,
+     "tris": 68,
+     "pivot_unity_m": [
+      -0.03,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Face_Lit",
+     "type": "mesh",
+     "parent": "HexTile_Lit",
+     "tris": 88,
+     "pivot_unity_m": [
+      -0.03,
+      0.0,
+      0.0086
+     ],
+     "material": "VBS_Glow"
+    }
+   ],
+   "animate": "Two states side by side: HexTile (cream Face = not done) and HexTile_Lit (glowing Face_Lit with the Glow material = done). Toggle between them, or swap the Face material, when a station is solved.",
+   "notes": "Pointy-top, 4.4 cm across, faces +Z, pivot = center of the back face. Fits HexSlot1-4 on the hive. Each state is its own root object with its own pivot, 3 cm left/right of the file origin: zero its position when you make the prefab.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/hexagon_tile/honey_comb_atnjipGFNO.glb",
+     "license": "CC0 1.0",
+     "author": "hat_my_guy",
+     "source_url": "https://poly.pizza/m/atnjipGFNO",
+     "tris": 1224,
+     "suggested_uniform_scale": 0.01744,
+     "animations": [],
+     "attribution_text": "\"Honey Comb\" by hat_my_guy (https://poly.pizza/m/atnjipGFNO), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "portal_frame": {
+   "file": "portal_frame/portal_frame.glb",
+   "fbx": "portal_frame/portal_frame.fbx",
+   "blend": "portal_frame/portal_frame.blend",
+   "preview": "portal_frame/portal_frame_preview.png",
+   "all_files": [
+    "portal_frame/meadow_fallback.png",
+    "portal_frame/portal_frame.blend",
+    "portal_frame/portal_frame.fbx",
+    "portal_frame/portal_frame.glb",
+    "portal_frame/portal_frame_preview.png",
+    "portal_frame/portal_frame_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2260,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.3965,
+      0.0,
+      -0.08
+     ],
+     "max": [
+      0.3965,
+      0.7997,
+      0.08
+     ],
+     "size": [
+      0.793,
+      0.7997,
+      0.16
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.47,
+      -0.0306,
+      -0.08
+     ],
+     "max": [
+      0.47,
+      0.7997,
+      0.08
+     ],
+     "size": [
+      0.94,
+      0.8303,
+      0.16
+     ]
+    }
+   },
+   "size_m": [
+    0.793,
+    0.7997,
+    0.16
+   ],
+   "pivot": "base (bottom center of the feet)",
+   "objects": [
+    {
+     "name": "PortalFrame",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Frame",
+     "type": "mesh",
+     "parent": "PortalFrame",
+     "tris": 2248,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "LivePane",
+     "type": "mesh",
+     "parent": "PortalFrame",
+     "tris": 4,
+     "pivot_unity_m": [
+      -0.0,
+      0.3764,
+      0.004
+     ],
+     "material": "VBS_PaneLive",
+     "disabled_by_default": true
+    },
+    {
+     "name": "FallbackPane",
+     "type": "mesh",
+     "parent": "PortalFrame",
+     "tris": 4,
+     "pivot_unity_m": [
+      -0.0,
+      0.3764,
+      -0.0
+     ],
+     "material": "VBS_PaneFallback"
+    },
+    {
+     "name": "Glow",
+     "type": "mesh",
+     "parent": "PortalFrame",
+     "tris": 4,
+     "pivot_unity_m": [
+      -0.0,
+      0.3764,
+      -0.035
+     ],
+     "material": "VBS_GlowSoft",
+     "disabled_by_default": true
+    },
+    {
+     "name": "Embers",
+     "type": "empty",
+     "parent": "PortalFrame",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.3764,
+      0.03
+     ],
+     "material": null
+    }
+   ],
+   "animate": "LivePane: front pane for the live Orbis video (put the video texture here; disabled in previews). FallbackPane: same size, 4 mm behind, with meadow_fallback.png. Glow: soft halo behind the frame (alpha 0.35, disabled in previews). Embers: empty at the pane center, +Z points out of the window toward the player: parent the ember VFX here.",
+   "notes": "Hexagonal honeycomb ring on two feet, ~0.79 m wide x 0.80 m tall (0.94 m wide incl. the Glow halo). Pane UVs show the centered 65% of a 16:9 frame (u 0.175..0.825), no stretching. The placeholder used a 0.52 x 0.30 m quad.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/portal_frame/honey_comb_atnjipGFNO.glb",
+     "license": "CC0 1.0",
+     "author": "hat_my_guy",
+     "source_url": "https://poly.pizza/m/atnjipGFNO",
+     "tris": 1224,
+     "suggested_uniform_scale": 0.13953,
+     "animations": [],
+     "attribution_text": "\"Honey Comb\" by hat_my_guy (https://poly.pizza/m/atnjipGFNO), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "smoker": {
+   "file": "smoker/smoker.glb",
+   "fbx": "smoker/smoker.fbx",
+   "blend": "smoker/smoker.blend",
+   "preview": "smoker/smoker_preview.png",
+   "all_files": [
+    "smoker/smoker.blend",
+    "smoker/smoker.fbx",
+    "smoker/smoker.glb",
+    "smoker/smoker_preview.png",
+    "smoker/smoker_turntable.png",
+    "smoker/vfx_kenney_cc0/License.txt",
+    "smoker/vfx_kenney_cc0/smoke_01.png",
+    "smoker/vfx_kenney_cc0/smoke_02.png",
+    "smoker/vfx_kenney_cc0/smoke_03.png",
+    "smoker/vfx_kenney_cc0/smoke_04.png",
+    "smoker/vfx_kenney_cc0/smoke_05.png",
+    "smoker/vfx_kenney_cc0/smoke_06.png",
+    "smoker/vfx_kenney_cc0/smoke_07.png",
+    "smoker/vfx_kenney_cc0/smoke_08.png",
+    "smoker/vfx_kenney_cc0/smoke_09.png",
+    "smoker/vfx_kenney_cc0/smoke_10.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1524,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0612,
+      0.0,
+      -0.1194
+     ],
+     "max": [
+      0.0612,
+      0.2717,
+      0.0668
+     ],
+     "size": [
+      0.1224,
+      0.2717,
+      0.1861
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0612,
+      0.0,
+      -0.1194
+     ],
+     "max": [
+      0.0612,
+      0.2717,
+      0.0668
+     ],
+     "size": [
+      0.1224,
+      0.2717,
+      0.1861
+     ]
+    }
+   },
+   "size_m": [
+    0.1224,
+    0.2717,
+    0.1861
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "Smoker",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Canister",
+     "type": "mesh",
+     "parent": "Smoker",
+     "tris": 682,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Lid",
+     "type": "mesh",
+     "parent": "Smoker",
+     "tris": 686,
+     "pivot_unity_m": [
+      -0.0,
+      0.178,
+      -0.054
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "SmokePoint",
+     "type": "empty",
+     "parent": "Smoker",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.258,
+      0.07
+     ],
+     "material": null
+    },
+    {
+     "name": "Bellows",
+     "type": "mesh",
+     "parent": "Smoker",
+     "tris": 84,
+     "pivot_unity_m": [
+      -0.0,
+      0.03,
+      -0.062
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "BellowsLever",
+     "type": "mesh",
+     "parent": "Smoker",
+     "tris": 72,
+     "pivot_unity_m": [
+      -0.0,
+      0.032,
+      -0.07
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "BellowsLever: pivot on its bottom hinge, rotate on X to squeeze (Bellows stays put). Lid: pivot on the back hinge, rotate on X to open. SmokePoint: empty at the spout tip, +Z points out of the spout: parent the smoke particle system here.",
+   "notes": "Art-director pass: darker steel can, copper lid + spout, red leather bellows with accordion pleats (no longer reads as a book). Smoke sprites: smoker/vfx_kenney_cc0/smoke_01..10.png (CC0).",
+   "vfx_sprites": {
+    "folder": "smoker/vfx_kenney_cc0",
+    "name": "Particle Pack",
+    "author": "Kenney (www.kenney.nl)",
+    "license": "CC0 1.0 (public domain)",
+    "url": "https://kenney.nl/assets/particle-pack",
+    "attribution_text": "Particle Pack by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+   },
+   "downloaded_alternates_not_used": []
+  },
+  "honey_jar": {
+   "file": "honey_jar/honey_jar.glb",
+   "fbx": "honey_jar/honey_jar.fbx",
+   "blend": "honey_jar/honey_jar.blend",
+   "preview": "honey_jar/honey_jar_preview.png",
+   "all_files": [
+    "honey_jar/honey_jar.blend",
+    "honey_jar/honey_jar.fbx",
+    "honey_jar/honey_jar.glb",
+    "honey_jar/honey_jar_preview.png",
+    "honey_jar/honey_jar_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1044,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0404,
+      0.0,
+      -0.0402
+     ],
+     "max": [
+      0.0402,
+      0.118,
+      0.0406
+     ],
+     "size": [
+      0.0806,
+      0.118,
+      0.0808
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0404,
+      0.0,
+      -0.0402
+     ],
+     "max": [
+      0.0402,
+      0.118,
+      0.0406
+     ],
+     "size": [
+      0.0806,
+      0.118,
+      0.0808
+     ]
+    }
+   },
+   "size_m": [
+    0.0806,
+    0.118,
+    0.0808
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "HoneyJar",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Jar",
+     "type": "mesh",
+     "parent": "HoneyJar",
+     "tris": 384,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Lid",
+     "type": "mesh",
+     "parent": "HoneyJar",
+     "tris": 190,
+     "pivot_unity_m": [
+      -0.0,
+      0.094,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Label",
+     "type": "mesh",
+     "parent": "HoneyJar",
+     "tris": 470,
+     "pivot_unity_m": [
+      -0.0,
+      0.024,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Lid: pivot at its base, unscrew (rotate Y + lift). Label: separate mesh.",
+   "notes": "WRONG choice at the feeding station. Big 'HONEY' label; 'STORE BRAND' is small text.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/honey_jar/jar_of_jam_3jQoqeTyeLC.glb",
+     "license": "CC-BY 3.0",
+     "author": "Poly by Google",
+     "source_url": "https://poly.pizza/m/3jQoqeTyeLC",
+     "tris": 888,
+     "suggested_uniform_scale": 0.03259,
+     "animations": [],
+     "attribution_text": "\"Jar of jam\" by Poly by Google (https://poly.pizza/m/3jQoqeTyeLC) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    },
+    {
+     "path": "art-staging/downloaded/honey_jar/kenney_food-kit/honey.glb",
+     "license": "CC0 1.0",
+     "author": "Kenney (www.kenney.nl)",
+     "source_url": "https://kenney.nl/assets/food-kit",
+     "tris": 140,
+     "suggested_uniform_scale": 0.3681,
+     "animations": [],
+     "attribution_text": "honey from Food Kit 2.0 by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+    }
+   ]
+  },
+  "syrup_bottle": {
+   "file": "syrup_bottle/syrup_bottle.glb",
+   "fbx": "syrup_bottle/syrup_bottle.fbx",
+   "blend": "syrup_bottle/syrup_bottle.blend",
+   "preview": "syrup_bottle/syrup_bottle_preview.png",
+   "all_files": [
+    "syrup_bottle/syrup_bottle.blend",
+    "syrup_bottle/syrup_bottle.fbx",
+    "syrup_bottle/syrup_bottle.glb",
+    "syrup_bottle/syrup_bottle_preview.png",
+    "syrup_bottle/syrup_bottle_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 824,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0356,
+      0.0,
+      -0.0228
+     ],
+     "max": [
+      0.0356,
+      0.201,
+      0.0239
+     ],
+     "size": [
+      0.0712,
+      0.201,
+      0.0467
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0356,
+      0.0,
+      -0.0228
+     ],
+     "max": [
+      0.0356,
+      0.201,
+      0.0239
+     ],
+     "size": [
+      0.0712,
+      0.201,
+      0.0467
+     ]
+    }
+   },
+   "size_m": [
+    0.0712,
+    0.201,
+    0.0467
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "SyrupBottle",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Bottle",
+     "type": "mesh",
+     "parent": "SyrupBottle",
+     "tris": 288,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Cap",
+     "type": "mesh",
+     "parent": "SyrupBottle",
+     "tris": 298,
+     "pivot_unity_m": [
+      -0.0,
+      0.154,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Label",
+     "type": "mesh",
+     "parent": "SyrupBottle",
+     "tris": 238,
+     "pivot_unity_m": [
+      -0.0,
+      0.034,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Cap: pivot at its base (flip/squeeze gesture). Label: separate mesh.",
+   "notes": "RIGHT choice at the feeding station. 'SUGAR SYRUP' label readable at arm's length.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/syrup_bottle/ketchup_qBZO8zHrN7.glb",
+     "license": "CC0 1.0",
+     "author": "michu",
+     "source_url": "https://poly.pizza/m/qBZO8zHrN7",
+     "tris": 252,
+     "suggested_uniform_scale": 0.76923,
+     "animations": [],
+     "attribution_text": "\"Ketchup\" by michu (https://poly.pizza/m/qBZO8zHrN7), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "deep_bowl": {
+   "file": "deep_bowl/deep_bowl.glb",
+   "fbx": "deep_bowl/deep_bowl.fbx",
+   "blend": "deep_bowl/deep_bowl.blend",
+   "preview": "deep_bowl/deep_bowl_preview.png",
+   "all_files": [
+    "deep_bowl/deep_bowl.blend",
+    "deep_bowl/deep_bowl.fbx",
+    "deep_bowl/deep_bowl.glb",
+    "deep_bowl/deep_bowl_preview.png",
+    "deep_bowl/deep_bowl_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 750,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.086,
+      0.0,
+      -0.086
+     ],
+     "max": [
+      0.086,
+      0.107,
+      0.086
+     ],
+     "size": [
+      0.172,
+      0.107,
+      0.172
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.086,
+      0.0,
+      -0.086
+     ],
+     "max": [
+      0.086,
+      0.107,
+      0.086
+     ],
+     "size": [
+      0.172,
+      0.107,
+      0.172
+     ]
+    }
+   },
+   "size_m": [
+    0.172,
+    0.107,
+    0.172
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "DeepBowl",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Bowl",
+     "type": "mesh",
+     "parent": "DeepBowl",
+     "tris": 504,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Water",
+     "type": "mesh",
+     "parent": "DeepBowl",
+     "tris": 246,
+     "pivot_unity_m": [
+      -0.0,
+      0.088,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Water: pivot at the water-surface center (bob / ripple / scale).",
+   "notes": "WRONG choice at the heat-wave station (bees drown in deep water).",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/deep_bowl/bowl_c8KfkHCEnu.glb",
+     "license": "CC0 1.0",
+     "author": "Kay Lousberg",
+     "source_url": "https://poly.pizza/m/c8KfkHCEnu",
+     "tris": 256,
+     "suggested_uniform_scale": 0.21053,
+     "animations": [],
+     "attribution_text": "\"Bowl\" by Kay Lousberg (https://poly.pizza/m/c8KfkHCEnu), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "pebble_dish": {
+   "file": "pebble_dish/pebble_dish.glb",
+   "fbx": "pebble_dish/pebble_dish.fbx",
+   "blend": "pebble_dish/pebble_dish.blend",
+   "preview": "pebble_dish/pebble_dish_preview.png",
+   "all_files": [
+    "pebble_dish/pebble_dish.blend",
+    "pebble_dish/pebble_dish.fbx",
+    "pebble_dish/pebble_dish.glb",
+    "pebble_dish/pebble_dish_preview.png",
+    "pebble_dish/pebble_dish_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1110,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.102,
+      0.0,
+      -0.102
+     ],
+     "max": [
+      0.102,
+      0.0288,
+      0.102
+     ],
+     "size": [
+      0.204,
+      0.0288,
+      0.204
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.102,
+      0.0,
+      -0.102
+     ],
+     "max": [
+      0.102,
+      0.0288,
+      0.102
+     ],
+     "size": [
+      0.204,
+      0.0288,
+      0.204
+     ]
+    }
+   },
+   "size_m": [
+    0.204,
+    0.0288,
+    0.204
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "PebbleDish",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Dish",
+     "type": "mesh",
+     "parent": "PebbleDish",
+     "tris": 336,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Water",
+     "type": "mesh",
+     "parent": "PebbleDish",
+     "tris": 54,
+     "pivot_unity_m": [
+      -0.0,
+      0.017,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Pebbles",
+     "type": "mesh",
+     "parent": "PebbleDish",
+     "tris": 720,
+     "pivot_unity_m": [
+      -0.0,
+      0.017,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "LandingSpot1",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0531,
+      0.0282,
+      -0.0142
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot2",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0142,
+      0.0259,
+      -0.0531
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot3",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.0389,
+      0.0289,
+      -0.0389
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot4",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.0531,
+      0.0284,
+      0.0142
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot5",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.0142,
+      0.0243,
+      0.0531
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot6",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0389,
+      0.0256,
+      0.0389
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot7",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0153,
+      0.0243,
+      -0.0129
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot8",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      0.0188,
+      0.0254,
+      -0.0068
+     ],
+     "material": null
+    },
+    {
+     "name": "LandingSpot9",
+     "type": "empty",
+     "parent": "PebbleDish",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0035,
+      0.028,
+      0.0197
+     ],
+     "material": null
+    }
+   ],
+   "animate": "Water: separate mesh. LandingSpot1-9: empties on the pebble tops where bees land to drink.",
+   "notes": "RIGHT choice at the heat-wave station. Shallow terracotta saucer.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/pebble_dish/kenney_food-kit/plate-deep.glb",
+     "license": "CC0 1.0",
+     "author": "Kenney (www.kenney.nl)",
+     "source_url": "https://kenney.nl/assets/food-kit",
+     "tris": 140,
+     "suggested_uniform_scale": 0.24669,
+     "animations": [],
+     "attribution_text": "plate-deep from Food Kit 2.0 by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+    }
+   ]
+  },
+  "wasp": {
+   "file": "wasp/wasp.glb",
+   "fbx": "wasp/wasp.fbx",
+   "blend": "wasp/wasp.blend",
+   "preview": "wasp/wasp_preview.png",
+   "all_files": [
+    "wasp/wasp.blend",
+    "wasp/wasp.fbx",
+    "wasp/wasp.glb",
+    "wasp/wasp_preview.png",
+    "wasp/wasp_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1964,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0206,
+      -0.0126,
+      -0.0316
+     ],
+     "max": [
+      0.0206,
+      0.0139,
+      0.0304
+     ],
+     "size": [
+      0.0412,
+      0.0265,
+      0.0621
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0206,
+      -0.0126,
+      -0.0316
+     ],
+     "max": [
+      0.0206,
+      0.0139,
+      0.0304
+     ],
+     "size": [
+      0.0412,
+      0.0265,
+      0.0621
+     ]
+    }
+   },
+   "size_m": [
+    0.0412,
+    0.0265,
+    0.0621
+   ],
+   "pivot": "body center",
+   "objects": [
+    {
+     "name": "Wasp",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Body",
+     "type": "mesh",
+     "parent": "Wasp",
+     "tris": 1772,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingL",
+     "type": "mesh",
+     "parent": "Wasp",
+     "tris": 96,
+     "pivot_unity_m": [
+      -0.0028,
+      0.007,
+      0.0085
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingR",
+     "type": "mesh",
+     "parent": "Wasp",
+     "tris": 96,
+     "pivot_unity_m": [
+      0.0028,
+      0.007,
+      0.0085
+     ],
+     "material": "VBS_Palette_Bee"
+    }
+   ],
+   "animate": "WingL / WingR: pivot at the wing root, flap on Unity Z. Body is static.",
+   "notes": "~6 cm long, lemon-yellow + black, angry brows. Emissive bee material.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/wasp/wasp_3aQgc75sUR.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/3aQgc75sUR",
+     "tris": 3734,
+     "suggested_uniform_scale": 0.01323,
+     "animations": [
+      "WaspArmature|Wasp_Attack",
+      "WaspArmature|Wasp_Death",
+      "WaspArmature|Wasp_Flying"
+     ],
+     "attribution_text": "\"Wasp\" by Quaternius (https://poly.pizza/m/3aQgc75sUR), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "giant_hornet": {
+   "file": "giant_hornet/giant_hornet.glb",
+   "fbx": "giant_hornet/giant_hornet.fbx",
+   "blend": "giant_hornet/giant_hornet.blend",
+   "preview": "giant_hornet/giant_hornet_preview.png",
+   "all_files": [
+    "giant_hornet/giant_hornet.blend",
+    "giant_hornet/giant_hornet.fbx",
+    "giant_hornet/giant_hornet.glb",
+    "giant_hornet/giant_hornet_preview.png",
+    "giant_hornet/giant_hornet_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2658,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.1014,
+      -0.0564,
+      -0.1426
+     ],
+     "max": [
+      0.1014,
+      0.0757,
+      0.1213
+     ],
+     "size": [
+      0.2027,
+      0.1321,
+      0.2639
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.1014,
+      -0.0564,
+      -0.1426
+     ],
+     "max": [
+      0.1014,
+      0.0757,
+      0.1213
+     ],
+     "size": [
+      0.2027,
+      0.1321,
+      0.2639
+     ]
+    }
+   },
+   "size_m": [
+    0.2027,
+    0.1321,
+    0.2639
+   ],
+   "pivot": "body center",
+   "objects": [
+    {
+     "name": "GiantHornet",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Body",
+     "type": "mesh",
+     "parent": "GiantHornet",
+     "tris": 2210,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "Mandibles",
+     "type": "mesh",
+     "parent": "GiantHornet",
+     "tris": 256,
+     "pivot_unity_m": [
+      -0.0,
+      -0.0112,
+      0.0912
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingL",
+     "type": "mesh",
+     "parent": "GiantHornet",
+     "tris": 96,
+     "pivot_unity_m": [
+      -0.0176,
+      0.036,
+      0.024
+     ],
+     "material": "VBS_Palette_Bee"
+    },
+    {
+     "name": "WingR",
+     "type": "mesh",
+     "parent": "GiantHornet",
+     "tris": 96,
+     "pivot_unity_m": [
+      0.0176,
+      0.036,
+      0.024
+     ],
+     "material": "VBS_Palette_Bee"
+    }
+   ],
+   "animate": "Mandibles: pivot at the jaw hinge, rotate on X to chomp. WingL / WingR: pivot at the wing root, flap on Unity Z.",
+   "notes": "Art-director pass: scaled to ~0.26 m long (was 0.33) and the mandibles now hang below the chin like pincers instead of reading as a moustache. Faceted/flat-shaded so it reads harder than the bees.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/giant_hornet/wasp_3aQgc75sUR.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/3aQgc75sUR",
+     "tris": 3734,
+     "suggested_uniform_scale": 0.06613,
+     "animations": [
+      "WaspArmature|Wasp_Attack",
+      "WaspArmature|Wasp_Death",
+      "WaspArmature|Wasp_Flying"
+     ],
+     "attribution_text": "\"Wasp\" by Quaternius (https://poly.pizza/m/3aQgc75sUR), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "ember": {
+   "file": "ember/ember.glb",
+   "fbx": "ember/ember.fbx",
+   "blend": "ember/ember.blend",
+   "preview": "ember/ember_preview.png",
+   "all_files": [
+    "ember/ember.blend",
+    "ember/ember.fbx",
+    "ember/ember.glb",
+    "ember/ember_preview.png",
+    "ember/ember_sprite.png",
+    "ember/ember_turntable.png",
+    "ember/vfx_kenney_cc0/License.txt",
+    "ember/vfx_kenney_cc0/circle_05.png",
+    "ember/vfx_kenney_cc0/fire_01.png",
+    "ember/vfx_kenney_cc0/fire_02.png",
+    "ember/vfx_kenney_cc0/flame_01.png",
+    "ember/vfx_kenney_cc0/flame_02.png",
+    "ember/vfx_kenney_cc0/flame_03.png",
+    "ember/vfx_kenney_cc0/flame_04.png",
+    "ember/vfx_kenney_cc0/flame_05.png",
+    "ember/vfx_kenney_cc0/flame_06.png",
+    "ember/vfx_kenney_cc0/light_01.png",
+    "ember/vfx_kenney_cc0/scorch_01.png",
+    "ember/vfx_kenney_cc0/spark_01.png",
+    "ember/vfx_kenney_cc0/spark_02.png",
+    "ember/vfx_kenney_cc0/spark_03.png",
+    "ember/vfx_kenney_cc0/spark_04.png",
+    "ember/vfx_kenney_cc0/spark_05.png",
+    "ember/vfx_kenney_cc0/spark_06.png",
+    "ember/vfx_kenney_cc0/spark_07.png",
+    "ember/vfx_kenney_cc0/star_01.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 100,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0196,
+      -0.0073,
+      -0.006
+     ],
+     "max": [
+      0.0207,
+      0.0073,
+      0.006
+     ],
+     "size": [
+      0.0403,
+      0.0146,
+      0.012
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0196,
+      -0.0073,
+      -0.006
+     ],
+     "max": [
+      0.0207,
+      0.0073,
+      0.006
+     ],
+     "size": [
+      0.0403,
+      0.0146,
+      0.012
+     ]
+    }
+   },
+   "size_m": [
+    0.0403,
+    0.0146,
+    0.012
+   ],
+   "pivot": "center of each",
+   "objects": [
+    {
+     "name": "Ember",
+     "type": "mesh",
+     "parent": null,
+     "tris": 80,
+     "pivot_unity_m": [
+      0.015,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Glow"
+    },
+    {
+     "name": "EmberFlake",
+     "type": "mesh",
+     "parent": null,
+     "tris": 20,
+     "pivot_unity_m": [
+      -0.015,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Glow"
+    }
+   ],
+   "animate": "Ember (1.2 cm glowing ball) and EmberFlake (shard): meshes for a mesh particle system, Glow material, pivot = center of each.",
+   "notes": "ember/ember_sprite.png = 64 px radial glow sprite (original). ember/vfx_kenney_cc0/ = Kenney spark/flame/fire/light sprites (CC0, 512 px, white/greyscale: tint to fire #FF6B2C in the particle system).",
+   "vfx_sprites": {
+    "folder": "ember/vfx_kenney_cc0",
+    "name": "Particle Pack",
+    "author": "Kenney (www.kenney.nl)",
+    "license": "CC0 1.0 (public domain)",
+    "url": "https://kenney.nl/assets/particle-pack",
+    "attribution_text": "Particle Pack by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+   },
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/ember/flame_decal_8DEKYKfH2h.glb",
+     "license": "CC0 1.0",
+     "author": "Quaternius",
+     "source_url": "https://poly.pizza/m/8DEKYKfH2h",
+     "tris": 473,
+     "suggested_uniform_scale": null,
+     "animations": [],
+     "attribution_text": "\"Flame Decal\" by Quaternius (https://poly.pizza/m/8DEKYKfH2h), CC0 1.0 public domain (credit optional)"
+    }
+   ]
+  },
+  "flowers": {
+   "file": "flowers/flowers.glb",
+   "fbx": "flowers/flowers.fbx",
+   "blend": "flowers/flowers.blend",
+   "preview": "flowers/flowers_preview.png",
+   "all_files": [
+    "flowers/flowers.blend",
+    "flowers/flowers.fbx",
+    "flowers/flowers.glb",
+    "flowers/flowers_preview.png",
+    "flowers/flowers_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2252,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.12,
+      -0.0001,
+      -0.0143
+     ],
+     "max": [
+      0.1437,
+      0.174,
+      0.0445
+     ],
+     "size": [
+      0.2636,
+      0.1741,
+      0.0587
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.12,
+      -0.0001,
+      -0.0143
+     ],
+     "max": [
+      0.1437,
+      0.174,
+      0.0445
+     ],
+     "size": [
+      0.2636,
+      0.1741,
+      0.0587
+     ]
+    }
+   },
+   "size_m": [
+    0.2636,
+    0.1741,
+    0.0587
+   ],
+   "pivot": "base of each stem",
+   "objects": [
+    {
+     "name": "Flower_Purple",
+     "type": "mesh",
+     "parent": null,
+     "tris": 744,
+     "pivot_unity_m": [
+      0.11,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Flower_Blue",
+     "type": "mesh",
+     "parent": null,
+     "tris": 564,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Flower_Lavender",
+     "type": "mesh",
+     "parent": null,
+     "tris": 944,
+     "pivot_unity_m": [
+      -0.11,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Three separate meshes: Flower_Purple, Flower_Blue, Flower_Lavender, pivot at each stem base (sway by rotating a few degrees).",
+   "notes": "They sit side by side in the file; split them into 3 prefabs or scatter copies.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/flowers/pastel_plume_flowers_eLVv17bTyB-.glb",
+     "license": "CC-BY 3.0",
+     "author": "Danni Bittman",
+     "source_url": "https://poly.pizza/m/eLVv17bTyB-",
+     "tris": 568,
+     "suggested_uniform_scale": 0.07401,
+     "animations": [],
+     "attribution_text": "\"Pastel Plume Flowers\" by Danni Bittman (https://poly.pizza/m/eLVv17bTyB-) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    },
+    {
+     "path": "art-staging/downloaded/flowers/kenney_nature-kit/flower_purpleA.glb",
+     "license": "CC0 1.0",
+     "author": "Kenney (www.kenney.nl)",
+     "source_url": "https://kenney.nl/assets/nature-kit",
+     "tris": 76,
+     "suggested_uniform_scale": 0.82474,
+     "animations": [],
+     "attribution_text": "flower_purpleA from Nature Kit 2.1 by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+    }
+   ]
+  },
+  "grass_tuft": {
+   "file": "grass_tuft/grass_tuft.glb",
+   "fbx": "grass_tuft/grass_tuft.fbx",
+   "blend": "grass_tuft/grass_tuft.blend",
+   "preview": "grass_tuft/grass_tuft_preview.png",
+   "all_files": [
+    "grass_tuft/grass_tuft.blend",
+    "grass_tuft/grass_tuft.fbx",
+    "grass_tuft/grass_tuft.glb",
+    "grass_tuft/grass_tuft_preview.png",
+    "grass_tuft/grass_tuft_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 296,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0525,
+      -0.005,
+      -0.0696
+     ],
+     "max": [
+      0.0486,
+      0.0742,
+      0.0453
+     ],
+     "size": [
+      0.101,
+      0.0792,
+      0.1149
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0525,
+      -0.005,
+      -0.0696
+     ],
+     "max": [
+      0.0486,
+      0.0742,
+      0.0453
+     ],
+     "size": [
+      0.101,
+      0.0792,
+      0.1149
+     ]
+    }
+   },
+   "size_m": [
+    0.101,
+    0.0792,
+    0.1149
+   ],
+   "pivot": "base",
+   "objects": [
+    {
+     "name": "GrassTuft",
+     "type": "mesh",
+     "parent": null,
+     "tris": 296,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "~8 cm tall, two greens.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/grass_tuft/kenney_nature-kit/grass_large.glb",
+     "license": "CC0 1.0",
+     "author": "Kenney (www.kenney.nl)",
+     "source_url": "https://kenney.nl/assets/nature-kit",
+     "tris": 224,
+     "suggested_uniform_scale": 0.2445,
+     "animations": [],
+     "attribution_text": "grass_large from Nature Kit 2.1 by Kenney (www.kenney.nl), CC0 1.0 (credit optional)"
+    }
+   ]
+  },
+  "rocket": {
+   "file": "rocket/rocket.glb",
+   "fbx": "rocket/rocket.fbx",
+   "blend": "rocket/rocket.blend",
+   "preview": "rocket/rocket_preview.png",
+   "all_files": [
+    "rocket/rocket.blend",
+    "rocket/rocket.fbx",
+    "rocket/rocket.glb",
+    "rocket/rocket_preview.png",
+    "rocket/rocket_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1871,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.105,
+      0.0,
+      -0.105
+     ],
+     "max": [
+      0.105,
+      0.595,
+      0.105
+     ],
+     "size": [
+      0.21,
+      0.595,
+      0.21
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.105,
+      -0.138,
+      -0.105
+     ],
+     "max": [
+      0.105,
+      0.595,
+      0.105
+     ],
+     "size": [
+      0.21,
+      0.733,
+      0.21
+     ]
+    }
+   },
+   "size_m": [
+    0.21,
+    0.595,
+    0.21
+   ],
+   "pivot": "base (bottom of the fins)",
+   "objects": [
+    {
+     "name": "HONEYMOON-1",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Hull",
+     "type": "mesh",
+     "parent": "HONEYMOON-1",
+     "tris": 1775,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Flame",
+     "type": "mesh",
+     "parent": "HONEYMOON-1",
+     "tris": 96,
+     "pivot_unity_m": [
+      -0.0,
+      0.032,
+      -0.0
+     ],
+     "material": "VBS_Glow",
+     "disabled_by_default": true
+    },
+    {
+     "name": "Seat",
+     "type": "empty",
+     "parent": "HONEYMOON-1",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.33,
+      0.035
+     ],
+     "material": null
+    },
+    {
+     "name": "Perch",
+     "type": "empty",
+     "parent": "HONEYMOON-1",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.6,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "CountdownDisplay",
+     "type": "empty",
+     "parent": "HONEYMOON-1",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.108,
+      0.089
+     ],
+     "material": null
+    }
+   ],
+   "animate": "Flame: pivot at the nozzle exit, disabled by default; enable and scale Y for the launch. Seat (where Beeswax sits), Perch, CountdownDisplay: empties kept from the placeholder (CountdownDisplay is where the placeholder's 'T-4:00' text goes).",
+   "notes": "HONEYMOON-1. Hull is 0.595 m tall; bounds incl. the hidden Flame are 0.733 m (the flame hangs below the base). Name painted on the hull is small text.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/rocket/oga_retro-toy-rocket/retro_toy_rocket_dec2900.glb",
+     "license": "CC0 1.0",
+     "author": "rayb2 (OpenGameArt)",
+     "source_url": "https://opengameart.org/content/retro-toy-rocket",
+     "tris": 2900,
+     "suggested_uniform_scale": 0.11751,
+     "animations": [],
+     "attribution_text": "\"Retro Toy Rocket\" by rayb2 (https://opengameart.org/content/retro-toy-rocket), CC0 1.0 (credit optional)"
+    },
+    {
+     "path": "art-staging/downloaded/rocket/rocketship_ah8WSBbizA6.glb",
+     "license": "CC-BY 3.0",
+     "author": "jeremy",
+     "source_url": "https://poly.pizza/m/ah8WSBbizA6",
+     "tris": 832,
+     "suggested_uniform_scale": 0.06051,
+     "animations": [],
+     "attribution_text": "\"Rocketship\" by jeremy (https://poly.pizza/m/ah8WSBbizA6) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    }
+   ]
+  },
+  "moon": {
+   "file": "moon/moon.glb",
+   "fbx": "moon/moon.fbx",
+   "blend": "moon/moon.blend",
+   "preview": "moon/moon_preview.png",
+   "all_files": [
+    "moon/moon.blend",
+    "moon/moon.fbx",
+    "moon/moon.glb",
+    "moon/moon_preview.png",
+    "moon/moon_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1280,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.2553,
+      -0.2507,
+      -0.2521
+     ],
+     "max": [
+      0.2551,
+      0.2565,
+      0.2472
+     ],
+     "size": [
+      0.5105,
+      0.5072,
+      0.4994
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.2553,
+      -0.2507,
+      -0.2521
+     ],
+     "max": [
+      0.2551,
+      0.2565,
+      0.2472
+     ],
+     "size": [
+      0.5105,
+      0.5072,
+      0.4994
+     ]
+    }
+   },
+   "size_m": [
+    0.5105,
+    0.5072,
+    0.4994
+   ],
+   "pivot": "center",
+   "objects": [
+    {
+     "name": "Moon",
+     "type": "mesh",
+     "parent": null,
+     "tris": 1280,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh). Pivot = center.",
+   "notes": "Art-director pass: deeper crater bowls, light rims and dark floors so the craters read (was flat grey patches). 0.5 m across.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/moon/moon_63c8LKpoXTO.glb",
+     "license": "CC-BY 3.0",
+     "author": "Poly by Google",
+     "source_url": "https://poly.pizza/m/63c8LKpoXTO",
+     "tris": 1212,
+     "suggested_uniform_scale": 0.30086,
+     "animations": [],
+     "attribution_text": "\"Moon\" by Poly by Google (https://poly.pizza/m/63c8LKpoXTO) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    }
+   ]
+  },
+  "earth": {
+   "file": "earth/earth.glb",
+   "fbx": "earth/earth.fbx",
+   "blend": "earth/earth.blend",
+   "preview": "earth/earth_preview.png",
+   "all_files": [
+    "earth/earth.blend",
+    "earth/earth.fbx",
+    "earth/earth.glb",
+    "earth/earth_preview.png",
+    "earth/earth_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2080,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.1126,
+      -0.1025,
+      -0.104
+     ],
+     "max": [
+      0.1028,
+      0.1025,
+      0.109
+     ],
+     "size": [
+      0.2153,
+      0.205,
+      0.213
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.1126,
+      -0.1025,
+      -0.104
+     ],
+     "max": [
+      0.1028,
+      0.1025,
+      0.109
+     ],
+     "size": [
+      0.2153,
+      0.205,
+      0.213
+     ]
+    }
+   },
+   "size_m": [
+    0.2153,
+    0.205,
+    0.213
+   ],
+   "pivot": "center",
+   "objects": [
+    {
+     "name": "Earth",
+     "type": "mesh",
+     "parent": null,
+     "tris": 1280,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Clouds",
+     "type": "mesh",
+     "parent": "Earth",
+     "tris": 800,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Clouds: child mesh, spin slowly on Y.",
+   "notes": "0.2 m globe: ocean, raised continents, ice caps. Pivot = center.",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/earth/earth_1I5ip-3VOfv.glb",
+     "license": "CC-BY 3.0",
+     "author": "Poly by Google",
+     "source_url": "https://poly.pizza/m/1I5ip-3VOfv",
+     "tris": 1500,
+     "suggested_uniform_scale": 0.00022,
+     "animations": [],
+     "attribution_text": "\"Earth\" by Poly by Google (https://poly.pizza/m/1I5ip-3VOfv) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    }
+   ]
+  },
+  "clipboard": {
+   "file": "clipboard/clipboard.glb",
+   "fbx": "clipboard/clipboard.fbx",
+   "blend": "clipboard/clipboard.blend",
+   "preview": "clipboard/clipboard_preview.png",
+   "all_files": [
+    "clipboard/clipboard.blend",
+    "clipboard/clipboard.fbx",
+    "clipboard/clipboard.glb",
+    "clipboard/clipboard_preview.png",
+    "clipboard/clipboard_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 772,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.045,
+      0.0,
+      -0.0025
+     ],
+     "max": [
+      0.045,
+      0.1219,
+      0.0122
+     ],
+     "size": [
+      0.09,
+      0.1219,
+      0.0147
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.045,
+      0.0,
+      -0.0025
+     ],
+     "max": [
+      0.045,
+      0.1219,
+      0.0122
+     ],
+     "size": [
+      0.09,
+      0.1219,
+      0.0147
+     ]
+    }
+   },
+   "size_m": [
+    0.09,
+    0.1219,
+    0.0147
+   ],
+   "pivot": "base (bottom edge center)",
+   "objects": [
+    {
+     "name": "Clipboard",
+     "type": "mesh",
+     "parent": null,
+     "tris": 772,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "Standalone copy of Beeswax's spreadsheet clipboard (beeswax.glb already contains its own).",
+   "downloaded_alternates_not_used": [
+    {
+     "path": "art-staging/downloaded/clipboard/clipboard_8H5SDxwMnEA.glb",
+     "license": "CC-BY 3.0",
+     "author": "William Murphy",
+     "source_url": "https://poly.pizza/m/8H5SDxwMnEA",
+     "tris": 92,
+     "suggested_uniform_scale": 0.15686,
+     "animations": [],
+     "attribution_text": "\"clipboard\" by William Murphy (https://poly.pizza/m/8H5SDxwMnEA) is licensed under CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza"
+    }
+   ]
+  },
+  "seed_packet": {
+   "file": "seed_packet/seed_packet.glb",
+   "fbx": "seed_packet/seed_packet.fbx",
+   "blend": "seed_packet/seed_packet.blend",
+   "preview": "seed_packet/seed_packet_preview.png",
+   "all_files": [
+    "seed_packet/seed_packet.blend",
+    "seed_packet/seed_packet.fbx",
+    "seed_packet/seed_packet.glb",
+    "seed_packet/seed_packet_preview.png",
+    "seed_packet/seed_packet_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 371,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0375,
+      0.0,
+      -0.003
+     ],
+     "max": [
+      0.0375,
+      0.116,
+      0.0044
+     ],
+     "size": [
+      0.075,
+      0.116,
+      0.0074
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0375,
+      0.0,
+      -0.003
+     ],
+     "max": [
+      0.0375,
+      0.116,
+      0.0044
+     ],
+     "size": [
+      0.075,
+      0.116,
+      0.0074
+     ]
+    }
+   },
+   "size_m": [
+    0.075,
+    0.116,
+    0.0074
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "SeedPacket",
+     "type": "mesh",
+     "parent": null,
+     "tris": 371,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "Optional prop. Flat card with crimped top.",
+   "downloaded_alternates_not_used": []
+  }
+ }
+}

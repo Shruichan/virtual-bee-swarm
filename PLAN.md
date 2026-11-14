@@ -204,7 +204,7 @@
   - there's only one passthrough provider (the Meta XR feature plus Meta Quest Support)
   - Unity's Meta Quest Camera, Occlusion, Planes and Anchors features are off
   - multiview, IL2CPP ARM64, ASTC and min API 32 are set
-  - no USE_SCENE request, no MRUK scene loading
+  - USE_SCENE is **required** now (v3.1: Depth API + environment raycast need it); MRUK `LoadSceneOnStartup` off; `sceneSupport` Required; Meta Quest Occlusion + Session features on (Android and Standalone)
   - boundaryless sits behind a toggle
   - NativeWebSocket is vendored under `Packages/`
   - running the bootstrap twice changes nothing
@@ -247,9 +247,9 @@
     - copies the token in from `HIVE_TOKEN` (and fails without it), then deletes it again after the build
     - signs with the shared keystore under one fixed package name
     - writes `Builds/Virtual Bee Swarm-<n>-<commit>.apk`
-    - fails unless aapt2 shows RECORD_AUDIO, INTERNET, cleartext, hand tracking and PASSTHROUGH, and no USE_SCENE
+    - fails unless aapt2 shows RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH, USE_SCENE and USE_ANCHOR_API
   - `ops/quest-deploy.sh` (plus a Windows version if we need one):
-    - runs `adb install -r -g`; on INSTALL_FAILED_UPDATE_INCOMPATIBLE it uninstalls and tries again
+    - runs `adb install -r -g`; on INSTALL_FAILED_UPDATE_INCOMPATIBLE it uninstalls and tries again; then `pm grant` USE_SCENE and RECORD_AUDIO and checks `dumpsys package` shows them granted
     - runs `logcat -c`
     - launches through `resolve-activity`
     - saves logcat to a file
@@ -768,7 +768,448 @@ Also keep an eye on: art that shows up late (CC0 or placeholder at 16:30), and t
 
 ---
 
-## Concept v3 (CURRENT): Virtual Bee Swarm — Save the Hive (or the Bees Leave for the Moon)
+## Concept v3.1 (CURRENT from Sat 05:15): AR first, everything delivered, the swarm's ultimatum
+
+Replaces these parts of Concept v3: the logline, "Why it wins", "turns grey until it looks like the Moon" in the
+future window, the demo script, "Choices are physical where we can make them", MUST/SHOULD/COULD/CUT, and the MDM
+line under Sponsors. Everything else stays: Beeswax, the four stations and their facts, the voice what-if, the Moon
+ending, the map.
+
+**Logline.** Bees cut a window into your real wall and fly a sick hive through it onto your real table. Beeswax, the
+union-rep drone, climbs out with the deal: let the hive die and angry swarms ravage the Earth, and you humans get the
+Moon. Your evacuation rocket lands next to the hive with a four-minute boarding clock. You order the fixes and the
+bees deliver them; wrong orders get repossessed back out through the wall. Fix four things and the evacuation is
+cancelled. Then Beeswax takes your unused ticket, finds no flowers on the Moon and crash-lands back on your table.
+
+**The stakes, said once and plainly**
+- If we don't look after the bees, an angry swarm ravages the Earth and humans have to flee to the Moon.
+  HONEYMOON-1 is now the humans' evacuation rocket, not Beeswax's.
+- The player hears it in one sentence, sees it in one image, and gets one object:
+  - Beeswax: "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon."
+  - On "angry swarms", a dark swarm pours out of the window, sweeps high over the player and settles in a band
+    above the window. The room dims.
+  - The rocket is flown in and planted next to the hive, reading EARTH → MOON · BOARDING 4:00.
+  - "Four minutes, or you're on that rocket." The clock starts when the first station starts, not during the intro.
+- During the stations the dark swarm above the window is the only stakes meter: about 30 more bees per wrong pick,
+  fewer per fix. The room stays slightly dim.
+- At the escape the swarm turns gold and flies home through the window, the room brightens ("the sun comes out"),
+  and the rocket reads EVACUATION CANCELLED. Then Beeswax: "...Shame to waste a ticket. Non-refundable." The Moon gag
+  plays as before. The Moon is a one-off bit; the game is about saving the hive.
+- Tone: a threat from a petty union rep, not a disaster film. No people on screen, no crowds, nobody hurt. The
+  swarm stays at least 0.6 m above the player's head and never goes behind them, and dive-bombs stop 40 cm from the
+  face. A `comfort` switch (fewer bees, no overhead pass, no dives) is there for anyone who flinches.
+- It's Beeswax's threat, not a fact: real swarms are docile. Pitch line: "Real bees don't attack. They quietly
+  vanish. We made the stakes loud."
+
+**Everything is delivered**
+- Rule: nothing pops in. Every object comes in through the meadow window, carried by a crew of bees, and
+  everything that leaves goes back out through it. Three things break the rule on purpose:
+  - Beeswax climbs out of the hive (drones don't carry).
+  - The wasps let themselves in ("Nobody ordered wasps").
+  - The fire is something you ordered by voice.
+- What gets delivered: the hive (hanging from chains of bees), the rocket, every station choice, the score card,
+  the rain cloud that puts out the fire (SHOULD), and the map (COULD).
+- How you order:
+  - Each station's choices fly in together as Beeswax starts the prompt.
+  - They park, perfectly still, in an arc above the front edge of the table.
+  - The props are the buttons: poke the prop or its price tag.
+  - The pick is stamped APPROVED or GRIEVANCE the moment you touch it.
+- Wrong pick: the item does its bad thing. A red repo crew hauls it back out through the window while Beeswax
+  explains, and the swarm above grows. Real fact: undertaker bees haul dead bees and debris out of the hive.
+- Right pick: the crew sets it down on its spot on the real table (shadow, thunk, dust), and the leftover choices
+  fly back out.
+- Three hero flights get the polish: the hive arriving, the store-honey repo, and the fire-brigade rain cloud.
+  Everything else flies in 1.5 s or less.
+- If deliveries look bad on the headset, `delivery.mode` drops to `swirl` (items appear inside a spinning ring of
+  bees) or to `off` (today's buttons). The show runs the same either way.
+
+**AR first**
+- The real table is the stage. The Operator aims at the table and pinches (the two-point edge calibration is the
+  fallback). The hive snaps to the real surface height, and everything that lands casts a contact shadow.
+- The meadow window hangs on the real wall behind the table when that wall is 3 m away or less. Otherwise it stands
+  free 0.7 m behind the hive.
+- The room's light is the stakes: passthrough dims when the swarm comes out and brightens when it goes home.
+- Bees go behind your hands and the table (Depth API occlusion) if it passes the 13:00 frame-rate test. Bees land
+  on the real table between beats.
+- Room scanning (MRUK / Space Setup) is a stretch goal. Nothing in the show depends on it.
+- Every AR piece has a switch in tuning.json, so the venue can turn it off without a rebuild.
+
+**MUST / SHOULD / COULD / CUT** (replaces v3's)
+- **MUST (RC1 17:30):** everything in v3's MUST, plus:
+  - SIGN HERE as START
+  - bees cutting the window, and the hive delivery
+  - the stakes line, dark swarm, dim and rocket delivery
+  - delivered choices with stamp, repo and return
+  - contact shadows and the table height snap
+  - swarm home and room brightening at escape
+  - AR permissions
+- **SHOULD (by 14:30, each behind a switch):** occlusion, window on the real wall, aim-and-pinch placement, bees
+  landing on the table, the swarm as a meter, the rain-cloud fire brigade, the honey-jar struggle, the Orbis
+  forecast clip.
+- **COULD:** MRUK auto-placement, bees landing on an open palm, a boarding pass reading "PASSENGER: YOU", the map
+  carried in, bees whipping under the table edge, embers bouncing on the table, window light on the table.
+- **CUT:** the hornet (already cut), the swarm raiding through a crack in the wall, deliveries from real doors or
+  windows, bees on other furniture, footage of families with suitcases, the extra delivery quips, per-grievance
+  dimming, and "the meadow greys into the Moon".
+
+**Facts to add**
+- Festooning: bees hook their legs into chains, and why they do it is still debated.
+- Drones don't forage and have no pollen baskets.
+- Undertaker bees carry the dead and debris out of the hive.
+- Bearding: bees cluster on the outside of a hot hive.
+- Calm bees rarely sting (hedge this one).
+- Not a fact: "angry swarms". That's Beeswax's threat.
+
+**Sponsors and tech:** never enroll or register the Quest in any MDM (ManageXR, Meta Quest for Business). Meta bug
+MAN-54 and the MQFB error `ERROR_PACKAGE_UNTRUSTED` both break scene apps. The Depth API and environment raycast are
+now in use; MRUK is a stretch goal.
+
+**Open question closed at 08:45:** Quest 3 or 3S, from `adb shell getprop ro.product.model`.
+
+### v3.1 build tasks (V1–V26)
+
+**Lanes for this work** (lane A keeps its current queue: S1.11, S1.12, S2.3, S3.2 and the rest).
+- **Lane A2 (delivery and stakes)** owns:
+  - the new `Assets/VirtualBeeSwarm/World/Delivery/**` and `World/Stakes/**`
+  - announced small edits to `StationBase`, `IntroSequence`, `EscapeSequence`, `T0Sequence` and `GameDirector`
+  - `SwarmSystem` until 11:00
+- **Lane A-AR** owns:
+  - the new `Assets/VirtualBeeSwarm/AR/**` (asmdef `VirtualBeeSwarm.AR`, Meta references as in the tech plan) and `World/Room/**` (core asmdef, plain C#)
+  - announced edits to `HivePlacement`, `FutureWindow`, `Shaders/GameUnlit.shader` and `GameMaterials`
+  - `SwarmSystem` from 11:00
+- **Shared:** both sub-lanes edit `BuildGameScene` and `MetaRigWiring`. Keep each edit small, log it, and merge at :10 or :40.
+- **Before 08:45:** only new files that aren't wired into the scene, plus lane B and lane D work.
+
+Paths use the new names. In the staged copy at `unity/HoneymoonQuest/Assets/Honeymoon/` the same files carry the old names (`HoneymoonDirector`, `HoneymoonUnlit.shader`, and so on).
+
+#### Settings and build (lane B)
+**V1 · AR settings and permissions** · MUST · 0.5 h · depends: S1.10, S1.14 (edits both) · before 08:15
+- **What:**
+  - **`Editor/Setup/ProjectBootstrap.cs`:**
+    - set `sceneSupport = Required`
+    - keep anchor support Enabled and both Quest 3 and 3S as target devices
+    - turn the Meta Occlusion and Session features on for Android **and** Standalone
+    - keep the Unity OpenXR Meta Camera, Planes, Anchors, Meshing, Bounding Boxes and Raycast features off
+  - **`GameBuild.cs`:** the aapt check **requires** USE_SCENE and USE_ANCHOR_API.
+  - **`ops/quest-deploy.sh`:**
+    - `pm grant dev.drori.virtualbeeswarm com.oculus.permission.USE_SCENE` (and `RECORD_AUDIO`)
+    - then a `dumpsys package` check for `granted=true`
+  - Only OVRManager requests permissions.
+- **Done when:** running the bootstrap twice changes nothing; the Android compile has 0 errors; aapt shows both permissions; `dumpsys` shows both granted; no permission dialog appears on launch.
+
+#### Delivery and stakes (lane A2, 7 h MUST, 1.75 h SHOULD)
+**V12 · BeeDelivery core** · MUST · 2.5 h · depends: nothing (new file; wired after 08:45)
+- **What:** `World/Delivery/BeeDelivery.cs`:
+  - **Pool:** 96 bees in one instanced draw, with preallocated matrices and colours.
+  - **API:** `Deliver(item, Pose to, style, crew, onLanded)`, `Park(item, slot, crew)`, `HaulAway(item, repo)`, `Return(item)`, `CutRing(windowPose, radius)`, `FinishAll()`.
+  - **Styles:**
+    - **Crown:** 4–12 bees in a ring of 12 cm or less above the item; the item hangs 4 cm below.
+    - **Festoon:** the hive only, 6 chains of 8 bees.
+  - **Path:**
+    - Always starts at the window pane centre (`FutureWindow.PaneTransform`).
+    - Cubic Bézier through (out 0.4 m along the window normal, up 0.2 m) and (target + up 0.3 m), eased with smoothstep.
+    - Flight time `clamp(dist/speed, 1.2, 1.5)` s for crowns; 4.5 s for the hive.
+    - The item swings like a pendulum: a spring on lateral acceleration, tilt capped at 20°.
+    - Heavy items get a 7 cm dip at 45% and 75% of the path.
+    - Exits shrink the item to 0.9 at the pane.
+  - **Tints:** couriers orange-gold, repo crews red.
+  - While a delivery is in flight, the hive swarm pulls its orbit in 30% (except in Angry mode).
+  - The ring cut is 20 bees plus one LineRenderer trail over 2 s.
+  - **`delivery.mode`:**
+    - `swirl`: the item scales in inside a 0.5 s spinning ring of bees at its spot.
+    - `off`: today's `SetActive` and buttons.
+- **Done when:**
+  - The F2 autopilot passes in `on`, `swirl` and `off`.
+  - An autopilot step that sends a Board jump mid-hive-flight and mid-repo leaves no item in the air and no orphan bees.
+  - The profiler shows 0 B of garbage per frame during deliveries, the pool is one draw call, and CPU is 0.15 ms or less on Linux.
+
+**V13 · Dark swarm and dim arbiter** · MUST · 1.25 h · depends: V12 (pool conventions); edit `SwarmSystem` before 11:00
+- **What:** a second `SwarmSystem` instance, `DarkSwarm`: dark red-brown bees at 5 cm, up to 150.
+  - **New mode `Deck`:**
+    - a band 1.2 m wide and 0.4 m deep above the window
+    - 25–35° above the player's eye (30° at most on a 3S)
+    - below `ceilingY − 0.2` when the ceiling is known
+  - **New mode `Home`:** the bees turn gold, stream into the window pane, then hide.
+  - **`PourOut`** takes a source point (the window). Its arc peaks at least 0.6 m above head height and at least 0.4 m in front of the face, never behind.
+  - **Other calls:** `SetCount(n)` eases the size up or down. `Tendril()` sends 8 bees down to the table and back.
+  - **Dim arbiter** `PassthroughDim.Request(key, amount)` / `Release(key)`:
+    - the applied dim is the maximum of the open requests
+    - `OvrPassthroughDimmer` is its only output
+    - `T0Sequence` uses the key `t0` instead of calling `SetDim(0f)` on reset or exit (it does that today)
+  - **`comfort` flag:** 60 bees, straight up to the band, Angry-mode dives off.
+- **Done when:**
+  - The autopilot logs swarm counts (hook 150 → meet 80 → +30 per wrong pick, −20 per fix → home 0).
+  - It logs dim values (hook 0.25, stations 0.12, escape 0).
+  - A T-0 reset no longer clears the stakes dim.
+  - The logged band angle stays at 35° or less above the eye and within ±25° of the window direction.
+
+**V14 · Hook rewrite, SIGN HERE and clock** · MUST · 1.5 h · depends: V12, V13, V6, V21 (lines)
+- **What:**
+  - **Pre:**
+    - The SIGN HERE clipboard (4 bees, held still) calls the existing START path.
+    - It is re-placed 0.45 m ahead of the head and 0.1 m below eye level on `OVRManager.HMDMounted` and whenever `pre` starts.
+    - `room_pre` plays after 6 s idle while the headset is on.
+  - **`ResetWorld`:**
+    - The hive and rocket are hidden until delivered.
+    - Beeswax is hidden inside the hive at `Hive/DoorPoint`. Today he is attached to `rocketPerch`.
+    - The hive swarm stays hidden until touchdown.
+  - **Hook sequence:** as in the script table. `FutureWindow.Open()` moves from `meet` to `hook`, and the local `forecast` plays on `room_hook_1`.
+  - **`GameDirector`:**
+    - `maxSeconds` hook 30, meet 10, smoker 50
+    - the run clock and countdown start when `smoker` starts
+    - display text: "EARTH → MOON · BOARDING m:ss", then "BOARDING DELAYED (UNION RULES)", "EVACUATION CANCELLED" and "PASSENGER: BEESWAX"
+- **Done when:**
+  - The autopilot logs START → first choice parked in 34 s or less.
+  - A Board jump from pre to smoker leaves the hive, rocket, open window, Beeswax and the swarm band in their end states.
+  - With delivery `off`, the same flow runs within 2 s of the same timing.
+  - On the headset, 3 of 3 first-time viewers answer "the bees carried it" when asked where the hive came from.
+
+**V15 · Stations through BeeDelivery** · MUST · 1.25 h · depends: V12, V5, S2.3
+- **What:** in `StationBase`, `SetActive(props, true)` (today, on enter) becomes `Park` of every choice as a group when the prompt line starts.
+  - **Arc:** 20–30 cm above the table's front edge, centred on the hive, choices at least 20 cm apart, within ±25° of gaze, completely still.
+  - **Props:** normalized at runtime to a 12 cm box; colliders 16 cm or less. `ChoiceButton` becomes a price-tag plate parented under each prop.
+  - **On the poke** (same frame):
+    - APPROVED or GRIEVANCE stamp (scale 0 → 1.2 → 1 in 120 ms) plus a ka-chunk
+    - `choice.made` is sent right away
+  - **Wrong pick:** the existing consequence visuals, then `HaulAway(repo)` when the outcome line starts. Retry unlocks when the line ends, never waiting for the repo.
+  - **Right pick:** `Deliver` to named spots under `TableAnchor/Spots/` (Smoker, Feeder, Door, Dish) with touchdown; the leftovers `Return`.
+  - **Timeout:** the right crew delivers by itself.
+  - The Board's `choice.request` uses the same path.
+  - "nothing" is a crown carrying only a NOTHING tag.
+  - The wasps fly out of the window on their own path.
+  - **New placeholder props:** Swatter, SprayBottle, Crowbar, Reducer, NothingTag.
+- **Done when:**
+  - The autopilot passes with the wrong choice first, in all three delivery modes.
+  - The S3.1 re-run on delivered props scores 10/10 pokes on the intended prop with 0 accidental picks.
+  - The logged gap between a line ending and the choices accepting pokes is 0.3 s or less.
+  - The Spotter's "is it stuck?" count is 0 over 3 runs.
+
+**V16 · Escape and T-0 payoff** · MUST · 0.5 h · depends: V13, V3
+- **What:**
+  - **Escape:** `DarkSwarm.Home`; `Release("stakes")` over 2 s; the rocket reads EVACUATION CANCELLED; the score card is flown in (crown 6); the hive swarm settles on table and window spots if V10 is on.
+  - **T-0:** Beeswax flies to `Perch` before `room_t0_1`.
+    - Launch height = `RoomModel.ceilingY` (fallback `ar.ceilingY`) − table top − 0.05.
+    - The Moon sits at the window pose + window normal × 0.4 m, toward the player. This fixes the README gap where the Moon could end up inside a wall.
+- **Done when:** the autopilot passes; S6.2 and S6.3 pass 3/3 on the headset by 16:00; with the window on a wall, the Moon is never inside it.
+
+**V17 · Honey-jar struggle** · SHOULD · 0.5 h · depends: V15
+- **What:** the jar flies at 0.6 m/s with two dips and a 30% higher buzz. `room_crew_heavy` plays once over the flight. The repo is 8 bees, drags the jar 15 cm before lifting, and leaves at 0.8× speed.
+- **Done when:** the Spotter logs a reaction to the jar on 2 of 3 runs.
+
+**V18 · Rain-cloud fire brigade, and embers on the table** · SHOULD · 0.75 h · depends: V12
+- **What:** on `fire_out` intent, a crown of 6 brings a cloud of a few spheres. It parks over the table for 2 s and rain particles fall. A second ember burst spawns above the table, because embers from a window 2–3 m away don't reach it.
+- **Done when:** the fire → put-out sequence shows the cloud in 4 of 5 voice runs (S5.2) and in Board-button runs.
+
+**V19 · Swarm as the meter, plus a hint** · SHOULD · 0.5 h · depends: V13, V15
+- **What:**
+  - Each grievance: `SetCount(+30)` and `Tendril()`.
+  - Each fix: −20.
+  - The first grievance plays `room_strike_lookup`.
+  - After 8 s idle, the correct crew leans toward the hive with an eager buzz.
+- **Done when:** the autopilot logs counts per pick; the Spotter sees testers look up after the first grievance on 2 of 3 runs.
+
+#### AR (lane A-AR, 3 h MUST, 4 h SHOULD, 1.5 h COULD)
+**V2 · AR self-test lines** · MUST · 0.5 h · depends: S1.12
+- **What:** the `[VBS][AR]` lines from 3.5. The 08:45 build reports only the model and USE_SCENE.
+- **Done when:** a Linux player prints every line as `n/a` with no errors; a D build shows them on the Board; 3 vs 3S is logged in PLAN at 08:45.
+
+**V3 · RoomModel and sources** · MUST · 1 h · depends: nothing (new files)
+- **What:** `World/Room/RoomModel.cs`, plain C# in the core asmdef.
+  - **Contents:**
+    - table top: to-world matrix, half extents, height
+    - one window wall: point, normal, right, half width
+    - floor height, and ceiling height (NaN if unknown)
+    - 24 table landing spots, outside the footprints of the hive, stations, arc and rocket
+    - 8 wall spots around the window, if there's a wall
+  - **Sources:**
+    - `FakeRoomSource`: the desktop FakeTable plus a wall 1.5 m behind it
+    - `PlacementRoomSource`: the table from the `HivePlacement` result, with a default footprint of 1.0 × `ar.tableDepth`, and the wall from V8
+- **Done when:** an EditMode test shows every spot on the table with none inside a footprint; the Linux autopilot passes with the fake source and logs the model.
+
+**V4 · Table height snap** · MUST · 0.5 h · depends: V1, S1.18
+- **What:**
+  - Add one `EnvironmentRaycastManager` at `Systems/AR/EnvironmentRaycast`, enabled only in `pre`.
+  - After any placement, cast down from 0.3 m above the hive centre.
+  - If `normal.y > 0.9` and the hit is within 5 cm of the placed height, set the height to the hit.
+- **Done when:** on a D build, a fingertip touching the real table touches the plate within 1 cm, 3/3; on Linux it is a no-op with no errors.
+
+**V5 · Touchdown juice** · MUST · 0.5 h · depends: nothing
+- **What:** `World/Room/Touchdown.Play(item, weight)`, called by BeeDelivery when an item lands:
+  - a blob shadow (`_Occlude=0`), opacity 0 at 40 cm rising to 0.45 at contact
+  - a squash of (1.06, 0.92, 1.06) for 70 ms
+  - `Emit(8)` from one shared dust ParticleSystem
+  - a thunk whose pitch drops with weight
+- **Done when:** every set-down in the autopilot logs a touchdown; the Spotter rates the hive "on the table" 3/3.
+
+**V6 · Forecast window override** · MUST · 0.5 h · depends: nothing
+- **What:**
+  - `FutureWindow.PlayLocal(scene, seconds)` and `StopLocal()`: an override pane in front of the live pane, with its own VideoPlayer and RenderTexture playing from `StreamingAssets/<scene>.mp4`.
+  - Fallback chain: `forecast` → `smoker_angry` → a procedural dark-amber flicker (a new `forecast` case in `SceneColors`).
+  - It stops on reset or a beat jump. It is never sent to the Hive or the live Orbis stream, and needs no protocol change.
+- **Done when:** a Linux run shows the override at hook, then the Hive's scene; with no clip, the tint shows.
+
+**V7 · Aim-and-pinch placement** · SHOULD · 1 h · depends: V4
+- **What:** `AR/InstantPlacement.cs` (code as in the tech plan):
+  - A ghost DELIVER HERE plate follows the hand ray, or head gaze when hands aren't tracked.
+  - It uses `PlaceBox(0.6, 0.45, 0.3)` and requires `normal.y > 0.9`; the ghost tints green or red.
+  - A right pinch calls the new `HivePlacement.PlaceAt(Pose)` (about 5 lines), then the raycast manager is disabled.
+  - Two-point calibration and grab stay as overrides.
+  - Session anchor (S3.5) only if S3.3 shows drift.
+- **Done when:** the Operator places in 10 s or less, 3/3, at the work table and at the venue at 16:00; the S3.3 runbook is updated.
+
+**V8 · Window on the real wall** · SHOULD · 0.75 h · depends: V3, V7 or V4
+- **What:**
+  - Reparent `FutureWindow` from `TableAnchor` to a new `WallAnchor`.
+  - After placement, cast horizontally from the eye along the player→hive direction.
+  - **Accept the wall if:** the hit is within 3 m of the hive, within 20° of that direction, `|normal.y| < 0.2` and normal confidence > 0.5.
+  - **Placement:**
+    - centre height `clamp(tableTop + 0.55, 1.2, 1.7)`
+    - 4 cm off the wall, rotated `LookRotation(-normal)`
+    - pane width `clamp(0.5 × distance, 0.9, 1.6)` m
+  - **Otherwise free-standing:** 0.7 m behind the hive, 1.0 m wide, raised.
+- **Done when:** at the work table the window hangs flush on the wall, facing the player, 3/3; aiming into open space gives the free-standing window; the fake source covers both cases on Linux.
+
+**V9 · Depth occlusion** · SHOULD, high · 1.5 h · depends: S1.18 (base shader verified in both eyes), V1
+- **What:**
+  - **Shader:** the `GameUnlit.shader` edit from the tech plan (multi_compile, META_DEPTH macros, `_Occlude` toggle), with `_EnvironmentDepthBias` as a **per-instance** property.
+  - **Manager:** add `EnvironmentDepthManager` disabled (one instance; `RemoveHands=false`). `ArBootstrap` enables it if `IsSupported`. `DepthControl` maps `ar.occlusion`; `off` disables the manager.
+  - **Materials:** `_Occlude` and bias as in 3.2.
+- **Done when:**
+  - **G1:** on the 10:30 D build with `soft`, a hand hides the bees in both eyes, and the hive base doesn't flicker against the table.
+  - The Linux autopilot passes and the visuals are unchanged with occlusion off.
+  - The default is set by V23.
+
+**V10 · Bees land on the table** · SHOULD · 0.75 h · depends: V3, V13 (`SwarmSystem` handed over at 11:00)
+- **What:**
+  - `SwarmSystem` gets the `RoomModel` and preallocated per-bee state arrays.
+  - Bees can't sink below table top + 1 cm inside the table footprint.
+  - In Idle and Calm, every 4th bee takes off, flies to a spot, and lands for 2–5 s with its wings still.
+  - At the escape, 60% land on table and window spots.
+  - Landed bees get bias 0.06 per instance.
+- **Done when:** the autopilot passes; the swarm costs 0.2 ms or less for 150 bees in the Linux profiler; landed bees float 1 cm or less on the headset, 3/3.
+
+**V11 · MRUK spike (and the EffectMesh debug overlay)** · COULD · 1.5 h timebox · depends: every SHOULD green at 13:00
+- **What:** `MrukRoomSource` and `RoomPlacement` per the tech plan, with these settings:
+  - `LoadSceneOnStartup=false`, `EnableWorldLock`, inactive on Linux, no Space Setup request in R builds
+  - **Table:** the nearest TABLE volume with its top 0.5–1.2 m high, placed via `PlaceOnEdge`
+  - **Window wall:** the critic's rule from V8; drop the WINDOW_FRAME preference
+  - **Ceiling:** height from the ceiling anchors
+  - Space Setup must be run at the table first.
+- **Fallbacks:** any load result other than Success, or `-10035`, `-2` or "not trusted" in logcat, leaves V7 as the path.
+- **Done when:** MRUK returns `Success` and auto-places within 3 cm, 3/3, at both the work table and the venue. Otherwise `ar.placement=raycast` stays the judging default.
+
+#### Hive (lane C)
+**V20 · Score clock and comment** · MUST · 0.25 h plus a redeploy · depends: V21
+- **What:**
+  - In `hive/src/server.ts` `beatEntered`, `hook` resets the state and sets `clock_start = null`. Today it starts the clock.
+  - Remove `meet` from `ON_CLOCK`, so `smoker` starts the clock. Fix the observe text and the tests.
+  - Change the `BEATS` comment in `protocol.ts` from "fix it or we move to the Moon" to "fix it or the swarm takes the Earth".
+  - Redeploy so `/health` reports the new line count (it shows 77 today).
+- **Done when:** the Hive tests are green, and in an online smoke run the Hive's score text matches Unity's card within 1 s.
+
+#### Lines (lane D) and the re-render list
+**V21 · Final lines, render and import** · MUST · 1 h · depends: nothing · start now and finish by 08:15
+
+Text edits to `hive/lines/lines.json` (the LINES pass already applied the rest):
+
+| id | Now | Final |
+|---|---|---|
+| `room_hook_1` | "If my hive dies, Local Twenty Thousand goes on strike. Bees don't picket. We swarm." | "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon." (14 words) |
+| `room_meet_2` | "...Fix them in four minutes and your flight's cancelled." | "Four things are killing my hive. Four minutes, or you're on that rocket." (13 words) |
+| `room_strike_lookup` | "Hear that? Look up. Every grievance makes the strike bigger." | "Hear that? Look up. Bees don't picket. We swarm." (8 words, first grievance only) |
+| `ear_hint_smoker` (glasses batch, low priority) | "Psst. The smoker. Squeeze it." | "Psst. The smoker. Poke it." |
+
+**Lines to remove** (added an hour ago, referenced by nothing; or tag them `cut` and don't render them):
+- `room_stakes_forecast` (merged into `room_hook_1`)
+- `room_delivery`, `_2`, `_3`, `_4`
+- `room_crew_heavy_2`, `_3`
+- `room_repo`, `_2`, `_3`
+- `room_return`, `_2`
+- `room_strike_grows`, `_2`, `_3`
+
+**Test edits in `hive/test/ai-lines.test.ts`:**
+- Line 55: `toContain("We swarm.")` becomes `toContain("ravage the Earth")`.
+- Lines 57–58: assert the new `room_meet_2` text exactly, and drop or capitalize the "four minutes" check.
+
+**Re-render with `bun scripts/prerender.ts --only …`** (from `hive/`). That's 15 lines:
+- **With `--force`, 9 lines** (the old mp3s exist in `hive/out/unity`, checked): `room_hook_1`, `room_hook_2`, `room_meet_2`, `room_lift_light`, `room_feed_rocket_fuel`, `room_wasps_intro`, `room_whatif_out`, `room_escape`, `room_t0_1`.
+- **New, 6 lines:** `room_pre`, `room_hook_carry`, `room_strike_lookup`, `room_crew_heavy`, `room_smoker_hand`, `room_fact_festoon`.
+- **Not rendered:** everything removed above, plus `room_meet_window` and `room_meet_stat` (off the demo path).
+
+**After rendering:**
+- Regenerate `GameLines.cs` (S8.1). Today's `HoneymoonLines.cs` captions are stale for `room_pre`, `room_hook_1`/`_2`, `room_meet_2`, `room_wasps_intro`, `room_whatif_out`, `room_escape`, `room_t0_1`, `room_whatif_prompt` and `room_map`.
+- Import the mp3s into `Assets/Resources/BeeswaxLines/`.
+- Rome fact-checks `room_hook_carry`, `room_fact_festoon` and `room_smoker_hand`.
+
+**Done when:** the Hive suite is green; the 9 forced mp3s are newer than the `lines.json` edit; the autopilot logs a clip for every line on the path (S8.3).
+
+#### Orbis window scenes (Rome in the sandbox, lane D files)
+**V22 · Forecast and evacuation clips; moon prompt fix** · SHOULD · Rome 0.5 h, lane D 0.25 h · depends: S9.2 (the Reactor key)
+- **Don't add keys to `hive/lines/orbis_scenes.json`.** `ai-lines.test.ts:159` and `contract-v21.test.ts:251` require that it hold exactly the protocol's `SCENES`. A new scene would need protocol v2.2, the C# mirror and the relay.
+- **Instead:** create `hive/lines/orbis_local_scenes.json`. These are Unity-only clips, never streamed live. They follow the same prompt rules.
+- **Record:** `cd hive/orbis-relay && uv run python record_clips.py --scenes ../lines/orbis_local_scenes.json` (the `--scenes` flag is supported). Encode per S9.5 and copy into `StreamingAssets/`.
+
+```json
+{
+  "forecast": {
+    "prompt": "A faded grey meadow with drooping wildflowers and a white wooden beehive on a low stand in the center, with bare oak trees under a dark amber sky. An enormous swirling cloud of honeybees fills the sky, and on a far hill a tall silver rocket stands on a launch tower with its lights on. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000, "clip": "forecast.mp4"
+  },
+  "forecast_b": {
+    "prompt": "A faded grey meadow with drooping wildflowers and a white wooden beehive on a low stand in the center, with bare oak trees under a dark, stormy amber sky. On a far hill a tall silver rocket stands on a launch tower with its lights on. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000, "clip": "forecast_b.mp4"
+  },
+  "evacuation": {
+    "prompt": "A faded grey meadow with a white wooden beehive on a low stand in the center, with bare oak trees under a dark amber sky full of swirling honeybees. On a far hill a tall silver rocket lifts off from its launch tower on a bright column of white exhaust, rising toward a pale full Moon. Wide shot, eye-level, static camera, deep depth of field."
+    , "seed": 20000, "clip": "evacuation.mp4"
+  }
+}
+```
+
+**Using the clips:**
+- `forecast` is the "Earth if we lose" scene. It's a 12 s ping-pong loop played at 0:14–0:25. Use `forecast_b` if Orbis won't draw the bee cloud; the 3D swarm supplies the cloud anyway.
+- `evacuation` is COULD. It plays once with no ping-pong (a launch played in reverse looks wrong) at 0:20–0:25, just before the 3D rocket comes out of the window.
+- **None of these show people.** The critic's taste cut stands.
+
+**One edit to `orbis_scenes.json`** (a fact fix, matching `room_t0_earth` and S6.1). Apply it before S9.5 records `moon`:
+- `moon`: "The blue and white Earth rises over the horizon into a black sky full of stars." → "The blue and white Earth hangs low above the horizon in a black sky full of stars."
+- No other scene prompts change. `smoker_angry` (darkening sky, cloud of agitated bees) doubles as the forecast fallback clip.
+
+**Done when:** `forecast.mp4` plays at the hook on the headset; the moon clip is re-recorded with the new prompt; the contract and ai-lines tests are green.
+
+#### Humans
+- **V23 · Frame-rate A/B (Nam, MUST, 0.5 h, 13:00):**
+  - R build, OVR Metrics, 60 s of the angry smoker swarm plus the dark swarm, deliveries and embers.
+  - Run it with occlusion off, hard and soft, and apply the rule in 3.4.
+  - Add depth to the S13.5 soak test.
+- **V24 · Headset checks (Adityash, about 1 h spread through the day):**
+  - G1 and G3 at 09:30 and 10:30
+  - the S3.1 re-run on delivered props
+  - the "is it stuck?" count
+  - whether testers look up after the first grievance
+  - whether `comfort` mode needs to be on
+- **V25 · Props (dartiros, about 1.5 h, by the 16:30 art swap):**
+  - swatter, spray bottle, crowbar, reducer block, clipboard, rain cloud, price-tag plate, and APPROVED/GRIEVANCE stamp textures
+  - each fits a 12 cm box and uses `VirtualBeeSwarm/Unlit`
+- **V26 · Venue check (Nam and Adityash, 0.5 h, 16:00):**
+  - wall or free-standing window at the judging table
+  - the swarm band in view
+  - aim-and-pinch working in hall light
+  - set the flags and write them into `pitch/demo-runbook.md`
+
+**Does it fit?**
+
+| | MUST | SHOULD | COULD | Window |
+|---|---|---|---|---|
+| A2 | 7 h | 1.75 h | — | 05:30–14:30 (9 h). SHOULDs are cut first if late. |
+| A-AR | 3 h | 4 h | 1.5 h | 05:30–14:30. MRUK only if green at 13:00. |
+| B / C / D | 0.5 / 0.25 / 1 h | D 0.25 h | — | B by 08:15; D lines by 08:15; C by 09:30 |
+
+---
+
+---
+
+## Concept v3 (base; v3.1 above takes priority where they differ): Virtual Bee Swarm — Save the Hive (or the Bees Leave for the Moon)
 
 Best of both: **Adityash's hive escape** (4 stations, the live Orbis "future window" steered by voice, practical beekeeping, a score, a map of more hives) as the spine, plus **HONEYMOON** (Beeswax the union-rep drone, the "we're leaving for the Moon" stakes and theme twist, the hornet hum, the Moon ending). The full v2 write-up is in git history if you want to borrow more.
 
@@ -978,3 +1419,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 03:00 PT · Rome (agent) · **Granular Work plan is in** (top of file): ~100 tasks across 17 systems, each with an S-ID, priority, estimate, deps, a done-when you can check, and a suggested owner; hour-by-hour schedule with sleep; critical path; overnight agent queue. **The game is called Virtual Bee Swarm** (HONEYMOON-1 is only the rocket's name); the Unity project lands as `unity/VirtualBeeSwarm`. Already done: S1.5 Unity license + APK build, S10.2 backend v2.1, all 77 voice lines rendered. → Nam, Adityash, dartiros: your first tasks are in the team message / the schedule table.
 - 2026-11-14 03:40 PT · Rome (agent) · Work plan rewritten to read like a person wrote it (same tasks, IDs, times, owners and statuses; checked by script).
 - 2026-11-14 05:15 PT · Rome · **Direction update:** (1) **AR first on the Quest 3**: use the real room (hive on the real table, meadow window hung on a real wall, bees flying behind your hands and furniture), manual placement only as the fallback. (2) **Everything arrives carried by the swarm**: the hive, each station's choices, the score card; wrong picks get hauled away. (3) **New stakes**: if we don't take care of the bees, the angry swarm ravages the Earth and humans have to flee to the Moon (the rocket on the table is the humans' evacuation rocket; Beeswax takes it himself at the end). A design pass is working out the details now; concept + tasks get updated when it lands. The per-person rewrite of the work plan is dropped.
+- 2026-11-14 06:15 PT · Rome (agent) · **Concept v3.1 is in** (above Concept v3): AR first (hive snapped onto the real table with shadows; window on the real wall, depth occlusion and bees landing are switchable SHOULDs; full room scan is a stretch goal), **everything is delivered by bees through the meadow window** (wrong picks get repossessed), and the stakes are one line + one image: "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon." HONEYMOON-1 is now the humans' evacuation rocket. New build tasks V1–V26 are listed under it. Lines updated and re-rendered (83 clips in Harry's voice). Temp art set is in `art/` (contact sheet + Blender scripts); darter keeps or replaces any piece.

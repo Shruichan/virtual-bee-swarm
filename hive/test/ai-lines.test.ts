@@ -37,9 +37,9 @@ describe("lines.json", () => {
     expect(Object.keys(LINES).length).toBe(entries.length);
   });
 
-  test("has 55-90 lines", () => {
+  test("has 55-110 lines", () => {
     expect(entries.length).toBeGreaterThanOrEqual(55);
-    expect(entries.length).toBeLessThanOrEqual(90);
+    expect(entries.length).toBeLessThanOrEqual(110);
   });
 
   test("load-bearing lines are at most 15 words, ear lines at most 10, and nothing runs past 30", () => {
@@ -52,16 +52,17 @@ describe("lines.json", () => {
 
   test("numbers are spelled out (Flash v2.5 does not normalize digits) and the scripted wording is there", () => {
     for (const l of entries) expect({ id: l.id, digits: /\d/.test(l.text) }).toEqual({ id: l.id, digits: false });
-    expect(lineText("room_hook_1")).toContain("four minutes");
+    expect(lineText("room_hook_1")).toContain("ravage the Earth");
     expect(lineText("room_meet_1")).toContain("Local Twenty Thousand");
-    expect(lineText("room_meet_2")).toBe("Four things are killing my hive. Fix them and the door opens.");
+    expect(lineText("room_meet_2")).toBe("Four things are killing my hive. Four minutes, or you're on that rocket.");
+    expect(lineText("room_meet_2")).toContain("Four minutes");
     expect(lineText("room_feed_tip")).toBe("We're starving.");
     expect(lineText("room_hornet_1")).toContain("FIST");
     expect(lineText("room_hornet_2")).toBe("Now HUM!");
     expect(lineText("room_hornet_4")).toBe("STOP, you're cooking the girls!");
     expect(lineText("room_whatif_fire")).toStartWith("Don't. Say. That.");
-    expect(lineText("room_escape")).toBe("Motion carried. The union votes to stay.");
-    expect(lineText("room_t0_1")).toBe("...I'm still going. Ticket's non-refundable.");
+    expect(lineText("room_escape")).toBe("Motion carried. No ravaging today. Cancel the evacuation.");
+    expect(lineText("room_t0_1")).toBe("...Shame to waste a ticket. Non-refundable.");
     expect(lineText("room_t0_2")).toBe("TAKE ME TO THE MOON!");
     expect(lineText("room_t0_3")).toBe("...Not one flower. Only planet with flowers.");
     expect(lineText("room_map")).toStartWith("Same time tomorrow? Other hives have it worse.");
