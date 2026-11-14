@@ -1,6 +1,6 @@
 {
  "project": "Virtual Bee Swarm (Immerse the Bay 2026) - temp stylized art set",
- "generated": "2026-11-14 (art-director pass)",
+ "generated": "2026-11-14 (art-director pass; v3.1 props added ~07:30 PT)",
  "location": "pop-os:~/immerse-the-bay/art-staging/final/",
  "conventions": {
   "units": "meters",
@@ -11,12 +11,12 @@
   "materials": "VBS_Palette (emission 0.08), VBS_Palette_Bee (emission 0.45, bees/wasps/hornet/Beeswax, reads in passthrough), VBS_Glow (emission 1.0: embers, flame, lit hex), VBS_GlowSoft (alpha 0.35 halo), VBS_PaneLive / VBS_PaneFallback (portal panes, real UVs)",
   "colour": "Every face has BOTH a UV at the center of one 8x8-cell 64 px palette texture (_shared/VBS_Palette.png, use Point filtering, no mips needed) AND an sRGB vertex colour (FBX only, for the Honeymoon/Unlit shader). GLB has no COLOR_0 on purpose: glTF multiplies it with the texture.",
   "palette": "amber #F2A900, honey #FFC845, cream #FFF3D6, charcoal #2B2B2B, leaf #5BAA4A, sky #7EC8E3, fire #FF6B2C (+ helpers; full list in _source/scripts/common.py PALETTE)",
-  "rebuild": "blender -b --factory-startup --python _source/scripts/build_all.py -- --out OUT_DIR (about 20 s for all 20); contact sheet: _source/tools/contact_sheet.py",
-  "art_director_changes": "smoker (steel/copper, pleated red leather bellows), giant_hornet (pincer mandibles, scaled 0.8 to ~0.26 m), moon (readable craters), worker_bee (eyes spread apart), 5 palette colours appended (steel_mid, copper, leather, leather_dark, moon_light)"
+  "rebuild": "blender -b --factory-startup --python _source/scripts/build_all.py -- --out OUT_DIR (about 20 s for all of them); contact sheet: _source/tools/contact_sheet.py",
+  "art_director_changes": "smoker (steel/copper, pleated red leather bellows), giant_hornet (pincer mandibles, scaled 0.8 to ~0.26 m), moon (readable craters), worker_bee (eyes spread apart), 5 palette colours appended (steel_mid, copper, leather, leather_dark, moon_light); v3.1 props: 3 more appended (stamp_green, cloud, cloud_dark)"
  },
  "summary": {
-  "items": 20,
-  "procedural": 20,
+  "items": 29,
+  "procedural": 29,
   "downloaded_meshes_used": 0,
   "third_party_files": "Kenney Particle Pack sprites (CC0) in smoker/vfx_kenney_cc0 and ember/vfx_kenney_cc0 only",
   "missing": []
@@ -2786,6 +2786,831 @@
    ],
    "animate": "None (one mesh).",
    "notes": "Optional prop. Flat card with crimped top.",
+   "downloaded_alternates_not_used": []
+  },
+  "swatter": {
+   "file": "swatter/swatter.glb",
+   "fbx": "swatter/swatter.fbx",
+   "blend": "swatter/swatter.blend",
+   "preview": "swatter/swatter_preview.png",
+   "all_files": [
+    "swatter/swatter.blend",
+    "swatter/swatter.fbx",
+    "swatter/swatter.glb",
+    "swatter/swatter_preview.png",
+    "swatter/swatter_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 644,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0425,
+      0.0,
+      -0.008
+     ],
+     "max": [
+      0.0425,
+      0.243,
+      0.008
+     ],
+     "size": [
+      0.085,
+      0.243,
+      0.016
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0425,
+      0.0,
+      -0.008
+     ],
+     "max": [
+      0.0425,
+      0.243,
+      0.008
+     ],
+     "size": [
+      0.085,
+      0.243,
+      0.016
+     ]
+    }
+   },
+   "size_m": [
+    0.085,
+    0.243,
+    0.016
+   ],
+   "pivot": "base (bottom of the grip)",
+   "objects": [
+    {
+     "name": "Swatter",
+     "type": "mesh",
+     "parent": null,
+     "tris": 644,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "WRONG choice at the smoker station. Red head with a hole grid on a long handle, ~0.24 m tall; pivot at the bottom of the grip.",
+   "downloaded_alternates_not_used": []
+  },
+  "spray_bottle": {
+   "file": "spray_bottle/spray_bottle.glb",
+   "fbx": "spray_bottle/spray_bottle.fbx",
+   "blend": "spray_bottle/spray_bottle.blend",
+   "preview": "spray_bottle/spray_bottle_preview.png",
+   "all_files": [
+    "spray_bottle/spray_bottle.blend",
+    "spray_bottle/spray_bottle.fbx",
+    "spray_bottle/spray_bottle.glb",
+    "spray_bottle/spray_bottle_preview.png",
+    "spray_bottle/spray_bottle_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 953,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.0326,
+      0.0,
+      -0.0235
+     ],
+     "max": [
+      0.0326,
+      0.183,
+      0.0459
+     ],
+     "size": [
+      0.0652,
+      0.183,
+      0.0694
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.0326,
+      0.0,
+      -0.0235
+     ],
+     "max": [
+      0.0326,
+      0.183,
+      0.0459
+     ],
+     "size": [
+      0.0652,
+      0.183,
+      0.0694
+     ]
+    }
+   },
+   "size_m": [
+    0.0652,
+    0.183,
+    0.0694
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "SprayBottle",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Bottle",
+     "type": "mesh",
+     "parent": "SprayBottle",
+     "tris": 288,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Sprayer",
+     "type": "mesh",
+     "parent": "SprayBottle",
+     "tris": 544,
+     "pivot_unity_m": [
+      -0.0,
+      0.14,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Label",
+     "type": "mesh",
+     "parent": "SprayBottle",
+     "tris": 121,
+     "pivot_unity_m": [
+      -0.0,
+      0.03,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "SprayPoint",
+     "type": "empty",
+     "parent": "SprayBottle",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.173,
+      0.045
+     ],
+     "material": null
+    }
+   ],
+   "animate": "Sprayer: pivot at its base on the neck. SprayPoint (empty) = nozzle tip, +Z = spray direction (aim the WaterPuff particles from it).",
+   "notes": "WRONG choice at the smoker station: plain WATER, blue bottle, white trigger sprayer.",
+   "downloaded_alternates_not_used": []
+  },
+  "crowbar": {
+   "file": "crowbar/crowbar.glb",
+   "fbx": "crowbar/crowbar.fbx",
+   "blend": "crowbar/crowbar.blend",
+   "preview": "crowbar/crowbar_preview.png",
+   "all_files": [
+    "crowbar/crowbar.blend",
+    "crowbar/crowbar.fbx",
+    "crowbar/crowbar.glb",
+    "crowbar/crowbar_preview.png",
+    "crowbar/crowbar_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 600,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.058,
+      0.0027,
+      -0.007
+     ],
+     "max": [
+      0.0145,
+      0.2501,
+      0.007
+     ],
+     "size": [
+      0.0725,
+      0.2474,
+      0.014
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.058,
+      0.0027,
+      -0.007
+     ],
+     "max": [
+      0.0145,
+      0.2501,
+      0.007
+     ],
+     "size": [
+      0.0725,
+      0.2474,
+      0.014
+     ]
+    }
+   },
+   "size_m": [
+    0.0725,
+    0.2474,
+    0.014
+   ],
+   "pivot": "base (bottom tip)",
+   "objects": [
+    {
+     "name": "Crowbar",
+     "type": "mesh",
+     "parent": null,
+     "tris": 600,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "WRONG choice at the wasps station (BIGGER door). Red hex bar, gooseneck hook toward +X, steel tips.",
+   "downloaded_alternates_not_used": []
+  },
+  "reducer": {
+   "file": "reducer/reducer.glb",
+   "fbx": "reducer/reducer.fbx",
+   "blend": "reducer/reducer.blend",
+   "preview": "reducer/reducer_preview.png",
+   "all_files": [
+    "reducer/reducer.blend",
+    "reducer/reducer.fbx",
+    "reducer/reducer.glb",
+    "reducer/reducer_preview.png",
+    "reducer/reducer_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 138,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.1,
+      0.0,
+      -0.015
+     ],
+     "max": [
+      0.1,
+      0.03,
+      0.0155
+     ],
+     "size": [
+      0.2,
+      0.03,
+      0.0305
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.1,
+      0.0,
+      -0.015
+     ],
+     "max": [
+      0.1,
+      0.03,
+      0.0155
+     ],
+     "size": [
+      0.2,
+      0.03,
+      0.0305
+     ]
+    }
+   },
+   "size_m": [
+    0.2,
+    0.03,
+    0.0305
+   ],
+   "pivot": "base (bottom center)",
+   "objects": [
+    {
+     "name": "Reducer",
+     "type": "mesh",
+     "parent": null,
+     "tris": 138,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "None (one mesh).",
+   "notes": "RIGHT choice at the wasps station (SMALLER door). Standalone, chunkier copy of hive.fbx's EntranceReducer (0.20 m long) with arrows pointing at the notch.",
+   "downloaded_alternates_not_used": []
+  },
+  "rain_cloud": {
+   "file": "rain_cloud/rain_cloud.glb",
+   "fbx": "rain_cloud/rain_cloud.fbx",
+   "blend": "rain_cloud/rain_cloud.blend",
+   "preview": "rain_cloud/rain_cloud_preview.png",
+   "all_files": [
+    "rain_cloud/rain_cloud.blend",
+    "rain_cloud/rain_cloud.fbx",
+    "rain_cloud/rain_cloud.glb",
+    "rain_cloud/rain_cloud_preview.png",
+    "rain_cloud/rain_cloud_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 2104,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.1432,
+      -0.0822,
+      -0.085
+     ],
+     "max": [
+      0.1392,
+      0.098,
+      0.066
+     ],
+     "size": [
+      0.2824,
+      0.1802,
+      0.151
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.1432,
+      -0.0822,
+      -0.085
+     ],
+     "max": [
+      0.1392,
+      0.098,
+      0.066
+     ],
+     "size": [
+      0.2824,
+      0.1802,
+      0.151
+     ]
+    }
+   },
+   "size_m": [
+    0.2824,
+    0.1802,
+    0.151
+   ],
+   "pivot": "cloud center",
+   "objects": [
+    {
+     "name": "RainCloud",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Cloud",
+     "type": "mesh",
+     "parent": "RainCloud",
+     "tris": 1600,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "Drops",
+     "type": "mesh",
+     "parent": "RainCloud",
+     "tris": 504,
+     "pivot_unity_m": [
+      -0.0,
+      -0.052,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "RainPoint",
+     "type": "empty",
+     "parent": "RainCloud",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      -0.032,
+      -0.0
+     ],
+     "material": null
+    }
+   ],
+   "animate": "Drops: child mesh, hide it when it isn't raining. RainPoint (empty) = bottom center of the cloud; emit rain from it straight down.",
+   "notes": "The fire brigade (V18, SHOULD): flown in by a crown of 6. Pivot = cloud center (it floats).",
+   "downloaded_alternates_not_used": []
+  },
+  "stamp_approved": {
+   "file": "stamp_approved/stamp_approved.glb",
+   "fbx": "stamp_approved/stamp_approved.fbx",
+   "blend": "stamp_approved/stamp_approved.blend",
+   "preview": "stamp_approved/stamp_approved_preview.png",
+   "all_files": [
+    "stamp_approved/stamp_approved.blend",
+    "stamp_approved/stamp_approved.fbx",
+    "stamp_approved/stamp_approved.glb",
+    "stamp_approved/stamp_approved_preview.png",
+    "stamp_approved/stamp_approved_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 788,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.055,
+      -0.021,
+      -0.0013
+     ],
+     "max": [
+      0.055,
+      0.021,
+      0.0013
+     ],
+     "size": [
+      0.11,
+      0.042,
+      0.0025
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.055,
+      -0.021,
+      -0.0013
+     ],
+     "max": [
+      0.055,
+      0.021,
+      0.0013
+     ],
+     "size": [
+      0.11,
+      0.042,
+      0.0025
+     ]
+    }
+   },
+   "size_m": [
+    0.11,
+    0.042,
+    0.0025
+   ],
+   "pivot": "center",
+   "objects": [
+    {
+     "name": "StampApproved",
+     "type": "mesh",
+     "parent": null,
+     "tris": 788,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Scale pop 0 -> 1.2 -> 1 in 120 ms on the pick (V15).",
+   "notes": "Green rubber-stamp mark, 0.11 x 0.042 m, pivot = center, faces +Z.",
+   "downloaded_alternates_not_used": []
+  },
+  "stamp_grievance": {
+   "file": "stamp_grievance/stamp_grievance.glb",
+   "fbx": "stamp_grievance/stamp_grievance.fbx",
+   "blend": "stamp_grievance/stamp_grievance.blend",
+   "preview": "stamp_grievance/stamp_grievance_preview.png",
+   "all_files": [
+    "stamp_grievance/stamp_grievance.blend",
+    "stamp_grievance/stamp_grievance.fbx",
+    "stamp_grievance/stamp_grievance.glb",
+    "stamp_grievance/stamp_grievance_preview.png",
+    "stamp_grievance/stamp_grievance_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 792,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.055,
+      -0.021,
+      -0.0013
+     ],
+     "max": [
+      0.055,
+      0.021,
+      0.0013
+     ],
+     "size": [
+      0.11,
+      0.042,
+      0.0025
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.055,
+      -0.021,
+      -0.0013
+     ],
+     "max": [
+      0.055,
+      0.021,
+      0.0013
+     ],
+     "size": [
+      0.11,
+      0.042,
+      0.0025
+     ]
+    }
+   },
+   "size_m": [
+    0.11,
+    0.042,
+    0.0025
+   ],
+   "pivot": "center",
+   "objects": [
+    {
+     "name": "StampGrievance",
+     "type": "mesh",
+     "parent": null,
+     "tris": 792,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    }
+   ],
+   "animate": "Scale pop 0 -> 1.2 -> 1 in 120 ms on the pick (V15).",
+   "notes": "Red rubber-stamp mark, 0.11 x 0.042 m, pivot = center, faces +Z.",
+   "downloaded_alternates_not_used": []
+  },
+  "clipboard_sign": {
+   "file": "clipboard_sign/clipboard_sign.glb",
+   "fbx": "clipboard_sign/clipboard_sign.fbx",
+   "blend": "clipboard_sign/clipboard_sign.blend",
+   "preview": "clipboard_sign/clipboard_sign_preview.png",
+   "all_files": [
+    "clipboard_sign/clipboard_sign.blend",
+    "clipboard_sign/clipboard_sign.fbx",
+    "clipboard_sign/clipboard_sign.glb",
+    "clipboard_sign/clipboard_sign_preview.png",
+    "clipboard_sign/clipboard_sign_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 701,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.06,
+      0.0,
+      -0.003
+     ],
+     "max": [
+      0.06,
+      0.1631,
+      0.0139
+     ],
+     "size": [
+      0.12,
+      0.1631,
+      0.0169
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.06,
+      0.0,
+      -0.003
+     ],
+     "max": [
+      0.06,
+      0.1631,
+      0.0139
+     ],
+     "size": [
+      0.12,
+      0.1631,
+      0.0169
+     ]
+    }
+   },
+   "size_m": [
+    0.12,
+    0.1631,
+    0.0169
+   ],
+   "pivot": "base (bottom edge center)",
+   "objects": [
+    {
+     "name": "SignHereClipboard",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Board",
+     "type": "mesh",
+     "parent": "SignHereClipboard",
+     "tris": 701,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "PokePoint",
+     "type": "empty",
+     "parent": "SignHereClipboard",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.004,
+      0.04,
+      0.0046
+     ],
+     "material": null
+    }
+   ],
+   "animate": "None. PokePoint (empty) sits on the signature line: put the START collider there.",
+   "notes": "The SIGN HERE clipboard = START (V14), held still by 4 bees. Same board as clipboard.fbx, 0.12 x 0.16 m.",
+   "downloaded_alternates_not_used": []
+  },
+  "score_card": {
+   "file": "score_card/score_card.glb",
+   "fbx": "score_card/score_card.fbx",
+   "blend": "score_card/score_card.blend",
+   "preview": "score_card/score_card_preview.png",
+   "all_files": [
+    "score_card/score_card.blend",
+    "score_card/score_card.fbx",
+    "score_card/score_card.glb",
+    "score_card/score_card_preview.png",
+    "score_card/score_card_turntable.png"
+   ],
+   "source": "procedural",
+   "license": "original, generated for this project (procedural Blender script; no attribution needed)",
+   "tris": 1132,
+   "tri_budget": 3000,
+   "bounds_m": {
+    "unity_space": "meters, X right, Y up, Z = front (glTFast / Unity FBX import)",
+    "visible": {
+     "min": [
+      -0.23,
+      -0.07,
+      -0.004
+     ],
+     "max": [
+      0.23,
+      0.091,
+      0.0095
+     ],
+     "size": [
+      0.46,
+      0.161,
+      0.0135
+     ]
+    },
+    "including_disabled_parts": {
+     "min": [
+      -0.23,
+      -0.07,
+      -0.004
+     ],
+     "max": [
+      0.23,
+      0.091,
+      0.0095
+     ],
+     "size": [
+      0.46,
+      0.161,
+      0.0135
+     ]
+    }
+   },
+   "size_m": [
+    0.46,
+    0.161,
+    0.0135
+   ],
+   "pivot": "card center",
+   "objects": [
+    {
+     "name": "ScoreCard",
+     "type": "empty",
+     "parent": null,
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": null
+    },
+    {
+     "name": "Card",
+     "type": "mesh",
+     "parent": "ScoreCard",
+     "tris": 1132,
+     "pivot_unity_m": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "material": "VBS_Palette"
+    },
+    {
+     "name": "TextAnchor",
+     "type": "empty",
+     "parent": "ScoreCard",
+     "tris": 0,
+     "pivot_unity_m": [
+      -0.0,
+      0.006,
+      0.007
+     ],
+     "material": null
+    }
+   ],
+   "animate": "None. TextAnchor (empty, just in front of the face): parent the result TextMesh to it.",
+   "notes": "Flown in at the escape (V16). Dark certificate 0.46 x 0.14 m with an OFFICIAL RESULT tab; pivot = card center.",
    "downloaded_alternates_not_used": []
   }
  }

@@ -1,10 +1,10 @@
 # Virtual Bee Swarm: art attribution
 
-Temp stylized art set picked on 2026-11-14 (art-director pass). Files live in `pop-os:~/immerse-the-bay/art-staging/final/`. Details per item are in `MANIFEST.json`.
+Temp stylized art set picked on 2026-11-14 (art-director pass; the nine v3.1 props from swatter to score_card were added the same morning). Files live in `pop-os:~/immerse-the-bay/art-staging/final/`. Details per item are in `MANIFEST.json`.
 
 ## Summary
 
-- **All 20 models are original**: generated for this project by procedural Blender scripts (`final/_source/scripts/`). No attribution needed.
+- **All 29 models are original**: generated for this project by procedural Blender scripts (`final/_source/scripts/`). No attribution needed.
 - **The only third-party files** are Kenney's CC0 particle sprites, used as VFX textures for the smoker smoke and the fire embers. CC0 means public domain, so credit is optional (a thank-you is listed below).
 - **No CC-BY asset is used**, so the game has no mandatory credit line from this art set.
 - If you swap in one of the downloaded alternates listed in `MANIFEST.json` (`downloaded_alternates_not_used`), add its `attribution_text` here. The CC-BY ones REQUIRE it in the game credits.
@@ -33,6 +33,15 @@ Temp stylized art set picked on 2026-11-14 (art-director pass). Files live in `p
 | earth | `earth/earth.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
 | clipboard | `clipboard/clipboard.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
 | seed_packet | `seed_packet/seed_packet.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| swatter | `swatter/swatter.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| spray_bottle | `spray_bottle/spray_bottle.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| crowbar | `crowbar/crowbar.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| reducer | `reducer/reducer.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| rain_cloud | `rain_cloud/rain_cloud.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| stamp_approved | `stamp_approved/stamp_approved.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| stamp_grievance | `stamp_grievance/stamp_grievance.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| clipboard_sign | `clipboard_sign/clipboard_sign.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
+| score_card | `score_card/score_card.glb` (+ .fbx, .blend) | original, generated for this project | original (no attribution needed) |
 
 Also original, generated for this project: `_shared/VBS_Palette.png` (palette texture), `portal_frame/meadow_fallback.png` (stand-in meadow picture for the portal's fallback pane), `ember/ember_sprite.png` (radial glow sprite), and every `*_preview.png` / `*_turntable.png` / `contact_sheet.png` render.
 
@@ -51,7 +60,7 @@ Also original, generated for this project: `_shared/VBS_Palette.png` (palette te
 
 ### Font outlines baked into meshes
 
-- The printed words on the models (HONEY, STORE BRAND, SUGAR SYRUP, LOCAL 20,000, HONEYMOON-1, SEEDS, MEADOW MIX) were set in **Fira Sans ExtraBold** (Mozilla / Carrois Apostrophe, SIL Open Font License 1.1, https://github.com/mozilla/Fira) and converted to mesh geometry. No font file is shipped. The OFL allows using the font this way; no credit is required.
+- The printed words on the models (HONEY, STORE BRAND, SUGAR SYRUP, LOCAL 20,000, HONEYMOON-1, SEEDS, MEADOW MIX, WATER, APPROVED, GRIEVANCE, SIGN HERE, OFFICIAL RESULT, BEE WORKERS UNION) were set in **Fira Sans ExtraBold** (Mozilla / Carrois Apostrophe, SIL Open Font License 1.1, https://github.com/mozilla/Fira) and converted to mesh geometry. No font file is shipped. The OFL allows using the font this way; no credit is required.
 - The contact sheet labels use Fira Sans Bold / Book (same license).
 
 ## Downloaded but NOT used
