@@ -1319,7 +1319,7 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 | From | Message | What the Hive does |
 |---|---|---|
-| quest | `beat.set{n, name}` | Authoritative beat, rebroadcast to all. `hook` starts the score clock; `escape` sends `score` and sets the window to `full_bloom`; `t0` sets `moon` |
+| quest | `beat.set{n, name}` | Authoritative beat, rebroadcast to all. `smoker` (the first station) starts the score clock (v3.1); `escape` sends `score` and sets the window to `full_bloom`; `t0` sets `moon` |
 | quest | `choice.made{station, choice, correct}` | Plays the outcome from `hive/lines/stations.json`: room `say`, `fx`, window scene, memory. Board/monitor get a copy |
 | quest | `swarm.arrived{socket}`, `hornet.cooked{overshoot}` | Logged to board/monitor |
 | quest | `say{channel, line_id, tts_id, audio_url, caption}` | Unity cueing a line: `ear` → glasses; `room` → board/monitor copy only (Unity already played it) |
