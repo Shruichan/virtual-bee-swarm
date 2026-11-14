@@ -147,6 +147,7 @@ namespace VirtualBeeSwarm.DeliveryEditor
             d.Init();
             var sd = station.gameObject.AddComponent<StationDelivery>();
             sd.Configure(GameStation.Smoker, d, hive, props, null, null);
+            sd.SetStampArt(null, null); // checks BeeDelivery's text stamp; the art stamp shows in the smoke run log
 
             // the builder state: hive and rocket hidden until delivered (Register first: records home)
             d.Register(hive);

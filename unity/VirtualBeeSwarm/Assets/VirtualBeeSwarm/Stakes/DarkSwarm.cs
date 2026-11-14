@@ -127,6 +127,7 @@ namespace VirtualBeeSwarm.Stakes
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_DarkBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
+            WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
             _instancing = SystemInfo.supportsInstancing;
             Allocate();
         }
@@ -542,9 +543,8 @@ namespace VirtualBeeSwarm.Stakes
                 _pos[i] = p;
                 Vector3 fwd = step.sqrMagnitude > 1e-8f ? step : (_band - p);
                 Quaternion rot = fwd.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
-                float flick = 1f + 0.06f * Mathf.Sin(now * 60f + _phase[i] * 10f);
                 float len = beeLength * scale;
-                _matrices[drawn] = Matrix4x4.TRS(p, rot, new Vector3(len * flick, len, len));
+                _matrices[drawn] = Matrix4x4.TRS(p, rot, new Vector3(len, len, len)); // wings flap in the shader
 
                 float g = _goldStart[i] < 0f ? 0f : Mathf.Clamp01((now - _goldStart[i]) / 0.6f);
                 float shade = 0.8f + 0.35f * (0.5f + 0.5f * Mathf.Sin(_phase[i] * 5.3f));

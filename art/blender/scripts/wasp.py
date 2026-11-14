@@ -1,11 +1,12 @@
 """Wasp: ~5.5 cm, lemon-yellow and black, narrow waist, stinger, angry brows. Flies level, front = Unity +Z,
-pivot = body center. Objects: Body, WingL / WingR (pivot = wing root; flap on Unity Z)."""
+pivot = body center. Objects: Body, WingL / WingR (pivot = wing root; the shader flaps them about Unity Z, wings.py)."""
 import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import wings  # noqa: E402
 
 ITEM = "wasp"
 BUDGET = 3000
@@ -56,10 +57,12 @@ def build():
         rp = (0.0028 * s, -0.0085, 0.0070)
         fore = [(0.011 + 0.011 * math.cos(a), 0.0034 * math.sin(a)) for a in [2 * math.pi * k / 14 for k in range(14)]]
         hind = [(0.0075 + 0.0075 * math.cos(a), 0.0024 * math.sin(a)) for a in [2 * math.pi * k / 12 for k in range(12)]]
-        w.poly("wing", [(x * s, y) for x, y in fore], 0.0003, C.M(rp, (0, -18 * s, 32 * s)))
-        w.poly("wing", [(x * s, y) for x, y in hind], 0.0003, C.M((rp[0], rp[1] + 0.003, rp[2] - 0.0006),
-                                                                  (0, -14 * s, 48 * s)))
+        mf = C.M(rp, (0, -18 * s, 32 * s))
+        mh = C.M((rp[0], rp[1] + 0.003, rp[2] - 0.0006), (0, -14 * s, 48 * s))
+        wings.tag(w, w.poly("wing", [(x * s, y) for x, y in fore], 0.0003, mf), mf)
+        wings.tag(w, w.poly("wing", [(x * s, y) for x, y in hind], 0.0003, mh), mh)
         w.to_object(origin=rp, parent=root)
+    wings.write_uvs()
 
 
 if __name__ == "__main__":

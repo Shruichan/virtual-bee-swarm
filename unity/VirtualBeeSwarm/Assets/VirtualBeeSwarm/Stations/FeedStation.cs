@@ -74,6 +74,12 @@ namespace VirtualBeeSwarm
             if (beeswax != null) beeswax.WhipAround();
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
             if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
+            if (delivery != null && delivery.HeavyInbound)
+            {
+                // V17: Beeswax yells at the jar's crew once, over its flight
+                Debug.Log("[VBS][Stations] feed: " + GameLines.RoomCrewHeavy.id + " over the jar's flight");
+                yield return SayAndWait(GameLines.RoomCrewHeavy, 1f, 3f);
+            }
             yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
             OfferChoices();
         }

@@ -338,6 +338,8 @@ namespace VirtualBeeSwarm.Editor
             var startRow = Child("StartRow", preUi, new Vector3(0f, 0.1f, -0.16f));
             startRow.localRotation = Quaternion.Euler(25f, 0f, 0f);
             var startButton = Button(startRow, Vector3.zero, "start", "START", 0, 1.3f);
+            // V14: the SIGN HERE clipboard is START when deliveries are on (art slot SignHere dresses it by name)
+            var signHere = SignHereClipboard.Build(anchor, M("VBS_White"));
             CommonBeat(intro, director, net);
             Set(intro, "beeswax", beeswax);
             Set(intro, "window", window);
@@ -350,6 +352,7 @@ namespace VirtualBeeSwarm.Editor
             Set(intro, "rocketPerch", perch);
             Set(intro, "delivery", delivery);
             Set(intro, "rocket", rocket);
+            Set(intro, "signHere", signHere);
             behaviours.Add(intro);
 
             var stations = Child("Stations", anchor, Vector3.zero);

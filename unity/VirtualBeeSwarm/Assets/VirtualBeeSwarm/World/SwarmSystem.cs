@@ -74,6 +74,7 @@ namespace VirtualBeeSwarm
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_Bee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
+            WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
             _instancing = SystemInfo.supportsInstancing;
             if (!_instancing) Debug.LogWarning("[VBS] GPU instancing not supported here: bees drawn one by one.");
             Allocate();
@@ -299,8 +300,7 @@ namespace VirtualBeeSwarm
 
                 Vector3 fwd = vm > 0.02f ? v / vm : (target - p);
                 Quaternion rot = fwd.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
-                float flick = 1f + 0.06f * Mathf.Sin(t * 60f + ph * 10f); // wing-buzz shimmer
-                _matrices[i] = Matrix4x4.TRS(p, rot, new Vector3(beeLength * flick, beeLength, beeLength));
+                _matrices[i] = Matrix4x4.TRS(p, rot, new Vector3(beeLength, beeLength, beeLength)); // wings flap in the shader
 
                 float shade = 0.85f + 0.3f * _radius[i];
                 _colors[i] = new Vector4(col.r * shade * brightness, col.g * shade * brightness, col.b * shade * brightness, 1f);

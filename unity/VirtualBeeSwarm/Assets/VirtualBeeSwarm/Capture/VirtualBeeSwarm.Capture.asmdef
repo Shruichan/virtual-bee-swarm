@@ -1,0 +1,18 @@
+{
+    "name": "VirtualBeeSwarm.Capture",
+    "rootNamespace": "VirtualBeeSwarm.Capture",
+    "references": [
+        "VirtualBeeSwarm"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [
+        "Android"
+    ],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

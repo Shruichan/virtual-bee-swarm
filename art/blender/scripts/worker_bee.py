@@ -1,10 +1,12 @@
 """Worker bee: ~3.5 cm, one mesh, one material, vertex colours, front = Unity +Z, pivot = body center.
-Drawn ~150 times with GPU instancing, so it stays under 300 triangles (it is ~220)."""
+Drawn ~150 times with GPU instancing, so it stays under 300 triangles (it is ~220). The wings carry
+wing-flap UVs (wings.py) and flap in the vertex shader."""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import wings  # noqa: E402
 
 ITEM = "worker_bee"
 BUDGET = 300
@@ -37,8 +39,10 @@ def build():
            (0.0, 0.0014)]
     for side in (1, -1):
         wp = [(x * s * side, y * s) for x, y in pts]
-        mb.poly("sky", wp, 0.0003, C.M((0.0015 * side, -0.0045, 0.0058), (0, -WING_DIHEDRAL * side, 0)))
+        m = C.M((0.0015 * side, -0.0045, 0.0058), (0, -WING_DIHEDRAL * side, 0))
+        wings.tag(mb, mb.poly("sky", wp, 0.0003, m), m)  # flapped by the shader (wings.py)
     mb.to_object(origin=(0, 0, 0))
+    wings.write_uvs()
 
 
 if __name__ == "__main__":

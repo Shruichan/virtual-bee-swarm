@@ -955,7 +955,7 @@ Paths use the new names. In the staged copy at `unity/HoneymoonQuest/Assets/Hone
     - The hive swarm stays hidden until touchdown.
   - **Hook sequence:** as in the script table. `FutureWindow.Open()` moves from `meet` to `hook`, and the local `forecast` plays on `room_hook_1`.
   - **`GameDirector`:**
-    - `maxSeconds` hook 30, meet 10, smoker 50
+    - `maxSeconds` hook 30, meet 13, smoker 50
     - the run clock and countdown start when `smoker` starts
     - display text: "EARTH → MOON · BOARDING m:ss", then "BOARDING DELAYED (UNION RULES)", "EVACUATION CANCELLED" and "PASSENGER: BEESWAX"
 - **Done when:**

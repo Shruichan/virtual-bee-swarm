@@ -545,7 +545,8 @@ namespace VirtualBeeSwarm.Editor
         /// Art/Bee/Bee_unit.asset: the art bee's mesh scaled to 1 unit long on Z (the bee pools scale by beeLength,
         /// ~3.5 cm), pivot kept at the body center, one submesh, vertex colours converted to linear when the project
         /// is in Linear colour space (they're exported as sRGB) so VBS_Bee (vertex colours, instanced) shows the
-        /// palette colours. Rewritten from Art/Bee/Bee.prefab on every call; null if there's no Bee prefab.
+        /// palette colours, wing-flap UVs kept (uv1 hinge moved/scaled with the mesh, uv2 flags). Rewritten from
+        /// Art/Bee/Bee.prefab on every call; null if there's no Bee prefab.
         /// </summary>
         public static Mesh BeeUnitMesh()
         {
@@ -582,6 +583,17 @@ namespace VirtualBeeSwarm.Editor
             if (cols != null && cols.Length == v.Length) mesh.colors = cols;
             var uv = src.uv;
             if (uv != null && uv.Length == v.Length) mesh.uv = uv;
+            // wing-flap tags (art/blender/scripts/wings.py): uv1 = hinge (x, y) in mesh space, moved and scaled like
+            // the vertices; uv2 = (wing side +-1, blur side) as is. VirtualBeeSwarm/Unlit flaps the tagged vertices.
+            var hinge = src.uv2;
+            var flag = src.uv3;
+            if (hinge != null && hinge.Length == v.Length && flag != null && flag.Length == v.Length)
+            {
+                for (int i = 0; i < hinge.Length; i++)
+                    if (flag[i].x != 0f) hinge[i] = (Vector2)(m.MultiplyPoint3x4(new Vector3(hinge[i].x, hinge[i].y, 0f)) / len);
+                mesh.uv2 = hinge;
+                mesh.uv3 = flag;
+            }
             mesh.subMeshCount = 1;
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();

@@ -54,6 +54,9 @@ namespace VirtualBeeSwarm.Editor
             { "Hive", new[,] { { "HeatGlow", "VBS_Glow" } } },
             { "Portal", new[,] { { "LivePane", "VBS_PaneLive" }, { "FallbackPane", "VBS_Pane" }, { "Glow", "VBS_PortalGlow" } } },
             { "Rocket", new[,] { { "Flame", "VBS_Flame" } } },
+            // wing-tagged meshes (art/blender/scripts/wings.py): VBS_ArtBee + the VBS_WINGS flap
+            { "Wasp", new[,] { { "WingL", "VBS_ArtWing" }, { "WingR", "VBS_ArtWing" } } },
+            { "Hornet", new[,] { { "WingL", "VBS_ArtWing" }, { "WingR", "VBS_ArtWing" } } },
         };
 
         const string DefaultStaging = "~/immerse-the-bay/art-staging/final";

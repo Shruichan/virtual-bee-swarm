@@ -1,5 +1,5 @@
 """Giant hornet: ~0.25 m, menacing but cartoony. Big orange head, heavy V brows, tiny pupils, hooked mandibles,
-dark thorax, banded abdomen, big stinger. Faceted (flat shaded) so it reads harder than the round, friendly bees.
+dark thorax, banded abdomen, big stinger. WingL / WingR flap in the shader (wings.py). Faceted (flat shaded) so it reads harder than the round, friendly bees.
 Front = Unity +Z, pivot = body center. Objects: Body, Mandibles (pivot = jaw hinge), WingL / WingR."""
 import math
 import os
@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+import wings  # noqa: E402
 
 ITEM = "giant_hornet"
 BUDGET = 3000
@@ -67,11 +68,13 @@ def build():
         rp = (0.022 * s, -0.030, 0.045)
         fore = [(0.065 + 0.065 * math.cos(a), 0.021 * math.sin(a)) for a in [2 * math.pi * k / 14 for k in range(14)]]
         hind = [(0.045 + 0.045 * math.cos(a), 0.015 * math.sin(a)) for a in [2 * math.pi * k / 12 for k in range(12)]]
-        w.poly("smoke_wing", [(x * s, y) for x, y in fore], 0.002, C.M(rp, (0, -22 * s, 30 * s)))
-        w.poly("smoke_wing", [(x * s, y) for x, y in hind], 0.002, C.M((rp[0], rp[1] + 0.012, rp[2] - 0.004),
-                                                                        (0, -16 * s, 46 * s)))
+        mf = C.M(rp, (0, -22 * s, 30 * s))
+        mh = C.M((rp[0], rp[1] + 0.012, rp[2] - 0.004), (0, -16 * s, 46 * s))
+        wings.tag(w, w.poly("smoke_wing", [(x * s, y) for x, y in fore], 0.002, mf), mf)
+        wings.tag(w, w.poly("smoke_wing", [(x * s, y) for x, y in hind], 0.002, mh), mh)
         w.to_object(origin=rp, parent=root)
     scale_all(SCALE)
+    wings.write_uvs(SCALE)
 
 
 SCALE = 0.8  # art-director pass: 0.33 m long -> ~0.26 m, closer to the ~0.25 m spec

@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace VirtualBeeSwarm
 {
@@ -15,9 +17,20 @@ namespace VirtualBeeSwarm
     /// Wrong: the station's own consequence plays, then a red repo crew hauls it out. Right: its crew sets it down on
     /// its spot (TableAnchor/Spots/Smoker|Feeder|Door|Dish) and the leftovers fly back out.
     /// Missing props (Swatter, SprayBottle, Crowbar, Reducer, NothingTag) and spots are built at runtime as placeholders.
+    ///
+    /// v3.2 polish: a choice accepts a poke only once it is parked (AcceptsPoke / AllParked; StationBase waits for it
+    /// before Choosing). The stamps are the StampApproved / StampGrievance art (slammed down by code), text stamp if the
+    /// prefab is missing. Heavy items (the jar, V17) shudder while a crew carries them and raise BuzzCue (pitch 1.3).
+    /// V19 hint: 8 s after the choices are offered without a pick, the right one leans toward the hive (BuzzCue 1.15).
+    /// Every visual offset is applied in LateUpdate and taken off again before anyone else moves the item (Update at
+    /// -25, before BeeDelivery, and at the top of every hook), so BeeDelivery and the stations never see it.
     /// </summary>
+    [DefaultExecutionOrder(-25)]
     public class StationDelivery : MonoBehaviour
     {
+        /// <summary>Sound hook (no audio here): (item, pitch scale, why). Heavy flight = 1.3, eager hint = 1.15.</summary>
+        public static event Action<Transform, float, string> BuzzCue;
+
         [SerializeField] GameStation station;
         [Tooltip("Read the station from a StationBase on this GameObject (else use the field above).")]
         [SerializeField] bool stationFromComponent = true;
@@ -51,9 +64,50 @@ namespace VirtualBeeSwarm
         [SerializeField] bool rightLandsFirst = true;
         [SerializeField] bool rightLandsFirstFromStation = true;
 
+        [Header("Stamps (art)")]
+        [Tooltip("Art/StampApproved/StampApproved.prefab (auto-filled in the editor). Empty: the text stamp.")]
+        [SerializeField] GameObject approvedStampPrefab;
+        [Tooltip("Art/StampGrievance/StampGrievance.prefab (auto-filled in the editor). Empty: the text stamp.")]
+        [SerializeField] GameObject grievanceStampPrefab;
+        [SerializeField] float stampSlamSeconds = 0.08f;
+        [SerializeField] float stampSettleSeconds = 0.1f;
+        [SerializeField] float stampStartScale = 1.6f;
+
+        [Header("Heavy (V17)")]
+        [SerializeField] float heavyBuzzPitch = 1.3f;
+        [SerializeField] float strainDegrees = 4f;
+        [SerializeField] float strainHz = 7f;
+
+        [Header("Hint (V19)")]
+        [Tooltip("Seconds without a pick (from when the choices accept pokes) before the right one leans toward the hive. 0 = off.")]
+        [SerializeField] float hintAfterSeconds = 8f;
+        [SerializeField] float hintLean = 0.035f;
+        [SerializeField] float hintTiltDegrees = 14f;
+        [SerializeField] float hintEaseSeconds = 0.6f;
+        [SerializeField] float eagerBuzzPitch = 1.15f;
+
         public GameStation Station { get { Resolve(); return station; } }
         public bool Active => BeeDelivery.Mode != DeliveryMode.Off && Delivery != null;
         public bool Parked => _parked;
+        public bool StampArtReady => approvedStampPrefab != null && grievanceStampPrefab != null;
+        /// <summary>A heavy choice (the jar) is being flown in right now by a crew (delivery on).</summary>
+        public bool HeavyInbound
+        {
+            get
+            {
+                if (!Active || BeeDelivery.Mode != DeliveryMode.On) return false;
+                Resolve();
+                for (int i = 0; i < _n; i++)
+                {
+                    if (_gone[i] || _item[i] == null) continue;
+                    var di = _item[i].GetComponent<DeliveryItem>();
+                    if (di != null && di.Heavy && Delivery.IsFlying(_item[i])) return true;
+                }
+                return false;
+            }
+        }
+        /// <summary>The V19 hint is showing now.</summary>
+        public bool Hinting => _hintOn;
         public int Count { get { Resolve(); return _n; } }
         public Transform Item(int i) { Resolve(); return i >= 0 && i < _n ? _item[i] : null; }
         public Transform Spot { get { Resolve(); return spot; } }
@@ -69,6 +123,15 @@ namespace VirtualBeeSwarm
         Quaternion[] _legacyRot;
         ChoiceButton[] _button;
         Transform[] _buttonParent, _tag;
+        // v3.2: stamps (art), visual offsets (hint lean, heavy strain), heavy flights
+        Transform[] _stampMount, _stampArtA, _stampArtG;
+        float[] _stampAt;
+        bool[] _offApplied, _heavyCued;
+        Vector3[] _offBasePos, _offAppliedPos, _lastBasePos;
+        Quaternion[] _offBaseRot, _offAppliedRot;
+        float _hintArmedAt = -1f, _hintStartedAt = -1f, _hintEndAt = -1f, _hintW;
+        bool _hintOn, _hintFiredThisOffer;
+        int _hintIndex = -1;
         Vector3[] _buttonPos, _buttonScale;
         Quaternion[] _buttonRot;
         BoxCollider[] _collider;
@@ -135,6 +198,18 @@ namespace VirtualBeeSwarm
             _buttonRot = new Quaternion[_n];
             _collider = new BoxCollider[_n];
             _target = new ChoicePropTarget[_n];
+            _stampMount = new Transform[_n];
+            _stampArtA = new Transform[_n];
+            _stampArtG = new Transform[_n];
+            _stampAt = new float[_n];
+            _offApplied = new bool[_n];
+            _heavyCued = new bool[_n];
+            _offBasePos = new Vector3[_n];
+            _offAppliedPos = new Vector3[_n];
+            _lastBasePos = new Vector3[_n];
+            _offBaseRot = new Quaternion[_n];
+            _offAppliedRot = new Quaternion[_n];
+            for (int i = 0; i < _n; i++) _stampAt[i] = -1f;
 
             var buttons = GetComponentsInChildren<ChoiceButton>(true);
             for (int i = 0; i < _n; i++)
@@ -200,6 +275,9 @@ namespace VirtualBeeSwarm
         public void Prepare()
         {
             Resolve();
+            RestoreAll();
+            ClearHint(false);
+            HideStamps();
             _parked = false;
             _rightSent = false;
             for (int i = 0; i < _n; i++) _gone[i] = false;
@@ -216,8 +294,10 @@ namespace VirtualBeeSwarm
         {
             Resolve();
             if (!Active || _parked) return;
+            RestoreAll();
             if (!_attached) Attach();
             _parked = true;
+            for (int i = 0; i < _n; i++) _heavyCued[i] = false;
             ComputeArc();
             int slot = 0;
             for (int i = 0; i < _n; i++)
@@ -228,30 +308,73 @@ namespace VirtualBeeSwarm
             Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + _n + " choices on their way to the arc");
         }
 
-        /// <summary>OfferChoices: make sure the choices are out (a subclass intro that never called ParkChoices).</summary>
-        public void EnsureParked()
+        /// <summary>OfferChoices: make sure the choices are out (a subclass intro that never called ParkChoices). True = all parked.</summary>
+        public bool EnsureParked()
         {
-            if (!Active) return;
+            if (!Active) return true;
             if (!_parked) ParkChoices();
-            int flying = 0;
-            for (int i = 0; i < _n; i++) if (!_gone[i] && Delivery.IsFlying(_item[i])) flying++;
-            Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + " choices accept pokes" + (flying > 0 ? " (" + flying + " still flying)" : " (all parked)"));
+            return AllParked;
+        }
+
+        /// <summary>Every choice still in play is parked and still (not flying in, not mid-swirl). Delivery off: true.</summary>
+        public bool AllParked
+        {
+            get
+            {
+                if (!Active) return true;
+                Resolve();
+                for (int i = 0; i < _n; i++) if (!_gone[i] && !ParkedAt(i)) return false;
+                return true;
+            }
+        }
+
+        /// <summary>A poke on this choice counts: delivery off, or the prop is parked (not mid-flight).</summary>
+        public bool AcceptsPoke(string choice)
+        {
+            if (!Active) return true;
+            int i = IndexOf(choice);
+            return i < 0 || ParkedAt(i);
+        }
+
+        public bool AcceptsPokeAt(int i) => !Active || (i >= 0 && i < _n && ParkedAt(i));
+
+        bool ParkedAt(int i)
+        {
+            var t = _item[i];
+            if (t == null || !t.gameObject.activeInHierarchy) return false;
+            var di = t.GetComponent<DeliveryItem>();
+            return di != null && di.parked && !Delivery.IsFlying(t);
+        }
+
+        /// <summary>StationBase: the choices accept pokes now (log + arm the V19 hint). waited = seconds spent waiting for the arc.</summary>
+        public void OnChoicesOffered(float waited)
+        {
+            Resolve();
+            if (Active)
+                Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + " choices accept pokes (all parked" +
+                          (waited > 0.005f ? ", waited " + waited.ToString("0.00") + " s for the arc" : "") + ")");
+            _hintArmedAt = hintAfterSeconds > 0f ? Time.time : -1f;
+            _hintFiredThisOffer = false;
         }
 
         /// <summary>Same frame as the poke / choice.request / timeout pick: stamp it; a right pick lands first (except feed).</summary>
         public void OnChoiceMade(string choice, bool correct)
         {
+            Resolve();
+            RestoreAll();
+            ClearHint(true);
             if (!Active) return;
             int i = IndexOf(choice);
             if (i < 0) return;
             if (!_parked) ParkChoices(); // picked before the arc (key, operator): the others still come and go
-            Delivery.Stamp(_item[i], correct);
+            if (!StampArt(i, correct)) Delivery.Stamp(_item[i], correct);
             if (correct && rightLandsFirst) LandRight(i);
         }
 
         /// <summary>The station's ShowOutcome coroutine finished: wrong = the repo crew hauls it out; right (feed) = set down now.</summary>
         public void OnOutcomeShown(string choice, bool correct)
         {
+            RestoreAll();
             if (!Active) return;
             int i = IndexOf(choice);
             if (i < 0) return;
@@ -282,6 +405,8 @@ namespace VirtualBeeSwarm
         public void OnStationExit(bool solved)
         {
             Resolve();
+            RestoreAll();
+            ClearHint(false);
             if (!_attached) return;
             int right = IndexOf(GameIds.CorrectChoice[(int)station]);
             for (int i = 0; i < _n; i++)
@@ -292,7 +417,7 @@ namespace VirtualBeeSwarm
                     Delivery.Finish(_item[i]);
                     Delivery.Release(_item[i], hide: false); // keeps it on its spot, crew gone
                 }
-                else if (Delivery != null) Delivery.Release(_item[i], hide: true);
+                else if (Delivery != null) { Delivery.Release(_item[i], hide: true); HideStamp(i); }
             }
             _parked = false;
         }
@@ -301,6 +426,9 @@ namespace VirtualBeeSwarm
         public void ResetItems()
         {
             Resolve();
+            RestoreAll();
+            ClearHint(false);
+            HideStamps();
             if (Delivery != null)
                 for (int i = 0; i < _n; i++) Delivery.Release(_item[i], hide: true);
             _parked = false;
@@ -377,7 +505,7 @@ namespace VirtualBeeSwarm
                     _target[i] = t.GetComponent<ChoicePropTarget>();
                     if (_target[i] == null) _target[i] = t.gameObject.AddComponent<ChoicePropTarget>();
                 }
-                _target[i].Bind(_button[i]);
+                _target[i].Bind(_button[i], this, i);
                 _target[i].enabled = true;
                 if (Delivery != null) Delivery.Remeasure(t);
             }
@@ -403,6 +531,7 @@ namespace VirtualBeeSwarm
                     bt.localScale = _buttonScale[i];
                 }
                 if (_tag[i] != null) _tag[i].gameObject.SetActive(false);
+                HideStamp(i);
                 if (_collider[i] != null) _collider[i].enabled = false;
                 if (_target[i] != null) _target[i].enabled = false;
                 t.localPosition = _legacyPos[i];
@@ -451,5 +580,283 @@ namespace VirtualBeeSwarm
 
         /// <summary>The arc slots (world) the last ParkChoices used.</summary>
         public Pose Slot(int i) => i >= 0 && i < _slots.Length ? _slots[i] : default;
+
+        // ------------------------------------------------------------ editor: find the stamp art by its slot path
+#if UNITY_EDITOR
+        const string ApprovedStampPath = "Assets/VirtualBeeSwarm/Art/StampApproved/StampApproved.prefab";
+        const string GrievanceStampPath = "Assets/VirtualBeeSwarm/Art/StampGrievance/StampGrievance.prefab";
+
+        void Reset() => FindStampArt();
+        void OnValidate() { if (!UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) FindStampArt(); }
+
+        void FindStampArt()
+        {
+            if (approvedStampPrefab == null) approvedStampPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(ApprovedStampPath);
+            if (grievanceStampPrefab == null) grievanceStampPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(GrievanceStampPath);
+        }
+#endif
+
+        /// <summary>Builder / test wiring of the stamp art (null = text stamp).</summary>
+        public void SetStampArt(GameObject approved, GameObject grievance)
+        {
+            approvedStampPrefab = approved;
+            grievanceStampPrefab = grievance;
+        }
+
+        // ------------------------------------------------------------ stamps (art + slam-down)
+        /// <summary>The art stamp on item i: slams down onto its face toward the player. False = no prefab (use the text stamp).</summary>
+        bool StampArt(int i, bool approved)
+        {
+            var prefab = approved ? approvedStampPrefab : grievanceStampPrefab;
+            var t = _item[i];
+            if (prefab == null || t == null)
+            {
+                Debug.Log("[VBS][Stations] stamp " + (approved ? "APPROVED" : "GRIEVANCE") + " on " + (t != null ? t.name : "?") +
+                          ": text stamp (no " + (approved ? "StampApproved" : "StampGrievance") + " prefab)");
+                return false;
+            }
+            Delivery.ClearStamp(t); // never both
+            if (_stampMount[i] == null)
+            {
+                _stampMount[i] = new GameObject("[VBS] StampMount").transform; // [VBS]: DeliveryItem.Measure skips it
+                _stampMount[i].SetParent(t, false);
+            }
+            Transform art = approved ? _stampArtA[i] : _stampArtG[i];
+            if (art == null)
+            {
+                var go = Instantiate(prefab, _stampMount[i], false);
+                go.name = "[VBS] " + prefab.name;
+                foreach (var c in go.GetComponentsInChildren<Collider>(true)) // never eats a poke
+                    if (Application.isPlaying) Destroy(c); else DestroyImmediate(c);
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true)) { r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false; }
+                art = go.transform;
+                if (approved) _stampArtA[i] = art; else _stampArtG[i] = art;
+            }
+            var other = approved ? _stampArtG[i] : _stampArtA[i];
+            if (other != null && other.gameObject.activeSelf) other.gameObject.SetActive(false);
+            _stampMount[i].gameObject.SetActive(true);
+            art.gameObject.SetActive(true);
+            _stampAt[i] = Time.time;
+            PoseStamp(i, art, 0f);
+            Debug.Log("[VBS][Stations] stamp " + (approved ? "APPROVED" : "GRIEVANCE") + " on " + t.name + ": art prefab " + prefab.name + " (slam-down)");
+            return true;
+        }
+
+        /// <summary>e = seconds since the poke: drops from 6 cm toward the player and 1.6x big, hits at 1.15x, squashes, settles at 1.</summary>
+        void PoseStamp(int i, Transform art, float e)
+        {
+            var t = _item[i];
+            var di = t.GetComponent<DeliveryItem>();
+            var mount = _stampMount[i];
+            // the mount undoes the item's scale (axis-aligned with it), so the art is world-sized
+            Vector3 ls = t.lossyScale;
+            mount.localPosition = Vector3.zero;
+            mount.localRotation = Quaternion.identity;
+            mount.localScale = new Vector3(1f / Mathf.Max(1e-4f, Mathf.Abs(ls.x)), 1f / Mathf.Max(1e-4f, Mathf.Abs(ls.y)), 1f / Mathf.Max(1e-4f, Mathf.Abs(ls.z)));
+
+            Bounds lb = di != null ? di.localBounds : new Bounds(new Vector3(0f, 0.05f, 0f), Vector3.one * 0.1f);
+            Vector3 c = t.TransformPoint(lb.center);
+            Transform h = Delivery != null ? Delivery.Head : null;
+            Vector3 toHead = h != null ? h.position - c : -t.forward;
+            toHead.y = 0f;
+            if (toHead.sqrMagnitude < 1e-6f) toHead = -t.forward;
+            toHead.Normalize();
+            float radius = di != null ? di.Radius : 0.05f;
+            Vector3 face = c + toHead * (radius + 0.012f);
+            Quaternion rest = Quaternion.LookRotation(toHead, Vector3.up) * Quaternion.Euler(0f, 0f, i % 2 == 0 ? -8f : 8f); // art front = +Z
+
+            float slam = Mathf.Max(0.01f, stampSlamSeconds), settle = Mathf.Max(0.01f, stampSettleSeconds);
+            float scale, lift, pitch;
+            if (e < slam)
+            {
+                float k = e / slam;
+                k *= k; // accelerating into the hit
+                scale = Mathf.Lerp(stampStartScale, 1.15f, k);
+                lift = Mathf.Lerp(0.06f, 0f, k);
+                pitch = Mathf.Lerp(-25f, 0f, k);
+            }
+            else if (e < slam + settle)
+            {
+                float k = (e - slam) / settle;
+                scale = k < 0.4f ? Mathf.Lerp(1.15f, 0.92f, k / 0.4f) : Mathf.Lerp(0.92f, 1f, (k - 0.4f) / 0.6f);
+                lift = 0f;
+                pitch = Mathf.Sin(k * Mathf.PI) * 3f;
+            }
+            else { scale = 1f; lift = 0f; pitch = 0f; }
+
+            art.position = face + toHead * lift + Vector3.up * (lift * 0.5f);
+            art.rotation = rest * Quaternion.Euler(pitch, 0f, 0f);
+            art.localScale = Vector3.one * scale; // the mount is ~unit scale in world, so this is the world size
+        }
+
+        void HideStamp(int i)
+        {
+            if (_stampAt == null || i < 0 || i >= _n) return;
+            _stampAt[i] = -1f;
+            if (_stampMount[i] != null && _stampMount[i].gameObject.activeSelf) _stampMount[i].gameObject.SetActive(false);
+        }
+
+        void HideStamps()
+        {
+            if (_stampAt == null) return;
+            for (int i = 0; i < _n; i++) HideStamp(i);
+        }
+
+        // ------------------------------------------------------------ V19 hint
+        void ClearHint(bool picked)
+        {
+            if (_hintOn)
+                Debug.Log("[VBS][Stations] hint cleared (" + (picked ? "pick" : "beat exit/reset") + ") at " + GameIds.StationName(station));
+            _hintArmedAt = -1f;
+            _hintOn = false;
+            _hintStartedAt = -1f;
+            _hintEndAt = picked && _hintW > 0f ? Time.time : -1f; // a pick: ease back; exit/reset: at once
+            if (!picked) { _hintW = 0f; _hintIndex = -1; }
+        }
+
+        void UpdateHint(float now)
+        {
+            if (_hintArmedAt >= 0f && !_hintOn && !_hintFiredThisOffer && now - _hintArmedAt >= hintAfterSeconds)
+            {
+                Resolve();
+                int right = IndexOf(GameIds.CorrectChoice[(int)station]);
+                bool ok = right >= 0 && !_gone[right] && _item[right] != null && _item[right].gameObject.activeInHierarchy &&
+                          (!Active || ParkedAt(right));
+                _hintFiredThisOffer = true;
+                if (ok)
+                {
+                    _hintOn = true;
+                    _hintIndex = right;
+                    _hintStartedAt = now;
+                    _hintEndAt = -1f;
+                    Debug.Log("[VBS][Stations] hint: " + GameIds.StationName(station) + " " + _choice[right] + " (" + _item[right].name +
+                              ") leans toward the hive after " + (now - _hintArmedAt).ToString("0.0") + " s without a pick; eager buzz x" + eagerBuzzPitch.ToString("0.00"));
+                    RaiseBuzz(_item[right], eagerBuzzPitch, "hint");
+                }
+                else Debug.Log("[VBS][Stations] hint skipped at " + GameIds.StationName(station) + " (right choice not parked)");
+            }
+            if (_hintOn) _hintW = Mathf.Clamp01((now - _hintStartedAt) / Mathf.Max(0.01f, hintEaseSeconds));
+            else if (_hintEndAt >= 0f)
+            {
+                _hintW = Mathf.Clamp01(_hintW - Time.deltaTime / 0.25f);
+                if (_hintW <= 0f) { _hintEndAt = -1f; _hintIndex = -1; }
+            }
+        }
+
+        // ------------------------------------------------------------ visual offsets (applied late, removed early)
+        void Update() => RestoreAll();
+
+        /// <summary>Take this frame's visual offsets off again, unless something else moved the item since.</summary>
+        void RestoreAll()
+        {
+            if (_offApplied == null) return;
+            for (int i = 0; i < _n; i++)
+            {
+                if (!_offApplied[i]) continue;
+                _offApplied[i] = false;
+                var t = _item[i];
+                if (t == null) continue;
+                if (t.position == _offAppliedPos[i] && t.rotation == _offAppliedRot[i])
+                    t.SetPositionAndRotation(_offBasePos[i], _offBaseRot[i]);
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (!_resolved) return;
+            float now = Time.time;
+            UpdateHint(now);
+            bool active = Active;
+            var d = Delivery;
+            for (int i = 0; i < _n; i++)
+            {
+                var t = _item[i];
+                if (t == null || !t.gameObject.activeInHierarchy) { _heavyCued[i] = false; continue; }
+                bool flying = d != null && d.IsFlying(t);
+                Vector3 lastBase = _lastBasePos[i];
+                _lastBasePos[i] = t.position;
+
+                // stamp slam
+                if (_stampAt[i] >= 0f)
+                {
+                    var art = _stampArtA[i] != null && _stampArtA[i].gameObject.activeSelf ? _stampArtA[i] : _stampArtG[i];
+                    if (art != null)
+                    {
+                        float e = now - _stampAt[i];
+                        PoseStamp(i, art, e);
+                        if (e > stampSlamSeconds + stampSettleSeconds + 0.05f) _stampAt[i] = -2f; // settled: pose once more while it rides along
+                    }
+                }
+                else if (_stampAt[i] == -2f)
+                {
+                    var art = _stampArtA[i] != null && _stampArtA[i].gameObject.activeSelf ? _stampArtA[i] : _stampArtG[i];
+                    if (art != null) PoseStamp(i, art, 10f);
+                }
+
+                Vector3 dPos = Vector3.zero;
+                Quaternion dRot = Quaternion.identity;
+                Vector3 pivot = t.position;
+                bool any = false;
+
+                // V17: a heavy item shudders while its crew carries it
+                var di = t.GetComponent<DeliveryItem>();
+                bool heavyFlight = active && flying && di != null && di.Heavy;
+                if (heavyFlight && !_heavyCued[i])
+                {
+                    Debug.Log("[VBS][Delivery] heavy: " + t.name + " crew strains (buzz x" + heavyBuzzPitch.ToString("0.00") + ")");
+                    RaiseBuzz(t, heavyBuzzPitch, "heavy");
+                }
+                _heavyCued[i] = heavyFlight; // once per flight (parked/held in between re-arms it)
+                if (heavyFlight && (t.position - lastBase).sqrMagnitude > 1e-8f) // carried, not waiting for its crew
+                {
+                    float a = strainDegrees * (0.6f * Mathf.Sin(now * strainHz * 6.2832f) + 0.4f * Mathf.Sin(now * strainHz * 1.7f * 6.2832f + 1.3f));
+                    Vector3 axis = Vector3.Cross(Vector3.up, t.forward);
+                    if (axis.sqrMagnitude < 1e-6f) axis = Vector3.right;
+                    dRot = Quaternion.AngleAxis(a, axis.normalized) * Quaternion.AngleAxis(a * 0.5f, Vector3.forward);
+                    dPos += Vector3.up * (0.004f * Mathf.Sin(now * strainHz * 2.3f * 6.2832f));
+                    pivot = t.position + Vector3.up * (di.Top + 0.04f); // swings from the crew
+                    any = true;
+                }
+
+                // V19: the right one leans toward the hive, eagerly
+                if (i == _hintIndex && _hintW > 0f && !flying)
+                {
+                    Vector3 to = (hiveRoot != null ? hiveRoot.position : transform.position) - t.position;
+                    to.y = 0f;
+                    if (to.sqrMagnitude > 1e-6f)
+                    {
+                        to.Normalize();
+                        float w = _hintW * _hintW * (3f - 2f * _hintW);
+                        float eager = _hintOn ? 0.8f + 0.2f * Mathf.Sin(now * 9f) : 1f;
+                        dPos += to * (hintLean * w * eager) + Vector3.up * (0.006f * w * Mathf.Abs(Mathf.Sin(now * 6f)));
+                        dRot = Quaternion.AngleAxis(hintTiltDegrees * w * eager, Vector3.Cross(Vector3.up, to)) * dRot;
+                        pivot = t.position;
+                        any = true;
+                    }
+                }
+
+                if (!any) continue;
+                Vector3 basePos = t.position;
+                Quaternion baseRot = t.rotation;
+                Vector3 p = pivot + dRot * (basePos - pivot) + dPos;
+                Quaternion r = dRot * baseRot;
+                t.SetPositionAndRotation(p, r);
+                _offApplied[i] = true;
+                _offBasePos[i] = basePos;
+                _offBaseRot[i] = baseRot;
+                _offAppliedPos[i] = t.position;
+                _offAppliedRot[i] = t.rotation;
+            }
+        }
+
+        static void RaiseBuzz(Transform t, float pitch, string why)
+        {
+            var cue = BuzzCue;
+            if (cue == null) return;
+            try { cue(t, pitch, why); }
+            catch (Exception e) { Debug.LogException(e); }
+        }
+
+        void OnDisable() => RestoreAll();
     }
 }
