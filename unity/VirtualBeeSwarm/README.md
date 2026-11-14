@@ -5,7 +5,6 @@ project, one scene: `Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity`, built
 the whole game loop with placeholder art, and the Hive client (bus, Beeswax's voice, voice input, stations, the
 meadow window, the hum detector).
 
-- Setup details (package versions, every project setting, boundaryless): [`README-setup.md`](README-setup.md)
 - How the gameplay code fits together, and every placeholder the art replaces: [`Assets/VirtualBeeSwarm/README-gameplay.md`](Assets/VirtualBeeSwarm/README-gameplay.md)
 - Hive client (token, hosts, voice, window clips): [`../BeeswaxClient/README.md`](../BeeswaxClient/README.md)
 
@@ -37,7 +36,7 @@ Hosts are tried in order: `wss://beeswax-venue.drori.dev` (the venue laptop on d
 
 | Object | What |
 |---|---|
-| `OVRCameraRig` | Copied from the rig template `Scenes/RigTemplate.unity`: passthrough underlay, mic and scene (USE_SCENE) permission requests at startup (v3.1 V1), boundary per the toggle (off by default, `README-setup.md`), floor-level origin, an `OVRHand` + `OVRSkeleton` per hand (no hand mesh, so the real hands show). |
+| `OVRCameraRig` | Copied from the rig template `Scenes/RigTemplate.unity`: passthrough underlay, mic and scene (USE_SCENE) permission requests at startup (v3.1 V1), boundary per the toggle (off by default), floor-level origin, an `OVRHand` + `OVRSkeleton` per hand (no hand mesh, so the real hands show). |
 | `Beeswax (client)` | `BeeswaxBus`, `BeeswaxStations`, `HumDetector`, `BeeswaxVoiceInput`, `LatencyReporter`. No token in the scene. |
 | `GameRig/Systems` | `GameNet` (the only code that calls the client), `GameDirector` (the beat clock), debug HUD, autopilot, `Beats/` (intro, hornet, what-if, escape, T-0, map). |
 | `GameRig/TableAnchor` | Everything on the table: hive + hexagons, HONEYMOON-1, the meadow window (`OrbisWindow` + embers), Beeswax (`BeeswaxRoomVoice` + `AudioSource`), the four stations, thermometer, score card, map, Moon. `HivePlacement` on the base plate moves it. |
@@ -97,7 +96,7 @@ One-time setup:
    - multiview, IL2CPP ARM64, ASTC, min API 32, Vulkan
    - `USE_SCENE` (Scene Support Required, v3.1 V1), no MRUK scene loading, the boundary toggle, NativeWebSocket vendored
 
-   Details are in `README-setup.md`. **Meta XR → Project Setup Tool** should then show only the XR Simulator item open.
+   **Meta XR → Project Setup Tool** should then show only the XR Simulator item open.
 4. Get the shared **debug keystore** and the **Hive token** from Rome (S1.7). Both stay outside the repo. Set the env
    vars `HIVE_TOKEN` and `VBS_KEYSTORE_PASS`, plus `VBS_KEYSTORE` if the keystore isn't at
    `~/immerse-the-bay/keys/vbs-debug.keystore`, then restart the editor/Hub so it sees them.

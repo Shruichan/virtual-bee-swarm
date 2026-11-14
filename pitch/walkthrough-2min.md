@@ -4,7 +4,7 @@
 > Narrator: TODO (one calm voice; whoever is least tired). Footage: the hero runs from the 30 s shoot, plus a few laptop screen grabs.
 > About 150 spoken words plus game audio. Read it out loud with a stopwatch once before recording. If it runs over, trim the 1:44 "built it" row first. Never cut the fire or the Moon, and never talk over the fire.
 > Lines marked **[CLIPS]** replace the line above them if the live Orbis stream didn't pass the Sat 11 AM gate.
-> Beeswax's lines below are what's in `hive/lines/lines.json` tonight, or the rewrites in `script-and-build-asks.md`. TODO: match them to the final recorded lines before the voiceover.
+> Beeswax's lines below are what's in `hive/lines/lines.json` tonight. TODO: match them to the final recorded lines before the voiceover.
 
 ## Script
 
@@ -18,7 +18,7 @@
 | 1:14–1:28 | Slow replay of the morph: the meadow turning into fire, then the embers crossing into the room. [CLIPS] The window switching clips, then the embers. | "That window is Visko's Orbis world model, making the meadow live. When you talk, the game figures out what you meant and changes the prompt. The window never cuts." **[CLIPS]** "That window plays footage we made with Visko's Orbis world model, one clip per scene. The live version is in our repo. Today it's on clips." | Low crackle. |
 | 1:28–1:44 | Hexagons glow, the door opens, the swarm pours out. Then "TAKE ME TO THE MOON!", rocket off the table, the Moon in the window, crash landing. | "Fix all four and the union votes to stay. Mostly." | Beeswax: "Motion carried. The union votes to stay." ... "TAKE ME TO THE MOON!" ... "...Not one flower." |
 | 1:44–1:55 | Screen grab: the Beat Board on a phone (no token on screen); the repo; a simple diagram (Quest, Hive server, Orbis relay). | "Built this weekend: Unity 6 on Quest, a Bun server for voice, and a Python relay that streams Orbis into the headset. No Wi-Fi? It still finishes." | Low hum. |
-| 1:55–2:00 | The map with locked hives. On-screen text: **Next: more hives + a classroom kit. Every fact is sourced on our Devpost.** | (none) | Beeswax's last line (TODO: final wording, see `script-and-build-asks.md`). |
+| 1:55–2:00 | The map with locked hives. On-screen text: **Next: more hives + a classroom kit. Every fact is sourced on our Devpost.** | (none) | Beeswax's last line (TODO: final wording). |
 
 ## Word budget
 
