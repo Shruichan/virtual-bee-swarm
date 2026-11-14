@@ -258,7 +258,7 @@ namespace VirtualBeeSwarm.Editor
 
             // Beeswax -----------------------------------------------------
             var home = Child("BeeswaxHome", anchor, new Vector3(0.12f, 0.42f, 0.08f));
-            var presenter = Child("BeeswaxPresenter", anchor, new Vector3(0.17f, 0.33f, -0.1f));
+            var presenter = Child("BeeswaxPresenter", anchor, new Vector3(0.38f, 0.40f, -0.04f)); // v3.1: clear of the choice arc (x +-0.28)
             var bwT = Child("Beeswax", anchor, home.localPosition);
             var beeswax = bwT.gameObject.AddComponent<BeeswaxController>();
             var bwBody = Child("Body", bwT, Vector3.zero);
@@ -305,6 +305,26 @@ namespace VirtualBeeSwarm.Editor
             Set(swarm, "hive", hive);
             Set(swarm, "forageTarget", windowT);
 
+            // deliveries (v3.1: everything comes in through the window, Delivery/INTEGRATION.md) --------
+            var deliveryGo = new GameObject("BeeDelivery");
+            deliveryGo.transform.SetParent(rig, false);
+            var delivery = deliveryGo.AddComponent<BeeDelivery>();
+            Set(delivery, "window", window);
+            Set(delivery, "tableAnchor", anchor);
+            Set(delivery, "hiveSwarm", swarm);
+            Set(delivery, "beeMesh", LoadOrCreateMesh("VBS_Bee", GameMeshes.CreateBeeMesh));
+            Set(delivery, "beeMaterial", M("VBS_Bee"));
+            var rainCloud = deliveryGo.AddComponent<DeliveryRainCloud>();
+            Set(rainCloud, "net", net);
+            Set(rainCloud, "delivery", delivery);
+            Set(rainCloud, "hiveRoot", hiveT);
+            var cloudT = Child("RainCloud", deliveryGo.transform, Vector3.zero); // Art slot RainCloud dresses it
+            Prim(PrimitiveType.Sphere, "Puff0", cloudT, new Vector3(0f, 0.06f, 0f), new Vector3(0.12f, 0.08f, 0.1f), M("VBS_Moon"));
+            Prim(PrimitiveType.Sphere, "Puff1", cloudT, new Vector3(-0.06f, 0.05f, 0.01f), new Vector3(0.09f, 0.065f, 0.08f), M("VBS_Moon"));
+            Prim(PrimitiveType.Sphere, "Puff2", cloudT, new Vector3(0.06f, 0.05f, -0.01f), new Vector3(0.09f, 0.06f, 0.08f), M("VBS_Moon"));
+            cloudT.gameObject.SetActive(false);
+            Set(rainCloud, "cloud", cloudT);
+
             // beats ------------------------------------------------------
             var beats = Child("Beats", systems, Vector3.zero);
             var behaviours = new List<Object>();
@@ -328,6 +348,8 @@ namespace VirtualBeeSwarm.Editor
             Set(intro, "preUi", preUi.gameObject);
             Set(intro, "startButton", startButton);
             Set(intro, "rocketPerch", perch);
+            Set(intro, "delivery", delivery);
+            Set(intro, "rocket", rocket);
             behaviours.Add(intro);
 
             var stations = Child("Stations", anchor, Vector3.zero);
@@ -345,6 +367,16 @@ namespace VirtualBeeSwarm.Editor
                 new Color(0.85f, 0.85f, 0.85f, 0.7f), 0.25f, 0.06f, 2.2f, -0.02f);
             var waterPuff = Puff("WaterPuff", smokerProps, new Vector3(0.05f, 0.18f, -0.16f), Quaternion.LookRotation(new Vector3(-0.2f, -0.1f, 1f)),
                 new Color(0.4f, 0.7f, 1f, 0.9f), 0.6f, 0.012f, 0.7f, 0.6f);
+            // v3.1 delivered choices: new props, hidden (delivery.mode off never shows them; Art slots dress them)
+            var swatter = Child("Swatter", smokerProps, new Vector3(-0.19f, 0f, -0.02f));
+            Prim(PrimitiveType.Cylinder, "Handle", swatter, new Vector3(0f, 0.045f, 0f), new Vector3(0.012f, 0.045f, 0.012f), M("VBS_HiveRoof"));
+            Prim(PrimitiveType.Cube, "Paddle", swatter, new Vector3(0f, 0.125f, 0f), new Vector3(0.065f, 0.07f, 0.006f), M("VBS_RocketRed"));
+            swatter.gameObject.SetActive(false);
+            var spray = Child("SprayBottle", smokerProps, new Vector3(0f, 0f, -0.02f));
+            Prim(PrimitiveType.Cylinder, "Body", spray, new Vector3(0f, 0.05f, 0f), new Vector3(0.045f, 0.05f, 0.045f), M("VBS_Earth"));
+            Prim(PrimitiveType.Cube, "Head", spray, new Vector3(0f, 0.115f, -0.008f), new Vector3(0.024f, 0.03f, 0.04f), M("VBS_White"));
+            Text("Label", spray, new Vector3(0f, 0.05f, -0.024f), "WATER", 0.0018f, Color.black, TextAnchor.MiddleCenter);
+            spray.gameObject.SetActive(false);
             var smokerButtons = ButtonRow(smokerT, GameStation.Smoker, out var smokerRow);
             CommonStation(smoker, director, net, smokerButtons, smokerRow, smokerProps.gameObject, hexPanel, swarm, hive, beeswax);
             Set(smoker, "smokePuff", smokePuff);
@@ -384,6 +416,14 @@ namespace VirtualBeeSwarm.Editor
                 Prim(PrimitiveType.Cube, "Wings", w, new Vector3(0f, 0.007f, 0.004f), new Vector3(0.03f, 0.001f, 0.01f), M("VBS_Wing"));
                 waspList[i] = w;
             }
+            var crowbar = Child("Crowbar", waspsProps, new Vector3(-0.15f, 0f, -0.1f));
+            Prim(PrimitiveType.Cube, "Shaft", crowbar, new Vector3(0f, 0.065f, 0f), new Vector3(0.014f, 0.13f, 0.014f), M("VBS_RocketRed"));
+            Prim(PrimitiveType.Cube, "Hook", crowbar, new Vector3(-0.012f, 0.128f, 0f), new Vector3(0.04f, 0.014f, 0.014f), M("VBS_RocketRed"));
+            crowbar.gameObject.SetActive(false);
+            var reducer = Child("Reducer", waspsProps, new Vector3(0.15f, 0f, -0.1f));
+            Prim(PrimitiveType.Cube, "Block", reducer, new Vector3(0f, 0.015f, 0f), new Vector3(0.12f, 0.03f, 0.025f), M("VBS_HiveRoof"));
+            Prim(PrimitiveType.Cube, "Slot", reducer, new Vector3(0f, 0.008f, -0.001f), new Vector3(0.035f, 0.012f, 0.026f), M("VBS_Dark"));
+            reducer.gameObject.SetActive(false);
             var waspsButtons = ButtonRow(waspsT, GameStation.Wasps, out var waspsRow);
             CommonStation(wasps, director, net, waspsButtons, waspsRow, waspsProps.gameObject, hexPanel, swarm, hive, beeswax);
             Set(wasps, "wasps", waspList);
@@ -441,6 +481,10 @@ namespace VirtualBeeSwarm.Editor
                 var d = Prim(PrimitiveType.Sphere, "Drinker" + i, heatProps, Vector3.zero, new Vector3(0.012f, 0.011f, 0.018f), M("VBS_BeeYellow"));
                 drinkers[i] = d.transform;
             }
+            var nothingTag = Child("NothingTag", heatProps, new Vector3(0.2f, 0f, -0.1f));
+            Prim(PrimitiveType.Cube, "Card", nothingTag, new Vector3(0f, 0.03f, 0f), new Vector3(0.08f, 0.05f, 0.004f), M("VBS_White"));
+            Text("Label", nothingTag, new Vector3(0f, 0.03f, -0.003f), "NOTHING", 0.0024f, Color.black, TextAnchor.MiddleCenter);
+            nothingTag.gameObject.SetActive(false);
             var heatButtons = ButtonRow(heatT, GameStation.Heat, out var heatRow);
             CommonStation(heat, director, net, heatButtons, heatRow, heatProps.gameObject, hexPanel, swarm, hive, beeswax);
             Set(heat, "deepBowl", bowl.gameObject);
@@ -475,6 +519,7 @@ namespace VirtualBeeSwarm.Editor
             Set(escape, "beeswax", beeswax);
             Set(escape, "scoreCard", card.gameObject);
             Set(escape, "scoreText", scoreText);
+            Set(escape, "delivery", delivery);
             behaviours.Add(escape);
 
             // T-0
@@ -535,6 +580,24 @@ namespace VirtualBeeSwarm.Editor
             Set(placement, "pointers", new Object[] { mouse, left, right });
             Fingertip(input, "FingertipL", GameHand.Left);
             Fingertip(input, "FingertipR", GameHand.Right);
+
+            // ------------------------------------------------------------ AR layer (Assets/VirtualBeeSwarm/AR, PLAN.md v3.1)
+            // Room model, aim-and-pinch placement, height snap, window on the wall, contact shadows, table landing,
+            // depth occlusion and the [VBS][AR] self-test. Everything else it needs is created at runtime.
+            var ar = Child("AR", systems, Vector3.zero).gameObject.AddComponent<VirtualBeeSwarm.AR.ArRig>();
+            Set(ar, "director", director);
+            Set(ar, "placement", placement);
+            Set(ar, "window", window);
+            Set(ar, "hive", hive);
+            Set(ar, "swarm", swarm);
+            Set(ar, "desktopCamera", deskCam);
+            Set(ar, "fakeTable", table.transform);
+
+            // ------------------------------------------------------------ stakes (Assets/VirtualBeeSwarm/Stakes, v3.1 V13/V19)
+            // Dark swarm, room dim, rocket display. Part of the scene, so StakesDirector's auto-install does nothing here.
+            var stakes = Child("Stakes", systems, Vector3.zero).gameObject.AddComponent<VirtualBeeSwarm.Stakes.StakesDirector>();
+            Set(stakes, "director", director);
+            Set(stakes, "net", net);
 
             // ------------------------------------------------------------ client components (all BeeswaxClient refs live in GameNet)
             net.EnsureClientComponents(clientRoot, bwT.gameObject, windowT.gameObject, offline);
@@ -898,6 +961,10 @@ namespace VirtualBeeSwarm.Editor
             Set(s, "swarm", swarm);
             Set(s, "hive", hive);
             Set(s, "beeswax", beeswax);
+            // v3.1 delivered choices: props/spots/placeholders resolve at runtime (StationDelivery); off = today's buttons
+            var sd = s.gameObject.AddComponent<StationDelivery>();
+            Set(sd, "hiveRoot", hive.transform);
+            Set(s, "delivery", sd);
         }
 
         /// <summary>Set a serialized field by name; throws if it doesn't exist (catches renames at build time).</summary>

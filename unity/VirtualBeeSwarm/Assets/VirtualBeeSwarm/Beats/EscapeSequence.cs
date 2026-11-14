@@ -18,6 +18,8 @@ namespace VirtualBeeSwarm
         [SerializeField] GameObject scoreCard;
         [SerializeField] TextMesh scoreText;
         [SerializeField] float holdSeconds = 15f;
+        [Tooltip("v3.1: the score card is flown in by a crown of 6. Empty or delivery.mode off = it scales in.")]
+        [SerializeField] BeeDelivery delivery;
 
         public string LastScore { get; private set; } = "";
 
@@ -33,6 +35,7 @@ namespace VirtualBeeSwarm
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
+            if (delivery == null) delivery = FindAnyObjectByType<BeeDelivery>();
             if (scoreCard != null) _cardScale = scoreCard.transform.localScale;
             SetActive(scoreCard, false);
         }
@@ -55,7 +58,12 @@ namespace VirtualBeeSwarm
             LastScore = "Hive saved in " + GameMaterials.Clock(run);
             if (scoreText != null) scoreText.text = LastScore;
             if (net != null) net.SendLog("score " + GameMaterials.Clock(run));
-            if (scoreCard != null)
+            if (scoreCard != null && delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
+            {
+                scoreCard.transform.localScale = _cardScale;
+                delivery.DeliverHome(scoreCard.transform, DeliveryStyle.Crown, 6);
+            }
+            else if (scoreCard != null)
             {
                 scoreCard.transform.localScale = Vector3.zero;
                 SetActive(scoreCard, true);
@@ -69,12 +77,14 @@ namespace VirtualBeeSwarm
 
         protected override void OnExit(GameBeat beat)
         {
+            if (delivery != null && scoreCard != null) delivery.Release(scoreCard.transform, hide: true);
             SetActive(scoreCard, false);
             if (scoreCard != null) scoreCard.transform.localScale = _cardScale;
         }
 
         protected override void OnResetState()
         {
+            if (delivery != null && scoreCard != null) delivery.Release(scoreCard.transform, hide: true);
             SetActive(scoreCard, false);
             if (scoreCard != null) scoreCard.transform.localScale = _cardScale;
         }

@@ -24,7 +24,7 @@ namespace VirtualBeeSwarm
         [Header("Clock")]
         [Tooltip("Max seconds per beat (index = beat number). 0 = no limit. Then the beat's OnBeatTimeout runs and the " +
                  "director advances at most timeoutGraceSeconds later.")]
-        [SerializeField] float[] maxSeconds = { 0f, 15f, 22f, 45f, 60f, 50f, 40f, 50f, 40f, 25f, 45f, 0f, 0f };
+        [SerializeField] float[] maxSeconds = { 0f, 30f, 10f, 50f, 60f, 50f, 40f, 50f, 40f, 25f, 45f, 0f, 0f }; // v3.1: hook 30 (delivered), meet 10, smoker 50
         [SerializeField] AutoAdvance autoAdvance = AutoAdvance.Always;
         [Tooltip("After a beat's max: how long its wrap-up may take (a station's own \"Noted for the minutes\" + outcome line " +
                  "is ~5-14 s) before the director moves on anyway. A wrap-up that calls Complete() advances sooner.")]
@@ -33,7 +33,7 @@ namespace VirtualBeeSwarm
         [SerializeField] float timeLimitSeconds = 240f;
 
         [Header("Hornet (only if ahead)")]
-        [SerializeField] HornetMode hornetMode = HornetMode.Auto;
+        [SerializeField] HornetMode hornetMode = HornetMode.Never; // v3.1: the hornet is cut (K cycles it on the desktop)
         [Tooltip("Auto: play the hornet when the run clock is below this when the wasps station ends (script: wasps end 2:20, hornet costs ~30 s).")]
         [SerializeField] float hornetIfRunSecondsBelow = 125f;
 
@@ -54,7 +54,7 @@ namespace VirtualBeeSwarm
 
         public GameBeat Beat { get; private set; } = GameBeat.Pre;
         public float BeatSeconds => Time.time - _beatStartedAt;
-        /// <summary>Seconds since the hook (frozen at escape).</summary>
+        /// <summary>Seconds since the first station started (v3.1: the clock starts at smoker, not in the intro; frozen at escape).</summary>
         public float RunSeconds => _runStartedAt < 0f ? 0f : (_runEndedAt >= 0f ? _runEndedAt : Time.time) - _runStartedAt;
         public bool RunFinished => _runEndedAt >= 0f;
         public float TimeLimitSeconds => timeLimitSeconds;
@@ -62,7 +62,7 @@ namespace VirtualBeeSwarm
         public int SolvedStations { get; private set; }
         public bool PlayedHornet { get; private set; }
 
-        float _beatStartedAt, _runStartedAt = -1f, _runEndedAt = -1f;
+        float _beatStartedAt, _runStartedAt = -1f, _runEndedAt = -1f, _showStartedAt = -1f; // show = since START (for timing logs)
         float _advanceAt = -1f;
         GameBeat _advanceFrom;
         bool _timedOut;
@@ -220,13 +220,16 @@ namespace VirtualBeeSwarm
                 _runStartedAt = -1f;
                 _runEndedAt = -1f;
             }
-            else if (_runStartedAt < 0f) _runStartedAt = Time.time; // the clock starts at the hook (or wherever we jumped in)
+            else if (_runStartedAt < 0f && beat >= GameBeat.Smoker) _runStartedAt = Time.time; // v3.1: the clock starts at the first station (or wherever we jumped in past it)
+            if (beat < GameBeat.Smoker) { _runStartedAt = -1f; _runEndedAt = -1f; } // back in the intro: the clock waits for smoker again
             if (beat < GameBeat.Escape && beat != GameBeat.Pre) _runEndedAt = -1f; // jumped back before the escape: the clock runs again
             if (beat == GameBeat.Escape && _runEndedAt < 0f) _runEndedAt = Time.time;
             if (beat == GameBeat.Hornet) PlayedHornet = true;
+            if (prev == GameBeat.Pre || _showStartedAt < 0f) _showStartedAt = Time.time;
 
             Debug.Log("[VBS] " + GameIds.BeatName(prev) + " -> " + GameIds.BeatName(beat) +
-                      (string.IsNullOrEmpty(reason) ? "" : " (" + reason + ")") + " run " + GameMaterials.Clock(RunSeconds));
+                      (string.IsNullOrEmpty(reason) ? "" : " (" + reason + ")") + " run " + GameMaterials.Clock(RunSeconds) +
+                      " show " + GameMaterials.Clock(Time.time - _showStartedAt));
             if (net != null) net.SendBeat(beat);
             EnterBeat(beat);
             BeatChanged?.Invoke(prev, beat);
