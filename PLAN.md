@@ -180,7 +180,7 @@
   - the OVR Metrics Tool is installed
   - "Hey Meta" and voice commands are switched off
 
-  — owner: **Nam Nguyen** — status: in progress (verifying machine setup)
+  — owner: **Nam Nguyen** — status: blocked (OVR Metrics Tool and headset voice settings still need verification)
 
 - **S1.7 Hand over the token and keystore** (P0 · 0.1 h · needs –) — done when: Rome has DM'd Nam and dartiros the Hive token (it goes in `HIVE_TOKEN`) and one shared debug keystore, and both are kept outside the repo — owner: *suggested Rome* — status: open
 
@@ -1424,3 +1424,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 13:33 PT · Nam Nguyen (agent) · Claimed S1.10 to fix the Meta Voice SDK NativeWebSocket assembly collision in `unity/VirtualBeeSwarm/Packages/` and verify Android compilation. → team
 - 2026-11-14 14:46 PT · Nam Nguyen (agent) · Claimed S3.3 to add generic prefab spawning through the AR environment raycaster in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`. → team
 - 2026-11-14 15:00 PT · Nam Nguyen (agent) · Claiming S1.6 to verify Unity/Android modules, headset connectivity, OVR Metrics Tool, and voice settings on Nam's machine. → team
+- 2026-11-14 15:00 PT · Nam Nguyen (agent) · Verified Unity 6000.2.9f1 with SDK/NDK/OpenJDK and Quest 3 visible in adb on Windows. The OVR Metrics Tool app isn't confirmed installed; "Hey Meta" and voice-command settings need headset-side verification. → Nam
