@@ -105,6 +105,11 @@ namespace VirtualBeeSwarm.Editor
                 Fields = c =>
                 {
                     var bw = c.Placeholder.GetComponent<BeeswaxController>();
+                    if (c.Art.GetComponentInChildren<BeeswaxRig>(true) != null) // Daniel's rigged Beeswax (BeeswaxRig/): all of him greys
+                    {
+                        Set(bw, "dustyRenderers", c.Art.GetComponentsInChildren<Renderer>(true).Cast<Object>().ToArray());
+                        return;
+                    }
                     Set(bw, "dustyRenderers", new Object[] { c.R("Body/Torso"), c.R("Body/Head") });
                     Set(bw, "mouthClosedScale", new Vector3(1f, 0.25f, 1f));
                     Set(bw, "mouthOpenScale", new Vector3(1f, 1.2f, 1f));
@@ -138,9 +143,12 @@ namespace VirtualBeeSwarm.Editor
                 Fields = c =>
                 {
                     var beat = c.Find<HornetBeat>();
-                    if (beat != null) Set(beat, "hornetRenderers", new Object[] { c.R("Body"), c.R("Mandibles") });
+                    // every renderer of the art (the rigged hornet is one skinned mesh; the temp one was Body + Mandibles)
+                    if (beat != null) Set(beat, "hornetRenderers", c.Art.GetComponentsInChildren<Renderer>(true).Cast<Object>().ToArray());
                 },
             },
+            // heat station drinkers (single-sphere placeholders, 1.8 cm): dartiros' worker bee, Hover in flight (ArtAnimCreature)
+            new Slot { Name = "WorkerBee", Match = new[] { "Props/Drinker*" }, Scale = 0.55f },
             new Slot { Name = "Moon", Match = new[] { "MoonScene/Moon" }, FitSelf = true },
             new Slot { Name = "Earth", Match = new[] { "MoonScene/Earth" }, FitSelf = true },
             new Slot { Name = "ScoreCard", Match = new[] { "ScoreCard" }, AnchorAt = "TextAnchor" },

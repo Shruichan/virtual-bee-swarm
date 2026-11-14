@@ -59,6 +59,9 @@ namespace VirtualBeeSwarm
         [SerializeField] float climbFlySpeed = 1.1f;
 
         public bool Arrived { get; private set; } = true;
+        /// <summary>Set by BeeswaxRig (Daniel's rigged model): his Animator flaps the wings and moves the mouth, so the
+        /// procedural wing flap and mouth scale below stop. Root motion (fly, face, bob, voice pulse) stays here.</summary>
+        public bool RigDriven { get; set; }
         /// <summary>Where he waits (the hook mark after he climbs out of the hive).</summary>
         public Transform HomePoint => homePoint;
         public bool Visible => body == null || body.gameObject.activeSelf;
@@ -367,10 +370,13 @@ namespace VirtualBeeSwarm
                 body.localScale = Vector3.Scale(_bodyBaseScale, _climbScale) * (1f + amp * talkScalePulse);
                 body.localRotation = _bodyBaseRot * _climbRot;
             }
-            if (mouth != null) mouth.localScale = Vector3.Lerp(mouthClosedScale, mouthOpenScale, amp);
-            float flap = _wingsFolded ? 0f : Mathf.Sin(t * wingFlapHz * Mathf.PI * 2f) * wingFlapDegrees * (_dusty ? 0.3f : 1f);
-            if (leftWing != null) leftWing.localRotation = _leftWingRest * Quaternion.Euler(0f, 0f, flap);
-            if (rightWing != null) rightWing.localRotation = _rightWingRest * Quaternion.Euler(0f, 0f, -flap);
+            if (!RigDriven)
+            {
+                if (mouth != null) mouth.localScale = Vector3.Lerp(mouthClosedScale, mouthOpenScale, amp);
+                float flap = _wingsFolded ? 0f : Mathf.Sin(t * wingFlapHz * Mathf.PI * 2f) * wingFlapDegrees * (_dusty ? 0.3f : 1f);
+                if (leftWing != null) leftWing.localRotation = _leftWingRest * Quaternion.Euler(0f, 0f, flap);
+                if (rightWing != null) rightWing.localRotation = _rightWingRest * Quaternion.Euler(0f, 0f, -flap);
+            }
 
             // caption (text changes only when the line changes: no per-frame allocation)
             if (caption != null && net != null)

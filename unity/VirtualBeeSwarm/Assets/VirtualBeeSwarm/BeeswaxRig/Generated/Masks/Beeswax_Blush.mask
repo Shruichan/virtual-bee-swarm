@@ -1,0 +1,81 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!319 &31900000
+AvatarMask:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Beeswax_Blush
+  m_Mask: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  m_Elements:
+  - m_Path: Angry Brow.L
+    m_Weight: 0
+  - m_Path: Angry Brow.R
+    m_Weight: 0
+  - m_Path: Angry Frown
+    m_Weight: 0
+  - m_Path: Beeswax Mesh
+    m_Weight: 0
+  - m_Path: Beeswax Rig
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Antenna_Base.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Antenna_Base.L/Antenna_Tip.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Antenna_Base.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Antenna_Base.R/Antenna_Tip.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Eyelid.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Eyelid.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Mouth
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Mouth O
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Blush.L
+    m_Weight: 1
+  - m_Path: Beeswax Rig/Root/Body/Head/Blush.R
+    m_Weight: 1
+  - m_Path: Beeswax Rig/Root/Body/Head/Angry Brow.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Angry Brow.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Head/Angry Frown
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Abdomen
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Abdomen/Thorn
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Abdomen/Leg_Back_Upper.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Abdomen/Leg_Back_Upper.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Leg_Front_Upper.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Wing.L
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Leg_Front_Upper.R
+    m_Weight: 0
+  - m_Path: Beeswax Rig/Root/Body/Wing.R
+    m_Weight: 0
+  - m_Path: Blush.L
+    m_Weight: 0
+  - m_Path: Blush.R
+    m_Weight: 0
+  - m_Path: Mouth
+    m_Weight: 0
+  - m_Path: Mouth O
+    m_Weight: 0
+  - m_Path: Temporary Eye.L
+    m_Weight: 0
+  - m_Path: Temporary Eye.R
+    m_Weight: 0

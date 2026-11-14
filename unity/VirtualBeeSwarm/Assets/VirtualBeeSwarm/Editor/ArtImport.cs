@@ -146,6 +146,7 @@ namespace VirtualBeeSwarm.Editor
                 string slot = Items[i, 0];
                 string fbx = FindModel(slot, Items[i, 1]);
                 if (fbx == null) continue;
+                if (ArtSlots.Prefab(slot)?.GetComponentInChildren<BeeswaxRig>(true) != null) { report.Add(slot + ": rigged (BeeswaxRigBuilder), left alone"); continue; }
                 ConfigureModel(fbx, mats);
                 var prefab = MakePrefab(slot, fbx);
                 if (prefab == null) continue;
