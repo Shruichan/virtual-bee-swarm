@@ -1,0 +1,33 @@
+# Secrets: this repo is public. Never commit keys.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# Unity (any project folder)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+*.apk
+*.aab
+*.unitypackage
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+
+# Python / Node / OS
+__pycache__/
+.venv/
+venv/
+node_modules/
+.DS_Store
+Thumbs.db

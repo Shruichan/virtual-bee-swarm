@@ -6,7 +6,7 @@ Team **Angry Virtual Bee Swarm**'s project for [Immerse the Bay 2026](https://im
 
 ## Project
 
-_TBD_
+**The plan, task claims, and team chat live in [PLAN.md](PLAN.md). Read it before you start, and keep it updated.** AI agents: see [AGENTS.md](AGENTS.md).
 
 ## Team
 
