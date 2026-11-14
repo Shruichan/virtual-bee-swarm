@@ -22,7 +22,7 @@
 | Team name | "Virtual Bee Swarm" or "Angry Virtual Bee Swarm"? **Finalize by Sat 9:00 AM** |
 | Hardware | **One Meta Quest (3 or 3S: which one?)**, **Mentra Live** glasses (camera + mics + speakers, **no display**), and Rome's **iPhone** as the glasses' phone |
 | Tracks | Pick 2. Leading candidates: **ManageXR** ("bring AI to the physical world with smart glasses") and **Visko** (living worlds), with **Social Good** as the fallback. The official 2026 text is on the login-gated live dashboard, so someone copy it here |
-| Concept | **v2 "HONEYMOON" below is PROPOSED (Rome, Fri 11 PM).** Rome confirms it with the team and logs "accepted". Until then the old "theme-park ride" plan is replaced, not deleted: see git history |
+| Concept | **v3 = best of both:** Adityash's hive escape (4 stations + live Orbis future window + voice what-ifs) + HONEYMOON (Beeswax the union-rep drone, Moon stakes and ending, hornet hum). Glasses get fitted in after the Quest game works |
 
 ## ⏰ Do these tonight (everyone)
 
@@ -34,140 +34,123 @@
 
 ---
 
-## Concept v2 (PROPOSED): HONEYMOON — The Bees Are Leaving for the Moon
+## Concept v3 (CURRENT): HONEYMOON — Save the Hive or the Bees Leave for the Moon
 
-This concept came out of a 6-pitch design panel scored by 4 judge personas (Stanford XR generalist, ManageXR, Visko, a skeptical XR tech lead), then red-teamed. Last year's Grand Prize ("Where's My Boo?") won with a tight, funny, handmade, polished MR story, so this is built to that standard.
+Best of both: **Adityash's hive escape** (4 stations, the live Orbis "future window" steered by voice, practical beekeeping, a score, a map of more hives) as the spine, plus **HONEYMOON** (Beeswax the union-rep drone, the "we're leaving for the Moon" stakes and theme twist, the hornet hum, the Moon ending). The full v2 write-up is in git history if you want to borrow more.
 
-**Logline:** The bees built a honey-fueled rocket and are leaving Earth for the Moon. One judge in the **Quest** is *in the bees' world*: their real table is a launch pad. The other wears **Mentra Live** glasses and is *the field agent in ours*, the only one with hands and a camera. Every real bee flower they find is a reason to stay, and the bees in the headset fly to it.
+**Logline:** Beeswax's hive is falling apart and the union has voted: fix it in four minutes or the whole colony moves to the Moon. You're in the Quest with the hive on your real table. Four things are killing it. Every choice you make shows up live in a window into the meadow's future, and you can *ask* that future questions out loud.
 
-**Beeswax** is a stingerless **drone** ("no stinger, no job, so they made me union rep") and shop steward of **Local 20,000**, for the ~20,000 bee species. He's loud, petty, keeps a spreadsheet, and is *right*: lawns, spray, mites. He speaks in union procedure: "Motion denied." "Noted for the minutes." "Grievance filed." "I'll allow it."
+**Beeswax** is a stingerless **drone** ("no stinger, no job, so they made me union rep") and shop steward of **Local 20,000**, for the ~20,000 bee species. Loud, petty, keeps a spreadsheet, talks in union procedure: "Motion carried." "Grievance filed." "Noted for the minutes." "I'll allow it." His rocket, **HONEYMOON-1**, is parked next to the hive, already fueled with honey.
 
-**Why it wins:** a one-sentence goal (stop the launch), a villain who is right, the event theme as the twist, and three moments a judge retells at lunch:
-1. **The beeline.** "The other judge looked at a real flower and the bees in my headset flew to it."
-2. **The hum.** A giant hornet, a fist, and everyone humming to cook it, which is exactly what Japanese honeybees really do.
-3. **"TAKE ME TO THE MOON!"** Beeswax launches alone, lands, says "…not one flower," watches Earth rise, and crashes back.
+**Why it wins:**
+- One-sentence goal (fix four things, the door opens) with real stakes (or they leave for the Moon), and a score: "Hive saved in 2:47."
+- **Visko's dream demo:** a live Orbis world that changes direction mid-stream because of what you did and what you *said*, including the fire that spills embers into the room.
+- Three lunch-table moments: **the honey mistake** ("store honey can kill a hive?!"), **the fire** ("I said 'what if a fire starts' and the window caught fire and embers came into the room"), and **"TAKE ME TO THE MOON!"** (he goes anyway, finds no flowers, comes back).
+- Real beekeeping, true facts, and a hint that there's a lot more game (six more hives).
 
-**Two devices = asymmetric co-op (the honest reason):** only GOGGLES (Quest) can *see* which flower is food (Bee Vision), only GLASSES can *scan* it, and only GLASSES hears the hornet coming. If a judge asks "why not the Quest's own camera?": the headset wearer *is* the bee, the scout has to move, and in a classroom the scout walks the schoolyard while the hive stays on the table.
+### The future window (live Visko Orbis)
+A glowing portal next to the hive shows a **live Orbis stream of the meadow's future**. Good choices make it settle and bloom; bad ones turn it sick and grey. Grey enough and it starts to look like the Moon ("That's your yard, to a bee, without us."). The player can steer it by voice ("What if a fire starts?" / "Put it out").
+- **Reality check:** Orbis prompt changes take **2–4 s** to show up (a morph, not a cut). Beeswax always has a line ready to cover the wait, and **every window state has a recorded fallback clip** that plays if the stream isn't up. Test the "fire" prompt in the Reactor sandbox early (moderation can end a session).
 
-### The table
+### Demo script (~4:15)
 
-- **Earth mat:** printed ~1 m × 0.6 m on foam board, with **4 drop-in pot sockets** (holes cut for identical 4-inch nursery pots, pre-placed) and **2 calibration dots**. The operator does a 10-second two-dot pinch calibration at every reset. **No MRUK, no room scan.**
-  - Socket 1: red roses · Socket 2: purple bee flower · Socket 3: clover / rosemary in flower · Socket 4: pebble water dish
-- **Side tray:** empty spray bottle labeled "BUG-B-GONE ULTRA", an absurd neon plastic flower with a price tag, a paper-tube bee hotel.
-- **HONEYMOON-1** honeycomb rocket on the mat, with a honey-jar rack and a countdown.
-- **The window** sits *just behind the far edge of the mat, in the same field of view* (~0.8 m wide, tilted toward the Quest judge). Sign: **"YOUR YARD, TO A BEE"**: no flowers means nothing to eat, which looks like the Moon. Every good scan greens it a stage.
-
-### Demo script (4:00 of play, with headset fitting done before 0:00; T-0 is fixed at 3:50 and never cut)
-
-| Time | Beat | Who does what |
+| Time | Beat | What happens |
 |---|---|---|
-| pre | Hook | Teammate in a "union mediator" lanyard: "The bees are leaving Earth. You have four minutes to talk them out of it." Quest on first. GLASSES gets a finger on the button and does one practice press ("Testing. You smell like coffee.") |
-| 0:00–0:15 | Meet Beeswax | Swarm pours onto GOGGLES' **open palm**. "…Traitors." Opener ≤60 words, including "more than half the managed colonies lost in one year" |
-| 0:15–1:05 | Roses miss + Bee Vision | Mediator hands GLASSES the **roses** first. Scan → "We can't see red. Is this a funeral?" → **Bee Vision auto-fires for 8 s**, then a **poke** on the bee-goggles Beeswax offers: reds go dark, violets glow, UV nectar guides appear on the sockets |
-| 1:05–1:40 | **The beeline** | GLASSES scans the **purple flower** → polaroid develops on the rocket → **150 glowing bees beeline onto that socket** → honey jars carried *out* of the rocket → window greens a stage → ear: "They're on your flower. Don't panic." |
-| 1:40–2:10 | *(only if ahead)* Off-list roast | GLASSES scans anything (badge, coffee, shoe) → **live Claude roast** in union language. This is the proof the AI is live |
-| 2:10–3:00 | **Hornet + the hum** | Ear-only: "HORNET. Behind Goggles. YELL!" → **fist** balls the swarm → "Now HUM!" (pitch-detected on the Quest) → 46 °C → "STOP, you're cooking the girls!" → cartoon puff. Ear: "Not all wasps are bad. Just that guy." |
-| 3:00–3:15 | One plea | GLASSES says why the bees should stay → transcribed onto Beeswax's clipboard → "Noted for the minutes." |
-| 3:15–3:50 | Buffer | |
-| 3:50–4:30 | **T-0: the turn** | One jar left: "my *personal* jar, enough for one drone." "TAKE ME TO THE MOON!" Launches alone → passthrough dims, Unity Moon + Earthrise → "…Not one flower. Only planet with flowers." → crash back onto the real table |
-| 4:30–4:50 | Splashdown | Ear callback of what *this* group did ("You brought me a funeral rose first. Still mad.") + a real wildflower seed packet |
+| 0:00–0:15 | Hook | The hive sits on the real table; HONEYMOON-1 is parked next to it with a countdown. Beeswax: "The union voted. Fix my hive in four minutes or we're moving to the Moon." |
+| 0:15–0:35 | Meet Beeswax + the future window | Beeswax flies in: "Four things are killing my hive. Fix them and the door opens." The portal opens beside the hive, showing the meadow live. Voiceover (video only): "That window is a live Visko Orbis stream. It shows the future of every choice you make." |
+| 0:35–1:05 | **Station 1: Smoker** | Angry bees swarm out. Choices: swat, spray water, smoker. Smoker → the bees calm down, first hexagon lights up. Window: the meadow settles, bees head out to forage. Beeswax: "Smoke covers up our alarm signal and makes us fill up on honey. Also, our alarm smells like bananas. Don't eat one near my house." |
+| 1:05–1:45 | **Station 2: Tip the hive, then feed it** | "Is there enough food in there?" The player tips the hive with their hands and it lifts way too easily. "We're starving." Choices: store-bought honey jar or sugar syrup. Honey → the window shifts *mid-stream* and the colony gets sick: "…Grievance filed. Store honey can carry a disease that wipes out hives. Spores last for decades." Syrup → the scene recovers, second hexagon. (For the video, show the honey mistake first.) |
+| 1:45–2:20 | **Station 3: Wasps at the door** | Wasps buzz at the entrance. Choices: make the entrance bigger or smaller. Smaller → guard bees block the wasps, third hexagon. Window: the wasps give up. Beeswax: "Smaller door, fewer guards needed to hold it." **If ahead (+30 s):** a giant hornet forces its way in anyway → make a **fist** to ball the swarm around it → "Now HUM!" (the Quest mic hears the hum) → 46 °C → "STOP, you're cooking the girls!" Japanese honeybees really do this. |
+| 2:20–2:55 | **Station 4: Heat wave** | The hive glows red. Choices: deep bowl of water, shallow dish with pebbles, or nothing. Pebbles → bees land and drink, fourth hexagon. Beeswax: "We spread water drops in the hive and fan our wings. Bee air conditioning." |
+| 2:55–3:20 | **The "what-if" bang** | The player asks out loud: "What if a fire starts?" Beeswax: "Don't. Say. That." The window's meadow catches fire (2–4 s morph), then **3D embers spill out of the portal into the real room** (Unity VFX, instant). "Put it out!" → the stream recovers. This is the clip people remember and Orbis's real selling point: steering a live world with your voice. |
+| 3:20–3:40 | **Escape** | All four hexagons glow, the hive door opens, the swarm pours out into the room, and the window grows into a full forest bloom. Score card: "Hive saved in 2:47." Beeswax: "Motion carried. The union votes to stay." |
+| 3:40–4:15 | **T-0: Take me to the Moon** | "…I'm still going. Ticket's non-refundable." "TAKE ME TO THE MOON!" HONEYMOON-1 launches with only Beeswax aboard. The window swells into the Moon: grey dust, Earth rising. "…Not one flower. Only planet with flowers." He crashes back onto the real table, dusty. "Same time tomorrow? There are six more hives." A map flashes with locked levels (farmland, city rooftop, desert). |
 
-- **Solo is the default.** Ask every group "which track are you judging?"
-  - **Glasses-first** (ManageXR / AI judges): the judge wears the glasses and scans while a teammate wears the Quest, and the cast monitor shows the bees landing. Then the Quest goes onto the judge for the hum + finale.
-  - **Duo script** for pairs. Whoever wears prescription glasses takes the Quest.
-- **If running long:** cut the off-list roast first. Never cut Bee Vision, the beeline, the hum, or T-0.
+- **If running long:** skip the hornet hum first. Never cut the honey mistake, the fire, or the Moon.
+- **Choices are physical where we can make them:** grab the smoker and squeeze, lift/tip the hive with your hands, pick up the jar. Floating buttons are the fallback.
 
-### What's live vs pre-built
+### Facts (all true, each tied to an action)
 
-- **Live:** passthrough + mat calibration, hand gestures, the hum (on-device pitch), the glasses camera → Claude verdict (incl. off-list roasts), glasses transcription (plea), the swarm landing on the real socket, cross-device events, game memory → callback.
-- **Pre-built:** all 3D assets, ~45 Beeswax lines pre-rendered in one voice, verdict lines for every prop, SATIE stems, Orbis clips, the beat machine, the Beat Board.
-- **Rules:** live AI changes *what is said and shown*, never *which beat comes next*. Every live step has an operator twin, and the Devpost says which is which.
+- Smoke masks the alarm pheromone (which smells like bananas) and makes bees gorge on honey, so they calm down → **Station 1**.
+- Beekeepers "heft" the hive to check food stores. Feed **sugar syrup**, never store-bought honey: it can carry American foulbrood spores, which stay viable for decades → **Station 2**.
+- An entrance reducer makes the door easier to defend: fewer guards are needed to hold it → **Station 3**.
+- Japanese honeybees kill giant hornets by balling around them and heating them to ~46 °C; the bees survive a few degrees more (Ono et al., *Nature* 1995) → **hornet hum** (if ahead).
+- Bees need shallow water with landing spots (they drown in deep water), and they cool the hive by spreading water and fanning their wings → **Station 4**.
+- Optional opener stat: US beekeepers lost more than half their managed colonies in one recent year (Auburn-led survey, 2024–25). Hedge every number.
 
-### Facts (spoken: only these 4, each tied to an action)
+### Glasses (Mentra Live): adapt later
+The glasses are a second priority: we build the Quest game first and fit the glasses in after. Options that already work with the backend:
+- **A second mic** for the what-if questions (glasses transcription → same voice pipeline).
+- **Beeswax in your ear** for asides and hints.
+- **Real props:** a second player looks at a REAL prop on the table (honey jar vs. syrup bottle, pebble dish vs. bowl) and that makes the station choice. This is the strongest pitch for the ManageXR track ("AI in the physical world with smart glasses").
 
-1. Bees see violet/blue/UV, not red. Red reads as dark → **Bee Vision**.
-2. Neonicotinoid-type sprays impair bees' navigation and homing → **spray tantrum**.
-3. Japanese honeybees kill giant hornets by balling around them and heating them to ~46 °C (bees tolerate a few degrees more) → **the hum**. (Ono et al., *Nature* 1995)
-4. US beekeepers lost more than half their managed colonies in one recent year (Auburn-led survey, 2024–25) → **opener**.
-
-Fact cards / Devpost only: most bees are solitary and many nest in the ground (bee hotel); pebble water dishes; not all wasps are bad (*fig wasps pollinate figs; some figs can't exist without them*: do **not** say "every fig"). Hedge every number ("about", "more than half"). Someone other than the line writer checks each line against its source.
-
-### Sponsors (each one load-bearing)
-
-- **ManageXR:** AI on smart glasses that perceives the real world and changes what happens, in an education setting (classroom kit: one Quest hive per table, glasses scouts on the schoolyard walk). Privacy defaults: camera only on a button press, photos never saved, roasts objects not people.
-  - **Do NOT enroll our only Quest in ManageXR.** Meta's no-fix bug MAN-54 breaks MRUK/scene apps under MDM, and enrollment needs a factory reset. Ask their table for a loaner Quest to show kiosk/relaunch.
-- **Visko Orbis (via Reactor):** the window. **Floor = a Unity 3D crater diorama that greens** (no network). Orbis clips or a live stream are a layer on top. **Go/no-go Sat 11 AM.** No go → drop the Visko track for Social Good.
-- **Attractor Labs SATIE:** two hive moods (angry roar / calm hum) + the hornet drone + stings. Pitch it only as much as it's really used.
+### Sponsors
+- **Visko Orbis (via Reactor):** the future window, steered live by choices and voice. **Go/no-go Sat 11 AM** for live; recorded clips per window state are the floor either way.
+- **Attractor Labs SATIE:** hive mood (angry roar → calm hum), the fire, the wasps, the launch, the Moon's silence.
+- **ManageXR:** depends on how far the glasses get. **Do NOT enroll our only Quest in ManageXR** (Meta bug MAN-54 breaks MRUK/scene apps under MDM, and enrollment needs a factory reset).
+- Tracks: **Visko** (strongest fit now) + **ManageXR** if the glasses earn it, otherwise **Social Good**. Confirm on the dashboard.
 
 ### MUST / SHOULD / COULD / CUT
-
-- **MUST (feature freeze Sat 6 PM):**
-  - Quest: mat sockets + two-dot calibration, rocket + jars + countdown (display-only), swarm (haul / beeline / land / U-turn / palm / ball; **120–180 bees, 3–4 cm, emissive**), Beeswax + pre-rendered lines + captions, Bee Vision (poke + auto 8 s), hornet + **pitch-based hum** + hidden operator slider, window floor (Unity diorama) + clips, T-0 finale (Unity Moon + Earth).
-  - Glasses: button scan → verdict → line in ear, off-list roast, ear asides, hornet warning, plea.
-  - Both: **Unity is the only beat clock** (offline timers finish every beat), Beat Board, both solo variants.
-- **SHOULD:** live Orbis layer, SATIE moods, scrcpy cast to a monitor facing the glasses judge, chill-bees mode (distance clamp + volume), recall-check number from playtesters.
-- **COULD:** live Orbis "earth if we leave" morph, ManageXR lesson pack, LED verdict colors, QR backup decode, "MISSION 1 OF 12" locked mission board teaser (Almond Road Trip, Varroa, Pesticide Drift, Wildfire Season/firebreak, Hornet Front, CHAOS MODE: HIVE TYCOON), spectator page.
-- **CUT:** Quest speech-to-text, push-to-talk, palm-flip gesture, quote-back TTS, double ending, controllers, live 3D generation.
+- **MUST (freeze Sat 6 PM):** hive on the real table, Beeswax + pre-rendered lines + captions, 4 stations with choices + hexagons, the future window (live Orbis **or** recorded clips per state) reacting to each choice, voice what-if (fire + put it out) with an operator button as backup, Unity embers out of the portal, escape + score card, T-0 Moon ending, locked-levels map, Beat Board. **Unity is the only beat clock** (offline timers finish every beat).
+- **SHOULD:** hornet hum (pitch-detected), physical choices (squeeze smoker, tip hive, grab jar), SATIE moods, glasses as second mic + ear.
+- **COULD:** glasses real-prop choices, more what-ifs ("what if it rains?", "what if we plant clover?"), scrcpy cast, spectator page.
+- **CUT:** live 3D generation, controllers.
 
 ### Gates
-
-- **Fri ~1:30 AM, scan gate (Rome):** 20 glasses presses on the hotspot. If **p90 press → verdict audio ≤ 6 s**, keep photo + Claude. If not, go **speech-first**: the glasses judge says what they hold and the transcript gives an instant verdict, the photo still makes the polaroid, and the operator can force a verdict. (Research: Mentra photos currently take **3.5–13.7 s**.)
-- **Sat 11 AM, Orbis gate:** live stream holds ≥10 fps in the Quest window for 5 min → keep live as a layer + Visko track. Otherwise ship clips/diorama + Social Good.
-- **Sat 6 PM:** feature freeze. First full run with strangers + one solo run, stopwatch on.
+- **Sat 11 AM, Orbis gate:** live stream holds ≥10 fps in the Quest window for 5 min and a prompt change shows within ~4 s → live + Visko track. Otherwise clips + Social Good.
+- **Sat 6 PM:** feature freeze, full run with strangers, stopwatch on.
 - **Sun 7:30 AM:** build lock (sideload APK kept). **Sun ~8:30 AM:** Devpost + 30 s vertical video submitted.
 
 ## Roles
 
-- **M**, 3D modeler: Beeswax, worker bee, rocket, jars, bloom patches, hornet, thermometer, window frame, Moon + Earth, polaroid frame. Also Orbis clip capture and SATIE stems (no code).
-- **U1**, Unity MR systems: passthrough + two-dot calibration, gestures (palm, fist, poke), Bee Vision LUT, hum detector, beat machine, network client hookup.
-- **U2**, Unity content + feel: swarm states, Beeswax controller (fly-to, look-at, mouth from audio, captions), polaroid develop, beeline, window, T-0 finale.
-- **R**, Rome: Hive backend, Mentra Live app, Unity client scripts (`unity/BeeswaxClient`), Claude, voice + pre-rendered lines, Beat Board, Orbis relay, hosting, Devpost.
+- **M**, 3D modeler: Beeswax, worker bee, hive (tippable) + entrance + hexagon panel, smoker, honey jar + syrup jar, water bowl + pebble dish, wasps + giant hornet, HONEYMOON-1 rocket, portal frame, Moon + Earth, score card, locked-levels map. Also Orbis clip capture and SATIE sounds (no code).
+- **U1**, Unity MR systems: passthrough + placing the hive on the real table, hand interactions (squeeze smoker, tip hive, grab jar, fist), station/beat machine, hum detector, network hookup (`unity/BeeswaxClient`).
+- **U2**, Unity content + feel: swarm (angry → calm, guards, pour-out, hornet ball), Beeswax controller (fly-to, look-at, mouth from audio, captions), the future window (Orbis texture + clip fallback), embers out of the portal, escape + score, T-0 Moon ending.
+- **R**, Rome: Hive backend (voice → speech-to-text → intents, Orbis steering, Beeswax's voice), Orbis relay, Unity client scripts, Beat Board, hosting, glasses app (later), Devpost.
 
 ## Who's doing what
 
 *Claim a task: put your name in, set the status (open / claimed / in progress / blocked / done), and add a log line. Keep the blank lines between tasks. They stop two people's edits from colliding.*
 
-- **Plan doc + concept v2 + research update**: owner **Rome**: done (proposed, needs team OK)
+- **Plan doc + concept v3 (merge of Adityash's plan + HONEYMOON)**: owner **Rome**: done
 
-- **Hive backend** (`hive/`: event bus, scan pipeline, Claude verdicts, voice, Beat Board): owner **Rome**: in progress
+- **Hive backend** (`hive/`: event bus, voice → speech-to-text → intents, Orbis steering, Beeswax voice, Beat Board): owner **Rome**: in progress
 
-- **Mentra Live app** (`glasses/`: button scan, ear lines, plea): owner **Rome**: in progress
+- **Orbis relay + per-state fallback clips** (`hive/orbis-relay/`): owner **Rome**: in progress
 
-- **Unity client scripts** (`unity/BeeswaxClient/`: bus, polaroid, room voice, Orbis window, optional hum detector): owner **Rome**: in progress
+- **Unity client scripts** (`unity/BeeswaxClient/`: bus, mic streaming, Beeswax voice playback, Orbis window, hum detector): owner **Rome**: in progress
 
-- **Orbis relay + fallback clips** (`hive/orbis-relay/`): owner **Rome**: claimed
+- **Beeswax voice (ElevenLabs Voice Design) + pre-rendered lines**: owner **Rome**: claimed (lines need a funny editor)
 
-- **Beeswax voice (ElevenLabs Voice Design) + ~45 pre-rendered lines**: owner **Rome**: claimed (line script needs a writer: anyone funny?)
+- **Mentra Live app** (`glasses/`, second priority: second mic, ear lines, real-prop choices later): owner **Rome**: started, paused until the Quest game works
 
 - **Quest Unity project setup** (Unity 6, OpenXR + Meta XR feature group, Meta XR 209.0.0 Building Blocks, passthrough, hand tracking, boundaryless, floor origin): owner *open (U1)*
 
-- **Two-dot mat calibration + socket positions**: owner *open (U1)*
+- **Hive placement on the real table**: owner *open (U1)*
 
-- **Gestures: open palm, fist, poke (no palm-toward-face poses)**: owner *open (U1)*
+- **Station machine (Unity = only clock: stations 1–4, what-if, escape, T-0; offline timers; accepts Beat Board requests)**: owner *open (U1)*
 
-- **Bee Vision passthrough LUT + UV nectar guides**: owner *open (U1)*
+- **Station interactions** (smoker squeeze, tip the hive, grab a jar, door size, water choice; floating buttons as fallback): owner *open (U1)*
 
-- **Hum detector (pitch-based, 80–500 Hz) + 46 °C thermometer + operator slider**: owner *open (U1, Rome can supply HumDetector.cs)*
+- **Hum detector (pitch-based, 80–500 Hz) + 46 °C thermometer + operator slider** (if-ahead beat): owner *open (U1, Rome can supply HumDetector.cs)*
 
-- **Beat machine (Unity = only clock, offline timers, accepts Hive/Board requests)**: owner *open (U1)*
-
-- **Swarm (120–180 instanced bees: haul, beeline, land, U-turn, palm, ball)**: owner *open (U2)*
+- **Swarm (angry/calm, guards at the door, pour-out, hornet ball; 120–180 instanced bees)**: owner *open (U2)*
 
 - **Beeswax controller (fly-to, look-at, mouth from audio, captions)**: owner *open (U2)*
 
-- **Polaroid develop + rocket/jars/countdown**: owner *open (U2)*
+- **Future window (portal: Orbis texture + clip fallback per state) + embers spilling into the room**: owner *open (U2)*
 
-- **Window (Unity crater diorama floor + Orbis/clip layer)**: owner *open (U2)*
+- **Hexagons + escape + score card + locked-levels map**: owner *open (U2)*
 
-- **T-0 finale (dim, launch, Moon + Earthrise, crash back)**: owner *open (U2)*
+- **T-0 Moon ending (launch, Moon + Earthrise, crash back)**: owner *open (U2)*
 
 - **3D assets (see Roles → M)**: owner *open (M)*
 
-- **SATIE sounds (2 moods, hornet drone, stings, launch, Moon silence)**: owner *open (M or whoever)*
+- **SATIE sounds (hive moods, wasps, fire, launch, Moon silence)**: owner *open (M or whoever)*
 
-- **Orbis clip capture in the Reactor sandbox**: owner *open (M)*
+- **Orbis prompts + clip capture per window state** (calm, forage, sick, recovered, wasps leave, drinking, fire, fire out, full bloom, Moon): owner *open (M + Rome)*
 
-- **Props run + mat print + seed packets**: owner *open*
+- **Props run** (only if we use real props: honey jar, syrup bottle, pebble dish, bowl, a smoker or stand-in): owner *open*
 
 - **Copy 2026 tracks/rules from the live dashboard into this file**: owner *open: urgent*
 
@@ -177,7 +160,7 @@ Fact cards / Devpost only: most bees are solitary and many nest in the ground (b
 
 ## Physical props & shopping
 
-2× purple bee flower in bloom (salvia / Mexican bush sage / aster), red roses (potted or cut in a pot), clover or flowering rosemary, pebbles + shallow dish, 4 identical 4-inch nursery pots, paper straws + a can (bee hotel), empty spray bottle + a "BUG-B-GONE ULTRA" label, neon plastic flower, mat print (~1 m × 0.6 m) + foam board + box cutter, ~30 wildflower seed packets + "HONEYMOON: plant me" stickers, union-mediator lanyard, beekeeper hat (optional), power banks, a travel router or a dedicated hotspot.
+Optional (only if we do physical choices or the glasses real-prop mode): a jar of honey, a squeeze bottle labeled "SUGAR SYRUP", a shallow dish + pebbles, a deep bowl, a bee smoker (or a stand-in). Also: power banks, a travel router or a dedicated hotspot, a union-mediator lanyard for whoever introduces the demo.
 
 ---
 
@@ -202,7 +185,7 @@ Fact cards / Devpost only: most bees are solitary and many nest in the ground (b
 
 ### Event contract (Hive ↔ Quest ↔ glasses ↔ Beat Board)
 
-Source of truth: `hive/src/protocol.ts`. If you change it, log it here.
+Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being extended for concept v3 tonight (Rome):** station events (`station.set`, `choice.made`), voice in (mic audio frames → transcript → intent), `orbis` window states per station, and `fx` events (embers). The glasses scan messages below stay for the later glasses mode.
 
 - **Bus:** `wss://<host>/bus?role=quest|board|monitor&token=…`, JSON text frames + binary frames.
 - **Unity owns the beat clock.** The Hive and Beat Board send *requests* that Unity accepts or ignores.
@@ -222,7 +205,8 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here.
 ## Decisions
 
 - Theme: bee conservation, Beeswax the AI bee, an angry swarm, hornets ("not all wasps are bad"), pre-made assets the AI only *picks*, a scripted short demo that implies larger scope.
-- Fri 11 PM (Rome, proposed): concept v2 HONEYMOON replaces the theme-park ride, Mentra Live replaces XREAL, Quest speech-to-text is cut, Beeswax's voice is an ElevenLabs designed voice, scan verdicts use Haiku 5.5 or Sonnet 5.5.
+- Fri 11 PM: Mentra Live replaces XREAL; Beeswax's voice is an ElevenLabs designed voice; Claude calls use Haiku 5.5 or Sonnet 5.5.
+- Fri 11:40 PM (Rome): **concept v3 = best of both**: Adityash's hive escape (4 stations, live Orbis future window, voice what-ifs, score, map) + HONEYMOON (Beeswax the union-rep drone, Moon stakes + ending, hornet hum). Voice comes from the Quest mic or the glasses mic, through Whisper-style speech-to-text. Glasses are fitted in after the Quest game works.
 - Equipment: OpenBCI excluded. Keys never go in the repo.
 
 ## Open questions
@@ -232,7 +216,9 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here.
 - Judging format: pairs or solo? Open hall or booths?
 - Orbis: do the Visko keys from Discord work on reactor.inc, and what's the balance?
 - SATIE: runtime API or authoring only? Can generated takes go in a public repo?
-- Who writes Beeswax's ~45 lines? (Rome drafts v1, the funniest person edits.)
+- Who writes Beeswax's lines? (Rome drafts v1, the funniest person edits.)
+- How does the player talk to the Quest: hold a pinch, a controller button, or always listening with Beeswax prompting "ask me anything"?
+- Which station choices are physical (squeeze, tip, grab) vs floating buttons?
 
 ## Team
 
@@ -249,3 +235,4 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here.
 
 - 2026-11-13 21:45 PT · Rome (agent) · Created this doc from the kickoff meeting notes plus Rome's answers: Beeswax does both scout + coach on both devices, commands an angry swarm, theme-park framing, free-form Orbis "show me". Added AGENTS.md (rules for AI agents) and a union merge for this file. Invited NamNgHH and sushirito as collaborators, so accept your invites. → everyone: claim tasks above, and fill in names for "Speaker 1" and "Speaker 4".
 - 2026-11-13 23:10 PT · Rome (agent) · **Concept v2 "HONEYMOON" proposed** (6-pitch design panel + judge personas + red team) and the plan rewritten around the real hardware: one Quest, Mentra Live (no display), iPhone. Research notes are in "Tech plan". Rome claimed: Hive backend, Mentra app, Unity client scripts, Orbis relay, voice. → everyone: read Concept v2 and the "Do these tonight" list, then claim a Unity/3D task. → Rome: confirm the concept with the team and log "accepted".
+- 2026-11-13 23:45 PT · Rome (agent) · **Concept v3 is the plan: Adityash's hive escape + HONEYMOON, best of both.** Spine = Adityash's 4 stations + live Orbis future window + voice what-if + escape/score/map. Added from HONEYMOON: Beeswax the union-rep drone, "fix it or we move to the Moon" stakes, hornet hum (if ahead), T-0 Moon ending. Fixed one fact line (smaller door = *fewer guards needed*). Tasks rewritten for v3, so claim yours. → Adityash: thank you, check I kept your beats right. Hive backend/voice/Orbis/Unity client scripts are being built now (Rome).
