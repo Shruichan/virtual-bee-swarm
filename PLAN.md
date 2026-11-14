@@ -214,22 +214,72 @@ Optional (only if we do physical choices or the glasses real-prop mode): a jar o
 
 ### Event contract (Hive ↔ Quest ↔ glasses ↔ Beat Board)
 
-Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being extended for concept v3 tonight (Rome):** station events (`station.set`, `choice.made`), voice in (mic audio frames → transcript → intent), `orbis` window states per station, and `fx` events (embers). The glasses scan messages below stay for the later glasses mode.
+Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` is still 2). C# mirror: `unity/BeeswaxClient/Runtime/BeeswaxProtocol.cs`. Change both together and log it here. `hive/test/contract.test.ts` and `hive/test/contract-v21.test.ts` check the mirror, the data files, the routes and who may send what.
 
-- **Bus:** `wss://<host>/bus?role=quest|board|monitor&token=…`, JSON text frames + binary frames.
-- **Unity owns the beat clock.** The Hive and Beat Board send *requests* that Unity accepts or ignores.
-- **Messages:**
-  - `beat.set{n}`, `mode{duo|solo}`, `group.reset{group_id}`
-  - `scan.started{}`: glasses button pressed. The Quest shows a blank polaroid + flash, and Beeswax whips around.
-  - `scan.photo{}` + binary JPEG: the polaroid develops.
-  - `scan.verdict{item, verdict, confidence, seen, socket, line_id | tts_id, path: claude|speech|operator, ms}`
-  - `swarm.arrived{socket}` (Quest → Hive → glasses ear buzz), `hornet.cooked{overshoot}`
-  - `plea{text}` → clipboard
-  - `say{channel: ear|room, line_id | tts_id, caption}`. **One line, one device:** room lines play only from Beeswax's body on the Quest, ear lines only in the glasses.
-  - `tts.start{id}` + binary PCM16 + `tts.end{id}` (live lines on the Quest)
-  - `orbis{state: priming|ready|failed|ended, fallback_clip}`, `latency{hop, ms}`
-- **Glasses → Hive (HTTPS):** `POST /glasses/scan {photoUrl, heard?}`, `POST /glasses/plea {text}`, `POST /glasses/event {…}`.
-- Presses while a scan is in flight are ignored. Presses outside a scan window get "Not now, I'm monologuing."
+- **Bus:** `wss://<host>/bus?role=quest|board|monitor|glasses&token=…` (or header `x-hive-token`). JSON text frames plus binary frames `[kind u8][payload]`. A client sends `hello{role, client, version}` first, then every ~10 s as a keepalive; the Hive answers each with `welcome{group_id, beat, mode, server_time, host}`. A client on another protocol version gets one `error`, and the Board sees a warning.
+- **Binary kinds:** `0x01 SCAN_PHOTO` (Hive → Quest + monitor: the JPEG after `scan.photo`), `0x02 TTS_PCM16` (Hive → Quest: PCM16 LE mono at `tts.start.sample_rate`, between `tts.start` and `tts.end`), `0x03 MIC_PCM16` (Quest or glasses → Hive: PCM16 LE mono 16 kHz, between `listen.start` and `listen.end`). The Orbis frames socket is separate and sends bare JPEGs.
+- **Unity owns the beat clock.** The Hive and the Board only *request*; Unity accepts or ignores. With no Quest connected, the Hive applies a `beat.request` itself (rehearsal).
+- **One line, one device:** room lines play only from Beeswax on the Quest, ear lines only in the glasses.
+
+**Client → Hive.** From any other role, the Hive answers with an `error` naming the type.
+
+| From | Message | What the Hive does |
+|---|---|---|
+| quest | `beat.set{n, name}` | Authoritative beat, rebroadcast to all. `hook` starts the score clock; `escape` sends `score` and sets the window to `full_bloom`; `t0` sets `moon` |
+| quest | `choice.made{station, choice, correct}` | Plays the outcome from `hive/lines/stations.json`: room `say`, `fx`, window scene, memory. Board/monitor get a copy |
+| quest | `swarm.arrived{socket}`, `hornet.cooked{overshoot}` | Logged to board/monitor |
+| quest | `say{channel, line_id, tts_id, audio_url, caption}` | Unity cueing a line: `ear` → glasses; `room` → board/monitor copy only (Unity already played it) |
+| quest, glasses | `listen.start{source, mode: ptt\|vad}` + `MIC_PCM16` + `listen.end{source, cancel?}` | Speech-to-text → `transcript` → router → `intent` → line + window + fx |
+| board, quest | `orbis.request{want?, stage?, scene?}` | v2.1: with `scene`/`stage` it only switches the scene; only a bare `want: live\|clips\|off` changes the mode (live starts the billed stream, clips/off stop it). Forwarded to the Quest as `orbis.request{want: <current mode>, scene, stage}`; everyone gets the new `orbis{}` |
+| board | `beat.request{n}` or `{next: true}` | → Quest (no Quest: the Hive applies it → `beat.set`) |
+| board | `mode{duo\|solo}`, `group.reset{group_id?}` | Rebroadcast to all. A reset clears memory, score and custom prompt; window → `meadow` |
+| board | `hum.set{value 0..1}` | → Quest |
+| board | `verdict.force{item}`, `say.force{line_id, channel}` | Operator scan verdict; force-play a line |
+| board | `choice.request{station, choice}` (v2.1) | → Quest only; Unity applies it like the player's own pick and reports `choice.made`. No Quest: the Hive plays the outcome itself |
+| board | `fx.force{name}` (v2.1) | The Quest (and board/monitor) receive it as a plain `fx{name}` |
+| board | `whatif.force{topic}` or `{undo: true}` (v2.1) | Same path as a spoken what-if or "put it out" (line, window, fx), but no `transcript`/`intent`. `topic: "custom"` is refused: post the words to `/board/custom` |
+| glasses, board | `plea{text}` | → Quest clipboard + board/monitor (field beat: board/monitor only) |
+| any | `latency{hop, ms}`, `log{text}`, `error{message}` | → board/monitor |
+
+**Hive → clients.** A client that sends one of these is ignored; the Hive never relays it (a client's `orbis` only becomes a log line).
+
+| Message | To | Notes |
+|---|---|---|
+| `welcome{…}` | the client that said hello | |
+| `beat.set`, `mode`, `group.reset` | all | |
+| `orbis{state: off\|priming\|ready\|failed\|ended, stage, scene, fallback_clip}` | all | The Hive owns the window. `stage` = index in `SCENES`; `fallback_clip` = the scene's recorded clip; `whatif_custom` has none, so it names the clip that was showing |
+| `orbis.request{want, scene?, stage?}` | quest | A forwarded Board/Quest request |
+| `say{channel: room\|ear, line_id, tts_id, audio_url, caption}` | room → quest, ear → glasses, both + board/monitor | |
+| `tts.start{tts_id, sample_rate, caption}` + `TTS_PCM16` + `tts.end{tts_id}` | quest | Live room lines, one at a time |
+| `fx{name, delay_ms?, duration_ms?}` | quest + board/monitor | A later `embers_stop` cancels an `embers` still waiting on its delay |
+| `choice.request{station, choice}` | quest | v2.1 |
+| `hum.set{value}` | quest | |
+| `transcript{text, final, source, ms, stt}` | all | `/board/custom` text arrives as `source: "quest", stt: "board"` |
+| `intent{name, topic, text, path, ms, custom_prompt?}` | all | `name`: what_if, undo, ask, ack, unknown. `topic`: fire, rain, flowers, spray, winter, custom. v2.1 `custom_prompt` is present only for topic `custom`: the vetted Orbis prompt, or `null` = refused (Beeswax says `room_whatif_refuse`) |
+| `score{elapsed_s, text, grievances}` | all | v2.1, when escape starts: "Hive saved in 2:47", grievances = wrong picks |
+| `plea{text}` | quest + board/monitor | |
+| `scan.started{scan_id}`, `scan.photo{scan_id, width, height}` + `SCAN_PHOTO`, `scan.verdict{scan_id, item, verdict, confidence, seen, socket, line_id, tts_id, caption, path, ms}` | quest + board/monitor (photo: quest + monitor; field beat: board/monitor only) | Glasses real-prop mode (later) |
+| `choice.made`, `swarm.arrived`, `hornet.cooked`, `latency`, `log` | board/monitor | |
+| `error{message}` | the sender | |
+
+- **Enums (Unity only executes these):** `BEATS`, `STATIONS` / `CHOICES` / `CORRECT_CHOICE`, `SCENES` (18; v2.1 `whatif_custom` has no recorded clip, so clips mode keeps the last clip), `WHATIF_TOPICS` (v2.1 adds `custom`), `FX`, `INTENTS`, `ITEMS`, `VERDICTS`.
+- **Data (`hive/lines/`):** `lines.json` (every `room_*`/`ear_*` id the code names; `alt:<id>` variants), `stations.json` (station → choice → `{correct, line_id, scene, fx?}`; Unity's offline copy `unity/BeeswaxClient/Resources/beeswax_stations.json` must stay byte-identical), `orbis_scenes.json` (a prompt and seed per scene; clips are `<scene>.mp4`).
+
+**HTTP on the Hive.** "token" = `?token=<HIVE_TOKEN>` or header `x-hive-token`; one token for everything.
+
+| Route | Auth | Notes |
+|---|---|---|
+| `GET /health` | open | `{ok, version, clients, beat, beat_name, group_id, mode, orbis{state, stage, scene, want, relay, custom_prompt?}, solved, score, score_text, grievances, tts, stt, …}` |
+| `GET /board`, `GET /monitor` | token | Beat Board, spectator page |
+| `GET /lines.json`, `GET /stations.json` | token | Line catalog, station table |
+| `POST /board/custom {text}` | token | v2.1: the operator types a what-if (or anything). Routed exactly like speech, in any beat → `{ok, intent, topic, path, ms, custom_prompt?, blocked?, answer?}` |
+| `POST /glasses/press {pressed_at, button?, press_type?}` | token | → `{allowed, scan_id, line_id}` (`ear_not_now` outside scan beats or while a scan runs) |
+| `POST /glasses/scan {scan_id, photo_url?, heard?, pressed_at}` | token | → `{item, verdict, line_id, audio_url, caption, path, ms}`; 409 + `ear_not_now` when not allowed |
+| `POST /glasses/utterance {text, at}` | token | The glasses' own transcription, same pipeline as Quest voice → `{intent, topic, line_id, audio_url, caption}` |
+| `POST /glasses/plea {text}`, `POST /glasses/latency {hop, ms}`, `POST /glasses/event {…}` | token | Plea → Quest clipboard; hop timing; free-form log |
+| `GET /audio/<id>.mp3` | open (random id) | Live ear lines |
+
+**Orbis relay** (`hive/orbis-relay/relay.py`, port 8241, same token; the public host serves it under `/orbis/*`): `POST /orbis/warm`, `POST /orbis/start {prompt?, seed?, stage?, scene?}`, `POST /orbis/stage {prompt?, stage?, scene?, reset?}`, `POST /orbis/stop`, `GET /orbis/status`, `GET /orbis/frame.jpg`, `WS /orbis/frames` (binary JPEGs, newest only; `?status=1` adds the relay's status JSON), `GET /healthz` (open). Only the Hive calls the POSTs (`ORBIS_RELAY_URL`), driven by `orbis.request`. Unity only reads `/orbis/frames`, and takes just the live state from the relay's status: the scene and clip come from the Hive's `orbis{}`.
 
 ## Decisions
 
@@ -271,3 +321,4 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being 
 - 2026-11-14 01:50 PT · Rome (agent) · **Claude Code tools for the team** (optional, if you use Claude Code): Unity's official plugin: `claude plugin marketplace add Unity-Technologies/unity-agent-plugin` then `claude plugin install unity@unity-agent-plugin` (skills: create-xr, craft-game-floors for juice/polish, unity-pipeline to compile/Play Mode/screenshot a running Editor, unity-cli). The Unity CLI itself: `curl -fsSL https://unity.com/install.sh | bash`. A reviewed design skill, game-design-core (plain markdown, Apache-2.0): https://github.com/omer-metin/skills-for-antigravity/tree/main/skills/game-design-core → copy into `~/.claude/skills/`.
 - 2026-11-14 02:10 PT · Rome (agent) · **Delegation plan added** (top of file): Nam = Unity lead + headset, Adityash = gameplay content/feel + design owner, dartiros = 3D, Rome = backend/voice/Orbis/glasses/pitch. Only Nam edits the scene; everyone else works in prefabs. Beeswax's voice is **Harry** (ElevenLabs) and it's live on beeswax.drori.dev; all lines get pre-rendered once the script polish lands.
 - 2026-11-14 02:15 PT · Rome (agent) · Delegation is flexible: the areas are starting points, most of us are on dev, take the next open task when you finish one. Adityash has the most time, so he floats to whatever is behind.
+- 2026-11-14 02:45 PT · Rome (agent) · **Backend v2.1 live** on beeswax.drori.dev: Beat Board operator buttons (station choices, fx, fire/put it out, typed custom what-ifs), score card with "Grievances filed: N", unplanned what-ifs (Claude writes a safe Orbis prompt or Beeswax refuses: "Grievance filed. Not that one."), questions answered only from the vetted facts. **All 77 Beeswax lines pre-rendered in Harry's voice** (ElevenLabs); ear lines are in the glasses app, Unity copies land with the Unity project. Unity can now build Quest APKs on pop-os (license fixed). Event contract section below is updated to v2.1.
