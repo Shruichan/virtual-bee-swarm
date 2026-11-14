@@ -14,6 +14,8 @@ export interface GlassesStatus {
   /** Glasses ↔ phone; null until the first report. */
   glasses: boolean | null
   lastLine: {id: string | null; caption: string; at: number} | null
+  /** Last thing the wearer said that went to the Hive, and what it meant (null intent = no answer). */
+  heard: {text: string; intent: string | null; at: number} | null
   /** Latest value per hop, ms. */
   latency: Record<string, number>
   /** Newest last. */

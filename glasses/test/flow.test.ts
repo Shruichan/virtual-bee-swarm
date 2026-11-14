@@ -3,25 +3,21 @@
 // Nothing here touches the internet, a paid API, or a speaker.
 import {afterAll, afterEach, beforeAll, expect, test} from "bun:test"
 import {Bus as HiveBus, setQuiet} from "../../hive/src/bus"
-import {SCAN_BEATS, BEATS} from "../../hive/src/protocol"
+import {BEATS, SCAN_BEATS, VOICE_BEATS} from "../../hive/src/protocol"
 import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
-import {fakeSession, sleep, until, type FakeOptions} from "./fakes"
+import {CAPTIONS, FILLERS, LINES} from "../src/background/lines"
+import {fakeSession, sleep, until, type AudioOp, type FakeOptions} from "./fakes"
 
 const TOKEN = "test-token"
 setQuiet(true)
 
 const state = createState()
-const hiveBus = new HiveBus(
-  state,
-  {
-    lineText: (id) => (id === "ear_swarm_arrived" ? "They're on your flower. Don't panic." : ""),
-    onVerdictForce() {},
-    onPlea() {},
-  },
-  {token: TOKEN, host: "test", heartbeatMs: 60_000},
-)
+const hiveBus = new HiveBus(state, {lineText: () => "", onVerdictForce() {}, onPlea() {}}, {token: TOKEN, host: "test", heartbeatMs: 60_000})
+
+/** The Hive's "not now" ear line; falls back to a glasses-only id if the catalog renamed it. */
+const NOT_NOW = CAPTIONS.ear_not_now ? "ear_not_now" : "ear_scan_failed"
 
 type Hit = {path: string; body: any; at: number}
 let hits: Hit[] = []
@@ -30,12 +26,16 @@ let scanRefused = false // the real Hive answers 409 + a not-now ScanResponse wh
 const scanReply = {
   item: "purple_bee_flower",
   verdict: "good",
-  line_id: "ear_verdict_purple", // not embedded in the placeholder lines -> TTS of the caption
+  line_id: "ear_verdict_not_embedded", // not embedded -> TTS of the caption
   audio_url: null,
   caption: "Finally. Food.",
   path: "claude",
   ms: 0,
 }
+const FIRE_REPLY = {intent: "what_if", topic: "fire", line_id: null, audio_url: null, caption: "Don't. Say. That."}
+let utteranceReply: unknown = FIRE_REPLY
+let utteranceStatus = 200
+let utteranceDelayMs = 0
 
 let server: ReturnType<typeof Bun.serve>
 let base = ""
@@ -55,15 +55,18 @@ beforeAll(async () => {
       switch (url.pathname) {
         case "/glasses/press": {
           const allowed = SCAN_BEATS.includes(BEATS[state.beat]!)
-          return Response.json({allowed, scan_id: allowed ? `s${hits.length}` : null, line_id: allowed ? null : "ear_not_now"})
+          return Response.json({allowed, scan_id: allowed ? `s${hits.length}` : null, line_id: allowed ? null : NOT_NOW})
         }
         case "/glasses/scan":
           await sleep(scanDelayMs)
           if (scanRefused) {
-            const notNow = {item: "unclear", verdict: "roast", line_id: "ear_not_now", audio_url: null, caption: "", path: "operator", ms: 0}
+            const notNow = {item: "unclear", verdict: "roast", line_id: NOT_NOW, audio_url: null, caption: "", path: "operator", ms: 0}
             return Response.json(notNow, {status: 409})
           }
           return Response.json(scanReply)
+        case "/glasses/utterance":
+          await sleep(utteranceDelayMs)
+          return Response.json(utteranceReply, {status: utteranceStatus})
         default:
           return Response.json({ok: true})
       }
@@ -88,6 +91,9 @@ afterEach(() => {
   hits = []
   scanDelayMs = 0
   scanRefused = false
+  utteranceReply = FIRE_REPLY
+  utteranceStatus = 200
+  utteranceDelayMs = 0
 })
 
 const TEST_CONFIG: Omit<LocalConfig, "hiveToken"> = {
@@ -97,6 +103,7 @@ const TEST_CONFIG: Omit<LocalConfig, "hiveToken"> = {
   pressTimeoutMs: 1000,
   scanTimeoutMs: 2000,
   giveUpMs: 6000,
+  utteranceTimeoutMs: 1500,
   photo: {timeoutMs: 2000},
 }
 
@@ -108,29 +115,45 @@ async function boot(opts: FakeOptions = {}, cfg: Partial<LocalConfig> = {}) {
   return fake
 }
 
-async function questBeat(fake: ReturnType<typeof fakeSession>, name: string) {
-  quest.send(JSON.stringify({type: "beat.set", n: BEATS.indexOf(name as any), name}))
+async function questBeat(fake: ReturnType<typeof fakeSession>, name: (typeof BEATS)[number]) {
+  quest.send(JSON.stringify({type: "beat.set", n: BEATS.indexOf(name), name}))
   await until(() => fake.status.last?.beat === name, 2000, `beat ${name}`)
 }
 
 const paths = () => hits.map((h) => h.path)
 const hops = () => hits.filter((h) => h.path === "/glasses/latency").map((h) => h.body.hop)
+const utterances = () => hits.filter((h) => h.path === "/glasses/utterance").map((h) => h.body.text)
+/** What a played op was: the line id of an embedded clip, the url, or the spoken words. */
+const label = (a: AudioOp) => (a.kind === "clip" ? a.line : a.kind === "url" ? a.url : a.text)
+/** How a filler id plays: its embedded clip, else Mentra TTS of its caption. */
+const fillerLabel = (id: string) => (LINES[id] ? id : CAPTIONS[id]!)
+const FILLER_1 = FILLERS[0] ? fillerLabel(FILLERS[0]) : null
+const FILLER_2 = FILLERS[0] ? fillerLabel(FILLERS[1] ?? FILLERS[0]) : null
+
+test("v3 beats: scan and voice beats are real beats; the station beats scan", () => {
+  for (const b of [...SCAN_BEATS, ...VOICE_BEATS]) expect(BEATS).toContain(b)
+  expect(SCAN_BEATS).toEqual(expect.arrayContaining(["smoker", "feed", "wasps", "heat"]))
+  expect(VOICE_BEATS).toContain("whatif")
+  expect(BEATS as readonly string[]).not.toContain("plea")
+})
 
 test("scan: hold-still first, then press, photo + heard in one scan, then the verdict", async () => {
   const fake = await boot({photoMs: 300})
-  await questBeat(fake, "beeline")
+  await questBeat(fake, "smoker")
   expect(fake.warmUps.length).toBeGreaterThan(0) // camera warmed when the scan beat started
 
   fake.press()
   await sleep(50)
-  fake.say("it's a purple", false)
+  fake.say("it's the syrup", false)
   await sleep(50)
-  fake.say("it's a purple salvia")
+  fake.say("it's the syrup bottle")
   await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === "Finally. Food."), 4000, "verdict audio")
 
-  expect(fake.audio[0]).toMatchObject({kind: "clip", line: "ear_hold_still"})
   const press = hits.find((h) => h.path === "/glasses/press")!
-  expect(fake.audio[0]!.at).toBeLessThanOrEqual(press.at) // the ear line didn't wait for the network
+  if (FILLER_1) {
+    expect(label(fake.audio[0]!)).toBe(FILLER_1)
+    expect(fake.audio[0]!.at).toBeLessThanOrEqual(press.at) // the ear line didn't wait for the network
+  }
   expect(press.body).toMatchObject({button: "main", press_type: "short"})
 
   const scans = hits.filter((h) => h.path === "/glasses/scan")
@@ -140,7 +163,8 @@ test("scan: hold-still first, then press, photo + heard in one scan, then the ve
     photo_url: "https://photos.example/p1.jpg",
     pressed_at: press.body.pressed_at,
   })
-  expect(scans[0]!.body.heard).toContain("salvia")
+  expect(scans[0]!.body.heard).toContain("syrup bottle")
+  expect(utterances()).toEqual([]) // words during a scan belong to the scan, not the voice pipeline
 
   await until(() => hops().includes("press_to_audio"), 2000, "latency hops")
   expect(hops()).toEqual(expect.arrayContaining(["press_ack", "photo", "scan_rtt", "press_to_verdict", "press_to_audio"]))
@@ -151,27 +175,27 @@ test("scan: hold-still first, then press, photo + heard in one scan, then the ve
 
 test("outside a scan beat: no hold-still, no photo, the Hive's line plays", async () => {
   const fake = await boot()
-  await questBeat(fake, "hornet")
+  await questBeat(fake, "hook")
   fake.press()
   await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "not-now line")
-  expect(fake.audio).toEqual([expect.objectContaining({kind: "speak", text: "Not now, I'm monologuing."})])
+  expect(fake.audio).toEqual([expect.objectContaining({kind: "speak", text: CAPTIONS[NOT_NOW]})])
   expect(fake.photos).toHaveLength(0)
   expect(paths()).not.toContain("/glasses/scan")
 })
 
 test("scan refused with 409: says the Hive's line, not 'lost the signal'", async () => {
   const fake = await boot()
-  await questBeat(fake, "roses")
+  await questBeat(fake, "feed")
   scanRefused = true
   fake.press()
-  await until(() => fake.audio.some((a) => a.kind === "speak"), 4000, "refusal line")
-  expect(fake.audio.filter((a) => a.kind === "speak")).toEqual([expect.objectContaining({text: "Not now, I'm monologuing."})])
+  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS[NOT_NOW]), 4000, "refusal line")
   await until(() => fake.status.last?.scanning === false, 1000, "scan reset")
+  if (NOT_NOW !== "ear_scan_failed") expect(fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS.ear_scan_failed)).toBe(false)
 })
 
 test("presses while a scan is in flight are ignored", async () => {
   const fake = await boot()
-  await questBeat(fake, "roses")
+  await questBeat(fake, "feed")
   fake.press()
   fake.press()
   await sleep(30)
@@ -184,15 +208,16 @@ test("presses while a scan is in flight are ignored", async () => {
 
 test("slow photo: the second hold-still line fills the gap", async () => {
   const fake = await boot({photoMs: 1200}, {stallMs: 500})
-  await questBeat(fake, "offlist")
+  await questBeat(fake, "wasps")
   fake.press()
   await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === "Finally. Food."), 5000, "verdict")
-  expect(fake.audio.map((a) => (a.kind === "clip" ? a.line : a.kind))).toEqual(["ear_hold_still", "ear_hold_still_2", "speak"])
+  const expected = FILLER_1 && FILLER_2 ? [FILLER_1, FILLER_2, "Finally. Food."] : ["Finally. Food."]
+  expect(fake.audio.map(label)).toEqual(expected)
 })
 
 test("photo in and nobody talking: scan goes now; mid-sentence: waits for the final", async () => {
   const fake = await boot({photoMs: 100}, {heardWindowMs: 2500})
-  await questBeat(fake, "beeline")
+  await questBeat(fake, "smoker")
   fake.press()
   await until(() => paths().includes("/glasses/scan"), 2000, "scan")
   const quiet = hits.find((h) => h.path === "/glasses/scan")!
@@ -203,12 +228,12 @@ test("photo in and nobody talking: scan goes now; mid-sentence: waits for the fi
   hits = []
   fake.press()
   await sleep(20)
-  fake.say("it's some", false)
+  fake.say("it's the pebble", false)
   await sleep(400) // photo is in by now, but they're mid-sentence
   expect(paths()).not.toContain("/glasses/scan")
-  fake.say("it's some clover")
+  fake.say("it's the pebble dish")
   await until(() => paths().includes("/glasses/scan"), 1000, "scan after the final")
-  expect(hits.find((h) => h.path === "/glasses/scan")!.body.heard).toBe("it's some clover")
+  expect(hits.find((h) => h.path === "/glasses/scan")!.body.heard).toBe("it's the pebble dish")
 })
 
 test("photo failure still scans with what was heard", async () => {
@@ -216,55 +241,159 @@ test("photo failure still scans with what was heard", async () => {
   await questBeat(fake, "field")
   fake.press()
   await sleep(30)
-  fake.say("this is a rose")
+  fake.say("this is a honey jar")
   await until(() => paths().includes("/glasses/scan"), 4000, "scan")
   const scan = hits.find((h) => h.path === "/glasses/scan")!
   expect(scan.body.photo_url).toBeUndefined()
-  expect(scan.body.heard).toBe("this is a rose")
+  expect(scan.body.heard).toBe("this is a honey jar")
 })
 
 test("speech-first mode answers from the words, then sends the photo for the polaroid", async () => {
   const fake = await boot({photoMs: 800}, {speechFirst: true, heardWindowMs: 2000})
-  await questBeat(fake, "roses")
+  await questBeat(fake, "heat")
   fake.press()
   await sleep(50)
-  fake.say("roses") // a final utterance ends the listening window early
-  await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "verdict")
+  fake.say("pebbles") // a final utterance ends the listening window early
+  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === "Finally. Food."), 3000, "verdict")
   const first = hits.filter((h) => h.path === "/glasses/scan")
   expect(first).toHaveLength(1)
-  expect(first[0]!.body).toMatchObject({heard: "roses"})
+  expect(first[0]!.body).toMatchObject({heard: "pebbles"})
   expect(first[0]!.body.photo_url).toBeUndefined()
   await until(() => hits.filter((h) => h.path === "/glasses/scan").length === 2, 3000, "photo follow-up")
   const second = hits.filter((h) => h.path === "/glasses/scan")[1]!
   expect(second.body).toMatchObject({scan_id: first[0]!.body.scan_id, photo_url: "https://photos.example/p1.jpg"})
-  expect(fake.audio.filter((a) => a.kind === "speak")).toHaveLength(1)
+  expect(fake.audio.filter((a) => a.kind === "speak" && a.text === "Finally. Food.")).toHaveLength(1)
 })
 
 test("ear lines from the bus play; long press replays the last one", async () => {
   const fake = await boot()
-  quest.send(JSON.stringify({type: "swarm.arrived", socket: 2}))
-  await until(() => fake.audio.length === 1, 3000, "swarm line")
-  expect(fake.audio[0]).toMatchObject({kind: "speak", text: "They're on your flower. Don't panic."})
+  hiveBus.say("ear", null, {caption: "Smoke, not swatting. Noted for the minutes."})
+  await until(() => fake.audio.length === 1, 3000, "ear line")
+  expect(fake.audio[0]).toMatchObject({kind: "speak", text: "Smoke, not swatting. Noted for the minutes."})
   fake.press("long")
   await until(() => fake.audio.length === 2, 2000, "replay")
-  expect(fake.audio[1]).toMatchObject({kind: "speak", text: "They're on your flower. Don't panic."})
+  expect(fake.audio[1]).toMatchObject({kind: "speak", text: "Smoke, not swatting. Noted for the minutes."})
   fake.touch("double_tap")
   await until(() => fake.audio.length === 3, 2000, "touch replay")
 })
 
-test("plea: final transcripts during the plea beat go to /glasses/plea", async () => {
+// ------------------------------------------------------------------ voice (the second mic)
+
+test("voice: a final in a voice beat goes to /glasses/utterance and the reply plays (caption -> TTS)", async () => {
   const fake = await boot()
-  await questBeat(fake, "plea")
-  fake.say("please stay", false) // interim: not sent
-  fake.say("please stay, my garden needs you")
-  await until(() => paths().includes("/glasses/plea"), 2000, "plea")
-  await questBeat(fake, "buffer")
-  fake.say("and the clover") // within the grace window
-  await until(() => paths().filter((p) => p === "/glasses/plea").length === 2, 2000, "grace plea")
-  expect(hits.filter((h) => h.path === "/glasses/plea").map((h) => h.body.text)).toEqual([
-    "please stay, my garden needs you",
-    "and the clover",
-  ])
+  await questBeat(fake, "whatif")
+  fake.say("what if a", false) // interim: not sent
+  await sleep(50)
+  expect(utterances()).toEqual([])
+  const before = Date.now()
+  fake.say("What if a fire starts?")
+  await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "reply audio")
+  expect(fake.audio.map(label)).toEqual(["Don't. Say. That."])
+
+  const hit = hits.find((h) => h.path === "/glasses/utterance")!
+  expect(hit.body).toEqual({text: "What if a fire starts?", at: expect.any(Number)})
+  expect(hit.body.at).toBeGreaterThanOrEqual(before)
+  await until(() => hops().includes("utterance_to_audio"), 2000, "voice latency")
+  expect(hops()).toEqual(expect.arrayContaining(["utterance_rtt", "utterance_to_audio"]))
+  expect(fake.status.last?.heard).toMatchObject({text: "What if a fire starts?", intent: "what_if"})
+})
+
+test("voice: the reply plays its embedded clip first, else its audio_url", async () => {
+  const embedded = Object.keys(LINES)[0]
+  const fake = await boot()
+  await questBeat(fake, "smoker")
+  if (embedded) {
+    utteranceReply = {intent: "ask", topic: null, line_id: embedded, audio_url: "https://x/a.mp3", caption: "words"}
+    fake.say("why the smoker though")
+    await until(() => fake.audio.length === 1, 3000, "clip reply")
+    expect(fake.audio[0]).toMatchObject({kind: "clip", line: embedded})
+  }
+  utteranceReply = {intent: "ask", topic: null, line_id: "live_9", audio_url: "https://hive.example/audio/live_9.mp3", caption: "Live words"}
+  fake.say("what does the smoke do")
+  await until(() => fake.audio.some((a) => a.kind === "url"), 3000, "url reply")
+  expect(fake.audio.at(-1)).toMatchObject({kind: "url", url: "https://hive.example/audio/live_9.mp3"})
+})
+
+test("voice: noise, repeats, Beeswax's own echo, and non-voice beats never reach the Hive", async () => {
+  const fake = await boot()
+  await questBeat(fake, "hook") // not a voice beat
+  fake.say("what if a fire starts")
+  await sleep(100)
+  expect(utterances()).toEqual([])
+
+  await questBeat(fake, "whatif")
+  for (const noise of ["uh", "Okay.", "hmm yeah", "um, so", "hi", "   ", "?!"]) fake.say(noise)
+  await sleep(100)
+  expect(utterances()).toEqual([])
+
+  hiveBus.say("ear", null, {caption: "Grievance filed. Spores last for decades."})
+  await until(() => fake.audio.length === 1, 2000, "ear line")
+  fake.say("grievance filed spores last for decades") // the glasses mic hearing Beeswax
+  await sleep(100)
+  expect(utterances()).toEqual([])
+
+  fake.say("put it out")
+  fake.say("Put it out!") // the recognizer repeating itself
+  await until(() => utterances().length === 1, 2000, "one utterance")
+  await sleep(200)
+  expect(utterances()).toEqual(["put it out"])
+})
+
+test("voice: the wearer repeating a line after Beeswax finished it is not an echo", async () => {
+  const fake = await boot()
+  await questBeat(fake, "whatif")
+  hiveBus.say("ear", null, {caption: "Go on. Ask me: what if a fire starts?"})
+  await until(() => fake.audio.length === 1, 2000, "ear line")
+  await sleep(2200) // past the echo tail
+  fake.say("what if a fire starts")
+  await until(() => utterances().length === 1, 2000, "utterance")
+  expect(utterances()).toEqual(["what if a fire starts"])
+})
+
+test("voice: words heard while a request is in flight are joined and sent next", async () => {
+  utteranceDelayMs = 300
+  const fake = await boot()
+  await questBeat(fake, "whatif")
+  fake.say("what if it rains")
+  await sleep(50)
+  fake.say("on the hive")
+  fake.say("all week")
+  await until(() => utterances().length === 2, 3000, "second utterance")
+  expect(utterances()).toEqual(["what if it rains", "on the hive all week"])
+  await until(() => fake.audio.length === 2, 3000, "both replies")
+})
+
+test("voice: a Hive without the route, an error, or junk JSON is logged, never crashes; the next one works", async () => {
+  const fake = await boot()
+  await questBeat(fake, "escape")
+  utteranceStatus = 404
+  utteranceReply = {error: "not found"}
+  fake.say("what if we plant clover")
+  await until(() => fake.status.last?.log.some((l) => l.includes("no /glasses/utterance")) ?? false, 2000, "404 logged")
+  expect(fake.status.last?.heard).toMatchObject({text: "what if we plant clover", intent: null})
+
+  utteranceStatus = 500
+  fake.say("what if it snows")
+  await until(() => fake.status.last?.log.some((l) => l.includes("what if it snows\" failed")) ?? false, 3000, "500 logged")
+
+  utteranceStatus = 200
+  utteranceReply = ["not", "an", "object"]
+  fake.say("tell me about wasps")
+  await until(() => utterances().includes("tell me about wasps"), 2000, "junk reply")
+  await sleep(100)
+  expect(fake.audio).toEqual([]) // nothing to play, nothing played
+
+  utteranceReply = FIRE_REPLY
+  fake.say("what if a fire starts")
+  await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "recovered")
+})
+
+test("voice: off in config sends nothing", async () => {
+  const fake = await boot({}, {voice: false})
+  await questBeat(fake, "whatif")
+  fake.say("what if a fire starts")
+  await sleep(100)
+  expect(utterances()).toEqual([])
 })
 
 test("failover: a dead first host falls through to the live one for HTTP and the bus", async () => {
@@ -272,7 +401,7 @@ test("failover: a dead first host falls through to the live one for HTTP and the
   app = start(fake.session, makeConfig({hiveToken: TOKEN, hosts: ["http://127.0.0.1:9", base], ...TEST_CONFIG}))
   await until(() => fake.status.last?.bus === "open", 8000, "bus on the second host")
   expect(fake.status.last?.host).toBe(base)
-  await questBeat(fake, "beeline")
+  await questBeat(fake, "smoker")
   fake.press()
   await until(() => paths().includes("/glasses/scan"), 4000, "scan on the second host")
 })
@@ -281,9 +410,10 @@ test("hive unreachable: says so and the next press works", async () => {
   const fake = fakeSession()
   app = start(fake.session, makeConfig({hiveToken: TOKEN, hosts: ["http://127.0.0.1:9"], ...TEST_CONFIG}))
   fake.press()
-  await until(() => fake.audio.some((a) => a.kind === "speak"), 4000, "no-signal line")
-  expect(fake.audio.at(-1)).toMatchObject({text: "I can't reach the hive. Check the hotspot."})
+  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS.ear_no_signal), 4000, "no-signal line")
   await until(() => fake.status.last?.scanning === false, 1000, "scan reset")
   fake.press()
-  await until(() => fake.audio.filter((a) => a.kind === "speak").length === 2, 4000, "second press handled")
+  await until(() => fake.audio.filter((a) => a.kind === "speak" && a.text === CAPTIONS.ear_no_signal).length === 2, 4000, "second press handled")
+  fake.say("what if a fire starts") // beat unknown (no bus): not sent anywhere, no crash
+  await sleep(50)
 })

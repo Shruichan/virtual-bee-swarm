@@ -238,6 +238,7 @@ async def main() -> None:
 
     await r.shutdown()
     await frames_client_after_session()
+    await named_scenes()
     print("all relay tests passed")
 
 
@@ -265,6 +266,73 @@ async def frames_client_after_session() -> None:
     finally:
         await client.close()
     print("ok  frames client after a session ended: relay stays responsive, gets the next session's frames")
+
+
+async def named_scenes() -> None:
+    """v2 named scenes: optional `scene` on /orbis/start and /orbis/stage, prompts from the scene file when no prompt
+    is given, echoed in status as `scene` + `fallback_clip` = <scene>.mp4. The stage flow is unchanged."""
+    import json as _json
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from aiohttp.test_utils import TestClient, TestServer
+
+    tmp = Path(tempfile.mkdtemp(prefix="orbis-scenes-"))
+    book = tmp / "orbis_scenes.json"
+    book.write_text(_json.dumps({
+        "seed": 777,
+        "scenes": [
+            {"id": "meadow", "prompt": "A living meadow with a beehive. Static camera.", "seed": 5},
+            {"id": "whatif_fire", "prompt": "The meadow on fire. Static camera.", "morph": "Flames spread across the meadow."},
+            {"id": "Bad Id", "prompt": "skipped"},
+        ],
+    }))
+    cfg = relay.Config(fake_flag=True)
+    cfg.token, cfg.scene_file = "", book
+    client = TestClient(TestServer(relay.build_app(relay.Relay(cfg), cfg)))
+    await client.start_server()
+
+    async def post(path: str, body: dict, status: int = 200) -> dict:
+        resp = await client.post(path, json=body)
+        data = await resp.json()
+        assert resp.status == status, (path, body, resp.status, data)
+        return data
+
+    try:
+        s = await post("/orbis/start?wait=1", {"scene": "meadow"})
+        assert (s["state"], s["scene"], s["fallback_clip"], s["seed"], s["stage"]) == ("ready", "meadow", "meadow.mp4", 5, 0), s
+        assert s["prompt"].startswith("A living meadow"), s["prompt"]
+        s = await post("/orbis/stage?wait=1", {"scene": "whatif_fire"})  # morph, stage unchanged
+        assert (s["scene"], s["stage"], s["fallback_clip"], s["prompt"]) == ("whatif_fire", 0, "whatif_fire.mp4", "Flames spread across the meadow."), s
+        s = await post("/orbis/stage?wait=1", {"scene": "fire_out", "prompt": "The fire goes out and the meadow recovers."})
+        assert (s["scene"], s["fallback_clip"]) == ("fire_out", "fire_out.mp4"), s  # passthrough: not in the file
+        assert (await (await client.get("/orbis/status")).json())["scene"] == "fire_out"
+        await post("/orbis/stage", {"scene": "moon"}, 400)  # unknown scene and no prompt
+        await post("/orbis/stage", {"scene": "Bad Id", "prompt": "x"}, 400)  # not a clip-safe id
+        await post("/orbis/stage", {"scene": 3}, 400)
+        s = await post("/orbis/stage?wait=1", {"stage": 2, "scene": ""})  # stage flow: scene cleared, stage clip
+        assert (s["scene"], s["stage"], s["fallback_clip"]) == (None, 2, "stage_2.mp4"), s
+        s = await post("/orbis/stage?wait=1", {})  # empty body = next stage, as before
+        assert (s["scene"], s["stage"]) == (None, 3), s
+        # no stream: a named stage change is remembered (no session opened) and an empty start resumes it
+        await post("/orbis/stop", {})
+        s = await post("/orbis/stage?wait=1", {"scene": "whatif_fire"})
+        assert (s["state"], s["scene"], s["fallback_clip"]) == ("ended", "whatif_fire", "whatif_fire.mp4"), s
+        s = await post("/orbis/start?wait=1", {})
+        assert (s["state"], s["scene"], s["seed"]) == ("ready", "whatif_fire", 777), s  # file-level seed
+        assert s["prompt"] == "The meadow on fire. Static camera.", s["prompt"]
+        # the file is re-read when it changes
+        await asyncio.sleep(0.05)
+        book.write_text(_json.dumps({"scenes": {"moon": {"prompt": "Grey lunar dust, Earth rising. Static camera."}}}))
+        os.utime(book, (time.time() + 5, time.time() + 5))
+        s = await post("/orbis/stage?wait=1", {"scene": "moon"})
+        assert (s["scene"], s["prompt"]) == ("moon", "Grey lunar dust, Earth rising. Static camera."), s
+        await post("/orbis/stop", {})
+    finally:
+        await client.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+    print("ok  named scenes: start/stage by scene, prompt from the scene file, echoed scene + fallback clip, stage flow intact")
 
 
 if __name__ == "__main__":

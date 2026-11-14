@@ -87,6 +87,7 @@ namespace Beeswax
         readonly Dictionary<string, Line> _streams = new Dictionary<string, Line>();
         readonly Dictionary<string, string> _ttsCaptions = new Dictionary<string, string>();
         readonly Dictionary<string, float> _recent = new Dictionary<string, float>();
+        readonly Dictionary<string, float> _suppressUntil = new Dictionary<string, float>();
         readonly Dictionary<string, AudioClip> _clipCache = new Dictionary<string, AudioClip>();
         readonly Dictionary<AudioClip, float[]> _envelopes = new Dictionary<AudioClip, float[]>();
         readonly float[] _outBuf = new float[256];
@@ -152,6 +153,13 @@ namespace Beeswax
             return clip != null;
         }
 
+        /// <summary>Queue a caption with no audio (shown for a reading-time estimate, like a line whose clip is missing).</summary>
+        public void PlayCaption(string caption)
+        {
+            if (string.IsNullOrEmpty(caption)) return;
+            Enqueue(new Line { caption = caption });
+        }
+
         public void PlayClip(AudioClip clip, string caption = "")
         {
             if (clip == null) return;
@@ -175,12 +183,23 @@ namespace Beeswax
 
         public bool HasClip(string lineId) => FindClip(lineId) != null;
 
+        /// <summary>
+        /// Skip the next say/verdict for lineId from the bus if it arrives within `seconds`. For lines you played
+        /// locally because the Hive was unreachable: a queued choice.made reaching the Hive later must not repeat it.
+        /// </summary>
+        public void SuppressNextFromBus(string lineId, float seconds = 15f)
+        {
+            if (!string.IsNullOrEmpty(lineId)) _suppressUntil[lineId] = Time.realtimeSinceStartup + seconds;
+        }
+
         // ---------------------------------------------------------------- bus handlers
         void HandleSay(Say s)
         {
             if (s.channel != Channel.Room) return; // ear lines play only in the glasses
             if (s.line_id.Length > 0) PlayFromBus(s.line_id, s.caption);
-            else if (s.tts_id.Length > 0 && s.caption.Length > 0) _ttsCaptions[s.tts_id] = s.caption;
+            else if (s.tts_id.Length > 0) { if (s.caption.Length > 0) _ttsCaptions[s.tts_id] = s.caption; }
+            // Neither a clip nor a stream: the Hive's live voice is down, so Beeswax "says" the caption (reading time).
+            else if (s.caption.Length > 0) PlayCaption(s.caption);
         }
 
         void HandleVerdict(ScanVerdict v)
@@ -229,11 +248,20 @@ namespace Beeswax
             _ttsCaptions.Remove(e.tts_id);
         }
 
-        void HandleGroupReset(GroupReset _) => StopAll();
+        void HandleGroupReset(GroupReset _)
+        {
+            _suppressUntil.Clear();
+            StopAll();
+        }
 
         void PlayFromBus(string lineId, string caption)
         {
             float now = Time.realtimeSinceStartup;
+            if (_suppressUntil.TryGetValue(lineId, out float until))
+            {
+                _suppressUntil.Remove(lineId);
+                if (now < until) return;
+            }
             if (_recent.TryGetValue(lineId, out float at) && now - at < dedupSeconds) return;
             _recent[lineId] = now;
             Play(lineId, caption.Length > 0 ? caption : null);

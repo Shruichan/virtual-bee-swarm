@@ -1,8 +1,8 @@
 {
   "name": "com.virtualbeeswarm.beeswax-client",
-  "version": "0.1.0",
-  "displayName": "Beeswax Client (HONEYMOON)",
-  "description": "Hive bus, polaroid photos, Beeswax's room voice, the Orbis window and the hum detector for the HONEYMOON Quest app. Needs com.endel.nativewebsocket (git URL, see README).",
+  "version": "0.2.0",
+  "displayName": "Beeswax Client (Save the Hive)",
+  "description": "Hive bus (protocol v2), station choices with offline fallback, push-to-talk/VAD voice input, Beeswax's room voice, the Orbis future window with per-scene clips, and the hum detector for the Quest app. Needs com.endel.nativewebsocket (git URL, see README).",
   "unity": "6000.0",
   "license": "MIT",
   "dependencies": {}

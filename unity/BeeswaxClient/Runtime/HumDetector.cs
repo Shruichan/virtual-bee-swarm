@@ -3,9 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
-#if UNITY_ANDROID && !UNITY_EDITOR
-using UnityEngine.Android;
-#endif
 
 namespace Beeswax
 {
@@ -21,11 +18,13 @@ namespace Beeswax
     /// nobody hums. While listening, duck or high-pass (> 600 Hz) the game's own audio: the Quest mic hears
     /// its speakers, and the hive/hornet drones sit in the 80-500 Hz hum band. Assign the two mixer
     /// snapshots below to do that automatically. Beeswax's own lines are ignored via ignoreWhileSpeaking.
+    /// The mic is shared through BeeswaxMic, so BeeswaxVoiceInput can listen at the same time (it then hears the
+    /// hum too, and this detector hears the player talking).
     /// </summary>
     public class HumDetector : MonoBehaviour
     {
         [Header("Microphone")]
-        [Tooltip("Empty = default mic.")]
+        [Tooltip("Empty = default mic. The mic is shared (BeeswaxMic): whoever opens it first picks the device.")]
         [SerializeField] string deviceName = "";
         [SerializeField] int requestedSampleRate = 16000;
         [Tooltip("Keep the mic open after listening stops (faster restart). Nothing is recorded or sent.")]
@@ -75,7 +74,7 @@ namespace Beeswax
         public float Heat { get; private set; }
         public float LevelDb { get; private set; } = -120f;
         public float NoiseFloorDb => noiseFloorDb;
-        public bool MicRunning => _clip != null;
+        public bool MicRunning => _clip != null && BeeswaxMic.Clip == _clip;
         public bool Calibrating => _calibration != null;
 
         public bool Listening
@@ -100,12 +99,10 @@ namespace Beeswax
 
         const int AnalysisRate = 16000;
         bool _listening;
-#if UNITY_ANDROID && !UNITY_EDITOR
-        bool _permissionAsked;
-#endif
         AudioClip _clip;
-        string _device;
-        int _rate, _hop, _decim, _readPos, _window, _feedFill;
+        readonly MicCursor _cursor = new MicCursor();
+        Action<float[], int> _onMicBlock;
+        int _rate, _hop, _decim, _window, _feedFill;
         float[] _hopBuf, _ana, _scratch;
         float _held, _gap, _lastPitch;
         List<float> _calibration;
@@ -176,32 +173,18 @@ namespace Beeswax
         bool StartMic()
         {
             if (_clip != null) return true;
-#if UNITY_ANDROID && !UNITY_EDITOR
-            if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
-            {
-                if (!_permissionAsked) { _permissionAsked = true; Permission.RequestUserPermission(Permission.Microphone); }
-                return false; // Update retries while Listening
-            }
-#endif
-            if (Microphone.devices.Length == 0) return false;
-            _device = string.IsNullOrEmpty(deviceName) ? null : deviceName;
-            Microphone.GetDeviceCaps(_device, out int minFreq, out int maxFreq);
-            int rate = requestedSampleRate;
-            if (minFreq > 0 && rate < minFreq) rate = minFreq;
-            if (maxFreq > 0 && rate > maxFreq) rate = maxFreq;
-
-            _clip = Microphone.Start(_device, true, 2, rate);
-            if (_clip == null) { Debug.LogWarning("[Beeswax] Microphone.Start failed."); return false; }
+            if (!BeeswaxMic.Acquire(this, deviceName, requestedSampleRate)) return false; // Update retries while Listening
+            _clip = BeeswaxMic.Clip;
             Configure(_clip.frequency);
-            _readPos = -1; // set once the mic reports a position
+            _cursor.Reset();
             return true;
         }
 
         void Configure(int rate)
         {
             _rate = rate;
-            _hop = _rate / 50;                            // 20 ms, and a divisor of the 2 s mic ring,
-            while (_hop > 1 && _rate % _hop != 0) _hop--; // so reads never straddle its wrap point
+            _hop = _rate / 50;                            // 20 ms (a divisor of the rate)
+            while (_hop > 1 && _rate % _hop != 0) _hop--;
             _decim = Mathf.Max(1, Mathf.RoundToInt((float)_rate / AnalysisRate));
             int anaRate = _rate / _decim;
             _window = anaRate / 40;                       // 25 ms
@@ -219,49 +202,38 @@ namespace Beeswax
         public void FeedSamples(float[] samples, int count, int sampleRate)
         {
             if (_hopBuf == null || sampleRate != _rate) Configure(sampleRate);
+            Feed(samples, count, true);
+        }
+
+        void Feed(float[] samples, int count, bool analyse)
+        {
             for (int i = 0; i < count; i++)
             {
                 _hopBuf[_feedFill++] = samples[i];
                 if (_feedFill < _hop) continue;
                 _feedFill = 0;
-                ProcessHop(true);
+                ProcessHop(analyse);
             }
         }
 
         void StopMic()
         {
             if (_clip == null) return;
-            Microphone.End(_device);
-            Destroy(_clip);
+            BeeswaxMic.Release(this);
             _clip = null;
+            _cursor.Reset();
         }
 
         void Update()
         {
             if (_listening && _clip == null) StartMic();
             if (_clip == null) return;
-
-            int pos = Microphone.GetPosition(_device);
-            int len = _clip.samples;
-            if (_readPos < 0)
-            {
-                if (pos <= 0) return; // not recording yet
-                _readPos = pos / _hop * _hop;
-                return;
-            }
-            int avail = (pos - _readPos + len) % len;
-            if (avail > len / 2) // we fell far behind (hitch, pause): skip to the newest audio
-            {
-                _readPos = ((pos / _hop - 1) * _hop + len) % len;
-                avail = (pos - _readPos + len) % len;
-            }
-            while (avail >= _hop)
-            {
-                _clip.GetData(_hopBuf, _readPos);
-                _readPos = (_readPos + _hop) % len;
-                avail -= _hop;
-                ProcessHop(_listening);
-            }
+            BeeswaxMic.EnsureRecording();
+            var shared = BeeswaxMic.Clip;
+            if (shared == null) { StopMic(); return; } // lost the device; StartMic retries while Listening
+            if (shared != _clip) { _clip = shared; Configure(_clip.frequency); } // restarted by BeeswaxMic
+            if (_onMicBlock == null) _onMicBlock = (block, n) => Feed(block, n, _listening);
+            _cursor.Pull(_clip, BeeswaxMic.Position, _onMicBlock);
         }
 
         // ---------------------------------------------------------------- analysis

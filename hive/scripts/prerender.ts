@@ -4,12 +4,14 @@
 //   bun scripts/prerender.ts [--force] [--only id,id] [--model eleven_flash_v2_5] [--concurrency 2] [--dry-run]
 // Writes to hive/out/ (git-ignored):
 //   unity/<id>.mp3               every line, mp3 44.1 kHz 128 kbps (Unity imports mp3; the Hive can serve ear ones at /audio/<id>.mp3)
+//   unity/stations.json          copy of lines/stations.json (station -> choice -> line, scene, fx) for the Unity build;
+//                                written on every run, even --dry-run or with no key (it costs nothing)
 //   glasses/pcm/<id>.pcm         ear lines as PCM16 LE mono 16 kHz (render cache for the bundle below)
 //   glasses/lines.generated.ts   { [id]: base64 PCM16 } for the miniapp's speaker createStream
 //   manifest.json                id -> channel, caption, beat, duration_s, files
 // Default model matches the live voice (Flash v2.5) so pre-rendered and live lines sound alike;
 // --model eleven_multilingual_v2 gives higher quality.
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { LINES, type Line } from "../src/lines";
@@ -103,7 +105,15 @@ function writeOutputs(lines: Line[]): void {
   console.log(`Wrote out/manifest.json and out/glasses/lines.generated.ts (${bundle.length} ear lines, ${(ts.length / 1e6).toFixed(2)} MB)`);
 }
 
+/** Unity reads the station outcomes (line, window scene, fx) from the same table the Hive uses. */
+function writeStations(): void {
+  mkdirSync(UNITY, { recursive: true });
+  copyFileSync(join(HIVE, "lines", "stations.json"), join(UNITY, "stations.json"));
+  console.log("Wrote out/unity/stations.json");
+}
+
 async function main(): Promise<void> {
+  writeStations();
   const only = args.only?.split(",").map((s) => s.trim()).filter(Boolean);
   const unknown = only?.filter((id) => !LINES[id]) ?? [];
   if (unknown.length) throw new Error(`unknown line ids: ${unknown.join(", ")}`);

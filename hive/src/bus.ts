@@ -5,14 +5,23 @@ import { timingSafeEqual } from "node:crypto";
 import {
   BEATS,
   BINARY_KIND,
+  CHOICES,
   ITEMS,
+  PROTOCOL_VERSION,
+  SCENES,
+  STATIONS,
   type BinaryKind,
   type BusMessage,
   type Channel,
+  type Choice,
+  type Fx,
+  type FxName,
   type Item,
   type OrbisRequest,
   type Role,
   type Say,
+  type Scene,
+  type Station,
 } from "./protocol";
 import { isValidBeat, reset, type GroupState } from "./state";
 
@@ -68,10 +77,21 @@ export interface BusHooks {
   onVerdictForce(item: Item): void;
   onPlea(text: string): void;
   onGroupReset?(group_id: string): void;
-  onBeat?(n: number): void;
+  /** Unity entered beat n (prev = the beat before; equal on a re-sent beat.set after a reconnect). */
+  onBeat?(n: number, prev: number): void;
   onHornetCooked?(overshoot: boolean): void;
-  onOrbisRequest?(msg: OrbisRequest): void;
+  /** A validated window request from the board or the quest (the Hive forwards it to the quest). */
+  onOrbisRequest?(msg: OrbisRequest, from: Client): void;
+  /** Quest (authoritative): a station choice, already checked against CHOICES. */
+  onChoice?(station: Station, choice: Choice, questSaysCorrect: boolean | null): void;
+  /** Voice in (quest|glasses): listen.start, MIC_PCM16 payloads (kind byte stripped), listen.end. */
+  onListenStart?(ws: Client, mode: "ptt" | "vad"): void;
+  onMic?(ws: Client, pcm: Uint8Array): void;
+  onListenEnd?(ws: Client, cancel: boolean): void;
+  onClientClose?(ws: Client): void;
 }
+
+export const VOICE_ROLES: readonly Role[] = ["quest", "glasses"];
 
 export interface BusOptions {
   token: string | null;
@@ -110,6 +130,7 @@ export class Bus {
       if (ws.data.missed >= 2) {
         log(`bus: dropping dead ${ws.data.id}`);
         this.clients.delete(ws);
+        this.hooks.onClientClose?.(ws);
         try {
           ws.terminate();
         } catch {}
@@ -145,6 +166,7 @@ export class Bus {
     close: (ws, code) => {
       if (this.clients.delete(ws)) {
         log(`bus: - ${ws.data.id} code=${code}`);
+        this.hooks.onClientClose?.(ws);
         this.observe({ type: "log", text: `${ws.data.role} disconnected` });
       }
     },
@@ -154,7 +176,11 @@ export class Bus {
     message: (ws, raw) => {
       ws.data.missed = 0;
       if (typeof raw !== "string") {
-        log(`bus: ignoring ${raw.byteLength}-byte binary frame from ${ws.data.id}`);
+        try {
+          this.binary(ws, raw);
+        } catch (err) {
+          log(`bus: error handling binary from ${ws.data.id}:`, err);
+        }
         return;
       }
       let msg: unknown;
@@ -254,6 +280,14 @@ export class Bus {
     this.broadcast(msg, deliver ? [device, ...OBSERVERS] : OBSERVERS);
   }
 
+  /** Unity effect cue (Quest), with a copy for the board/monitor. */
+  fx(name: FxName, extra: { delay_ms?: number; duration_ms?: number } = {}): void {
+    const msg: Fx = { type: "fx", name };
+    if (extra.delay_ms !== undefined) msg.delay_ms = extra.delay_ms;
+    if (extra.duration_ms !== undefined) msg.duration_ms = extra.duration_ms;
+    this.broadcast(msg, ["quest", ...OBSERVERS]);
+  }
+
   /**
    * Stream one live room line to the Quest: tts.start, binary PCM16 chunks, tts.end.
    * Streams are queued so only one plays at a time.
@@ -316,11 +350,29 @@ export class Bus {
 
   // ------------------------------------------------------------ routing
 
+  private warnedBinary = new Set<string>();
+
+  /** Binary frames: [kind u8][payload]. Only mic audio flows client -> Hive. */
+  private binary(ws: Client, raw: Buffer | ArrayBuffer | Uint8Array): void {
+    const buf = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+    const kind = buf[0];
+    if (kind === BINARY_KIND.MIC_PCM16 && VOICE_ROLES.includes(ws.data.role)) {
+      this.hooks.onMic?.(ws, buf.subarray(1));
+      return;
+    }
+    const key = `${ws.data.id}:${kind}`;
+    if (!this.warnedBinary.has(key)) {
+      this.warnedBinary.add(key);
+      log(`bus: ignoring binary kind ${kind} (${buf.byteLength} bytes) from ${ws.data.id}`);
+    }
+  }
+
   private setBeat(n: number, origin?: Client): void {
+    const prev = this.state.beat;
     this.state.beat = n;
     this.broadcast({ type: "beat.set", n, name: BEATS[n]! }, "all", origin);
-    log(`beat -> ${n} ${BEATS[n]}${origin ? "" : " (hive applied: no Quest connected)"}`);
-    this.hooks.onBeat?.(n);
+    if (n !== prev) log(`beat -> ${n} ${BEATS[n]}${origin ? "" : " (hive applied: no Quest connected)"}`);
+    this.hooks.onBeat?.(n, prev);
   }
 
   private route(ws: Client, m: Record<string, unknown>): void {
@@ -339,7 +391,16 @@ export class Bus {
     switch (m.type) {
       case "hello": {
         // Pages re-send hello every 10 s as a heartbeat; log only the first one.
-        if (!ws.data.client) log(`bus: hello from ${ws.data.id} (${str(m.client, 80) || "?"}, v${m.version})`);
+        if (!ws.data.client) {
+          log(`bus: hello from ${ws.data.id} (${str(m.client, 80) || "?"}, v${m.version})`);
+          // An old build speaks another contract (e.g. a v1 Unity app: no stations, no voice). Say so once, loudly.
+          if (m.version !== PROTOCOL_VERSION) {
+            const warning = `${ws.data.role} ${str(m.client, 80) || "?"} speaks protocol v${str(String(m.version), 12)}, this Hive is v${PROTOCOL_VERSION}: update that build`;
+            log(`bus: WARNING ${warning}`);
+            this.observe({ type: "log", text: `WARNING ${warning}` });
+            this.send(ws, { type: "error", message: warning });
+          }
+        }
         ws.data.client = str(m.client, 80) || "?";
         this.send(ws, {
           type: "welcome",
@@ -416,34 +477,66 @@ export class Bus {
       }
 
       case "orbis.request": {
-        if (!boardOnly()) return;
+        if (role !== "board" && role !== "quest") {
+          return this.send(ws, { type: "error", message: "orbis.request comes from the board or the quest" });
+        }
         if (m.want !== "live" && m.want !== "clips" && m.want !== "off") {
           return this.send(ws, { type: "error", message: "orbis.request want must be live|clips|off" });
         }
         const msg: OrbisRequest = { type: "orbis.request", want: m.want };
         if (m.stage !== undefined && m.stage !== null) {
-          // Unity parses stage into an int and the relay only takes whole scene numbers.
+          // Unity parses stage into an int; in v2 a stage is an index into SCENES.
           if (!Number.isInteger(m.stage) || (m.stage as number) < 0) {
             return this.send(ws, { type: "error", message: "orbis.request stage must be a whole number >= 0" });
           }
           msg.stage = m.stage as number;
         }
-        this.broadcast(msg, ["quest"]);
-        this.hooks.onOrbisRequest?.(msg);
+        if (m.scene !== undefined && m.scene !== null && m.scene !== "") {
+          if (!SCENES.includes(m.scene as Scene)) {
+            return this.send(ws, { type: "error", message: `unknown scene ${str(m.scene, 40)}` });
+          }
+          msg.scene = m.scene as Scene;
+        }
+        this.hooks.onOrbisRequest?.(msg, ws);
         return;
       }
 
       case "orbis": {
+        // A client (e.g. Unity's window) reporting its own state: pass it on, validated.
         this.broadcast(
           {
             type: "orbis",
             state: (["off", "priming", "ready", "failed", "ended"] as const).find((s) => s === m.state) ?? "off",
             stage: typeof m.stage === "number" ? m.stage : 0,
+            scene: SCENES.includes(m.scene as Scene) ? (m.scene as Scene) : null,
             fallback_clip: str(m.fallback_clip, 200) || null,
           },
           "all",
           ws,
         );
+        return;
+      }
+
+      case "choice.made": {
+        if (!questOnly()) return;
+        const station = m.station as Station;
+        if (!STATIONS.includes(station)) return this.send(ws, { type: "error", message: `unknown station ${str(m.station, 40)}` });
+        if (!(CHOICES[station] as readonly string[]).includes(m.choice as string)) {
+          return this.send(ws, { type: "error", message: `unknown choice ${str(m.choice, 40)} for ${station}` });
+        }
+        this.hooks.onChoice?.(station, m.choice as Choice, typeof m.correct === "boolean" ? m.correct : null);
+        return;
+      }
+
+      case "listen.start": {
+        if (!VOICE_ROLES.includes(role)) return this.send(ws, { type: "error", message: "listen.start comes from the quest or the glasses" });
+        this.hooks.onListenStart?.(ws, m.mode === "vad" ? "vad" : "ptt");
+        return;
+      }
+
+      case "listen.end": {
+        if (!VOICE_ROLES.includes(role)) return this.send(ws, { type: "error", message: "listen.end comes from the quest or the glasses" });
+        this.hooks.onListenEnd?.(ws, m.cancel === true);
         return;
       }
 
@@ -454,7 +547,7 @@ export class Bus {
         const last = this.lastSwarm.get(socket) ?? 0;
         if (Date.now() - last < 3000) return; // one buzz per landing
         this.lastSwarm.set(socket, Date.now());
-        this.say("ear", "ear_swarm_arrived");
+        if (this.hooks.lineText("ear_swarm_arrived")) this.say("ear", "ear_swarm_arrived"); // v1 glasses beeline only
         return;
       }
 
@@ -467,7 +560,7 @@ export class Bus {
       }
 
       case "say": {
-        // Unity owns the timeline, so it may cue ear asides ("HORNET. Behind Goggles.") through the Hive.
+        // Unity owns the timeline, so it may cue ear asides and hints through the Hive.
         if (!questOnly()) return;
         const channel: Channel = m.channel === "room" ? "room" : "ear";
         const extra = { tts_id: str(m.tts_id, 120) || null, audio_url: str(m.audio_url, 500) || null, caption: str(m.caption) };

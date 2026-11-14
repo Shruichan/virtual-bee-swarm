@@ -46,6 +46,9 @@ export class Ear {
   last: LineRef | null = null
   /** Called when a non-filler line starts (UI status). */
   onLine: (ref: LineRef, caption: string) => void = () => {}
+  /** Called when any line (filler or not) starts and when it ends, with its caption (voice echo guard). */
+  onSpeak: (caption: string) => void = () => {}
+  onSpeakEnd: (caption: string) => void = () => {}
 
   private queue: Job[] = []
   private current: Job | null = null
@@ -100,6 +103,11 @@ export class Ear {
     else this.log("ear: nothing to replay yet")
   }
 
+  /** Cut the hold-still fillers, playing or queued. */
+  cancelFillers(): void {
+    this.cancel((j) => j.filler)
+  }
+
   /** Cut everything (group reset). */
   clear(): void {
     this.cancel(() => true)
@@ -132,12 +140,14 @@ export class Ear {
       return this.pump()
     }
     this.current = job
+    if (job.caption) this.onSpeak(job.caption)
     if (!job.filler) {
       this.last = job.ref
       this.onLine(job.ref, job.caption)
     }
     void this.render(job).finally(() => {
       job.started.resolve(null)
+      if (job.caption) this.onSpeakEnd(job.caption)
       if (this.current === job) {
         this.current = null
         this.pump()

@@ -5,18 +5,15 @@ import {CONFIG, type Config} from "./config"
 import {Ear} from "./ear"
 import {Bus, Hive} from "./hive"
 import {Led} from "./led"
-import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest, type PleaRequest} from "./protocol"
+import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest} from "./protocol"
 import {Scanner} from "./scan"
 import {Transcript} from "./transcript"
 import {describe} from "./util"
+import {VOCABULARY, Voice} from "./voice"
 
 export type Session = TypedMiniappSession<Channels>
 
-/** Final transcripts this long after the plea beat ends still count (people finish sentences). */
-const PLEA_GRACE_MS = 4000
 const LOG_LINES = 40
-/** Helps the speech-to-text with our props and words. */
-const VOCABULARY = ["Beeswax", "salvia", "aster", "lavender", "clover", "rosemary", "bee hotel", "hornet", "roses"]
 
 export function start(session: Session, config: Config = CONFIG): {stop(): void} {
   const status: GlassesStatus = {
@@ -28,6 +25,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     cloud: "unknown",
     glasses: null,
     lastLine: null,
+    heard: null,
     latency: {},
     log: [],
   }
@@ -48,7 +46,6 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
   const led = new Led(session.led, log)
   const transcript = new Transcript()
   let beat: BeatName | null = null
-  let pleaUntil = 0
 
   const latency = (hop: string, ms: number) => {
     const body: LatencyRequest = {hop, ms: Math.round(ms)}
@@ -73,6 +70,20 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     },
   })
 
+  const voice = new Voice({
+    hive,
+    ear,
+    config,
+    beat: () => beat,
+    scanning: () => scanner.scanning,
+    latency,
+    log,
+    onHeard: (heard) => {
+      status.heard = heard
+      push()
+    },
+  })
+
   // UI first: the Mentra App holds UI requests until this handler returns.
   session.ui.onOpen(push)
   session.ui.on("press", () => void scanner.press("ui"))
@@ -82,26 +93,16 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     status.lastLine = {id: ref.line_id, caption, at: Date.now()}
     push()
   }
+  ear.onSpeak = (caption) => voice.noteSaid(caption)
+  ear.onSpeakEnd = (caption) => voice.noteDone(caption)
 
-  const setBeat = (n: number) => {
-    const name = BEATS[n]
+  const setBeat = (n: unknown) => {
+    const name = typeof n === "number" ? BEATS[n] : undefined
     if (!name || name === beat) return
-    const prev = beat
     beat = name
     status.beat = name
     log(`beat ${n} ${name}`)
-    if (name === "plea") pleaUntil = Infinity
-    else if (prev === "plea") pleaUntil = Date.now() + PLEA_GRACE_MS
     if (SCAN_BEATS.includes(name)) scanner.warmCamera()
-  }
-
-  const sendPlea = async (raw: string) => {
-    const text = raw.trim()
-    if (text.length < 3) return
-    log(`plea: "${text}"`)
-    const body: PleaRequest = {text}
-    if (await hive.send("/glasses/plea", body)) return
-    if (bus.send({type: "plea", text})) log("plea: sent over the bus instead")
   }
 
   const bus = new Bus(hive, log)
@@ -122,7 +123,9 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
       case "group.reset":
         log(`new group ${msg.group_id ?? ""}`)
         ear.clear()
+        voice.reset()
         status.lastLine = null
+        status.heard = null
         return push()
       case "error":
         return log(`hive says: ${msg.message}`)
@@ -149,7 +152,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     sub("transcription", () =>
       session.transcription.forLanguage("en-US", (data) => {
         transcript.push(data)
-        if (data.isFinal && Date.now() < pleaUntil) void sendPlea(data.text)
+        voice.heard(data)
       }),
     ),
     sub("cloud status", () =>
@@ -175,6 +178,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
 
   return {
     stop() {
+      voice.stop()
       bus.stop()
       for (const off of offs) {
         try {

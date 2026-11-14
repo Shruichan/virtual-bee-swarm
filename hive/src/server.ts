@@ -1,5 +1,6 @@
-// The Hive: HTTP (Hono) + the websocket bus (Bun.serve) + the scan pipeline.
-// Run: bun run src/server.ts   (env: PORT, HIVE_TOKEN, DIRECTOR_TIMEOUT_MS, PUBLIC_BASE_URL, ...)
+// The Hive: HTTP (Hono) + the websocket bus (Bun.serve). It turns Quest choices and the player's voice into
+// Beeswax lines, window (Orbis) scenes and Unity fx, and keeps the glasses scan pipeline for the real-prop mode.
+// Run: bun run src/server.ts   (env: PORT, HIVE_TOKEN, ORBIS_RELAY_URL, PUBLIC_BASE_URL, STT/ROUTE timeouts, ...)
 import type { Server } from "bun";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
@@ -8,33 +9,46 @@ import sharp from "sharp";
 import {
   BEATS,
   BINARY_KIND,
+  CORRECT_CHOICE,
+  INTENTS,
   ITEMS,
   PROTOCOL_VERSION,
   SCAN_BEATS,
+  SCENES,
   SOCKET_OF,
   VERDICTS,
+  VOICE_BEATS,
+  WHATIF_TOPICS,
   type BeatName,
   type Channel,
+  type Choice,
   type DirectorOutput,
+  type FxName,
+  type IntentName,
   type Item,
   type OrbisRequest,
   type OrbisState,
   type OrbisStatus,
   type PressResponse,
   type Role,
+  type RouterOutput,
   type ScanPath,
   type ScanResponse,
+  type Scene,
+  type Station,
+  type UtteranceResponse,
   type Verdict,
+  type WhatIfTopic,
 } from "./protocol";
-import { Bus, checkToken, log, withTimeout, type ClientData } from "./bus";
-import { beatName, createState, remember, type GroupState } from "./state";
-import { speechVerdict } from "./speech";
+import { Bus, checkToken, log, withTimeout, type Client, type ClientData } from "./bus";
+import { beatName, createState, recordChoice, remember, rememberHeard, scoreText, type GroupState } from "./state";
+import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
 import { monitorHtml } from "./monitor";
 
 // ---------------------------------------------------------------- injected dependencies
-// director.ts / tts.ts / lines.ts belong to the AI builder. They are injected so tests can mock
-// them and so a broken AI module degrades the Hive (speech + operator paths) instead of killing it.
+// director/tts/stt/router are other builders' modules, and lines.ts holds the data tables. They are injected so
+// tests can mock them and so a broken module degrades the Hive (keywords + operator paths) instead of killing it.
 
 export interface LineInfo { id: string; channel: Channel; text: string; beat?: string; tags?: string[] }
 export interface JudgeInputLike {
@@ -45,6 +59,13 @@ export interface JudgeInputLike {
   memory: { scanned: Item[] };
 }
 export interface JudgeResultLike extends DirectorOutput { ms: number; model: string; fallback: boolean }
+/** stt.ts SttResult */
+export interface SttResultLike { text: string; ms: number; provider: string; error?: string }
+/** router.ts RouteResult */
+export interface RouteResultLike extends RouterOutput { ms: number; path: "keyword" | "claude"; error?: string }
+export interface StationOutcomeLike { correct: boolean; line_id: string; scene: Scene; fx?: FxName }
+export interface StationEntryLike { intro_line: string | null; choices: Partial<Record<Choice, StationOutcomeLike>> }
+export interface SceneEntryLike { prompt: string; seed: number; clip: string }
 
 export interface HiveDeps {
   judge(input: JudgeInputLike, opts?: { timeoutMs?: number }): Promise<JudgeResultLike>;
@@ -56,10 +77,17 @@ export interface HiveDeps {
   verdictLine(item: Item, verdict: Verdict, channel: Channel): string | null;
   lineText(id: string): string;
   lines: Record<string, LineInfo>;
-  /** Optional (lines.ts extras): a pre-rendered line whose text matches, so canned text needs no live TTS. */
+  /** A pre-rendered line whose text matches, so canned text needs no live TTS. */
   lineIdForText?(text: string, channel: Channel): string | null;
-  /** Optional (lines.ts extras): the splashdown ear callback for what this group did. */
-  callbackLine?(memory: GroupState["memory"]): string;
+  /** stt.ts: never throws; text "" on failure. */
+  transcribe(pcm16le16k: Uint8Array, opts?: { timeoutMs?: number }): Promise<SttResultLike>;
+  sttStatus?(): { elevenlabs: boolean; whisper: boolean; provider: string };
+  /** router.ts: never throws. */
+  route(text: string, ctx: { beat: BeatName; recent: string[] }, opts?: { timeoutMs?: number }): Promise<RouteResultLike>;
+  /** hive/lines/stations.json and orbis_scenes.json, and the canned acknowledgement line ids. */
+  stations: Partial<Record<Station, StationEntryLike>>;
+  scenes: Partial<Record<Scene, SceneEntryLike>>;
+  ackLines: string[];
 }
 
 const OFFLINE_JUDGE: HiveDeps["judge"] = async () => ({
@@ -73,7 +101,19 @@ const OFFLINE_JUDGE: HiveDeps["judge"] = async () => ({
   fallback: true,
 });
 
-/** Load the real AI modules; any that fail to load are replaced by safe stubs (logged loudly). */
+/** Degraded router: keywords only (used when router.ts is missing or blows the Hive's own deadline). */
+function keywordRoute(text: string): RouteResultLike {
+  const k = voiceKeywords(text);
+  return { intent: k.intent, topic: k.topic, answer: null, ms: 0, path: "keyword" };
+}
+
+// Imported by URL so the Hive still type-checks and starts while a sibling module is missing or broken.
+async function importSibling(name: string): Promise<Record<string, unknown>> {
+  return (await import(new URL(`./${name}.ts`, import.meta.url).href)) as Record<string, unknown>;
+}
+const fn = <T>(v: unknown): T | undefined => (typeof v === "function" ? (v as T) : undefined);
+
+/** Load the real modules; any that fail to load are replaced by safe stubs (logged loudly). */
 export async function loadDeps(): Promise<HiveDeps> {
   const deps: HiveDeps = {
     judge: OFFLINE_JUDGE,
@@ -86,6 +126,11 @@ export async function loadDeps(): Promise<HiveDeps> {
     verdictLine: () => null,
     lineText: () => "",
     lines: {},
+    transcribe: async () => ({ text: "", ms: 0, provider: "none", error: "stt offline" }),
+    route: async (text) => keywordRoute(text),
+    stations: {},
+    scenes: {},
+    ackLines: [],
   };
   try {
     const lines = await import("./lines");
@@ -93,16 +138,18 @@ export async function loadDeps(): Promise<HiveDeps> {
     deps.verdictLine = lines.verdictLine;
     deps.lineText = lines.lineText;
     deps.lineIdForText = lines.lineIdForText;
-    deps.callbackLine = lines.callbackLine;
+    deps.stations = lines.STATION_TABLE;
+    deps.scenes = lines.SCENE_TABLE;
+    deps.ackLines = lines.ACK_LINES;
   } catch (err) {
-    log("WARNING: src/lines.ts failed to load; no pre-rendered lines:", err);
+    log("WARNING: src/lines.ts failed to load; no pre-rendered lines, stations or scenes:", err);
   }
   try {
     const director = await import("./director");
     deps.judge = director.judge;
     deps.prewarm = director.prewarm;
   } catch (err) {
-    log("WARNING: src/director.ts failed to load; Claude path disabled (speech/operator only):", err);
+    log("WARNING: src/director.ts failed to load; Claude scan path disabled (speech/operator only):", err);
   }
   try {
     const tts = await import("./tts");
@@ -113,10 +160,32 @@ export async function loadDeps(): Promise<HiveDeps> {
   } catch (err) {
     log("WARNING: src/tts.ts failed to load; no live voice:", err);
   }
+  try {
+    const stt = await importSibling("stt");
+    const transcribe = fn<HiveDeps["transcribe"]>(stt.transcribe);
+    if (!transcribe) throw new Error("no transcribe() export");
+    deps.transcribe = transcribe;
+    deps.sttStatus = fn<NonNullable<HiveDeps["sttStatus"]>>(stt.sttStatus);
+  } catch (err) {
+    log("WARNING: src/stt.ts failed to load; voice in is OFF (transcripts are empty):", err);
+  }
+  try {
+    const router = await importSibling("router");
+    const route = fn<HiveDeps["route"]>(router.route);
+    if (!route) throw new Error("no route() export");
+    deps.route = route;
+    const warmRouter = fn<() => Promise<void>>(router.prewarm);
+    const warmDirector = deps.prewarm;
+    deps.prewarm = async () => {
+      await Promise.allSettled([warmDirector?.(), warmRouter?.()]);
+    };
+  } catch (err) {
+    log("WARNING: src/router.ts failed to load; voice intents use keywords only:", err);
+  }
   return deps;
 }
 
-// ---------------------------------------------------------------- scan vocabulary helpers
+// ---------------------------------------------------------------- scan vocabulary helpers (glasses real-prop mode)
 
 const OBSERVERS: Role[] = ["board", "monitor"];
 
@@ -142,6 +211,14 @@ const OPERATOR_ACK: Partial<Record<Item, string>> = {
   other_plant: "room_ack_denied",
   non_plant_object: "room_canned_unclear",
   unclear: "room_canned_unclear",
+};
+
+/** A scan verdict with no line of its own says one of these (pre-rendered room acks; the unclear one has an ear twin). */
+const VERDICT_ACK: Record<Verdict, string> = {
+  good: "room_ack_allow",
+  bad: "room_ack_denied",
+  dangerous: "room_ack_grievance",
+  roast: "room_canned_unclear",
 };
 
 const SEEN: Record<Item, string> = {
@@ -233,6 +310,37 @@ class AudioCache {
 
 const shortId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+// ---------------------------------------------------------------- voice
+
+type VoiceSource = "quest" | "glasses";
+
+interface Listen {
+  n: number;
+  source: VoiceSource;
+  mode: "ptt" | "vad";
+  startedAt: number;
+  chunks: Uint8Array[];
+  bytes: number;
+  capped: boolean;
+  watchdog: ReturnType<typeof setTimeout>;
+}
+
+/** What Beeswax says back: a pre-rendered room line, or live text (needs TTS). */
+interface Reply { line_id: string | null; text: string }
+
+const isWhatIfScene = (s: Scene) => s.startsWith("whatif_");
+const cleanText = (s: unknown, max = 500) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
+function concat(parts: Uint8Array[], total: number): Uint8Array {
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- the Hive
 
 export interface HiveOptions {
@@ -249,6 +357,14 @@ export interface HiveOptions {
   /** How often the relay's state is polled and mirrored on the bus as orbis{} (default 3000). */
   orbisPollMs?: number;
   host?: string;
+  /** Voice: stt and router deadlines (each gets +1.5 s of grace from the Hive). */
+  sttTimeoutMs?: number;
+  routeTimeoutMs?: number;
+  /** Mic audio kept per utterance (default 15 s of 16 kHz PCM16); a listen with no end is finished after listenWatchdogMs. */
+  listenMaxBytes?: number;
+  listenWatchdogMs?: number;
+  /** "what if a fire starts": embers spill out of the portal this long after the line starts (covers the Orbis morph). */
+  embersDelayMs?: number;
 }
 
 export interface Hive {
@@ -266,6 +382,11 @@ export function startHive(opts: HiveOptions): Hive {
   const directorTimeoutMs = opts.directorTimeoutMs ?? 6000;
   const photoTimeoutMs = opts.photoTimeoutMs ?? 8000;
   const scanStaleMs = opts.scanStaleMs ?? 25_000;
+  const sttTimeoutMs = opts.sttTimeoutMs ?? 6000;
+  const routeTimeoutMs = opts.routeTimeoutMs ?? 3500;
+  const listenMaxBytes = Math.max(2, (opts.listenMaxBytes ?? 15 * 16000 * 2) & ~1);
+  const listenWatchdogMs = opts.listenWatchdogMs ?? 20_000;
+  const embersDelayMs = opts.embersDelayMs ?? 2500;
   const state = createState();
   const jobs = new Map<string, ScanJob>(); // by scan_id (current + recent, for idempotent retries)
   const audio = new AudioCache(50);
@@ -301,7 +422,7 @@ export function startHive(opts: HiveOptions): Hive {
       return null;
     }
   };
-  const hasLine = (id: string) => Boolean(deps.lines[id]);
+  const hasLine = (id: string | null | undefined): id is string => Boolean(id && deps.lines[id]);
   /** When Claude can't answer: "What IS that?" (pre-rendered via lineIdForText when it exists). */
   const fallbackDecision = (seen = SEEN.unclear): Decision => ({
     item: "unclear",
@@ -312,7 +433,7 @@ export function startHive(opts: HiveOptions): Hive {
   });
   const earCuesPlayed = new Set<string>(); // ear cues already played this group ("<group>:<cue>")
   const earOnce = (cue: string, line_id: string | null | undefined) => {
-    if (!line_id || !hasLine(line_id) || earCuesPlayed.has(`${state.group_id}:${cue}`)) return;
+    if (!hasLine(line_id) || earCuesPlayed.has(`${state.group_id}:${cue}`)) return;
     earCuesPlayed.add(`${state.group_id}:${cue}`);
     bus.say("ear", line_id);
   };
@@ -323,24 +444,27 @@ export function startHive(opts: HiveOptions): Hive {
       lineText,
       onVerdictForce: (item) => forceVerdict(item),
       onPlea: (text) => plea(text),
-      onGroupReset: () => dropJobs(),
-      onOrbisRequest: (msg) => void relayOrbis(msg),
-      onBeat: (n) => {
-        // Only the Hive knows what this group did, so it plays the splashdown callback in the ear.
-        if (BEATS[n] !== "splashdown") return;
-        try {
-          earOnce("callback", deps.callbackLine?.(state.memory));
-        } catch (err) {
-          log("callbackLine threw:", err);
-        }
+      onGroupReset: () => groupReset(),
+      onOrbisRequest: (msg, from) => orbisRequest(msg, from),
+      onBeat: (n, prev) => beatEntered(n, prev),
+      onHornetCooked: () => {
+        state.memory.hornet_done = true;
+        earOnce("hornet_done", "ear_aside_hornet");
       },
-      onHornetCooked: () => earOnce("hornet_done", "ear_hornet_done"),
+      onChoice: (station, choice, questSays) => choiceMade(station, choice, questSays),
+      onListenStart: (ws, mode) => listenStart(ws, mode),
+      onMic: (ws, pcm) => micFrame(ws, pcm),
+      onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
+      onClientClose: (ws) => finishListen(ws, "closed"),
     },
     { token, host: opts.host ?? hostname(), heartbeatMs: opts.heartbeatMs },
   );
 
   const scanRoles = (job: ScanJob): Role[] => (job.beat === "field" ? OBSERVERS : ["quest", ...OBSERVERS]);
   const observe = (text: string) => bus.observe({ type: "log", text });
+  const latency = (hop: string, ms: number) => bus.observe({ type: "latency", hop, ms: Math.max(0, Math.round(ms)), source: "hive" });
+
+  // ------------------------------------------------------------ press / scan / verdict (glasses real-prop mode)
 
   function newJob(pressedAt: number, origin: ScanJob["origin"]): ScanJob {
     let finish!: (r: ScanResponse) => void;
@@ -401,8 +525,6 @@ export function startHive(opts: HiveOptions): Hive {
   function saneTime(t: unknown, now: number): number {
     return typeof t === "number" && Number.isFinite(t) && now - t > -5000 && now - t < 120_000 ? t : now;
   }
-
-  // ------------------------------------------------------------ press / scan / verdict
 
   function press(pressed_at: unknown): PressResponse {
     const now = Date.now();
@@ -527,23 +649,22 @@ export function startHive(opts: HiveOptions): Hive {
     let tts_id: string | null = null;
     let audio_url: string | null = null;
 
+    // The director and the speech/operator paths give props no live line because props have verdict lines, but the
+    // v3 catalog dropped the v1 prop lines: such a verdict says the pre-rendered acknowledgement instead of nothing.
+    const line = d.line ?? (roomLine || earLine ? null : lineText(VERDICT_ACK[d.verdict]) || null);
+
     // A live line (off-list roast) plays on ONE device: Beeswax on the Quest if it's there, else the ear.
     // Canned text that matches a pre-rendered line plays that line instead of going through TTS.
-    if (d.line) {
+    if (line) {
       const canSpeak = ttsAvailable();
       if (questLive && !roomLine) {
-        roomLine = lineIdFor(d.line, "room");
-        roomCaption = roomLine ? lineText(roomLine) : d.line;
+        roomLine = lineIdFor(line, "room");
+        roomCaption = roomLine ? lineText(roomLine) : line;
         if (!roomLine && canSpeak) tts_id = shortId("t");
       } else if (!questLive && !earLine) {
-        earLine = lineIdFor(d.line, "ear");
-        earCaption = earLine ? lineText(earLine) : d.line;
-        if (!earLine && canSpeak) {
-          const id = crypto.randomUUID();
-          const text = d.line;
-          audio.put(id, Promise.resolve().then(() => deps.ttsMp3(text)));
-          audio_url = `${baseUrl || `http://localhost:${server.port}`}/audio/${id}.mp3`;
-        }
+        earLine = lineIdFor(line, "ear");
+        earCaption = earLine ? lineText(earLine) : line;
+        if (!earLine && canSpeak) audio_url = mp3Url(line);
       }
     }
 
@@ -568,7 +689,7 @@ export function startHive(opts: HiveOptions): Hive {
         scanRoles(job),
       );
       if (tts_id) {
-        const text = d.line!;
+        const text = line!;
         void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => deps.ttsPcm(text));
       }
       if (d.item !== "unclear") remember(state, d.item);
@@ -610,15 +731,47 @@ export function startHive(opts: HiveOptions): Hive {
     log(`plea: ${text}`);
   }
 
-  // ------------------------------------------------------------ Orbis relay (hive/orbis-relay)
-  // The relay owns the billed Reactor session. The Hive steers it from the Board's orbis.request and mirrors its
-  // state on the bus as orbis{} (the Quest also gets that state straight from the relay's frames socket).
+  /** Render a live ear line as an mp3 the glasses fetch from /audio/<id>.mp3. */
+  function mp3Url(text: string): string {
+    const id = crypto.randomUUID();
+    audio.put(id, Promise.resolve().then(() => deps.ttsMp3(text)));
+    return `${baseUrl || `http://localhost:${server.port}`}/audio/${id}.mp3`;
+  }
+
+  // ------------------------------------------------------------ the future window (Orbis relay: hive/orbis-relay)
+  // The Hive owns the scene. The relay owns the billed Reactor session: the Hive starts/stops it on the Board's (or
+  // Quest's) orbis.request and morphs it to each scene's prompt (/orbis/stage, 2-4 s). orbis{} on the bus always
+  // carries the scene and its fallback clip, so Unity can play the clip whenever live is down.
 
   const relayUrl = opts.orbisRelayUrl?.replace(/\/+$/, "") || null;
   const ORBIS_STATES: readonly OrbisState[] = ["off", "priming", "ready", "failed", "ended"];
-  let orbis: OrbisStatus | null = null; // last state mirrored on the bus
-  let orbisSince = 0; // the relay's `since` of that state, so an older reply never overwrites a newer one
+  let orbisWant: OrbisRequest["want"] = "clips";
+  let relayState: OrbisState = "off";
+  let relaySince = 0; // the relay's `since`, so an older reply never overwrites a newer one
+  let relayScene: Scene | null = null; // the scene whose prompt the relay was last given
   let relayUp: boolean | null = null;
+  let relayChain: Promise<unknown> = Promise.resolve(); // POSTs go out one at a time, in order
+  let published: OrbisStatus | null = null;
+
+  const relayRunning = () => relayState === "priming" || relayState === "ready";
+  const clipOf = (scene: Scene) => deps.scenes[scene]?.clip || `${scene}.mp4`;
+
+  function orbisStatus(): OrbisStatus {
+    return {
+      type: "orbis",
+      state: relayUrl ? relayState : "off",
+      stage: SCENES.indexOf(state.scene),
+      scene: state.scene,
+      fallback_clip: clipOf(state.scene),
+    };
+  }
+
+  function publishOrbis(force: boolean): void {
+    const next = orbisStatus();
+    if (!force && published && published.state === next.state && published.scene === next.scene) return;
+    published = next;
+    bus.broadcast(next);
+  }
 
   /** GET (no body) or POST the relay. Mirrors any status it answers with. Never throws. */
   async function relay(path: string, body?: object): Promise<Record<string, unknown> | null> {
@@ -635,7 +788,7 @@ export function startHive(opts: HiveOptions): Hive {
       relayUp = true;
       const json: unknown = await res.json().catch(() => null);
       if (!res.ok || typeof json !== "object" || json === null || Array.isArray(json)) return null;
-      mirrorOrbis(json as Record<string, unknown>);
+      mirrorRelay(json as Record<string, unknown>);
       return json as Record<string, unknown>;
     } catch (err) {
       // Polls only report the first failure, not one every few seconds.
@@ -645,38 +798,406 @@ export function startHive(opts: HiveOptions): Hive {
     }
   }
 
-  function mirrorOrbis(s: Record<string, unknown>): void {
-    const state = ORBIS_STATES.find((x) => x === s.state);
-    if (!state) return;
+  function mirrorRelay(s: Record<string, unknown>): void {
+    const st = ORBIS_STATES.find((x) => x === s.state);
+    if (!st) return;
     const since = typeof s.since === "number" ? s.since : 0;
-    if (since && since < orbisSince) return;
-    orbisSince = Math.max(orbisSince, since);
-    const next: OrbisStatus = {
-      type: "orbis",
-      state,
-      stage: typeof s.stage === "number" ? s.stage : 0,
-      fallback_clip: typeof s.fallback_clip === "string" && s.fallback_clip ? s.fallback_clip : null,
+    if (since && since < relaySince) return;
+    relaySince = Math.max(relaySince, since);
+    relayState = st;
+    if (!relayRunning()) relayScene = null;
+    // After a Hive restart the relay may still be live: remember what it shows so the same prompt isn't re-sent.
+    else if (relayScene === null && SCENES.includes(s.scene as Scene)) relayScene = s.scene as Scene;
+    publishOrbis(false);
+  }
+
+  function queueRelay<T>(job: () => Promise<T>): Promise<T | null> {
+    const run = relayChain.then(job, job).catch((err) => {
+      log("orbis relay job failed:", err);
+      return null;
+    });
+    relayChain = run;
+    return run;
+  }
+
+  /** Morph a running stream to this scene's prompt. No stream: nothing (never opens a billed session by itself). */
+  function steerRelay(scene: Scene): void {
+    if (!relayUrl || !relayRunning() || relayScene === scene) return;
+    const sc = deps.scenes[scene];
+    if (!sc) return observe(`no Orbis prompt for scene ${scene}`);
+    relayScene = scene;
+    void queueRelay(() => relay("/orbis/stage", { prompt: sc.prompt, scene }));
+  }
+
+  /** live: start the stream on the current scene, or morph a running one. clips/off: stop (Reactor bills while connected). */
+  function applyWant(want: OrbisRequest["want"]): void {
+    if (!relayUrl) return;
+    void queueRelay(async () => {
+      if (want !== "live") {
+        relayScene = null;
+        await relay("/orbis/stop", {});
+        return;
+      }
+      const scene = state.scene;
+      const sc = deps.scenes[scene];
+      const now = await relay("/orbis/status");
+      const running = now?.state === "priming" || now?.state === "ready";
+      if (!running) {
+        relayScene = scene;
+        await relay("/orbis/start", sc ? { prompt: sc.prompt, seed: sc.seed, scene } : { scene });
+      } else if (sc && now?.prompt !== sc.prompt) {
+        relayScene = scene;
+        await relay("/orbis/stage", { prompt: sc.prompt, scene });
+      } else {
+        relayScene = scene;
+        observe(`orbis relay already ${String(now?.state)} on ${scene}`);
+      }
+    });
+  }
+
+  /** The one place the window changes: fx for the fire, the relay morph, and orbis{} for everyone. */
+  function setScene(next: Scene, why: string): void {
+    const prev = state.scene;
+    state.scene = next;
+    if (!isWhatIfScene(next) && next !== "fire_out") state.base_scene = next;
+    if (prev === "whatif_fire" && next !== "whatif_fire") bus.fx("embers_stop");
+    if (next === "whatif_fire" && prev !== "whatif_fire") bus.fx("embers", { delay_ms: embersDelayMs });
+    publishOrbis(true);
+    steerRelay(next);
+    if (next !== prev) {
+      log(`window: ${prev} -> ${next} (${why})`);
+      observe(`window: ${prev} -> ${next} (${why})`);
+    }
+  }
+
+  function orbisRequest(msg: OrbisRequest, from: Client): void {
+    let scene = msg.scene;
+    if (!scene && msg.stage !== undefined) {
+      scene = SCENES[msg.stage];
+      if (!scene) return bus.send(from, { type: "error", message: `orbis.request stage ${msg.stage} is not a scene (0-${SCENES.length - 1})` });
+    }
+    // With a scene (or stage) this is a scene switch only: its `want` (the sender's possibly stale idea of the mode)
+    // is ignored, so a Quest or Board never starts or stops the billed stream by accident. Only a bare mode request
+    // (the Board's LIVE/CLIPS/OFF) changes the mode.
+    const changeWant = !scene;
+    if (changeWant) orbisWant = msg.want;
+    const fwd: OrbisRequest = { type: "orbis.request", want: orbisWant };
+    if (scene) {
+      fwd.scene = scene;
+      fwd.stage = SCENES.indexOf(scene);
+    }
+    bus.broadcast(fwd, ["quest"], from.data.role === "quest" ? from : undefined);
+    observe(`orbis.request from ${from.data.role}: ${orbisWant}${scene ? ` ${scene}` : ""}`);
+    if (changeWant && orbisWant !== "live") applyWant(orbisWant);
+    if (scene) setScene(scene, `${from.data.role} request`);
+    else publishOrbis(true);
+    if (changeWant && orbisWant === "live") applyWant(orbisWant);
+  }
+
+  // ------------------------------------------------------------ beats, choices, score
+
+  const ON_CLOCK = new Set<BeatName>(["meet", "smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
+
+  function beatEntered(n: number, prev: number): void {
+    if (n === prev) return; // a re-sent beat.set (Unity reconnect)
+    const name = BEATS[n];
+    const now = Date.now();
+    if (name === "hook") {
+      state.clock_start = now;
+      state.saved_ms = null;
+      setScene("meadow", "hook");
+    } else if (state.clock_start === null && name && ON_CLOCK.has(name)) {
+      state.clock_start = now; // the hook was skipped: start the score clock here
+      observe(`score clock started at ${name} (no hook beat)`);
+    }
+    if (name === "escape") {
+      if (state.clock_start !== null && state.saved_ms === null) {
+        state.saved_ms = now - state.clock_start;
+        const score = scoreText(state)!;
+        log(`score: ${score}`);
+        observe(`score: ${score}`);
+      }
+      setScene("full_bloom", "escape");
+    } else if (name === "t0") {
+      setScene("moon", "t0");
+    } else if (name === "map") {
+      setScene("full_bloom", "map");
+    }
+  }
+
+  let lastChoice = { key: "", at: 0 };
+
+  function choiceMade(station: Station, choice: Choice, questSays: boolean | null): void {
+    const key = `${station}:${choice}`;
+    if (key === lastChoice.key && Date.now() - lastChoice.at < 1500) return log(`choice ${key}: duplicate ignored`);
+    lastChoice = { key, at: Date.now() };
+    const { correct } = recordChoice(state, station, choice);
+    // The router's "recent events": without them a question right after a choice gets the before-choosing tease.
+    rememberHeard(state, `(event: the player chose ${choice.replace(/_/g, " ")} at the ${station} station, ${correct ? "the right choice" : "a wrong choice"})`);
+    if (questSays !== null && questSays !== correct) {
+      observe(`quest says ${key} is ${questSays ? "correct" : "wrong"}, but the answer is ${CORRECT_CHOICE[station]}`);
+    }
+    bus.observe({ type: "choice.made", station, choice, correct });
+    const outcome = deps.stations[station]?.choices[choice];
+    if (outcome && hasLine(outcome.line_id)) bus.say("room", outcome.line_id);
+    else {
+      log(`choice ${key}: no line in stations.json, acknowledging`);
+      sayReply(ackReply(), "room");
+    }
+    if (outcome?.fx) bus.fx(outcome.fx);
+    if (outcome) setScene(outcome.scene, key);
+    const solved = state.memory.solved.length;
+    log(`choice ${key}: ${correct ? "correct" : "wrong"} (${solved}/4 solved)`);
+    observe(`choice ${station}: ${choice} ${correct ? "CORRECT" : "wrong"} (${solved}/4 solved)`);
+  }
+
+  function groupReset(): void {
+    dropJobs();
+    for (const [id, l] of listens) {
+      clearTimeout(l.watchdog);
+      listens.delete(id);
+    }
+    lastChoice = { key: "", at: 0 };
+    bus.fx("embers_stop");
+    publishOrbis(true); // reset() already put the window back on the meadow
+    steerRelay(state.scene);
+  }
+
+  // ------------------------------------------------------------ voice in: listen.start, MIC_PCM16, listen.end
+
+  const listens = new Map<string, Listen>(); // by client id
+  const strayWarned = new Set<string>();
+  let listenSeq = 0;
+
+  function listenStart(ws: Client, mode: "ptt" | "vad"): void {
+    const id = ws.data.id;
+    const old = listens.get(id);
+    if (old) {
+      clearTimeout(old.watchdog);
+      log(`listen ${id}#${old.n}: restarted, ${old.bytes} bytes dropped`);
+    }
+    const n = ++listenSeq;
+    const watchdog = setTimeout(() => {
+      if (listens.get(id)?.n !== n) return;
+      log(`listen ${id}#${n}: no listen.end after ${listenWatchdogMs} ms, finishing`);
+      finishListen(ws, "watchdog");
+    }, listenWatchdogMs);
+    listens.set(id, {
+      n,
+      source: ws.data.role === "glasses" ? "glasses" : "quest",
+      mode,
+      startedAt: Date.now(),
+      chunks: [],
+      bytes: 0,
+      capped: false,
+      watchdog,
+    });
+    strayWarned.delete(id);
+  }
+
+  function micFrame(ws: Client, pcm: Uint8Array): void {
+    const l = listens.get(ws.data.id);
+    if (!l) {
+      if (!strayWarned.has(ws.data.id)) {
+        strayWarned.add(ws.data.id);
+        log(`listen ${ws.data.id}: mic audio with no open listen.start, dropped`);
+      }
+      return;
+    }
+    if (l.capped || pcm.length === 0) return;
+    let chunk = pcm;
+    if (l.bytes + chunk.length > listenMaxBytes) {
+      chunk = chunk.subarray(0, listenMaxBytes - l.bytes);
+      l.capped = true;
+      observe(`voice: ${l.source} utterance capped at ${(listenMaxBytes / 32000).toFixed(1)} s`);
+    }
+    if (chunk.length) {
+      l.chunks.push(chunk.slice()); // copy: the socket may reuse its buffer
+      l.bytes += chunk.length;
+    }
+  }
+
+  function finishListen(ws: Client, why: "end" | "cancel" | "closed" | "watchdog"): void {
+    const l = listens.get(ws.data.id);
+    if (!l) {
+      if (why === "end" || why === "cancel") log(`listen ${ws.data.id}: listen.end without listen.start`);
+      return;
+    }
+    listens.delete(ws.data.id);
+    clearTimeout(l.watchdog);
+    if (why === "cancel" || why === "closed") {
+      log(`listen ${ws.data.id}#${l.n}: ${why}, ${l.bytes} bytes dropped`);
+      if (why === "cancel") observe(`voice: ${l.source} listen cancelled`);
+      return;
+    }
+    const pcm = concat(l.chunks, l.bytes & ~1);
+    log(`listen ${ws.data.id}#${l.n}: ${(pcm.length / 32000).toFixed(2)} s of audio (${l.mode}, ${why})`);
+    void runVoice(pcm, l.source, ws).catch((err) => log("voice pipeline error:", err));
+  }
+
+  async function safeTranscribe(pcm: Uint8Array): Promise<SttResultLike> {
+    const t0 = Date.now();
+    try {
+      const r = await withTimeout(deps.transcribe(pcm, { timeoutMs: sttTimeoutMs }), sttTimeoutMs + 1500, "stt");
+      return {
+        text: cleanText(r?.text),
+        ms: typeof r?.ms === "number" && Number.isFinite(r.ms) ? r.ms : Date.now() - t0,
+        provider: cleanText(r?.provider, 40) || "?",
+        error: typeof r?.error === "string" ? r.error : undefined,
+      };
+    } catch (err) {
+      return { text: "", ms: Date.now() - t0, provider: "none", error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  async function safeRoute(text: string, ctx: { beat: BeatName; recent: string[] }): Promise<RouteResultLike> {
+    const t0 = Date.now();
+    let r: RouteResultLike;
+    try {
+      r = await withTimeout(deps.route(text, ctx, { timeoutMs: routeTimeoutMs }), routeTimeoutMs + 1500, "route");
+    } catch (err) {
+      log("route failed, using keywords:", err instanceof Error ? err.message : err);
+      r = { ...keywordRoute(text), ms: Date.now() - t0 };
+    }
+    // Coerce into the contract: topic iff what_if, answer iff ask.
+    let intent: IntentName = INTENTS.includes(r?.intent as IntentName) ? (r.intent as IntentName) : "unknown";
+    const topic = WHATIF_TOPICS.includes(r?.topic as WhatIfTopic) ? (r.topic as WhatIfTopic) : null;
+    if (intent === "what_if" && !topic) intent = "unknown";
+    const answer = intent === "ask" && typeof r?.answer === "string" && r.answer.trim() ? r.answer.trim().slice(0, 300) : null;
+    return {
+      intent,
+      topic: intent === "what_if" ? topic : null,
+      answer,
+      ms: typeof r?.ms === "number" && Number.isFinite(r.ms) ? r.ms : Date.now() - t0,
+      path: r?.path === "claude" ? "claude" : "keyword",
+      error: r?.error,
     };
-    if (orbis && orbis.state === next.state && orbis.stage === next.stage && orbis.fallback_clip === next.fallback_clip) return;
-    orbis = next;
-    bus.broadcast(next);
+  }
+
+  /** Mic audio -> transcript -> intent -> act. Never throws. */
+  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client): Promise<void> {
+    const t0 = Date.now();
+    const group = state.group_id;
+    const stt: SttResultLike = pcm.length ? await safeTranscribe(pcm) : { text: "", ms: 0, provider: "none", error: "no_audio" };
+    latency("voice.stt", stt.ms);
+    bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
+    if (group !== state.group_id) return;
+    if (!stt.text) {
+      observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
+      return;
+    }
+    // Glasses talking over the bus get their ear reply over the bus too.
+    const r = await understand(stt.text, source, t0, group, (reply) => {
+      if (reply.line_id || reply.audio_url || reply.caption) bus.say("ear", reply.line_id, { audio_url: reply.audio_url, caption: reply.caption });
+    });
+    if (r) log(`voice ${source}: stt ${stt.provider} ${Math.round(stt.ms)} ms, total ${Date.now() - t0} ms (${ws.data.id})`);
   }
 
   /**
-   * live: start the stream, or morph a running one to the requested stage (/orbis/stage, 2-4 s): /orbis/start on a
-   * running stream resets it (3-4 s with no frames). clips/off: stop, since Reactor bills while connected.
+   * Route a final transcript and act on it. Room lines play on the Quest when one is connected (outside the field);
+   * otherwise the reply goes to the ear: `earReply` for the bus path, the return value for /glasses/utterance.
    */
-  async function relayOrbis(msg: OrbisRequest): Promise<void> {
-    if (!relayUrl) return;
-    if (msg.want !== "live") {
-      await relay("/orbis/stop", {});
-      return;
+  async function understand(
+    text: string,
+    source: VoiceSource,
+    t0: number,
+    group: string,
+    earReply?: (r: UtteranceResponse) => void,
+  ): Promise<UtteranceResponse | null> {
+    const recent = state.memory.heard.slice(-5);
+    rememberHeard(state, text);
+    const beat = beatName(state);
+    const r = await safeRoute(text, { beat, recent });
+    latency("voice.route", r.ms);
+    bus.broadcast({ type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) });
+    // The answer rides along for the operator: with TTS down it is never spoken (Beeswax acks instead).
+    observe(
+      `voice ${source}: "${text.slice(0, 80)}" -> ${r.intent}${r.topic ? `/${r.topic}` : ""} via ${r.path} ${Math.round(r.ms)} ms` +
+        `${r.error ? ` (${r.error})` : ""}${r.answer ? ` answer: "${r.answer}"` : ""}`,
+    );
+    if (group !== state.group_id) return null; // group reset mid-utterance
+
+    const response: UtteranceResponse = { intent: r.intent, topic: r.topic, line_id: null, audio_url: null, caption: "" };
+    if (!VOICE_BEATS.includes(beat)) {
+      observe(`voice: not acting in beat ${beat}`);
+      if (source === "glasses" && hasLine("ear_not_now")) Object.assign(response, { line_id: "ear_not_now", caption: lineText("ear_not_now") });
+      earReply?.(response);
+      return response;
     }
-    const now = await relay("/orbis/status");
-    const running = now?.state === "priming" || now?.state === "ready";
-    if (!running) await relay("/orbis/start", msg.stage !== undefined ? { stage: msg.stage } : {});
-    else if (msg.stage !== undefined && msg.stage !== now?.stage) await relay("/orbis/stage", { stage: msg.stage });
-    else observe(`orbis relay already ${String(now?.state)} at stage ${String(now?.stage)}`);
+    const field = beat === "field";
+    const toRoom = !field && bus.count("quest") > 0;
+    const deliver = (reply: Reply) => {
+      if (toRoom) return sayReply(reply, "room");
+      Object.assign(response, earVersion(reply));
+      if (earReply) earReply(response);
+      else bus.say("ear", response.line_id, { audio_url: response.audio_url, caption: response.caption }, false); // board/monitor copy
+    };
+    // A live answer needs our TTS in the room; the miniapp can read a caption aloud in Mentra's own voice.
+    act(r, deliver, field, toRoom ? ttsAvailable() : true);
+    latency("voice.total", Date.now() - t0);
+    return response;
+  }
+
+  /** What-if, undo, ask, ack: say the line first, then change the window (the line covers the 2-4 s morph). */
+  function act(r: RouteResultLike, deliver: (reply: Reply) => void, field: boolean, canSpeakAnswer: boolean): void {
+    switch (r.intent) {
+      case "what_if": {
+        const topic = r.topic!;
+        state.memory.whatifs.push(topic);
+        const id = `room_whatif_${topic}`;
+        deliver(hasLine(id) ? { line_id: id, text: lineText(id) } : ackReply());
+        if (!field) setScene(`whatif_${topic}` as Scene, `what if: ${topic}`);
+        return;
+      }
+      case "undo": {
+        const cur = state.scene;
+        if (cur === "whatif_fire") {
+          deliver(lineReply("room_whatif_out"));
+          if (!field) setScene("fire_out", "put it out");
+        } else if (isWhatIfScene(cur) || cur === "fire_out") {
+          deliver(lineReply("room_whatif_back"));
+          if (!field) setScene(state.base_scene, "undo");
+        } else {
+          deliver(lineReply("room_whatif_nothing"));
+        }
+        return;
+      }
+      case "ask":
+        deliver(r.answer && canSpeakAnswer ? { line_id: null, text: r.answer } : ackReply());
+        return;
+      default:
+        deliver(ackReply());
+    }
+  }
+
+  const lineReply = (id: string): Reply => (hasLine(id) ? { line_id: id, text: lineText(id) } : ackReply());
+
+  let lastAck = "";
+  function ackReply(): Reply {
+    const pool = deps.ackLines.filter((id) => hasLine(id) && id !== lastAck);
+    const id = pool.length ? pool[Math.floor(Math.random() * pool.length)]! : hasLine(lastAck) ? lastAck : null;
+    if (!id) return { line_id: null, text: "" };
+    lastAck = id;
+    return { line_id: id, text: lineText(id) };
+  }
+
+  /** Play a reply from Beeswax on the Quest: a pre-rendered line, or live TTS (caption only when TTS is down). */
+  function sayReply(reply: Reply, channel: "room"): void {
+    if (reply.line_id) return bus.say(channel, reply.line_id);
+    if (!reply.text) return;
+    if (!ttsAvailable()) return bus.say(channel, null, { caption: reply.text });
+    const tts_id = shortId("t");
+    bus.say(channel, null, { tts_id, caption: reply.text });
+    void bus.enqueueRoomTts(tts_id, reply.text, deps.ttsSampleRate, () => deps.ttsPcm(reply.text));
+  }
+
+  /** The same reply for the glasses: an ear twin of the line, else a live mp3, else just the caption (Mentra reads it). */
+  function earVersion(reply: Reply): Pick<UtteranceResponse, "line_id" | "audio_url" | "caption"> {
+    const text = reply.text || (reply.line_id ? lineText(reply.line_id) : "");
+    if (!text) return { line_id: null, audio_url: null, caption: "" };
+    const ear = lineIdFor(text, "ear");
+    if (ear) return { line_id: ear, audio_url: null, caption: lineText(ear) };
+    return { line_id: null, audio_url: ttsAvailable() ? mp3Url(text) : null, caption: text };
   }
 
   // ------------------------------------------------------------ HTTP
@@ -696,6 +1217,13 @@ export function startHive(opts: HiveOptions): Hive {
     if (opts.publicBaseUrl) return;
     const host = c.req.header("x-forwarded-host") ?? c.req.header("host");
     if (host) baseUrl = `${c.req.header("x-forwarded-proto") ?? new URL(c.req.url).protocol.replace(":", "")}://${host}`;
+  };
+  const sttStatus = () => {
+    try {
+      return deps.sttStatus?.() ?? null;
+    } catch {
+      return null;
+    }
   };
 
   app.onError((err, c) => {
@@ -723,16 +1251,21 @@ export function startHive(opts: HiveOptions): Hive {
       group_id: state.group_id,
       mode: state.mode,
       scan_in_flight: state.scan_in_flight !== null,
-      orbis: orbis && { state: orbis.state, stage: orbis.stage },
+      orbis: { state: orbisStatus().state, stage: SCENES.indexOf(state.scene), scene: state.scene, want: orbisWant, relay: relayUrl ? relayUp : null },
+      solved: state.memory.solved,
+      score: scoreText(state),
+      listening: listens.size,
       tts: ttsAvailable(),
+      stt: sttStatus(),
       lines: Object.keys(deps.lines).length,
       uptime_s: Math.round((Date.now() - startedAt) / 1000),
     }),
   );
 
-  app.get("/board", (c) => (authed(c) ? c.html(boardHtml()) : c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401)));
+  app.get("/board", (c) => (authed(c) ? c.html(boardHtml(deps.stations)) : c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401)));
   app.get("/monitor", (c) => (authed(c) ? c.html(monitorHtml()) : c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401)));
   app.get("/lines.json", (c) => (authed(c) ? c.json(deps.lines) : c.json({ error: "bad token" }, 401)));
+  app.get("/stations.json", (c) => (authed(c) ? c.json(deps.stations) : c.json({ error: "bad token" }, 401)));
 
   app.get("/audio/:file", async (c) => {
     const id = c.req.param("file").replace(/\.mp3$/, "");
@@ -756,6 +1289,20 @@ export function startHive(opts: HiveOptions): Hive {
     if (!body) return c.json({ error: "bad JSON" }, 400);
     const r = await scan(body);
     return c.json(r.body, r.status as 200 | 409);
+  });
+
+  /** A final transcription from the glasses' own speech-to-text: same intent pipeline as Quest voice. */
+  app.post("/glasses/utterance", async (c) => {
+    const body = await readJson(c);
+    const text = cleanText(body?.text);
+    if (!text) return c.json({ error: "text required" }, 400);
+    const now = Date.now();
+    const at = saneTime(body?.at, now);
+    bus.broadcast({ type: "transcript", text, final: true, source: "glasses", ms: now - at, stt: "glasses" });
+    const r = await understand(text, "glasses", now, state.group_id);
+    latency("utterance.total", Date.now() - at);
+    const reply: UtteranceResponse = r ?? { intent: "unknown", topic: null, line_id: null, audio_url: null, caption: "" };
+    return c.json(reply);
   });
 
   app.post("/glasses/plea", async (c) => {
@@ -789,7 +1336,7 @@ export function startHive(opts: HiveOptions): Hive {
   const server = Bun.serve({
     port: opts.port ?? 8240,
     hostname: opts.hostname ?? "0.0.0.0",
-    idleTimeout: 60, // /glasses/scan and /audio can legitimately wait ~15 s
+    idleTimeout: 60, // /glasses/scan, /glasses/utterance and /audio can legitimately wait ~15 s
     fetch(req, srv) {
       if (new URL(req.url).pathname === "/bus") return bus.upgrade(req, srv);
       return app.fetch(req);
@@ -812,6 +1359,8 @@ export function startHive(opts: HiveOptions): Hive {
     bus,
     async stop() {
       if (orbisPoll) clearInterval(orbisPoll);
+      for (const l of listens.values()) clearTimeout(l.watchdog);
+      listens.clear();
       bus.stop();
       await server.stop(true);
     },
@@ -834,10 +1383,16 @@ if (import.meta.main) {
     publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
     directorTimeoutMs: Number(process.env.DIRECTOR_TIMEOUT_MS) || 6000,
     scanStaleMs: Number(process.env.SCAN_STALE_MS) || 25_000,
+    sttTimeoutMs: Number(process.env.STT_TIMEOUT_MS) || 6000,
+    routeTimeoutMs: Number(process.env.ROUTE_TIMEOUT_MS) || 3500,
     orbisRelayUrl: process.env.ORBIS_RELAY_URL || null,
     host: process.env.HIVE_HOST || undefined,
   });
-  log(`hive v${PROTOCOL_VERSION} on :${hive.port}  lines=${Object.keys(deps.lines).length} tts=${deps.ttsAvailable()}`);
+  let stt = "?";
+  try {
+    stt = JSON.stringify(deps.sttStatus?.() ?? null);
+  } catch {}
+  log(`hive v${PROTOCOL_VERSION} on :${hive.port}  lines=${Object.keys(deps.lines).length} scenes=${Object.keys(deps.scenes).length} tts=${deps.ttsAvailable()} stt=${stt}`);
   log(`board:   /board?token=$HIVE_TOKEN    monitor: /monitor?token=$HIVE_TOKEN`);
   void deps.prewarm?.().catch(() => {});
 

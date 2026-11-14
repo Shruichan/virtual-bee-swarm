@@ -1,5 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import { speechVerdict } from "../src/speech";
+import { speechVerdict, voiceKeywords } from "../src/speech";
+
+describe("voiceKeywords (degraded router fallback)", () => {
+  const cases: Array<[string, string, string | null]> = [
+    ["What if a fire starts?", "what_if", "fire"],
+    ["what if the meadow is burning", "what_if", "fire"],
+    ["Put it out! Put it out!", "undo", null],
+    ["put out the fire", "undo", null],
+    ["undo that", "undo", null],
+    ["what if it rains", "what_if", "rain"],
+    ["what if we plant clover", "what_if", "flowers"],
+    ["what if they spray pesticide", "what_if", "spray"],
+    ["what if winter comes", "what_if", "winter"],
+    ["what if it rains and then a fire", "what_if", "rain"], // earliest topic wins
+    ["firefighter", "unknown", null], // whole words only
+    ["hello Beeswax", "unknown", null],
+    ["", "unknown", null],
+  ];
+  for (const [heard, intent, topic] of cases) {
+    test(JSON.stringify(heard), () => expect(voiceKeywords(heard)).toEqual({ intent: intent as any, topic: topic as any }));
+  }
+  test("survives non-string input", () => {
+    expect(voiceKeywords(undefined as unknown as string)).toEqual({ intent: "unknown", topic: null });
+  });
+});
 
 describe("speechVerdict", () => {
   const cases: Array<[string, string | null, string?]> = [

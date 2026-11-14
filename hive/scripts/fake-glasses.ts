@@ -5,10 +5,12 @@
 //   bun scripts/fake-glasses.ts --url http://localhost:8240 --token $HIVE_TOKEN --heard "lavender"
 //   bun scripts/fake-glasses.ts --photo-url https://.../photo.jpg --count 20 --gap 2     # scan gate: p50/p90
 //   bun scripts/fake-glasses.ts --plea "my grandma keeps bees"
+//   bun scripts/fake-glasses.ts --utterance "what if a fire starts"                     # second mic (v3 voice)
 //
 // Flags: --url, --token (default $HIVE_TOKEN), --heard, --photo-url, --count N (default 1), --gap seconds,
-//        --plea text, --no-listen (skip the bus), --linger seconds to keep listening after (default 3).
-import { PROTOCOL_VERSION, type PressResponse, type ScanResponse } from "../src/protocol";
+//        --plea text, --utterance text (POST /glasses/utterance; repeat with a | separator: "a|b"),
+//        --no-listen (skip the bus), --linger seconds to keep listening after (default 3).
+import { PROTOCOL_VERSION, type PressResponse, type ScanResponse, type UtteranceResponse } from "../src/protocol";
 
 function args(argv: string[]): Record<string, string | true> {
   const out: Record<string, string | true> = {};
@@ -31,6 +33,7 @@ const photoUrl = typeof opt["photo-url"] === "string" ? opt["photo-url"] : undef
 const count = Math.max(0, Number(opt.count ?? (heard || photoUrl ? 1 : 0)));
 const gap = Number(opt.gap ?? 2) * 1000;
 const linger = Number(opt.linger ?? 3) * 1000;
+const utterances = typeof opt.utterance === "string" ? opt.utterance.split("|").map((u) => u.trim()).filter(Boolean) : [];
 
 const t0 = Date.now();
 const stamp = () => `${new Date().toTimeString().slice(0, 8)} +${((Date.now() - t0) / 1000).toFixed(2)}s`;
@@ -106,8 +109,19 @@ async function main(): Promise<void> {
     const r = await post("/glasses/plea", { text: opt.plea });
     print(`plea ${r.status} in ${r.ms} ms`, JSON.stringify(r.json));
   }
-  if (count === 0 && typeof opt.plea !== "string") print("nothing to do: pass --heard, --photo-url or --plea (listening only)");
-  if (ws && linger > 0) await Bun.sleep(count === 0 && typeof opt.plea !== "string" ? 1e9 : linger);
+  for (const [i, text] of utterances.entries()) {
+    try {
+      const r = await post<UtteranceResponse>("/glasses/utterance", { text, at: Date.now() });
+      print(`utterance ${r.status} in ${r.ms} ms:`, JSON.stringify(r.json));
+      if (r.json?.audio_url) print(`   ear audio at ${r.json.audio_url} (not played)`);
+    } catch (err) {
+      print("utterance failed:", err instanceof Error ? err.message : err);
+    }
+    if (i < utterances.length - 1) await Bun.sleep(gap);
+  }
+  const idle = count === 0 && typeof opt.plea !== "string" && utterances.length === 0;
+  if (idle) print("nothing to do: pass --heard, --photo-url, --plea or --utterance (listening only)");
+  if (ws && linger > 0) await Bun.sleep(idle ? 1e9 : linger);
   ws?.close();
   process.exit(0);
 }

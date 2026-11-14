@@ -53,7 +53,7 @@ const SMALL_JPEG = new Uint8Array(
 const input = (over: Partial<JudgeInput> = {}): JudgeInput => ({
   photo: SMALL_JPEG,
   mime: "image/jpeg",
-  beat: "beeline",
+  beat: "feed",
   memory: { scanned: [] },
   ...over,
 });
@@ -112,7 +112,7 @@ describe("request shape", () => {
     expect(txt.type).toBe("text");
     expect(txt.text).toContain("<heard>it's my bbadge/b</heard>");
     expect(txt.text).toContain("Already scanned this round: red_rose.");
-    expect(txt.text).toContain("Beat: beeline.");
+    expect(txt.text).toContain("Beat: feed.");
     expect(opts.signal).toBeInstanceOf(AbortSignal);
   });
 
@@ -268,7 +268,7 @@ describe("fallbacks (never throws)", () => {
   test("bad input objects don't throw", async () => {
     mockClient(ok({ item: "red_rose", verdict: "bad" }));
     expect((await judge(undefined as unknown as JudgeInput)).fallback).toBe(true);
-    expect((await judge({ beat: "roses", memory: null } as unknown as JudgeInput)).fallback).toBe(true);
+    expect((await judge({ beat: "smoker", memory: null } as unknown as JudgeInput)).fallback).toBe(true);
   });
 });
 

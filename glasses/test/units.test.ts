@@ -37,8 +37,8 @@ test("ear: audio_url when not embedded, caption TTS when the url fails", async (
 test("ear: unknown line with no caption is skipped, known ids get a fallback caption", async () => {
   const {fake, ear: e} = ear()
   expect(await e.play({line_id: "nope"})).toBeNull()
-  await e.play({line_id: "ear_not_now"})
-  expect(fake.audio).toEqual([expect.objectContaining({kind: "speak", text: "Not now, I'm monologuing."})])
+  await e.play({line_id: "ear_scan_failed"})
+  expect(fake.audio).toEqual([expect.objectContaining({kind: "speak", text: "Lost the signal. Press again."})])
 })
 
 test("ear: lines queue in order; 'fillers' interrupt cuts only a filler", async () => {
@@ -117,10 +117,10 @@ test("hive: 4xx is final (no failover), timeouts fail over", async () => {
 test("transcript: since() includes finals and the live interim", () => {
   const t = new Transcript()
   t.push({text: "old", isFinal: true}, 1000)
-  t.push({text: "a purple", isFinal: true}, 5000)
-  t.push({text: "salvia mayb", isFinal: false}, 5200)
-  expect(t.since(4000)).toBe("a purple salvia mayb")
-  expect(t.since(5100)).toBe("salvia mayb")
+  t.push({text: "the sugar", isFinal: true}, 5000)
+  t.push({text: "syrup bott", isFinal: false}, 5200)
+  expect(t.since(4000)).toBe("the sugar syrup bott")
+  expect(t.since(5100)).toBe("syrup bott")
 })
 
 test("transcript: listen() returns at once when quiet, waits out a sentence, honours needText", async () => {
@@ -152,17 +152,102 @@ test("transcript: listen() returns at once when quiet, waits out a sentence, hon
 })
 
 test("lines: the prerender's LINE_PCM16 shape and the placeholder's LINES shape both load", async () => {
-  const {parseClips, CAPTIONS} = await import("../src/background/lines")
+  const {parseClips} = await import("../src/background/lines")
   const pcm = "AAAA".repeat(8000) // 24000 bytes = 750 ms at 16 kHz
-  const prerender = {SAMPLE_RATE: 16000, LINE_PCM16: {ear_not_now: pcm}, default: {ear_not_now: pcm}}
-  expect(parseClips(prerender)).toEqual({ear_not_now: {pcm, ms: 750, caption: "Not now, I'm monologuing."}})
+  const prerender = {SAMPLE_RATE: 16000, LINE_PCM16: {ear_no_signal: pcm}, default: {ear_no_signal: pcm}}
+  expect(parseClips(prerender)).toEqual({ear_no_signal: {pcm, ms: 750, caption: "I can't reach the hive. Check the hotspot."}})
   const placeholder = {SAMPLE_RATE: 16000, LINES: {x: {pcm: "AAAA", ms: 1, caption: "X"}}}
   expect(parseClips(placeholder)).toEqual({x: {pcm: "AAAA", ms: 0, caption: "X"}})
   expect(parseClips({})).toEqual({})
-  // every ear id the Hive can name without a caption has one here
-  for (const id of ["ear_practice", "ear_not_now", "ear_swarm_arrived", "ear_no_signal", "ear_scan_failed"]) {
-    expect(CAPTIONS[id]).toBeTruthy()
+})
+
+test("lines: every ear line in the Hive's catalog has its caption here, plus the glasses-only fallbacks", async () => {
+  const {CAPTIONS, FILLERS} = await import("../src/background/lines")
+  const catalog = (await import("../../hive/lines/lines.json")).default as unknown
+  const list = (Array.isArray(catalog) ? catalog : ((catalog as {lines?: unknown[]}).lines ?? [])) as Record<string, any>[]
+  const ear = list.filter((e) => e?.channel === "ear" && typeof e.id === "string" && typeof e.text === "string" && e.text.trim())
+  const first = new Map<string, string>()
+  for (const e of ear) if (!first.has(e.id)) first.set(e.id, e.text)
+  for (const [id, text] of first) expect(CAPTIONS[id]).toBe(text)
+  expect(CAPTIONS.ear_no_signal).toBeTruthy()
+  expect(CAPTIONS.ear_scan_failed).toBeTruthy()
+  for (const id of FILLERS) expect(ear.find((e) => e.id === id)?.tags).toContain("filler")
+  // room lines never leak into the ear
+  for (const e of list.filter((e) => e?.channel === "room")) if (!first.has(e.id)) expect(CAPTIONS[e.id]).toBeUndefined()
+})
+
+test("lines: earEntries reads an array or {lines: [...]}, skipping bad and room entries", async () => {
+  const {earEntries} = await import("../src/background/lines")
+  const good = {id: "ear_a", channel: "ear", text: "A", tags: ["filler", 3]}
+  const bad = [null, 7, {id: "ear_b", channel: "ear", text: "  "}, {id: "room_c", channel: "room", text: "C"}, {channel: "ear", text: "no id"}]
+  expect(earEntries([good, ...bad])).toEqual([{id: "ear_a", text: "A", tags: ["filler"]}])
+  expect(earEntries({lines: [good]})).toEqual([{id: "ear_a", text: "A", tags: ["filler"]}])
+  expect(earEntries("nope")).toEqual([])
+})
+
+test("voice: noise filter keeps short real requests, drops fillers and junk", async () => {
+  const {isNoise, words} = await import("../src/background/voice")
+  expect(words("What if a FIRE starts?! It's bad.")).toEqual(["what", "if", "a", "fire", "starts", "it's", "bad"])
+  for (const t of ["", "  ", "?!", "uh", "Um.", "okay", "hmm, yeah", "hi", "no", "oh wow", "the"]) expect(isNoise(t)).toBe(true)
+  for (const t of ["fire", "put it out", "What if a fire starts?", "syrup", "Beeswax!", "what if it rains"]) expect(isNoise(t)).toBe(false)
+})
+
+test("voice: Beeswax's room lines heard across the table are dropped; the scripted wearer lines are not", async () => {
+  const {Voice} = await import("../src/background/voice")
+  const {ROOM_TEXTS, catalogEntries} = await import("../src/background/lines")
+  const {makeConfig} = await import("../src/background/config")
+  const sent: string[] = []
+  const fetchFn = async (_url: string, init?: {body?: string}) => {
+    sent.push(JSON.parse(init!.body!).text)
+    return {status: 200, text: async () => JSON.stringify({intent: "unknown", topic: null, line_id: null, audio_url: null, caption: ""})}
   }
+  const room = ["Clover? Now you're talking. More flowers, more food. I'll allow it.", "Motion carried."]
+  const v = new Voice({
+    hive: new Hive(["https://a.dev"], "t", quiet, fetchFn),
+    ear: ear().ear,
+    config: makeConfig({hiveToken: "t"}),
+    beat: () => "whatif",
+    scanning: () => false,
+    latency: quiet,
+    log: quiet,
+    roomTexts: room,
+  })
+  const say = async (text: string) => {
+    v.heard({text, isFinal: true})
+    await sleep(5)
+  }
+  // Whole lines, Mentra's sentence-sized pieces of them, and long runs of one: all Beeswax.
+  for (const t of ["Clover. Now you're talking.", "Now you're talking!", "more flowers more food I'll allow it", "Motion carried!"]) await say(t)
+  expect(sent).toEqual([])
+  for (const t of ["what if we plant clover", "what if a fire starts", "put it out", "carried away", "on the hive"]) await say(t)
+  expect(sent).toEqual(["what if we plant clover", "what if a fire starts", "put it out", "carried away", "on the hive"])
+
+  // The shipped catalog: every room line is caught, no scripted wearer line is.
+  expect(ROOM_TEXTS.length).toBe(catalogEntries((await import("../../hive/lines/lines.json")).default, "room").length)
+  const real = new Voice({hive: new Hive(["https://a.dev"], "t", quiet, fetchFn), ear: ear().ear, config: makeConfig({hiveToken: "t"}), beat: () => "whatif", scanning: () => false, latency: quiet, log: quiet}) as any
+  for (const t of ROOM_TEXTS) if (t.split(/\s+/).length >= 2) expect(real.isRoomLine(t)).toBe(true)
+  expect(real.isRoomLine("Undo what?")).toBe(ROOM_TEXTS.some((t) => t.startsWith("Undo what?"))) // else "undo" -> "Undo what?" -> undo...
+  // If a catalog edit trips this, a room line now contains one of these phrases: the wearer could no longer say it.
+  const wearer = [
+    "what if a fire starts", "what if a fire starts?", "what happens if a fire starts", "a fire starts", "put it out", "put it out!", "put the fire out",
+    "put out the fire", "stop the fire", "is the fire out", "go back", "undo that", "undo", "what if it rains", "make it rain", "what if it snows",
+    "what if winter comes", "what if we plant clover", "what if we plant more flowers", "what if they spray pesticides", "what if there's a wildfire",
+    "what if we make the door bigger", "why are the bees angry", "tell me about the queen", "how do bees cool the hive", "on the hive all week",
+  ]
+  for (const t of wearer) expect([t, real.isRoomLine(t)]).toEqual([t, false])
+})
+
+test("ear: onSpeak fires for every line that starts, fillers too; cancelFillers cuts only fillers", async () => {
+  const {fake, ear: e} = ear({clipPlayMs: 300})
+  const said: string[] = []
+  e.onSpeak = (c) => said.push(c)
+  const filler = e.play({line_id: "filler"}, {filler: true})
+  await sleep(20)
+  e.cancelFillers()
+  expect(await filler).not.toBeNull() // it had started
+  await e.play({line_id: "clip_a"})
+  expect(said).toEqual(["F", "A"])
+  expect(fake.audio.map((a: any) => a.line)).toEqual(["filler", "clip_a"])
 })
 
 test("ear: a long clip goes out in two writes, cut on a sample boundary, and starts after the first", async () => {
@@ -195,4 +280,37 @@ test("ear: a long clip goes out in two writes, cut on a sample boundary, and sta
   expect(writes.join("")).toBe(pcm)
   expect(writes).toHaveLength(2)
   expect(writes[0]!.length % 8).toBe(0) // whole base64 groups AND whole 16-bit samples
+})
+
+test("voice: a reply to words heard before a group reset is not played; the next one is", async () => {
+  const {Voice} = await import("../src/background/voice")
+  const {makeConfig} = await import("../src/background/config")
+  const {fake, ear: e} = ear()
+  const sent: string[] = []
+  const slowFetch = async (_url: string, init?: {body?: string}) => {
+    sent.push(JSON.parse(init!.body!).text)
+    await sleep(100)
+    return {status: 200, text: async () => JSON.stringify({intent: "ask", topic: null, line_id: null, audio_url: null, caption: "Old news"})}
+  }
+  const v = new Voice({
+    hive: new Hive(["https://a.dev"], "t", quiet, slowFetch),
+    ear: e,
+    config: makeConfig({hiveToken: "t"}),
+    beat: () => "whatif",
+    scanning: () => false,
+    latency: quiet,
+    log: quiet,
+  })
+  v.heard({text: "what if it rains", isFinal: true})
+  await sleep(20)
+  v.reset()
+  await sleep(200)
+  expect(sent).toEqual(["what if it rains"])
+  expect(fake.audio).toEqual([])
+  v.heard({text: "what if it snows", isFinal: true})
+  await until(() => fake.audio.length === 1, 1000, "reply after reset")
+  v.heard({text: "what if it snows", isFinal: true}) // repeat within 3 s: dropped
+  v.heard(null as any) // junk from the host: ignored, never throws
+  await sleep(150)
+  expect(sent).toEqual(["what if it rains", "what if it snows"])
 })

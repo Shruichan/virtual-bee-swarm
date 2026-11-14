@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using NativeWebSocket;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Beeswax
 {
@@ -16,7 +20,11 @@ namespace Beeswax
     ///    pool thread and only queues frames, which DispatchMessageQueue() hands to OnMessage on the main thread.
     ///  * Close() is a graceful handshake that can hang on a dead link; CancelConnection() aborts.
     ///  * Text and binary frames both arrive as OnMessage(byte[]).
-    ///  * SendText()/Send() block the calling thread until the frame is handed to the OS (fine for small frames).
+    ///  * SendText()/Send() block the calling thread until the frame is handed to the OS. On a half-open link
+    ///    (Wi-Fi drop) that blocks for minutes once the kernel send buffer is full, which mic streaming can do in
+    ///    a second or two. So sends are queued and written by one pool thread per socket, in order (text and binary
+    ///    share the queue, so listen.start → MIC frames → listen.end stay ordered). SendStallSeconds tells the
+    ///    owner when a write has been stuck; Abort() cancels it.
     ///  * Server pings are answered by ClientWebSocket itself; they never reach OnMessage.
     /// Callbacks from a socket we already abandoned are dropped (generation counter).
     /// </summary>
@@ -37,6 +45,7 @@ namespace Beeswax
 
         readonly object _lock = new object();
         WebSocket _ws;
+        Outbox _outbox;
         int _gen;
         float _connectStartedAt;
         bool _openedFlag, _closedFlag;
@@ -53,6 +62,7 @@ namespace Beeswax
             catch (Exception e) { MarkClosed(gen, "bad url: " + e.Message); State = Status.Connecting; return; }
 
             _ws = ws;
+            _outbox = new Outbox(ws);
             State = Status.Connecting;
             _connectStartedAt = Time.realtimeSinceStartup;
             ws.OnOpen += () => { lock (_lock) if (gen == _gen) _openedFlag = true; };
@@ -104,18 +114,103 @@ namespace Beeswax
 
         public bool IsOpen => State == Status.Open && _ws != null && _ws.State == WebSocketState.Open;
 
-        public bool SendText(string text)
+        /// <summary>Queue a text frame. False (dropped) when not open.</summary>
+        public bool SendText(string text) => text != null && Enqueue(text, text.Length);
+
+        /// <summary>Queue a binary frame. The array must not be modified afterwards. False (dropped) when not open.</summary>
+        public bool SendBytes(byte[] data) => data != null && Enqueue(data, data.Length);
+
+        /// <summary>Bytes queued or being written right now (not yet handed to the OS).</summary>
+        public int QueuedSendBytes
         {
-            if (!IsOpen) return false;
-            try { Observe(_ws.SendText(text)); return true; }
-            catch (Exception e) { Debug.LogWarning("[Beeswax] send failed: " + e.Message); return false; }
+            get { var box = _outbox; if (box == null) return 0; lock (box) return box.Bytes; }
         }
 
-        public bool SendBytes(byte[] data)
+        /// <summary>How long the oldest pending send has waited without any write completing (0 when idle).</summary>
+        public float SendStallSeconds
+        {
+            get
+            {
+                var box = _outbox;
+                if (box == null) return 0f;
+                long since;
+                lock (box) since = box.PendingSince;
+                return since == 0 ? 0f : (float)((Stopwatch.GetTimestamp() - since) / (double)Stopwatch.Frequency);
+            }
+        }
+
+        bool Enqueue(object item, int size)
         {
             if (!IsOpen) return false;
-            try { Observe(_ws.Send(data)); return true; }
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // The browser socket never blocks and must be used from the main thread.
+            try { Observe(item is string t ? _ws.SendText(t) : _ws.Send((byte[])item)); return true; }
             catch (Exception e) { Debug.LogWarning("[Beeswax] send failed: " + e.Message); return false; }
+#else
+            var box = _outbox;
+            if (box == null) return false;
+            bool start;
+            lock (box)
+            {
+                if (box.Closed) return false;
+                box.Items.Enqueue(item);
+                box.Bytes += size;
+                if (box.PendingSince == 0) box.PendingSince = Stopwatch.GetTimestamp();
+                start = !box.Running;
+                if (start) box.Running = true;
+            }
+            if (start) ThreadPool.QueueUserWorkItem(Pump, box);
+            return true;
+#endif
+        }
+
+        sealed class Outbox
+        {
+            public readonly WebSocket Ws;
+            public readonly Queue<object> Items = new Queue<object>(); // string (text frame) or byte[] (binary frame)
+            public int Bytes;
+            public long PendingSince; // Stopwatch timestamp; 0 = nothing pending
+            public bool Running, Closed;
+            public Outbox(WebSocket ws) { Ws = ws; }
+        }
+
+        // Pool thread: writes one frame at a time, in queue order, until the queue is empty or the socket is dropped.
+        static void Pump(object state)
+        {
+            var box = (Outbox)state;
+            while (true)
+            {
+                object item;
+                lock (box)
+                {
+                    if (box.Closed || box.Items.Count == 0)
+                    {
+                        box.Running = false;
+                        box.PendingSince = 0;
+                        if (box.Closed) { box.Items.Clear(); box.Bytes = 0; }
+                        return;
+                    }
+                    item = box.Items.Peek();
+                }
+                int size = item is string s ? s.Length : ((byte[])item).Length;
+                try
+                {
+                    // NativeWebSocket writes synchronously before returning the task (see above); faults are observed.
+                    Observe(item is string text ? box.Ws.SendText(text) : box.Ws.Send((byte[])item));
+                }
+                catch (Exception e)
+                {
+                    bool closed;
+                    lock (box) closed = box.Closed;
+                    if (!closed) Debug.LogWarning("[Beeswax] send failed: " + e.GetBaseException().Message);
+                }
+                lock (box)
+                {
+                    if (box.Items.Count > 0 && ReferenceEquals(box.Items.Peek(), item)) box.Items.Dequeue();
+                    box.Bytes = Math.Max(0, box.Bytes - size);
+                    box.PendingSince = box.Items.Count > 0 ? Stopwatch.GetTimestamp() : 0;
+                }
+            }
         }
 
         /// <summary>Graceful close (no Closed event).</summary>
@@ -143,6 +238,9 @@ namespace Beeswax
         {
             var ws = _ws;
             _ws = null;
+            var box = _outbox;
+            _outbox = null;
+            if (box != null) lock (box) { box.Closed = true; if (!box.Running) { box.Items.Clear(); box.Bytes = 0; box.PendingSince = 0; } }
             lock (_lock) _gen++;
             State = Status.Idle;
             return ws;

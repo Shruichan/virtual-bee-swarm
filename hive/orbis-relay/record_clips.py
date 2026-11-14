@@ -1,9 +1,13 @@
 """Record the window's fallback clips from Visko Orbis (one Reactor session, one fixed seed per scene).
 
     uv run python record_clips.py --dry-run                  # show the plan and the cost estimate
-    uv run python record_clips.py                            # every scene in scenes.json (needs REACTOR_API_KEY)
-    uv run python record_clips.py --only stage_1,stage_3 --seconds 10
+    uv run python record_clips.py                            # every scene in ../lines/orbis_scenes.json (needs REACTOR_API_KEY)
+    uv run python record_clips.py --only whatif_fire,fire_out --seconds 10
     uv run python record_clips.py --fake                     # placeholder clips from the test pattern, no credits
+    uv run python record_clips.py --scenes scenes.json       # the old stage clips (moon_0 ... earthrise)
+
+Scenes come from hive/lines/orbis_scenes.json: each needs an id (the protocol.ts SCENES name, also the clip file
+name) and a prompt; seed and seconds are optional per scene or for the whole file (defaults: seed 20000, 12 s).
 
 For each scene: reset, set_seed, set_prompt, start, wait for the first frame, let it run N seconds, then
 request_clip(N) + download (fragmented MP4) and remux to H.264 MP4 (-c copy when the stream is already H.264).
@@ -26,13 +30,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from relay import GEN_H, GEN_W, HERE, Config, ReactorSource, load_scenes, render_test_pattern
+from relay import GEN_H, GEN_W, HERE, SCENE_FILE, Config, ReactorSource, load_scene_file, render_test_pattern
 
 log = logging.getLogger("record")
 
 PRICE_PER_MIN = 0.58  # USD while connected (PLAN.md research); check the dashboard for the real rate
 CLIP_FPS = 18
 OVERHEAD_S = 15  # per scene: first frame + clip readiness + download, roughly
+DEFAULT_SEED = 20000
+DEFAULT_SECONDS = 12.0
 
 
 class RawVideoWriter:
@@ -251,7 +257,7 @@ def write_manifest(out: Path, results: list[dict[str, Any]], model: str) -> None
             continue
         info = probe(out / f"{r['id']}.mp4")
         manifest["clips"][r["id"]] = {
-            "stage": r["stage"], "file": f"{r['id']}.mp4", "origin": r["origin"], "seed": r["seed"],
+            "scene": r["id"], "stage": r["stage"], "file": f"{r['id']}.mp4", "origin": r["origin"], "seed": r["seed"],
             "seconds": round(info["duration"], 2), "width": info["width"], "height": info["height"],
             "codec": info["codec"], "prompt": r["prompt"], "model": model, "recorded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }  # fmt: skip
@@ -260,7 +266,7 @@ def write_manifest(out: Path, results: list[dict[str, Any]], model: str) -> None
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Record Visko Orbis fallback clips")
-    parser.add_argument("--scenes", type=Path, default=HERE / "scenes.json")
+    parser.add_argument("--scenes", type=Path, default=SCENE_FILE, help="scene file (default: ../lines/orbis_scenes.json)")
     parser.add_argument("--out", type=Path, default=HERE / "clips")
     parser.add_argument("--only", help="comma-separated scene ids")
     parser.add_argument("--seconds", type=float, help="clip length (default: scenes.json)")
@@ -273,8 +279,24 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    data = load_scenes(args.scenes)
+    try:
+        data = load_scene_file(args.scenes)
+    except FileNotFoundError:
+        log.error(
+            "%s does not exist yet. It holds the window scenes (id, prompt, optional seed) and is written by whoever "
+            "owns hive/lines/. Pass --scenes PATH to use another file (e.g. --scenes scenes.json for the old stage clips).",
+            args.scenes,
+        )
+        return 2
+    except ValueError as exc:  # includes JSON syntax errors
+        log.error("could not read %s: %s", args.scenes, exc)
+        return 2
     scenes = data["scenes"]
+    for s in scenes:
+        if s.get("clip") not in (None, f"{s['id']}.mp4"):
+            log.warning("%s: clip %r ignored; clips are always written as %s.mp4 (the relay's fallback_clip)", s["id"], s["clip"], s["id"])
+    for i, s in enumerate(scenes):  # stage only colours the fake test pattern and labels the manifest
+        s["stage"] = s["stage"] if isinstance(s.get("stage"), int) and not isinstance(s.get("stage"), bool) else i
     if args.only:
         wanted = {s.strip() for s in args.only.split(",") if s.strip()}
         unknown = wanted - {s["id"] for s in scenes}
@@ -285,16 +307,22 @@ def main() -> int:
     if not scenes:
         log.error("no scenes to record (check %s)", args.scenes)
         return 2
+    file_seed = data["seed"] if data["seed"] is not None else DEFAULT_SEED
+    file_seconds = data["seconds"] if data["seconds"] is not None else DEFAULT_SECONDS
+
+    def num(value: Any, default: float) -> float:
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+
     plan = {
         s["id"]: {
-            "seed": args.seed if args.seed is not None else int(s.get("seed", data["seed"])),
-            "seconds": max(2.0, min(300.0, args.seconds or float(s.get("seconds", data["seconds"])))),
+            "seed": args.seed if args.seed is not None else int(num(s.get("seed"), file_seed)),
+            "seconds": max(2.0, min(300.0, args.seconds or num(s.get("seconds"), file_seconds))),
         }
         for s in scenes
     }
     est_s = 20 + sum(p["seconds"] + OVERHEAD_S for p in plan.values())
     for s in scenes:
-        print(f"  {s['id']:<10} stage {s['stage']}  seed {plan[s['id']]['seed']}  {plan[s['id']]['seconds']:.0f}s  {s['prompt'][:70]}...")
+        print(f"  {s['id']:<15} seed {plan[s['id']]['seed']:<6} {plan[s['id']]['seconds']:.0f}s  {s['prompt'][:70]}...")
     if not args.fake:
         print(f"  about {est_s / 60:.1f} min connected, about ${est_s / 60 * PRICE_PER_MIN:.2f} at ${PRICE_PER_MIN}/min")
     if args.dry_run:
@@ -323,7 +351,7 @@ def main() -> int:
     write_manifest(args.out, results, model)
     failed = [r["id"] for r in results if r.get("error")]
     for r in results:
-        print(f"  {r['id']:<10} {'FAILED ' + r['error'] if r.get('error') else r['origin'] + ' -> ' + str(args.out / (r['id'] + '.mp4'))}")
+        print(f"  {r['id']:<15} {'FAILED ' + r['error'] if r.get('error') else r['origin'] + ' -> ' + str(args.out / (r['id'] + '.mp4'))}")
     return 1 if failed else 0
 
 

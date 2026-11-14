@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import sharp from "sharp";
-import { BINARY_KIND, PROTOCOL_VERSION } from "../src/protocol";
+import { SCENE_TABLE } from "../src/lines";
+import { BINARY_KIND, PROTOCOL_VERSION, SCENES } from "../src/protocol";
 import type { Hive } from "../src/server";
 import { TestClient, makeHive, post, setBeat, TOKEN, type MockDeps } from "./helpers";
 
@@ -103,30 +104,30 @@ describe("bus", () => {
     const quest = await connect("quest");
     const board = await connect("board");
     const monitor = await connect("monitor");
-    quest.send({ type: "beat.set", n: 2, name: "roses" });
-    expect(await board.waitFor("beat.set")).toEqual({ type: "beat.set", n: 2, name: "roses" });
-    await monitor.waitFor("beat.set", (m) => m.n === 2);
-    expect(hive.state.beat).toBe(2);
+    quest.send({ type: "beat.set", n: 3, name: "smoker" });
+    expect(await board.waitFor("beat.set")).toEqual({ type: "beat.set", n: 3, name: "smoker" });
+    await monitor.waitFor("beat.set", (m) => m.n === 3);
+    expect(hive.state.beat).toBe(3);
     expect(quest.of("beat.set")).toHaveLength(0); // not echoed to the sender
 
-    board.send({ type: "beat.set", n: 5, name: "hornet" });
+    board.send({ type: "beat.set", n: 6, name: "hornet" });
     await board.waitFor("error", (m) => m.message.includes("quest"));
-    expect(hive.state.beat).toBe(2);
+    expect(hive.state.beat).toBe(3);
   });
 
   test("beat.request goes to the quest; with no quest the Hive applies it", async () => {
     hive = makeHive();
     const board = await connect("board");
-    board.send({ type: "beat.request", n: 10 });
+    board.send({ type: "beat.request", n: 12 });
     expect((await board.waitFor("beat.set")).name).toBe("field");
-    expect(hive.state.beat).toBe(10);
+    expect(hive.state.beat).toBe(12);
 
     const quest = await connect("quest");
     board.send({ type: "beat.request", next: true });
     expect(await quest.waitFor("beat.request")).toEqual({ type: "beat.request", next: true });
     board.send({ type: "beat.request", n: 3 });
     expect((await quest.waitFor("beat.request", (m) => m.n === 3)).n).toBe(3);
-    expect(hive.state.beat).toBe(10); // unchanged until Unity reports beat.set
+    expect(hive.state.beat).toBe(12); // unchanged until Unity reports beat.set
   });
 
   test("mode, hum.set and group.reset", async () => {
@@ -184,16 +185,17 @@ describe("bus", () => {
     expect(glasses.of("say")).toHaveLength(1);
   });
 
-  test("hornet.cooked records overshoot and cues the ear line; splashdown plays the callback", async () => {
+  test("hornet.cooked records the hornet and cues the ear aside once", async () => {
     hive = makeHive();
     const quest = await connect("quest");
     const glasses = await connect("glasses");
-    hive.state.memory.first_item = "red_rose";
     quest.send({ type: "hornet.cooked", overshoot: true });
-    expect((await glasses.waitFor("say")).line_id).toBe("ear_hornet_done");
+    expect((await glasses.waitFor("say")).line_id).toBe("ear_aside_hornet");
     expect(hive.state.memory.hornet_overshoot).toBe(true);
-    quest.send({ type: "beat.set", n: 9, name: "splashdown" });
-    expect((await glasses.waitFor("say", (m) => m.line_id !== "ear_hornet_done")).line_id).toBe("ear_callback_rose");
+    expect(hive.state.memory.hornet_done).toBe(true);
+    quest.send({ type: "hornet.cooked", overshoot: false });
+    await Bun.sleep(50);
+    expect(glasses.of("say")).toHaveLength(1);
   });
 
   test("latency and log go to board and monitor", async () => {
@@ -216,18 +218,18 @@ describe("scan pipeline", () => {
     const board = await connect("board");
     let r = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     expect(r.json).toEqual({ allowed: false, scan_id: null, line_id: "ear_practice" });
-    await setBeat(quest, board, "hornet", 5);
+    await setBeat(quest, board, "hornet", 6);
     r = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     expect(r.json).toEqual({ allowed: false, scan_id: null, line_id: "ear_not_now" });
     expect(quest.of("scan.started")).toHaveLength(0);
   });
 
-  test("press during roses broadcasts scan.started; a second press is de-duplicated", async () => {
+  test("press during the smoker station broadcasts scan.started; a second press is de-duplicated", async () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
     const monitor = await connect("monitor");
-    await setBeat(quest, board, "roses", 2);
+    await setBeat(quest, board, "smoker", 3);
     const r = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     expect(r.json.allowed).toBe(true);
     expect(r.json.scan_id).toBeString();
@@ -245,7 +247,7 @@ describe("scan pipeline", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "beeline", 3);
+    await setBeat(quest, board, "feed", 4);
     const pressed_at = Date.now();
     const { json: press } = await post(hive, "/glasses/press", { pressed_at });
     const { status, json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "it's lavender", pressed_at });
@@ -285,7 +287,7 @@ describe("scan pipeline", () => {
     const quest = await connect("quest");
     const monitor = await connect("monitor");
     const board = await connect("board");
-    await setBeat(quest, board, "beeline", 3);
+    await setBeat(quest, board, "feed", 4);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, photo_url: photoUrl, pressed_at: Date.now() });
     expect(json).toMatchObject({ item: "purple_bee_flower", path: "claude" });
@@ -306,14 +308,14 @@ describe("scan pipeline", () => {
     expect(hive.deps.judgeCalls).toHaveLength(1);
     expect(hive.deps.judgeCalls[0]!.mime).toBe("image/jpeg");
     expect(hive.deps.judgeCalls[0]!.photo!.length).toBeGreaterThan(100);
-    expect(hive.deps.judgeCalls[0]!.beat).toBe("beeline");
+    expect(hive.deps.judgeCalls[0]!.beat).toBe("feed");
   });
 
   test("speech verdict does not wait for a slow photo; the polaroid still develops", async () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "roses", 2);
+    await setBeat(quest, board, "smoker", 3);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const t0 = Date.now();
     const slowUrl = photoUrl.replace("photo.jpg", "slow.jpg");
@@ -328,7 +330,7 @@ describe("scan pipeline", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "offlist", 4);
+    await setBeat(quest, board, "wasps", 5);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", {
       scan_id: press.scan_id,
@@ -345,7 +347,7 @@ describe("scan pipeline", () => {
     hive = makeHive({ judge: () => new Promise(() => {}) }, { directorTimeoutMs: 100 });
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "offlist", 4);
+    await setBeat(quest, board, "wasps", 5);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "my shoe", pressed_at: Date.now() });
     expect(json).toMatchObject({ item: "unclear", verdict: "roast", path: "claude" });
@@ -359,7 +361,7 @@ describe("scan pipeline", () => {
     });
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "offlist", 4);
+    await setBeat(quest, board, "wasps", 5);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "my coffee", pressed_at: Date.now() });
     expect(json).toMatchObject({ item: "non_plant_object", line_id: null, audio_url: null }); // the Quest speaks, not the ear
@@ -402,7 +404,7 @@ describe("scan pipeline", () => {
       judge: async () => ({ item: "non_plant_object", verdict: "roast", confidence: 0.9, seen: "a badge", line: "A badge. Very official. Denied.", ms: 3, model: "mock", fallback: false }),
     });
     const board = await connect("board");
-    board.send({ type: "beat.request", n: 10 }); // Field Mode, no Quest
+    board.send({ type: "beat.request", n: 12 }); // Field Mode, no Quest
     await board.waitFor("beat.set");
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     expect(press.allowed).toBe(true);
@@ -420,7 +422,7 @@ describe("scan pipeline", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "field", 10);
+    await setBeat(quest, board, "field", 12);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "bug spray", pressed_at: Date.now() });
     expect(json).toMatchObject({ item: "spray_bottle", verdict: "dangerous", line_id: "ear_verdict_spray_bottle" });
@@ -457,7 +459,7 @@ describe("scan pipeline", () => {
     const quest = await connect("quest");
     const board = await connect("board");
     const glasses = await connect("glasses");
-    await setBeat(quest, board, "beeline", 3);
+    await setBeat(quest, board, "feed", 4);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const scanP = post(hive, "/glasses/scan", { scan_id: press.scan_id, photo_url: photoUrl, pressed_at: Date.now() });
     await Bun.sleep(300); // Claude is "thinking"
@@ -475,7 +477,7 @@ describe("scan pipeline", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "roses", 2);
+    await setBeat(quest, board, "smoker", 3);
     const { json } = await post(hive, "/glasses/scan", { scan_id: "made-up", heard: "salvia", pressed_at: Date.now() });
     expect(json.item).toBe("purple_bee_flower");
     await quest.waitFor("scan.started");
@@ -499,7 +501,7 @@ describe("integration fixes (verifier)", () => {
     hive = makeHive({ judge: () => Promise.reject(new Error("no key")) });
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "offlist", 4);
+    await setBeat(quest, board, "wasps", 5);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "my shoe", pressed_at: Date.now() });
     expect(json).toMatchObject({ item: "unclear", line_id: null, audio_url: null, caption: "" });
@@ -512,7 +514,7 @@ describe("integration fixes (verifier)", () => {
     });
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "offlist", 4);
+    await setBeat(quest, board, "wasps", 5);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const { json } = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "my mug", pressed_at: Date.now() });
     expect(json).toMatchObject({ line_id: null, audio_url: null, caption: "A mug. Zero nectar." });
@@ -523,7 +525,7 @@ describe("integration fixes (verifier)", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "beeline", 3);
+    await setBeat(quest, board, "feed", 4);
     const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now() });
     const first = await post(hive, "/glasses/scan", { scan_id: press.scan_id, heard: "salvia", pressed_at: Date.now() });
     expect(first.json).toMatchObject({ item: "purple_bee_flower", path: "speech" });
@@ -539,7 +541,7 @@ describe("integration fixes (verifier)", () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
-    await setBeat(quest, board, "roses", 2);
+    await setBeat(quest, board, "smoker", 3);
     const slowUrl = photoUrl.replace("photo.jpg", "slow.jpg"); // 3 s
     const a = (await post(hive, "/glasses/press", { pressed_at: Date.now() })).json;
     await post(hive, "/glasses/scan", { scan_id: a.scan_id, heard: "roses", photo_url: slowUrl, pressed_at: Date.now() });
@@ -558,11 +560,11 @@ describe("integration fixes (verifier)", () => {
     expect(v).toMatchObject({ item: "other_bee_plant", verdict: "good", line_id: "room_ack_allow", tts_id: null, path: "operator" });
   });
 
-  test("orbis.request steers the relay (start, morph, stop) with the token; its state is mirrored as orbis{}", async () => {
+  test("orbis.request steers the relay (start, morph, stop) with scene prompts; its state is mirrored as orbis{}", async () => {
     // A stand-in for hive/orbis-relay: same paths, token check and status shape (plus extras the Hive must drop).
-    const posts: Array<{ path: string; body: unknown }> = [];
-    let status = { type: "orbis", state: "off", stage: 0, since: 1, fps: 0, fallback_clip: "moon_0.mp4" };
-    const set = (patch: Partial<typeof status>) => (status = { ...status, ...patch, since: status.since + 1 });
+    const posts: Array<{ path: string; body: any }> = [];
+    let status: Record<string, unknown> = { type: "orbis", state: "off", stage: 0, since: 1, fps: 0, fallback_clip: "moon_0.mp4", prompt: "" };
+    const set = (patch: Record<string, unknown>) => (status = { ...status, ...patch, since: (status.since as number) + 1 });
     const relay = Bun.serve({
       port: 0,
       hostname: "127.0.0.1",
@@ -570,11 +572,10 @@ describe("integration fixes (verifier)", () => {
         if (req.headers.get("x-hive-token") !== TOKEN) return Response.json({ error: "bad token" }, { status: 401 });
         const path = new URL(req.url).pathname;
         if (req.method === "GET" && path === "/orbis/status") return Response.json(status);
-        const body = (await req.json()) as { stage?: number };
+        const body = (await req.json()) as { prompt?: string };
         posts.push({ path, body });
-        const stage = body.stage ?? status.stage;
-        if (path === "/orbis/start") set({ state: "priming", stage, fallback_clip: `stage_${stage}.mp4` });
-        else if (path === "/orbis/stage") set({ stage, fallback_clip: `stage_${stage}.mp4` });
+        if (path === "/orbis/start") set({ state: "priming", prompt: body.prompt });
+        else if (path === "/orbis/stage") set({ prompt: body.prompt });
         else if (path === "/orbis/stop") set({ state: "ended" });
         return Response.json({ ok: true, ...status });
       },
@@ -583,31 +584,54 @@ describe("integration fixes (verifier)", () => {
       hive = makeHive({}, { orbisRelayUrl: `http://127.0.0.1:${relay.port}/`, orbisPollMs: 50 });
       const quest = await connect("quest");
       const board = await connect("board");
-      board.send({ type: "orbis.request", want: "live", stage: 2 });
-      expect(await quest.waitFor("orbis.request")).toEqual({ type: "orbis.request", want: "live", stage: 2 });
+      const meadow = SCENE_TABLE.meadow!;
+      board.send({ type: "orbis.request", want: "live" });
+      expect(await quest.waitFor("orbis.request")).toEqual({ type: "orbis.request", want: "live" });
       expect(await quest.waitFor("orbis", (m) => m.state === "priming")).toEqual({
         type: "orbis",
         state: "priming",
-        stage: 2,
-        fallback_clip: "stage_2.mp4",
+        stage: 0,
+        scene: "meadow",
+        fallback_clip: "meadow.mp4",
       });
       set({ state: "ready" }); // first frame: only the poll can see this
       await board.waitFor("orbis", (m) => m.state === "ready");
-      board.send({ type: "orbis.request", want: "live", stage: 3 }); // running: morph, don't restart
-      await quest.waitFor("orbis", (m) => m.state === "ready" && m.stage === 3);
-      board.send({ type: "orbis.request", want: "live" }); // already live: nothing to do
+
+      // a scene switch with the current mode morphs the running stream to that scene's prompt
+      board.send({ type: "orbis.request", want: "live", scene: "whatif_rain" });
+      expect(await quest.waitFor("orbis.request", (m) => m.scene)).toEqual({ type: "orbis.request", want: "live", scene: "whatif_rain", stage: SCENES.indexOf("whatif_rain") });
+      await quest.waitFor("orbis", (m) => m.scene === "whatif_rain" && m.fallback_clip === "whatif_rain.mp4");
+      // the quest may switch scenes too; a stale "clips" alongside a scene does NOT stop the stream
+      quest.send({ type: "orbis.request", want: "clips", scene: "feed_sick" });
+      await board.waitFor("orbis", (m) => m.scene === "feed_sick");
+      expect(hive.state.scene).toBe("feed_sick");
+      board.send({ type: "orbis.request", want: "live" }); // already live on this scene: nothing to do
       await board.waitFor("log", (m) => m.text.includes("already ready"));
-      board.send({ type: "orbis.request", want: "clips" });
+      board.send({ type: "orbis.request", want: "clips" }); // a bare mode request always applies
       await quest.waitFor("orbis", (m) => m.state === "ended");
-      expect(posts).toEqual([
-        { path: "/orbis/start", body: { stage: 2 } },
-        { path: "/orbis/stage", body: { stage: 3 } },
-        { path: "/orbis/stop", body: {} },
-      ]);
-      expect((await (await fetch(`${hive.url}/health`)).json()).orbis).toEqual({ state: "ended", stage: 3 });
+      await Bun.sleep(30);
+      expect(posts.map((p) => p.path)).toEqual(["/orbis/start", "/orbis/stage", "/orbis/stage", "/orbis/stop"]);
+      expect(posts[0]!.body).toEqual({ prompt: meadow.prompt, seed: meadow.seed, scene: "meadow" });
+      expect(posts[1]!.body).toEqual({ prompt: SCENE_TABLE.whatif_rain!.prompt, scene: "whatif_rain" });
+      expect(posts[2]!.body.scene).toBe("feed_sick");
+      const h = await (await fetch(`${hive.url}/health`)).json();
+      expect(h.orbis).toMatchObject({ state: "ended", scene: "feed_sick", want: "clips" });
+
+      // no stream: a scene switch never opens a billed session, but Unity still gets the clip
+      board.send({ type: "orbis.request", want: "clips", scene: "heat_drink" });
+      await quest.waitFor("orbis", (m) => m.scene === "heat_drink" && m.state === "ended");
+      await Bun.sleep(30);
+      expect(posts).toHaveLength(4);
 
       board.send({ type: "orbis.request", want: "live", stage: 1.5 });
       expect((await board.waitFor("error")).message).toContain("stage");
+      board.send({ type: "orbis.request", want: "clips", scene: "mars" });
+      await board.waitFor("error", (m) => m.message.includes("mars"));
+      board.send({ type: "orbis.request", want: "clips", stage: 99 });
+      await board.waitFor("error", (m) => m.message.includes("99"));
+      const glasses = await connect("glasses");
+      glasses.send({ type: "orbis.request", want: "clips", scene: "moon" });
+      await glasses.waitFor("error", (m) => m.message.includes("board or the quest"));
     } finally {
       relay.stop(true);
     }

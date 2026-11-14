@@ -1,8 +1,11 @@
 // HONEYMOON event contract: the one source of truth shared by the Hive, the Quest (Unity),
 // the Beat Board, the monitor, and the Mentra miniapp. Change it only together with PLAN.md
 // (log the change there) and unity/BeeswaxClient/BeeswaxProtocol.cs.
+//
+// v2 (concept v3 "Save the Hive"): stations + choices, voice in (mic audio -> transcript -> intent),
+// Orbis window scenes, fx events. The v1 glasses scan messages stay for the later glasses mode.
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // ---------------------------------------------------------------- roles & transport
 // Bus: wss://<host>/bus?role=<Role>&token=<HIVE_TOKEN>
@@ -14,28 +17,83 @@ export const BINARY_KIND = {
   SCAN_PHOTO: 0x01,
   /** PCM16 little-endian mono chunk; belongs to the most recent `tts.start`. */
   TTS_PCM16: 0x02,
+  /** Client -> Hive: PCM16 LE mono 16 kHz mic audio; belongs to the sender's open `listen.start`. */
+  MIC_PCM16: 0x03,
 } as const;
 export type BinaryKind = (typeof BINARY_KIND)[keyof typeof BINARY_KIND];
 
 // ---------------------------------------------------------------- beats (Unity owns the clock)
 // Unity is the ONLY beat clock. It reports `beat.set`; the Hive/Board only send `beat.request`.
 export const BEATS = [
-  "pre", //        0  hook + fitting (not on the clock)
-  "meet", //       1  0:00-0:15 swarm onto palm
-  "roses", //      2  0:15-1:05 roses scan + Bee Vision
-  "beeline", //    3  1:05-1:40 purple flower scan + beeline
-  "offlist", //    4  1:40-2:10 off-list roast (only if ahead)
-  "hornet", //     5  2:10-3:00 hornet + hum
-  "plea", //       6  3:00-3:15 one plea
-  "buffer", //     7  3:15-3:50
-  "t0", //         8  3:50-4:30 launch, Moon, Earthrise, crash back
-  "splashdown", // 9  4:30-4:50 ear callback + seed packet
-  "field", //     10  post-demo Field Mode (glasses only, no Quest effects)
+  "pre", //     0  fitting, not on the clock
+  "hook", //    1  0:00-0:15 hive on the real table, HONEYMOON-1 parked, "fix it or we move to the Moon"
+  "meet", //    2  0:15-0:35 Beeswax + the future window opens
+  "smoker", //  3  0:35-1:05 station 1
+  "feed", //    4  1:05-1:45 station 2 (tip the hive, then feed it)
+  "wasps", //   5  1:45-2:20 station 3 (door size)
+  "hornet", //  6  +30 s, only if ahead: fist + hum
+  "heat", //    7  2:20-2:55 station 4
+  "whatif", //  8  2:55-3:20 voice what-if (fire -> put it out)
+  "escape", //  9  3:20-3:40 hexagons, door opens, score card
+  "t0", //     10  3:40-4:15 TAKE ME TO THE MOON, Moon, crash back
+  "map", //    11  "six more hives" locked-levels map
+  "field", //  12  post-demo (glasses only, no Quest effects)
 ] as const;
 export type BeatName = (typeof BEATS)[number];
 
-/** Beats in which a glasses button press starts a scan. Elsewhere: "not now" line. */
-export const SCAN_BEATS: readonly BeatName[] = ["roses", "beeline", "offlist", "field"];
+/** Beats in which a glasses button press starts a scan (real-prop mode, later). Elsewhere: "not now". */
+export const SCAN_BEATS: readonly BeatName[] = ["smoker", "feed", "wasps", "heat", "field"];
+
+/** Beats in which voice is listened to (the what-if beat is the main one; any beat may ask questions). */
+export const VOICE_BEATS: readonly BeatName[] = ["meet", "smoker", "feed", "wasps", "hornet", "heat", "whatif", "escape", "map", "field"];
+
+// ---------------------------------------------------------------- stations & choices (v2)
+export const STATIONS = ["smoker", "feed", "wasps", "heat"] as const;
+export type Station = (typeof STATIONS)[number];
+
+export const CHOICES = {
+  smoker: ["swat", "spray_water", "smoker"],
+  feed: ["store_honey", "sugar_syrup"],
+  wasps: ["bigger_door", "smaller_door"],
+  heat: ["deep_bowl", "pebble_dish", "nothing"],
+} as const satisfies Record<Station, readonly string[]>;
+export type Choice = (typeof CHOICES)[Station][number];
+
+export const CORRECT_CHOICE: Record<Station, Choice> = {
+  smoker: "smoker",
+  feed: "sugar_syrup",
+  wasps: "smaller_door",
+  heat: "pebble_dish",
+};
+
+// ---------------------------------------------------------------- the future window (Orbis scenes)
+// Each scene has a live Orbis prompt (hive/lines/orbis_scenes.json) AND a recorded fallback clip.
+export const SCENES = [
+  "meadow", //          start: a living meadow, the hive in it
+  "smoker_settle", //   smoker: calm, bees head out to forage
+  "smoker_angry", //    swat / spray water: the swarm gets angrier
+  "feed_sick", //       store honey: the colony gets sick (mid-stream shift)
+  "feed_recover", //    sugar syrup: recovers
+  "wasps_raid", //      bigger door: wasps get in
+  "wasps_leave", //     smaller door: wasps give up
+  "heat_stress", //     nothing / deep bowl: hot, struggling, drowning risk
+  "heat_drink", //      pebble dish: bees land and drink
+  "whatif_fire", //     "what if a fire starts?"
+  "fire_out", //        "put it out"
+  "whatif_rain", //     COULD
+  "whatif_flowers", //  COULD ("what if we plant clover?")
+  "whatif_spray", //    COULD (pesticide drift)
+  "whatif_winter", //   COULD
+  "full_bloom", //      escape
+  "moon", //            t0: grey dust, Earth rising
+] as const;
+export type Scene = (typeof SCENES)[number];
+export const WHATIF_TOPICS = ["fire", "rain", "flowers", "spray", "winter"] as const;
+export type WhatIfTopic = (typeof WHATIF_TOPICS)[number];
+
+/** Unity effect cues the Hive can trigger (Unity owns how they look). */
+export const FX = ["embers", "embers_stop", "swarm_calm", "swarm_angry", "hive_glow_red", "hive_glow_off"] as const;
+export type FxName = (typeof FX)[number];
 
 export type Mode = "duo" | "solo";
 
@@ -134,12 +192,34 @@ export interface VerdictForce { type: "verdict.force"; item: Item }
 export interface SayForce { type: "say.force"; line_id: string; channel: Channel }
 
 export type OrbisState = "off" | "priming" | "ready" | "failed" | "ended";
-/** Board → Hive: switch the window layer; Hive → all: current state. Frames: wss://<host>/orbis/frames */
-export interface OrbisRequest { type: "orbis.request"; want: "live" | "clips" | "off"; stage?: number }
-export interface OrbisStatus { type: "orbis"; state: OrbisState; stage: number; fallback_clip: string | null }
+/** Board|Quest → Hive: switch the window layer and/or scene; Hive → all: current state.
+ *  Frames: wss://<host>/orbis/frames. `fallback_clip` = clip name for `scene` (Unity plays it when live is down). */
+export interface OrbisRequest { type: "orbis.request"; want: "live" | "clips" | "off"; stage?: number; scene?: Scene }
+export interface OrbisStatus { type: "orbis"; state: OrbisState; stage: number; scene: Scene | null; fallback_clip: string | null }
 
 /** Anyone → Hive → board/monitor: one measured hop. */
-export interface Latency { type: "latency"; hop: string; ms: number; source: Role }
+export interface Latency { type: "latency"; hop: string; ms: number; source: Role | "hive" }
+
+// ---------------------------------------------------------------- v2: stations, voice, scenes, fx
+/** Quest → Hive (authoritative): the player made a choice at a station. Hive -> window scene +
+ *  `say` (room line from hive/lines/stations.json) + memory; rebroadcast to board/monitor. */
+export interface ChoiceMade { type: "choice.made"; station: Station; choice: Choice; correct: boolean }
+
+/** Client (quest|glasses) → Hive: start/stop a voice utterance. Between them the client sends binary
+ *  MIC_PCM16 frames (16 kHz mono). mode "ptt" = held button/pinch; "vad" = client-side voice detection. */
+export interface ListenStart { type: "listen.start"; source: "quest" | "glasses"; mode: "ptt" | "vad" }
+export interface ListenEnd { type: "listen.end"; source: "quest" | "glasses"; cancel?: boolean }
+/** Hive → all: speech-to-text result. */
+export interface Transcript { type: "transcript"; text: string; final: boolean; source: "quest" | "glasses"; ms: number; stt: string }
+
+export const INTENTS = ["what_if", "undo", "ask", "ack", "unknown"] as const;
+export type IntentName = (typeof INTENTS)[number];
+/** Hive → all: what the player meant. what_if -> window scene + fx + line; undo ("put it out") -> back;
+ *  ask -> live Beeswax answer (tts); ack/unknown -> a canned acknowledgement. */
+export interface Intent { type: "intent"; name: IntentName; topic: WhatIfTopic | null; text: string; path: "keyword" | "claude"; ms: number }
+
+/** Hive → Quest: play an effect. */
+export interface Fx { type: "fx"; name: FxName; delay_ms?: number; duration_ms?: number }
 export interface LogMsg { type: "log"; text: string; source?: Role }
 export interface ErrorMsg { type: "error"; message: string }
 
@@ -147,7 +227,8 @@ export type BusMessage =
   | Hello | Welcome | BeatSet | BeatRequest | ModeMsg | GroupReset
   | ScanStarted | ScanPhoto | ScanVerdict | SwarmArrived | HornetCooked | Plea
   | Say | TtsStart | TtsEnd | HumSet | VerdictForce | SayForce
-  | OrbisRequest | OrbisStatus | Latency | LogMsg | ErrorMsg;
+  | OrbisRequest | OrbisStatus | Latency | LogMsg | ErrorMsg
+  | ChoiceMade | ListenStart | ListenEnd | Transcript | Intent | Fx;
 
 // ---------------------------------------------------------------- glasses HTTP API
 // All glasses calls carry ?token=<HIVE_TOKEN> (or header x-hive-token).
@@ -177,8 +258,20 @@ export interface PleaRequest { text: string }
 /** POST /glasses/latency: miniapp-side hop timings. */
 export interface LatencyRequest { hop: string; ms: number }
 
+/** POST /glasses/utterance: a final transcription from the glasses' own speech-to-text (same intent
+ *  pipeline as Quest voice). Reply: the ear line to play, if any. */
+export interface UtteranceRequest { text: string; at: number }
+export interface UtteranceResponse { intent: IntentName; topic: WhatIfTopic | null; line_id: string | null; audio_url: string | null; caption: string }
+
 // ---------------------------------------------------------------- Claude director schema
 /** What the scan model must return (structured output). The Hive maps it to sockets/lines. */
+/** What the intent router model must return (structured output). Keyword fast path runs first. */
+export interface RouterOutput {
+  intent: IntentName;
+  topic: WhatIfTopic | null; // only for what_if
+  answer: string | null; //    only for ask: <= 25 words, Beeswax's voice, only vetted facts
+}
+
 export interface DirectorOutput {
   item: Item;
   verdict: Verdict;

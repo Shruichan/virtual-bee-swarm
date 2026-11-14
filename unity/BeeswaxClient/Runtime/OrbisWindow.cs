@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.Video;
 #if BEESWAX_UGUI
 using UnityEngine.UI;
@@ -20,6 +21,17 @@ namespace Beeswax
     /// also asks for the relay's JSON orbis{} status (?status=1).
     /// The Board's orbis.request (via the bus) picks the layer: live (live, clips as fallback) | clips | off
     /// (hidden, and the frames socket is closed so the relay's idle stop can end a billed session).
+    ///
+    /// Scenes (v2): every SCENES entry has a recorded clip. orbis{scene} from the Hive, orbis.request{scene}
+    /// from the Board, or RequestScene() here switch the clip at once, whether or not live is up. Clip lookup:
+    /// sceneClips (inspector) → the Hive's fallback_clip name → StreamingAssets/&lt;sceneClipFolder&gt;/&lt;fallback_clip&gt;
+    /// → StreamingAssets/&lt;sceneClipFolder&gt;/&lt;scene&gt;.mp4 → the old per-stage clips. A scene set while offline is
+    /// re-sent to the Hive after the next welcome. The Hive drives the scene itself from choice.made, beat.set and
+    /// voice intents; RequestScene is for extras.
+    /// Only the Hive's bus statuses set the scene: the relay's own status (frames socket) only updates State, because
+    /// the relay keeps the last scene it streamed after a stop and lags the Hive during a morph.
+    /// The Hive sends orbis{} only on change, so after each (re)connect the window reads the Hive's current scene and
+    /// mode from GET /health (syncOnWelcome).
     /// </summary>
     public class OrbisWindow : MonoBehaviour
     {
@@ -42,7 +54,28 @@ namespace Beeswax
         [Tooltip("Hide the renderer/RawImage when there is neither a live frame nor a clip.")]
         [SerializeField] bool hideWhenEmpty = true;
 
-        [Header("Fallback clips (index = stage)")]
+        [Serializable]
+        public class SceneClip
+        {
+            [Tooltip("One of SCENES, e.g. feed_sick.")]
+            public string scene;
+            public VideoClip clip;
+        }
+
+        [Header("Fallback clips per scene")]
+        [SerializeField] List<SceneClip> sceneClips = new List<SceneClip>();
+        [Tooltip("Scenes without a sceneClips entry play StreamingAssets/<this folder>/<scene>.mp4 (empty = the root).")]
+        [SerializeField] string sceneClipFolder = "";
+        [SerializeField] bool streamingAssetsByScene = true;
+        [Tooltip("Scene shown before the Hive names one.")]
+        [SerializeField] string initialScene = Beeswax.Scene.Meadow;
+        [Tooltip("After RequestScene, ignore Hive statuses naming another scene for this long (they predate the request).")]
+        [SerializeField] float pendingSceneHoldSeconds = 4f;
+        [Tooltip("After each bus (re)connect, read the Hive's current scene and Board mode from GET /health " +
+                 "(the Hive only sends orbis{} when something changes).")]
+        [SerializeField] bool syncOnWelcome = true;
+
+        [Header("Fallback clips (index = stage, v1; used when no scene clip is found)")]
         [SerializeField] VideoPlayer videoPlayer;
         [SerializeField] List<VideoClip> stageClips = new List<VideoClip>();
         [Tooltip("Used when stageClips has no entry: file names under StreamingAssets, e.g. orbis/stage0.mp4.")]
@@ -51,9 +84,17 @@ namespace Beeswax
 
         /// <summary>(texture now shown or null, isLive). Use it for your own crossfade.</summary>
         public event Action<Texture, bool> OnTextureChanged;
+        /// <summary>The window's scene changed (from the Hive, the Board or RequestScene).</summary>
+        public event Action<string> OnSceneChanged;
 
         public bool IsLive { get; private set; }
         public int Stage { get; private set; }
+        /// <summary>Current scene (one of SCENES); its clip plays whenever live is down.</summary>
+        public string Scene { get; private set; } = "";
+        /// <summary>A scene this Quest asked for that the Hive hasn't confirmed yet ("" = none).</summary>
+        public string PendingScene => _pendingScene;
+        /// <summary>What the fallback layer is playing: "clip:&lt;name&gt;", "file:&lt;path&gt;" or "".</summary>
+        public string PlayingClip => _playingClipKey;
         public string State { get; private set; } = "";
         public string FallbackClip { get; private set; } = "";
         /// <summary>The Board's choice from orbis.request: "live" (default), "clips" or "off".</summary>
@@ -76,8 +117,15 @@ namespace Beeswax
         float _lastFrameAt = -1f, _nextDecodeAt, _nextAttemptAt;
         int _failures;
         string _socketHost = "";
-        bool _wantConnected, _forceFallback, _sourceChosen;
-        string _playingClipKey = "";
+        bool _wantConnected, _forceFallback, _sourceChosen, _clipFailed, _wantKnown;
+        string _playingClipKey = "", _fallbackClipScene = "", _pendingScene = "";
+        float _pendingUntil, _resyncAt = -1f;
+        readonly HashSet<string> _failedFiles = new HashSet<string>();
+        UnityWebRequest _healthReq;
+        int _hiveSeq; // bumped by every orbis{} / orbis.request from the bus: a /health reply older than one is ignored
+
+        [Serializable] class HealthOrbis { public string state = "", scene = "", want = ""; }
+        [Serializable] class HealthReply { public HealthOrbis orbis; }
 
         void Awake()
         {
@@ -97,13 +145,19 @@ namespace Beeswax
         {
             Bind();
             if (connectOnStart) _wantConnected = true;
+            if (Scene.Length == 0 && BeeswaxProtocol.IsScene(initialScene)) Scene = initialScene;
             ChooseSource(force: true);
         }
 
-        void OnDisable() => Unbind();
+        void OnDisable()
+        {
+            Unbind();
+            CancelHealth();
+        }
 
         void OnDestroy()
         {
+            CancelHealth();
             _socket.Close();
             if (_live != null) Destroy(_live);
             if (_rt != null) { _rt.Release(); Destroy(_rt); }
@@ -117,6 +171,7 @@ namespace Beeswax
             _bound = b;
             b.OnOrbis += HandleStatus;
             b.OnOrbisRequest += HandleRequest;
+            b.OnWelcome += HandleWelcome;
         }
 
         void Unbind()
@@ -124,6 +179,7 @@ namespace Beeswax
             if (_bound == null) return;
             _bound.OnOrbis -= HandleStatus;
             _bound.OnOrbisRequest -= HandleRequest;
+            _bound.OnWelcome -= HandleWelcome;
             _bound = null;
         }
 
@@ -144,6 +200,37 @@ namespace Beeswax
             ChooseSource(force: true);
         }
 
+        /// <summary>
+        /// Show `scene` now (its clip, while live is down) and ask the Hive to steer the live window there
+        /// (orbis.request{want: current Want, scene}). Offline, the request is sent after the next welcome.
+        /// Returns true if the request went out now.
+        /// </summary>
+        public bool RequestScene(string scene)
+        {
+            if (!BeeswaxProtocol.IsScene(scene)) { Debug.LogWarning($"[Beeswax] '{scene}' is not one of SCENES."); return false; }
+            ApplyScene(scene);
+            _pendingScene = scene;
+            var b = _bound;
+            bool sent = b != null && b.IsConnected && b.SendOrbisRequest(RequestWant, scene);
+            // Unsent (offline): Hive statuses naming other scenes are stale until the request is re-sent.
+            _pendingUntil = sent ? Time.realtimeSinceStartup + pendingSceneHoldSeconds : float.PositiveInfinity;
+            return sent;
+        }
+
+        /// <summary>
+        /// The `want` a Quest scene request carries. The Hive treats a want that differs from its own as a mode change,
+        /// and its default is "clips", so the Quest must not guess "live" (that would start a billed stream):
+        /// a running stream (priming/ready) → "live" (never stop it); otherwise the Board's last request; else "clips".
+        /// </summary>
+        public string RequestWant =>
+            State == OrbisState.Priming || State == OrbisState.Ready ? OrbisWant.Live : _wantKnown ? Want : OrbisWant.Clips;
+
+        /// <summary>Switch the local clip only (preview/debug); the Hive is not told.</summary>
+        public void ShowSceneLocally(string scene)
+        {
+            if (BeeswaxProtocol.IsScene(scene)) ApplyScene(scene);
+        }
+
         /// <summary>Operator/debug: show clips even when live frames arrive.</summary>
         public void ForceFallback(bool on)
         {
@@ -159,6 +246,12 @@ namespace Beeswax
             _socket.Tick();
 
             float now = Time.realtimeSinceStartup;
+            if (_resyncAt >= 0f && now >= _resyncAt) Resync();
+            if (_clipFailed)
+            {
+                _clipFailed = false;
+                ChooseSource(force: true);
+            }
             if (_pending != null && now >= _nextDecodeAt)
             {
                 Decode(_pending, _pendingOffset);
@@ -200,7 +293,7 @@ namespace Beeswax
                 string json = BeeswaxProtocol.Utf8(data);
                 if (BeeswaxProtocol.PeekType(json) == MsgType.Orbis)
                 {
-                    try { HandleStatus(BeeswaxProtocol.Parse<OrbisStatus>(json)); }
+                    try { HandleRelayStatus(BeeswaxProtocol.Parse<OrbisStatus>(json)); }
                     catch (Exception e) { Debug.LogWarning("[Beeswax] bad orbis status: " + e.Message); }
                 }
                 return;
@@ -238,19 +331,122 @@ namespace Beeswax
             _lastFrameAt = Time.realtimeSinceStartup;
         }
 
+        // The Board's request is authoritative for the scene too.
         void HandleRequest(OrbisRequest r)
         {
-            if (r.want == "live" || r.want == "clips" || r.want == "off") Want = r.want;
+            _hiveSeq++;
+            if (r.want == "live" || r.want == "clips" || r.want == "off") { Want = r.want; _wantKnown = true; }
             if (r.stage >= 0) Stage = r.stage;
+            if (r.HasScene && BeeswaxProtocol.IsScene(r.scene))
+            {
+                _pendingScene = "";
+                ApplyScene(r.scene);
+            }
             ChooseSource(force: true);
         }
 
+        // The relay's status on the frames socket: its state only (live/failed/ended switch the layer at once).
+        void HandleRelayStatus(OrbisStatus s)
+        {
+            if (!IsOrbisState(s.state)) return;
+            State = s.state;
+            ChooseSource(force: true);
+        }
+
+        static bool IsOrbisState(string s) =>
+            s == OrbisState.Off || s == OrbisState.Priming || s == OrbisState.Ready || s == OrbisState.Failed || s == OrbisState.Ended;
+
         void HandleStatus(OrbisStatus s)
         {
+            _hiveSeq++;
             State = s.state;
-            FallbackClip = s.fallback_clip;
             if (s.stage >= 0) Stage = s.stage;
+            bool stale = s.scene.Length > 0 && _pendingScene.Length > 0 && s.scene != _pendingScene &&
+                         Time.realtimeSinceStartup < _pendingUntil;
+            if (!stale)
+            {
+                FallbackClip = s.fallback_clip;
+                _fallbackClipScene = s.scene;
+                if (s.scene.Length > 0 && BeeswaxProtocol.IsScene(s.scene))
+                {
+                    _pendingScene = "";
+                    ApplyScene(s.scene);
+                }
+            }
             ChooseSource(force: true);
+        }
+
+        // A new link: if we changed the scene while the Hive couldn't hear it, tell it again (after its own
+        // status for the new link has had a moment to arrive).
+        void HandleWelcome(Welcome w)
+        {
+            if (_pendingScene.Length > 0) _resyncAt = Time.realtimeSinceStartup + 0.5f;
+            if (syncOnWelcome) FetchHiveWindow();
+        }
+
+        // GET /health → orbis {state, scene, want}: the window as the Hive has it now (it may have changed while we
+        // were away, and a fresh app start knows nothing). Any orbis{} / orbis.request that arrives first wins.
+        void FetchHiveWindow()
+        {
+            var b = _bound;
+            if (b == null || string.IsNullOrEmpty(b.CurrentHost)) return;
+            CancelHealth();
+            int seq = _hiveSeq;
+            UnityWebRequest req;
+            try { req = UnityWebRequest.Get(BeeswaxBus.HealthUrl(b.CurrentHost)); }
+            catch (Exception e) { Debug.LogWarning("[Beeswax] window sync: " + e.Message); return; }
+            req.timeout = 4;
+            _healthReq = req;
+            req.SendWebRequest().completed += _ =>
+            {
+                string text = req.result == UnityWebRequest.Result.Success && req.responseCode == 200 ? req.downloadHandler.text : null;
+                req.Dispose();
+                if (_healthReq != req) return; // cancelled or superseded
+                _healthReq = null;
+                if (text == null || seq != _hiveSeq) return;
+                HealthReply h;
+                try { h = JsonUtility.FromJson<HealthReply>(text); }
+                catch (Exception) { return; }
+                if (h?.orbis != null) ApplyHiveWindow(h.orbis);
+            };
+        }
+
+        void ApplyHiveWindow(HealthOrbis o)
+        {
+            if (o.want == OrbisWant.Live || o.want == OrbisWant.Clips || o.want == OrbisWant.Off) { Want = o.want; _wantKnown = true; }
+            if (IsOrbisState(o.state)) State = o.state;
+            // Our own unconfirmed scene (set offline) is re-sent by Resync and wins.
+            if (_pendingScene.Length == 0 && BeeswaxProtocol.IsScene(o.scene) && o.scene != Scene)
+            {
+                Debug.Log($"[Beeswax] window: the Hive is on '{o.scene}' (was '{Scene}').");
+                ApplyScene(o.scene);
+            }
+            ChooseSource(force: true);
+        }
+
+        void CancelHealth()
+        {
+            var req = _healthReq;
+            _healthReq = null;
+            if (req == null) return;
+            try { req.Abort(); } catch (Exception) { /* already finished */ }
+        }
+
+        void Resync()
+        {
+            _resyncAt = -1f;
+            var b = _bound;
+            if (_pendingScene.Length == 0 || b == null || !b.IsConnected) return;
+            Debug.Log($"[Beeswax] re-sending window scene '{_pendingScene}' after reconnect.");
+            if (b.SendOrbisRequest(RequestWant, _pendingScene)) _pendingUntil = Time.realtimeSinceStartup + pendingSceneHoldSeconds;
+        }
+
+        void ApplyScene(string scene)
+        {
+            if (scene == Scene) return;
+            Scene = scene;
+            ChooseSource(force: true);
+            try { OnSceneChanged?.Invoke(scene); } catch (Exception e) { Debug.LogException(e); }
         }
 
         // ---------------------------------------------------------------- live vs clip
@@ -277,20 +473,7 @@ namespace Beeswax
 
         Texture PlayClip()
         {
-            VideoClip clip = null;
-            string file = null;
-            if (FallbackClip.Length > 0)
-            {
-                clip = stageClips.Find(c => c != null && c.name == Path.GetFileNameWithoutExtension(FallbackClip));
-                if (clip == null)
-                    file = stageClipFiles.Find(f => !string.IsNullOrEmpty(f) &&
-                        Path.GetFileNameWithoutExtension(f) == Path.GetFileNameWithoutExtension(FallbackClip));
-            }
-            if (clip == null && file == null)
-            {
-                if (stageClips.Count > 0) clip = stageClips[Mathf.Clamp(Stage, 0, stageClips.Count - 1)];
-                if (clip == null && stageClipFiles.Count > 0) file = stageClipFiles[Mathf.Clamp(Stage, 0, stageClipFiles.Count - 1)];
-            }
+            ResolveClip(out VideoClip clip, out string file);
             if (clip == null && string.IsNullOrEmpty(file)) { StopClip(); return null; }
 
             EnsurePlayer();
@@ -305,6 +488,54 @@ namespace Beeswax
             else if (!videoPlayer.isPlaying) videoPlayer.Play();
             return _rt;
         }
+
+        /// <summary>The clip (or StreamingAssets file) the fallback layer would play for the current scene/stage.</summary>
+        public void ResolveClip(out VideoClip clip, out string file)
+        {
+            clip = null;
+            file = null;
+            if (Scene.Length > 0)
+            {
+                var entry = sceneClips.Find(c => c != null && c.clip != null && c.scene == Scene);
+                if (entry != null) clip = entry.clip;
+            }
+            // The Hive's fallback_clip names the clip for the scene it reported; use it if that is still our scene.
+            bool hiveClipIsOurs = FallbackClip.Length > 0 && (_fallbackClipScene.Length == 0 || _fallbackClipScene == Scene);
+            if (clip == null && hiveClipIsOurs)
+            {
+                string name = Path.GetFileNameWithoutExtension(FallbackClip);
+                var entry = sceneClips.Find(c => c != null && c.clip != null && (c.clip.name == name || c.scene == name));
+                clip = entry != null ? entry.clip : stageClips.Find(c => c != null && c.name == name);
+                if (clip == null)
+                    file = stageClipFiles.Find(f => !string.IsNullOrEmpty(f) && !_failedFiles.Contains(f) &&
+                                                    Path.GetFileNameWithoutExtension(f) == name);
+            }
+            if (clip == null && file == null && Scene.Length > 0 && streamingAssetsByScene)
+            {
+                // orbis_scenes.json may name a clip other than <scene>.mp4 (e.g. a *_pingpong.mp4 loop); a plain
+                // file name only, since it comes off the network.
+                if (hiveClipIsOurs && FallbackClip.IndexOfAny(new[] { '/', '\\' }) < 0 && !FallbackClip.Contains("..") &&
+                    Path.GetFileName(FallbackClip) != Scene + ".mp4")
+                {
+                    string f = InClipFolder(FallbackClip);
+                    if (!_failedFiles.Contains(f)) file = f;
+                }
+                if (file == null)
+                {
+                    string f = InClipFolder(Scene + ".mp4");
+                    if (!_failedFiles.Contains(f)) file = f;
+                }
+            }
+            if (clip == null && file == null)
+            {
+                if (stageClips.Count > 0) clip = stageClips[Mathf.Clamp(Stage, 0, stageClips.Count - 1)];
+                if (clip == null && stageClipFiles.Count > 0) file = stageClipFiles[Mathf.Clamp(Stage, 0, stageClipFiles.Count - 1)];
+                if (file != null && _failedFiles.Contains(file)) file = null;
+            }
+        }
+
+        string InClipFolder(string fileName) =>
+            string.IsNullOrEmpty(sceneClipFolder) ? fileName : sceneClipFolder.TrimEnd('/') + "/" + fileName;
 
         void StopClip()
         {
@@ -330,7 +561,15 @@ namespace Beeswax
             videoPlayer.errorReceived += HandleVideoError;
         }
 
-        static void HandleVideoError(VideoPlayer vp, string message) => Debug.LogWarning("[Beeswax] Orbis fallback clip: " + message);
+        // A missing/broken StreamingAssets file: remember it and fall through to the next candidate (next Update).
+        void HandleVideoError(VideoPlayer vp, string message)
+        {
+            if (_playingClipKey.Length == 0) return; // VideoPlayer repeats the error for a clip we already dropped
+            Debug.LogWarning($"[Beeswax] Orbis fallback clip {_playingClipKey}: {message}");
+            if (_playingClipKey.StartsWith("file:", StringComparison.Ordinal)) _failedFiles.Add(_playingClipKey.Substring(5));
+            _playingClipKey = "";
+            _clipFailed = true;
+        }
 
         void Show(Texture tex, bool live, bool hidden = false)
         {

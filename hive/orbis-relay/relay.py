@@ -5,10 +5,10 @@
 
 HTTP (all take ?token=<HIVE_TOKEN> or header x-hive-token when HIVE_TOKEN is set):
     POST /orbis/warm                          connect a session early (billing starts at ready)
-    POST /orbis/start {prompt?, seed?, stage?, passthrough?}
-    POST /orbis/stage {prompt?, stage?, reset?, passthrough?}
+    POST /orbis/start {prompt?, seed?, stage?, scene?, passthrough?}
+    POST /orbis/stage {prompt?, stage?, scene?, reset?, passthrough?}
     POST /orbis/stop
-    GET  /orbis/status                        {state, stage, since, fps, ...}
+    GET  /orbis/status                        {state, stage, scene, since, fps, ...}
     GET  /orbis/frame.jpg                     latest frame (debug / monitor)
     WS   /orbis/frames                        binary JPEG frames (add ?status=1 for JSON status text frames)
 POSTs return at once and the work runs in order in the background; add ?wait=1 to block until it settles.
@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -35,6 +36,8 @@ from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 log = logging.getLogger("orbis")
 
 HERE = Path(__file__).resolve().parent
+SCENE_FILE = HERE.parent / "lines" / "orbis_scenes.json"  # v2 named window scenes (protocol.ts SCENES)
+SCENE_ID = re.compile(r"^[a-z0-9_]{1,40}$")  # also the clip file name: clips/<scene>.mp4
 MODEL = "reactor/visko-orbis-stable"
 GEN_W, GEN_H = 832, 480  # what Orbis generates
 # Smallest delivery tiers first: we downscale to <= ORBIS_MAX_W anyway, so a bigger tier only costs bandwidth.
@@ -72,6 +75,7 @@ class Config:
         self.stall_s = _env_num("ORBIS_STALL_S", 15.0)  # ready but no frames -> reconnect
         self.wait_s = _env_num("ORBIS_WAIT_S", 60.0)  # ?wait=1 limit
         self.scenes_path = Path(os.environ.get("ORBIS_SCENES", HERE / "scenes.json"))
+        self.scene_file = Path(os.environ.get("ORBIS_SCENE_FILE", SCENE_FILE))
         self.fake = fake_flag or os.environ.get("ORBIS_FAKE", "") not in ("", "0", "false")
         self.fake_reason = "requested" if self.fake else ""
         if not self.fake and not self.api_key:
@@ -87,6 +91,66 @@ def load_scenes(path: Path) -> dict[str, Any]:
     except Exception as exc:
         log.warning("no scenes from %s (%s): every request must carry a prompt", path, exc)
         return {"seed": 42, "seconds": 12.0, "scenes": []}
+
+
+def load_scene_file(path: Path) -> dict[str, Any]:
+    """Named scenes (hive/lines/orbis_scenes.json) -> {seed, seconds, scenes: [{id, prompt, morph, seed?, seconds?}]}.
+
+    Accepts {"scenes": [{"id"|"scene"|"name", "prompt", ...}]}, {"scenes": {id: {...}}} or a top-level {id: {...}} map
+    (keys starting with "_" are notes). Raises FileNotFoundError / ValueError with a readable message."""
+    data = json.loads(path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected a JSON object")
+    raw = data.get("scenes", data)
+    items = [{"id": k, **v} for k, v in raw.items() if isinstance(v, dict) and not k.startswith("_")] if isinstance(raw, dict) else raw
+    if not isinstance(items, list):
+        raise ValueError(f"{path}: 'scenes' must be a list or an object")
+    scenes, bad = [], []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sid = item.get("id") or item.get("scene") or item.get("name")
+        prompt = item.get("prompt")
+        if not isinstance(sid, str) or not SCENE_ID.match(sid) or not isinstance(prompt, str) or not prompt.strip():
+            bad.append(str(sid))
+            continue
+        morph = item.get("morph")
+        scene = {**item, "id": sid, "prompt": prompt.strip(), "morph": morph.strip() if isinstance(morph, str) and morph.strip() else None}
+        scenes.append(scene)
+    if bad:
+        log.warning("%s: skipped scene(s) without a valid id and prompt: %s", path, ", ".join(bad))
+    seed, seconds = data.get("seed"), data.get("seconds")
+    return {
+        "seed": int(seed) if isinstance(seed, int) and not isinstance(seed, bool) else None,
+        "seconds": float(seconds) if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) else None,
+        "scenes": scenes,
+    }
+
+
+class SceneBook:
+    """Named scenes, re-read when the file changes (it is edited during the event). Missing file = no scenes."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._mtime: float | None = None
+        self._scenes: dict[str, dict[str, Any]] = {}
+        self._seed: int | None = None
+
+    def get(self, sid: str) -> tuple[dict[str, Any] | None, int | None]:
+        try:
+            mtime = self.path.stat().st_mtime
+        except OSError:
+            mtime = None
+        if mtime != self._mtime:
+            self._mtime = mtime
+            try:
+                book = load_scene_file(self.path) if mtime is not None else {"scenes": [], "seed": None}
+                self._scenes, self._seed = {s["id"]: s for s in book["scenes"]}, book["seed"]
+                if mtime is not None:
+                    log.info("loaded %d named scene(s) from %s", len(self._scenes), self.path)
+            except Exception as exc:
+                log.warning("could not read %s (%s); keeping the previous scenes", self.path, exc)
+        return self._scenes.get(sid), self._seed
 
 
 # ---------------------------------------------------------------- test pattern (fake mode + placeholder clips)
@@ -438,6 +502,8 @@ class Relay:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.scenes = load_scenes(cfg.scenes_path)
+        self.book = SceneBook(cfg.scene_file)
+        self.scene: str | None = None  # named v2 scene (echoed in status; names the fallback clip)
         self.source: FakeSource | ReactorSource = FakeSource(cfg) if cfg.fake else ReactorSource(cfg)
         self.source.on_lost = self._on_lost
         self.state, self.stage, self.since = "off", 0, _now_ms()
@@ -461,12 +527,13 @@ class Relay:
     # -- public API
 
     def status(self) -> dict[str, Any]:
-        scene = self.scene_for(self.stage)
-        clip = f"{scene['id']}.mp4" if scene else None
+        staged = self.scene_for(self.stage)
+        clip = f"{self.scene}.mp4" if self.scene else f"{staged['id']}.mp4" if staged else None
         return {
             "type": "orbis",
             "state": self.state,
             "stage": self.stage,
+            "scene": self.scene,
             "since": self.since,
             "fps": round(self.fps, 1),
             "src_fps": round(self.src_fps, 1),
@@ -499,34 +566,54 @@ class Relay:
             self.error = ""
             self._set_state("priming")
 
-    def start(self, prompt: str | None, seed: int | None, stage: int | None, passthrough: bool) -> None:
+    def _named(self, scene: str) -> tuple[dict[str, Any], int | None]:
+        found, seed = self.book.get(scene)
+        if found is None:
+            raise ValueError(f"no prompt given and no scene {scene!r} in {self.book.path}")
+        return found, found.get("seed") if isinstance(found.get("seed"), int) else seed
+
+    def start(self, prompt: str | None, seed: int | None, stage: int | None, passthrough: bool, scene: str | None = None) -> None:
+        """scene: a named v2 scene. Without a prompt its prompt (and seed) come from the scene file.
+        An empty start resumes what /orbis/stage remembered while no stream ran (named scene or stage)."""
+        if scene is None and prompt is None and stage is None:
+            scene = self.scene
         stage = self.stage if stage is None else stage
-        if prompt is None:
-            scene = self.scene_for(stage)
-            if scene is None:
+        if prompt is None and scene is not None:
+            named, named_seed = self._named(scene)
+            prompt, seed = named["prompt"], named_seed if seed is None else seed
+        elif prompt is None:
+            staged = self.scene_for(stage)
+            if staged is None:
                 raise ValueError(f"no prompt given and no scene for stage {stage}")
-            prompt = scene["prompt"]
+            prompt = staged["prompt"]
         seed = self.scenes["seed"] if seed is None else seed
         self.demand()
-        self.stage = stage  # so the reply and the priming status already name this stage's fallback clip
+        self.stage, self.scene = stage, scene  # so the reply and the priming status already name the fallback clip
         self._priming_now()
         self._stage_gen += 1  # any queued stage change is now stale
-        self._queue("start", lambda: self._op_start(prompt, seed, stage, passthrough))
+        self._queue("start", lambda: self._op_start(prompt, seed, stage, passthrough, scene))
 
-    def change_stage(self, prompt: str | None, stage: int | None, reset: bool, passthrough: bool) -> None:
+    def change_stage(self, prompt: str | None, stage: int | None, reset: bool, passthrough: bool, scene: str | None = None) -> None:
         """No prompt: use the scene's morph prompt (or its full prompt + reset when it has no morph).
-        No stage and no prompt: the next stage."""
-        stage = self.stage + 1 if stage is None and prompt is None else (self.stage if stage is None else stage)
-        scene = self.scene_for(stage)
-        if prompt is None and scene is None:
-            raise ValueError(f"no prompt given and no scene for stage {stage}")
-        full = prompt or scene["prompt"]
-        morph = prompt or scene.get("morph")
+        No stage, no prompt and no scene: the next stage. A named scene keeps the current stage unless one is given."""
+        if scene is not None:
+            stage = self.stage if stage is None else stage
+            named = self._named(scene)[0] if prompt is None else None
+            full = prompt or named["prompt"]
+            # Steer a running stream with the scene's own prompt (2-4 s morph) unless it has a morph or asks for a cut.
+            morph = prompt or named["morph"] or (None if named.get("reset") is True else named["prompt"])
+        else:
+            stage = self.stage + 1 if stage is None and prompt is None else (self.stage if stage is None else stage)
+            staged = self.scene_for(stage)
+            if prompt is None and staged is None:
+                raise ValueError(f"no prompt given and no scene for stage {stage}")
+            full = prompt or staged["prompt"]
+            morph = prompt or staged.get("morph")
         reset = reset or not morph
         self.demand()
         self._stage_gen += 1
         gen = self._stage_gen
-        self._queue("stage", lambda: self._op_stage(full, morph, stage, reset, passthrough, gen), fatal=False)
+        self._queue("stage", lambda: self._op_stage(full, morph, stage, reset, passthrough, gen, scene), fatal=False)
 
     async def stop(self, reason: str) -> None:
         for task in list(self._ops):
@@ -596,8 +683,8 @@ class Relay:
     async def _op_warm(self) -> None:
         await self._ensure_connected()
 
-    async def _op_start(self, prompt: str, seed: int, stage: int, passthrough: bool) -> None:
-        self.stage, self.prompt, self.seed = stage, prompt, seed
+    async def _op_start(self, prompt: str, seed: int, stage: int, passthrough: bool, scene: str | None = None) -> None:
+        self.stage, self.scene, self.prompt, self.seed = stage, scene, prompt, seed
         self._label_source()
         await self._ensure_connected()
         self._set_state("priming")
@@ -605,12 +692,14 @@ class Relay:
         self._waiting_since = time.monotonic()
         log.info("started stage %s seed %s: %s", stage, seed, prompt[:90])
 
-    async def _op_stage(self, full: str, morph: str | None, stage: int, reset: bool, passthrough: bool, gen: int) -> None:
+    async def _op_stage(
+        self, full: str, morph: str | None, stage: int, reset: bool, passthrough: bool, gen: int, scene: str | None = None
+    ) -> None:
         if gen != self._stage_gen:
             return  # a newer stage change is queued; skip straight to it
         if not self.source.started:
             # No stream: remember the stage for the next /orbis/start, but never open a billed session here.
-            self.stage, self.prompt = stage, full
+            self.stage, self.scene, self.prompt = stage, scene, full
             self._label_source()
             self._set_state(self.state)
             return
@@ -620,10 +709,10 @@ class Relay:
             self._waiting_since = time.monotonic()
         else:
             await self.source.steer(prompt, passthrough)
-        self.stage, self.prompt, self.error = stage, prompt, ""
+        self.stage, self.scene, self.prompt, self.error = stage, scene, prompt, ""
         self._label_source()
         self._set_state(self.state)  # bump `since` so watchers see the stage change
-        log.info("stage %s (%s): %s", stage, "reset" if reset else "morph", prompt[:90])
+        log.info("stage %s%s (%s): %s", stage, f" scene {scene}" if scene else "", "reset" if reset else "morph", prompt[:90])
 
     async def _op_recover(self, reason: str, force: bool = False) -> None:
         if self.state not in ("priming", "ready"):
@@ -636,8 +725,8 @@ class Relay:
         self._waiting_since = time.monotonic()
 
     def _label_source(self) -> None:
-        scene = self.scene_for(self.stage)
-        self.source.stage, self.source.label = self.stage, scene["id"] if scene else f"stage {self.stage}"
+        staged = self.scene_for(self.stage)
+        self.source.stage, self.source.label = self.stage, self.scene or (staged["id"] if staged else f"stage {self.stage}")
 
     async def _end(self, state: str, reason: str) -> None:
         was_live = self.state in ("priming", "ready") or self.source.connected or self._session_t0 is not None
@@ -806,6 +895,11 @@ def build_app(relay: Relay, cfg: Config) -> web.Application:
             raise ValueError(f"bad {key}: {value!r}")
         return value
 
+    def scene_of(data: dict[str, Any]) -> str | None:
+        if data.get("scene") == "":
+            return None
+        return field(data, "scene", str, lambda v: bool(SCENE_ID.match(v)))
+
     def prompt_of(data: dict[str, Any]) -> str | None:
         p = field(data, "prompt", str, lambda v: 0 < len(v.strip()) <= 2000)
         return p.strip() if p else None
@@ -826,6 +920,7 @@ def build_app(relay: Relay, cfg: Config) -> web.Application:
             field(data, "seed", int, lambda v: 0 <= v < 2**31),
             field(data, "stage", int, lambda v: 0 <= v < 100),
             bool(data.get("passthrough")),
+            scene_of(data),
         )
         return await reply(request)
 
@@ -836,6 +931,7 @@ def build_app(relay: Relay, cfg: Config) -> web.Application:
             field(data, "stage", int, lambda v: 0 <= v < 100),
             bool(data.get("reset")),
             bool(data.get("passthrough")),
+            scene_of(data),
         )
         return await reply(request)
 

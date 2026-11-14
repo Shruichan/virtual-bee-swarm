@@ -1,0 +1,9 @@
+[project]
+name = "stt-whisper"
+version = "0.1.0"
+description = "HONEYMOON: local speech-to-text sidecar (faster-whisper) for the Hive's voice what-ifs"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "faster-whisper>=1.2.1",
+    "numpy>=2.0",
+]

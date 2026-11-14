@@ -2,7 +2,7 @@ import {useEffect, useState} from "react"
 import {MiniappHeader, useSafeArea} from "@mentra/miniapp/ui"
 import type {GlassesStatus} from "../shared/channels"
 
-const HOP_ORDER = ["press_ack", "photo", "scan_rtt", "press_to_verdict", "press_to_audio"]
+const HOP_ORDER = ["utterance_rtt", "utterance_to_audio", "press_ack", "photo", "scan_rtt", "press_to_verdict", "press_to_audio"]
 
 export function App() {
   const {insets} = useSafeArea()
@@ -63,6 +63,20 @@ function Status({s}: {s: GlassesStatus}) {
       </section>
 
       <section className="card">
+        <h2>Last heard</h2>
+        {s.heard ? (
+          <>
+            <p className="caption">“{s.heard.text}”</p>
+            <p className="muted small">
+              {s.heard.intent ?? "no answer"} · {new Date(s.heard.at).toLocaleTimeString()}
+            </p>
+          </>
+        ) : (
+          <p className="muted">Nothing yet</p>
+        )}
+      </section>
+
+      <section className="card">
         <h2>Latency</h2>
         {hops.length ? (
           hops.map((hop) => (
@@ -71,7 +85,7 @@ function Status({s}: {s: GlassesStatus}) {
             </Row>
           ))
         ) : (
-          <p className="muted">No scans yet</p>
+          <p className="muted">Nothing timed yet</p>
         )}
       </section>
 

@@ -11,6 +11,7 @@ namespace Beeswax
     /// The Quest's connection to the Hive bus: wss://&lt;host&gt;/bus?role=quest&amp;token=…
     /// Tries hosts in order, reconnects with backoff, moves to the next host after N failed connects,
     /// and raises one C# event per message type. Every event fires on the main thread.
+    /// Sends are queued and written off the main thread (BeeswaxSocket), so a dead link never stalls a frame.
     /// Put one in the first scene (it survives scene loads); find it with BeeswaxBus.Instance.
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -47,7 +48,9 @@ namespace Beeswax
         [SerializeField] float heartbeatSeconds = 10f;
         [Tooltip("Reconnect when nothing (not even a heartbeat welcome) arrives for N s: catches half-open links. 0 = off.")]
         [SerializeField] float staleSeconds = 30f;
-        [Tooltip("Queued swarm.arrived / hornet.cooked older than this are dropped instead of sent after a reconnect.")]
+        [Tooltip("Reconnect when a send has been stuck this long (half-open link while the mic streams). 0 = off.")]
+        [SerializeField] float sendStallSeconds = 4f;
+        [Tooltip("Queued swarm.arrived / hornet.cooked / choice.made older than this are dropped instead of sent after a reconnect.")]
         [SerializeField] float outboxMaxAgeSeconds = 10f;
         [SerializeField] bool logTraffic;
 
@@ -69,11 +72,24 @@ namespace Beeswax
         public event Action<Plea> OnPlea;
         public event Action<HumSet> OnHumSet;
         public event Action<OrbisStatus> OnOrbis;
-        public event Action<OrbisRequest> OnOrbisRequest;  // Board: live | clips | off (+ stage); OrbisWindow obeys it
+        public event Action<OrbisRequest> OnOrbisRequest;  // Board: live | clips | off (+ stage/scene); OrbisWindow obeys it
         public event Action<SwarmArrived> OnSwarmArrived;
         public event Action<HornetCooked> OnHornetCooked;
         public event Action<Latency> OnLatency;
         public event Action<ErrorMsg> OnHiveError;
+        // v2
+        /// <summary>A choice.made on the bus. The Hive sends choice.made only to the Board/monitor, so on the Quest this
+        /// fires only for InjectLocal; react to the Hive's say/orbis/fx instead (BeeswaxStations does).</summary>
+        public event Action<ChoiceMade> OnChoiceMade;
+        /// <summary>Hive: speech-to-text of an utterance (source quest | glasses). Partial ones have final = false.</summary>
+        public event Action<Transcript> OnTranscript;
+        /// <summary>Hive: what the player meant (what_if + topic, undo, ask, ack, unknown).</summary>
+        public event Action<Intent> OnIntent;
+        /// <summary>Hive: play an effect (embers, swarm_calm, ...). Fires on receipt; honour delay_ms yourself.</summary>
+        public event Action<Fx> OnFx;
+        /// <summary>listen.start/listen.end from the bus. The Hive never rebroadcasts them (InjectLocal only).</summary>
+        public event Action<ListenStart> OnListenStart;
+        public event Action<ListenEnd> OnListenEnd;
         /// <summary>Every text message, known or not: (type, raw json). Handy for debug HUDs.</summary>
         public event Action<string, string> OnMessage;
 
@@ -94,6 +110,15 @@ namespace Beeswax
         public double ServerClockOffsetMs { get; private set; }
         public string LastCloseReason { get; private set; } = "";
         public float SmoothedFrameMs => _frameMs;
+        /// <summary>Seconds since anything arrived on the current link (large when offline).</summary>
+        public float SecondsSinceInbound => Time.realtimeSinceStartup - _lastInboundAt;
+        /// <summary>Bytes queued on the socket but not yet written (mic backpressure).</summary>
+        public int QueuedSendBytes => _socket.QueuedSendBytes;
+        /// <summary>A listen.start was sent on this link and its listen.end not yet: MIC_PCM16 frames are accepted.</summary>
+        public bool IsListening => _listenOpen;
+        public string CurrentListenMode { get; private set; } = "";
+        public int MicFramesSent { get; private set; }
+        public long MicBytesSent { get; private set; }
 
         readonly BeeswaxSocket _socket = new BeeswaxSocket();
         readonly List<(float at, string json)> _outbox = new List<(float, string)>();
@@ -105,6 +130,7 @@ namespace Beeswax
         DateTime _pausedAtUtc;
         ScanPhoto _pendingPhoto;
         string _lastScanId = "", _currentTtsId = "";
+        bool _listenOpen;
         // return-to-primary probe (only while connected to a fallback host after an automatic failover)
         UnityWebRequest _probe;
         bool _onFallback;
@@ -187,6 +213,13 @@ namespace Beeswax
                 HandleClosed(true, "stale");
                 return;
             }
+            if (sendStallSeconds > 0f && _socket.SendStallSeconds > sendStallSeconds)
+            {
+                Debug.LogWarning($"[Beeswax] a send to {CurrentHost} is stuck ({_socket.QueuedSendBytes} bytes queued); reconnecting.");
+                _socket.Abort();
+                HandleClosed(true, "send stalled");
+                return;
+            }
             if (_onFallback && returnToPrimarySeconds > 0f && _probe == null && now >= _nextProbeAt) ProbePrimary();
         }
 
@@ -259,6 +292,7 @@ namespace Beeswax
         void HandleOpened()
         {
             _lastInboundAt = Time.realtimeSinceStartup;
+            _listenOpen = false;
             _nextHeartbeatAt = _lastInboundAt + heartbeatSeconds;
             _pendingPhoto = null;
             _welcomedThisLink = false;
@@ -273,6 +307,7 @@ namespace Beeswax
         void HandleClosed(bool wasOpen, string reason)
         {
             LastCloseReason = reason;
+            _listenOpen = false; // the Hive drops an open utterance with the socket
             float now = Time.realtimeSinceStartup;
             bool healthy = wasOpen && now - _socket.OpenedAt >= minHealthySeconds;
             SetState(BusState.Offline);
@@ -353,16 +388,18 @@ namespace Beeswax
                 case BinaryKind.TtsPcm16:
                     Raise(OnTtsChunk, _currentTtsId, BeeswaxProtocol.Payload(data));
                     break;
+                case BinaryKind.MicPcm16:
+                    break; // client → Hive only; an echo is not for us
                 default:
                     Debug.LogWarning($"[Beeswax] ignored binary frame of kind 0x{data[0]:X2} ({data.Length} bytes)");
                     break;
             }
         }
 
-        void HandleJson(string json)
+        void HandleJson(string json, bool local = false)
         {
             string type = BeeswaxProtocol.PeekType(json);
-            if (logTraffic) Debug.Log("[Beeswax] ← " + (json.Length > 300 ? json.Substring(0, 300) + "…" : json));
+            if (logTraffic && !local) Debug.Log("[Beeswax] ← " + (json.Length > 300 ? json.Substring(0, 300) + "…" : json));
             Raise(OnMessage, type, json);
             try
             {
@@ -420,6 +457,12 @@ namespace Beeswax
                     case MsgType.SwarmArrived: Raise(OnSwarmArrived, BeeswaxProtocol.Parse<SwarmArrived>(json)); break;
                     case MsgType.HornetCooked: Raise(OnHornetCooked, BeeswaxProtocol.Parse<HornetCooked>(json)); break;
                     case MsgType.Latency: Raise(OnLatency, BeeswaxProtocol.Parse<Latency>(json)); break;
+                    case MsgType.ChoiceMade: Raise(OnChoiceMade, BeeswaxProtocol.Parse<ChoiceMade>(json)); break;
+                    case MsgType.Transcript: Raise(OnTranscript, BeeswaxProtocol.Parse<Transcript>(json)); break;
+                    case MsgType.Intent: Raise(OnIntent, BeeswaxProtocol.Parse<Intent>(json)); break;
+                    case MsgType.Fx: Raise(OnFx, BeeswaxProtocol.Parse<Fx>(json)); break;
+                    case MsgType.ListenStart: Raise(OnListenStart, BeeswaxProtocol.Parse<ListenStart>(json)); break;
+                    case MsgType.ListenEnd: Raise(OnListenEnd, BeeswaxProtocol.Parse<ListenEnd>(json)); break;
                     case MsgType.Error:
                         var e = BeeswaxProtocol.Parse<ErrorMsg>(json);
                         Debug.LogWarning("[Beeswax] Hive error: " + e.message);
@@ -450,6 +493,90 @@ namespace Beeswax
         public void SendLatency(string hop, double ms) => Send(new Latency { hop = hop, ms = ms, source = Role.Quest });
         public void SendLog(string text) => Send(new LogMsg { text = text, source = Role.Quest });
 
+        /// <summary>
+        /// Tell the Hive the player chose `choice` at `station` (authoritative; `correct` is computed here).
+        /// The Hive answers with the window scene, Beeswax's line (say) and fx. Returns true if it went out now;
+        /// false if offline (then it is queued for outboxMaxAgeSeconds, so play the outcome locally: BeeswaxStations
+        /// does both) or if the pair is not in CHOICES (logged, not sent).
+        /// </summary>
+        public bool SendChoiceMade(string station, string choice)
+        {
+            if (!BeeswaxProtocol.IsValidChoice(station, choice))
+            {
+                Debug.LogError($"[Beeswax] '{choice}' is not a choice of station '{station}'; not sent.");
+                return false;
+            }
+            return SendOrQueue(new ChoiceMade(station, choice));
+        }
+
+        /// <summary>
+        /// Open an utterance (mode: ListenMode.Ptt | ListenMode.Vad). MIC_PCM16 frames are accepted until
+        /// SendListenEnd. An utterance still open is cancelled first. False when offline.
+        /// BeeswaxVoiceInput does all of this for you.
+        /// </summary>
+        public bool SendListenStart(string mode = ListenMode.Ptt)
+        {
+            if (_listenOpen) SendListenEnd(cancel: true);
+            if (mode != ListenMode.Vad) mode = ListenMode.Ptt;
+            if (!Send(new ListenStart { source = Role.Quest, mode = mode })) return false;
+            _listenOpen = true;
+            CurrentListenMode = mode;
+            return true;
+        }
+
+        /// <summary>One chunk of mic audio: PCM16 little-endian mono at 16 kHz (BeeswaxProtocol.MicSampleRate), sent as
+        /// [0x03][pcm]. False (dropped) when offline or when no utterance is open on this link.</summary>
+        public bool SendMicFrame(byte[] pcm16) => pcm16 != null && SendMicFrame(pcm16, 0, pcm16.Length);
+
+        public bool SendMicFrame(byte[] pcm16, int offset, int count)
+        {
+            if (!_listenOpen || pcm16 == null || count <= 0) return false;
+            if (count % 2 != 0) count--; // whole samples only
+            if (offset < 0 || offset + count > pcm16.Length) return false;
+            if (!_socket.SendBytes(BeeswaxProtocol.Frame(BinaryKind.MicPcm16, pcm16, offset, count))) return false;
+            MicFramesSent++;
+            MicBytesSent += count;
+            return true;
+        }
+
+        /// <summary>Close the utterance (cancel = the Hive throws it away). False if none was open on this link.</summary>
+        public bool SendListenEnd(bool cancel = false)
+        {
+            if (!_listenOpen) return false;
+            _listenOpen = false;
+            return Send(new ListenEnd { source = Role.Quest, cancel = cancel });
+        }
+
+        /// <summary>
+        /// Ask the Hive for a window layer (OrbisWant.Live | Clips | Off) and/or scene (one of SCENES; "" = keep).
+        /// OrbisWindow.RequestScene wraps this and also switches the local fallback clip right away.
+        /// </summary>
+        public bool SendOrbisRequest(string want, string scene = "", int stage = -1)
+        {
+            if (want != OrbisWant.Live && want != OrbisWant.Clips && want != OrbisWant.Off)
+            {
+                Debug.LogError($"[Beeswax] orbis.request want '{want}' is not live|clips|off; not sent.");
+                return false;
+            }
+            if (!string.IsNullOrEmpty(scene) && !BeeswaxProtocol.IsScene(scene))
+            {
+                Debug.LogError($"[Beeswax] '{scene}' is not one of SCENES; not sent.");
+                return false;
+            }
+            return Send(new OrbisRequest { want = want, scene = scene ?? "", stage = stage });
+        }
+
+        /// <summary>
+        /// Raise the events for a message as if the Hive had sent it (offline fallbacks, editor testing, debug menus).
+        /// Nothing is sent. Don't inject welcome/group.reset unless you mean it.
+        /// </summary>
+        public void InjectLocal(BusMessage msg)
+        {
+            if (msg == null) return;
+            if (logTraffic) Debug.Log("[Beeswax] (local) " + BeeswaxProtocol.ToJson(msg));
+            HandleJson(BeeswaxProtocol.ToJson(msg), local: true);
+        }
+
         /// <summary>Send any protocol message now. Returns false (and drops it) when not connected.</summary>
         public bool Send(BusMessage msg) => SendJson(BeeswaxProtocol.ToJson(msg));
 
@@ -460,12 +587,13 @@ namespace Beeswax
             return ok;
         }
 
-        void SendOrQueue(BusMessage msg)
+        bool SendOrQueue(BusMessage msg)
         {
             string json = BeeswaxProtocol.ToJson(msg);
-            if (SendJson(json)) return;
+            if (SendJson(json)) return true;
             if (_outbox.Count >= 16) _outbox.RemoveAt(0);
             _outbox.Add((Time.realtimeSinceStartup, json));
+            return false;
         }
 
         void FlushOutbox()

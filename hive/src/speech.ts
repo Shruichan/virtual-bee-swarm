@@ -1,5 +1,6 @@
-// Keyword fast path: what the glasses judge SAYS they're holding gives an instant verdict.
-import type { Item, Verdict } from "./protocol";
+// Keyword fast paths: what the glasses judge SAYS they're holding gives an instant scan verdict, and a
+// degraded voice-intent matcher for when the router is down.
+import type { Item, Verdict, WhatIfTopic } from "./protocol";
 
 interface Rule { item: Item; verdict: Verdict; words: string[] }
 
@@ -41,4 +42,28 @@ export function speechVerdict(heard: string): { item: Item; verdict: Verdict } |
     if (m && (best === null || m.index < best.at)) best = { item: r.item, verdict: r.verdict, at: m.index };
   }
   return best && { item: best.item, verdict: best.verdict };
+}
+
+// ---------------------------------------------------------------- voice: degraded intent fallback
+// router.ts owns intent routing (keywords first, then Claude). This tiny keyword matcher only runs when the
+// router module is missing or blows its deadline, so "what if a fire starts" / "put it out" still work live.
+const UNDO_RX = compile(["put it out", "put out", "put the fire out", "undo", "go back", "change it back", "turn it back", "stop it", "make it stop", "extinguish"]);
+const TOPIC_RX: Array<{ topic: WhatIfTopic; rx: RegExp }> = [
+  { topic: "fire", rx: compile(["fire", "fires", "wildfire", "burn", "burns", "burning", "flames", "on fire"]) },
+  { topic: "rain", rx: compile(["rain", "rains", "raining", "storm", "storms"]) },
+  { topic: "flowers", rx: compile(["flower", "flowers", "clover", "plant", "plants", "bloom", "garden", "wildflowers"]) },
+  { topic: "spray", rx: compile(["spray", "sprays", "pesticide", "pesticides", "poison", "chemicals"]) },
+  { topic: "winter", rx: compile(["winter", "snow", "snows", "freeze", "freezes", "cold"]) },
+];
+
+export function voiceKeywords(heard: string): { intent: "what_if" | "undo" | "unknown"; topic: WhatIfTopic | null } {
+  if (typeof heard !== "string" || !heard.trim()) return { intent: "unknown", topic: null };
+  const text = heard.slice(0, 500);
+  if (UNDO_RX.test(text)) return { intent: "undo", topic: null };
+  let best: { topic: WhatIfTopic; at: number } | null = null;
+  for (const { topic, rx } of TOPIC_RX) {
+    const m = rx.exec(text);
+    if (m && (best === null || m.index < best.at)) best = { topic, at: m.index };
+  }
+  return best ? { intent: "what_if", topic: best.topic } : { intent: "unknown", topic: null };
 }

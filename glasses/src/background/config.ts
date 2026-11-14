@@ -26,12 +26,16 @@ export interface Config {
   /** Longest wait for speech after a press, and how far back before it to include speech. */
   heardWindowMs: number
   heardLookbackMs: number
-  /** Play "ear_hold_still_2" if no verdict has played this long after the press. */
+  /** Play the second hold-still filler if no verdict has played this long after the press. */
   stallMs: number
   pressTimeoutMs: number
   scanTimeoutMs: number
   /** Hard ceiling for one scan; after it the next press works again. */
   giveUpMs: number
+  /** Send final transcriptions in voice beats to POST /glasses/utterance and play the reply. */
+  voice: boolean
+  /** Per host try for /glasses/utterance. */
+  utteranceTimeoutMs: number
 }
 
 export type LocalConfig = Partial<Omit<Config, "photo">> & {hiveToken: string; photo?: Partial<PhotoConfig>}
@@ -49,6 +53,8 @@ export const DEFAULTS: Config = {
   pressTimeoutMs: 2500,
   scanTimeoutMs: 12_000,
   giveUpMs: 25_000,
+  voice: true,
+  utteranceTimeoutMs: 6000,
 }
 
 export function makeConfig(local: LocalConfig): Config {

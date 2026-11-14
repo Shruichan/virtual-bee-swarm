@@ -1,5 +1,5 @@
-// One button press, start to finish:
-//   press -> "hold still" clip at once -> POST /glasses/press -> photo + ~3 s of listening in
+// One button press, start to finish (the real-prop mode; v3 uses it later):
+//   press -> "hold still" filler at once -> POST /glasses/press -> photo + ~3 s of listening in
 //   parallel -> POST /glasses/scan -> play the verdict line.
 // Presses while a scan is in flight are ignored. Every hop is timed and sent to the Hive.
 import type {CameraModule} from "@mentra/miniapp/background"
@@ -7,6 +7,7 @@ import type {Config} from "./config"
 import type {Ear} from "./ear"
 import {HttpError, type Hive} from "./hive"
 import type {Led} from "./led"
+import {FILLERS} from "./lines"
 import {
   SCAN_BEATS,
   type BeatName,
@@ -30,6 +31,8 @@ export interface ScanDeps {
   latency: (hop: string, ms: number) => void
   log: Log
   onBusy?: (busy: boolean) => void
+  /** Filler line ids: [at the press, when the verdict stalls]. Default: the catalog's "filler" lines. */
+  fillers?: readonly string[]
 }
 
 /** A failure that has a line to say about it. */
@@ -56,14 +59,17 @@ function refusedLine(err: unknown): string | null {
   }
 }
 
-const HOLD_STILL = {line_id: "ear_hold_still"}
-const HOLD_STILL_2 = {line_id: "ear_hold_still_2"}
-
 export class Scanner {
   private seq = 0
   private busy = false
+  private holdStill: string | null
+  private holdStill2: string | null
 
-  constructor(private d: ScanDeps) {}
+  constructor(private d: ScanDeps) {
+    const fillers = d.fillers ?? FILLERS
+    this.holdStill = fillers[0] ?? null
+    this.holdStill2 = fillers[1] ?? this.holdStill
+  }
 
   get scanning(): boolean {
     return this.busy
@@ -109,7 +115,7 @@ export class Scanner {
     const maybeScan = beat === null || scanBeat
 
     if (maybeScan) {
-      void ear.play(HOLD_STILL, {interrupt: "all", filler: true})
+      this.filler(this.holdStill, "all")
       led.scanning()
     }
     // In a known scan beat the Hive will almost surely say yes, so don't wait for it to start
@@ -129,12 +135,13 @@ export class Scanner {
     if (!ack.allowed || !ack.scan_id) {
       log(`scan: not allowed in beat ${beat ?? "?"} (${ack.line_id ?? "no line"})`)
       led.off()
-      void ear.play({line_id: ack.line_id ?? "ear_not_now"}, {interrupt: "all"})
+      if (ack.line_id) void ear.play({line_id: ack.line_id}, {interrupt: "all"})
+      else ear.cancelFillers()
       return
     }
     if (!maybeScan) {
       // our beat was stale: the Hive says this is a scan
-      void ear.play(HOLD_STILL, {interrupt: "all", filler: true})
+      this.filler(this.holdStill, "all")
       led.scanning()
     }
 
@@ -143,7 +150,7 @@ export class Scanner {
     let replied = false
     const stall = setTimeout(
       () => {
-        if (!replied && live()) void ear.play(HOLD_STILL_2, {filler: true})
+        if (!replied && live()) this.filler(this.holdStill2)
       },
       Math.max(0, pressedAt + cfg.stallMs - Date.now()),
     )
@@ -209,6 +216,10 @@ export class Scanner {
       .then((started) => {
         if (started) this.d.latency("press_to_audio", started - pressedAt)
       })
+  }
+
+  private filler(lineId: string | null, interrupt: "all" | "none" = "none"): void {
+    if (lineId) void this.d.ear.play({line_id: lineId}, {interrupt, filler: true})
   }
 
   /** Resolves with the photo URL, or null on failure/timeout. Never rejects. */

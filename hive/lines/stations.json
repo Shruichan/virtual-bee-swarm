@@ -1,0 +1,32 @@
+{
+  "smoker": {
+    "intro_line": "room_smoker_intro",
+    "choices": {
+      "swat": { "correct": false, "line_id": "room_smoker_swat", "scene": "smoker_angry", "fx": "swarm_angry" },
+      "spray_water": { "correct": false, "line_id": "room_smoker_spray_water", "scene": "smoker_angry", "fx": "swarm_angry" },
+      "smoker": { "correct": true, "line_id": "room_smoker_smoker", "scene": "smoker_settle", "fx": "swarm_calm" }
+    }
+  },
+  "feed": {
+    "intro_line": "room_feed_intro",
+    "choices": {
+      "store_honey": { "correct": false, "line_id": "room_feed_store_honey", "scene": "feed_sick" },
+      "sugar_syrup": { "correct": true, "line_id": "room_feed_sugar_syrup", "scene": "feed_recover" }
+    }
+  },
+  "wasps": {
+    "intro_line": "room_wasps_intro",
+    "choices": {
+      "bigger_door": { "correct": false, "line_id": "room_wasps_bigger_door", "scene": "wasps_raid", "fx": "swarm_angry" },
+      "smaller_door": { "correct": true, "line_id": "room_wasps_smaller_door", "scene": "wasps_leave", "fx": "swarm_calm" }
+    }
+  },
+  "heat": {
+    "intro_line": "room_heat_intro",
+    "choices": {
+      "deep_bowl": { "correct": false, "line_id": "room_heat_deep_bowl", "scene": "heat_stress", "fx": "hive_glow_red" },
+      "pebble_dish": { "correct": true, "line_id": "room_heat_pebble_dish", "scene": "heat_drink", "fx": "hive_glow_off" },
+      "nothing": { "correct": false, "line_id": "room_heat_nothing", "scene": "heat_stress", "fx": "hive_glow_red" }
+    }
+  }
+}
