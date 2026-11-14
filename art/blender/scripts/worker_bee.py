@@ -23,7 +23,7 @@ def build():
     mb = C.MB("WorkerBee", mat="bee", smooth_angle=70)
     mb.sphere("charcoal", C.M(HEAD["loc"], scale=HEAD["radii"]), seg=6, rings=4)
     for side in (1, -1):  # big white cartoon eyes
-        mb.sphere("white", C.M((0.0027 * side, -0.0150, 0.0024), scale=0.0019), seg=5, rings=3)
+        mb.sphere("white", C.M((0.0031 * side, -0.0146, 0.0030), scale=0.0017), seg=5, rings=3)
     mb.sphere("honey", C.M(THORAX["loc"], scale=THORAX["radii"]), seg=6, rings=4)
     r, L = ABDOMEN["radii"]
     m = C.M(ABDOMEN["loc"], (90, 0, 0), (r, r, L))  # poles along Y, local +Z = front

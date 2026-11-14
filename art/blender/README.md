@@ -5,7 +5,11 @@ reshape it in seconds. It is meant to look intentional (chunky, warm honey palet
 a stand-in: **dartiros, keep what works and replace the rest.** Names and pivots match the Unity placeholder, so a
 hand-made model can take over a slot without code changes.
 
-![all items](preview.png)
+![all items](../contact_sheet.png)
+
+The nine v3.1 props (swatter to score_card) were added on Sat morning with the same scripts and palette (3 palette
+colours appended at the end of `PALETTE`). `tools/` holds the staging helpers: `contact_sheet.py` (the sheet above),
+`build_manifest.py` and `assemble.py`.
 
 ## What's here
 
@@ -31,10 +35,19 @@ hand-made model can take over a slot without code changes.
 | ember | 100 (3k) | 1-2 cm | center | Ember, EmberFlake (+ `textures/ember.png` sprite) |
 | clipboard | 772 (3k) | 0.09 x 0.12 | bottom edge center | Clipboard |
 | seed_packet | 371 (3k) | 0.075 x 0.115 | base | SeedPacket |
+| swatter (v3.1) | 644 (3k) | 0.09 x 0.24 x 0.02 | base (grip) | Swatter |
+| spray_bottle (v3.1) | 953 (3k) | 0.07 x 0.18 x 0.07 | base | SprayBottle > Bottle, Sprayer, Label, SprayPoint |
+| crowbar (v3.1) | 600 (3k) | 0.07 x 0.25 x 0.01 | base (bottom tip) | Crowbar |
+| reducer (v3.1) | 138 (3k) | 0.20 x 0.03 x 0.03 | base | Reducer (a chunkier copy of the hive's EntranceReducer) |
+| rain_cloud (v3.1) | 2104 (3k) | 0.28 x 0.18 x 0.15 | cloud center | RainCloud > Cloud, Drops, RainPoint |
+| stamp_approved (v3.1) | 788 (3k) | 0.11 x 0.04 x 0.003 | center | StampApproved |
+| stamp_grievance (v3.1) | 792 (3k) | 0.11 x 0.04 x 0.003 | center | StampGrievance |
+| clipboard_sign (v3.1) | 701 (3k) | 0.12 x 0.16 x 0.02 | bottom edge center | SignHereClipboard > Board, PokePoint |
+| score_card (v3.1) | 1132 (3k) | 0.46 x 0.16 x 0.01 | card center | ScoreCard > Card, TextAnchor |
 
 The built files (`<item>.glb`, `<item>.fbx`, `blend/<item>.blend`, `previews/`, `stats.json`) live on pop-os in
 `~/immerse-the-bay/art-staging/procedural/`. They aren't committed; rebuild them with the command below, which takes
-~20 s for all 20 items.
+~20 s for all 29 items.
 
 ## Run it
 

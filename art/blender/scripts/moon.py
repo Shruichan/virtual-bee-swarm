@@ -37,11 +37,11 @@ def disp(d):
     h = 0.012 * noise.noise(d * 3.0)
     for c, a in CRATERS:
         ang = d.angle(c)
-        depth = 0.16 * a
+        depth = 0.30 * a  # art-director pass: deeper bowls + taller rims so craters read as craters, not patches
         if ang < a:
             h -= depth * (1 - (ang / a) ** 2)
         elif ang < 1.35 * a:
-            h += depth * 0.35 * (1 - (ang - a) / (0.35 * a))
+            h += depth * 0.45 * (1 - (ang - a) / (0.35 * a))
     return h
 
 
@@ -54,10 +54,14 @@ def build():
 
     def col(c, n):
         d = c.normalized()
+        best = "moon"
         for cc, a in CRATERS:
-            if d.angle(cc) < 0.8 * a:
+            ang = d.angle(cc)
+            if ang < 0.7 * a:
                 return "moon_dark"
-        return "moon"
+            if a < ang < 1.3 * a:
+                best = "moon_light"
+        return best
     mb.ico(col, C.M(scale=RADIUS), subdiv=4, smooth=False, lfn=lfn)
     mb.to_object(origin=(0, 0, 0))
 
