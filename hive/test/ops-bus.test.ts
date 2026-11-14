@@ -180,6 +180,7 @@ describe("score (v2.1)", () => {
     const monitor = await connect("monitor");
     const glasses = await connect("glasses");
     await setBeat(quest, board, "hook", 1);
+    await setBeat(quest, board, "smoker", 3); // v3.1: the clock starts at the first station
     hive.state.clock_start = Date.now() - 167_000; // the run took 2:47
     quest.send({ type: "choice.made", station: "feed", choice: "store_honey", correct: false });
     quest.send({ type: "choice.made", station: "feed", choice: "sugar_syrup", correct: true });
@@ -210,9 +211,10 @@ describe("score (v2.1)", () => {
     expect(h.score.grievances).toBe(2);
     expect(h.grievances).toBe(3);
 
-    // a replay from the hook starts a new clock and a new card; a group reset clears everything
+    // a replay from the hook clears the clock and the card (the next smoker starts a new clock); a group reset clears everything
     await setBeat(quest, board, "hook", 1);
     expect((await health()).score).toBeNull();
+    expect(hive.state.clock_start).toBeNull();
     board.send({ type: "group.reset" });
     await quest.waitFor("group.reset");
     h = await health();
@@ -228,8 +230,17 @@ describe("score (v2.1)", () => {
     await Bun.sleep(30);
     expect(quest.of("score")).toHaveLength(0);
     expect((await health()).score).toBeNull();
-    // a station beat starts the clock when the hook was skipped
+    // hook and meet don't start the clock (v3.1)
+    await setBeat(quest, board, "hook", 1);
+    await setBeat(quest, board, "meet", 2);
+    expect(hive.state.clock_start).toBeNull();
+    await setBeat(quest, board, "escape", 9); // so an intro-only run still has no card
+    await board.waitFor("log", () => board.of("log").filter((m) => m.text.startsWith("no score")).length === 2);
+    expect(quest.of("score")).toHaveLength(0);
+    // the first station beat does, even when a Board jump skipped smoker
     await setBeat(quest, board, "feed", 4);
+    expect((await board.waitFor("log", (m) => m.text.startsWith("score clock started"))).text).toBe("score clock started at feed");
+    expect(hive.state.clock_start).not.toBeNull();
     hive.state.clock_start = Date.now() - 61_000;
     await setBeat(quest, board, "escape", 9);
     expect(await quest.waitFor("score")).toEqual({ type: "score", elapsed_s: 61, text: "Hive saved in 1:01", grievances: 0 });

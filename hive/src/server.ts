@@ -984,21 +984,24 @@ export function startHive(opts: HiveOptions): Hive {
 
   // ------------------------------------------------------------ beats, choices, score
 
-  const ON_CLOCK = new Set<BeatName>(["meet", "smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
+  // v3.1: the run clock starts with the first station (smoker), like Unity's boarding countdown; the intro
+  // (hook, meet) is off the clock. A Board jump past smoker starts it at whichever station beat comes first.
+  const ON_CLOCK = new Set<BeatName>(["smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
 
   function beatEntered(n: number, prev: number): void {
     if (n === prev) return; // a re-sent beat.set (Unity reconnect)
     const name = BEATS[n];
     const now = Date.now();
     if (name === "hook") {
-      state.clock_start = now;
+      // A new run: clear the clock and the card. The clock itself starts at the first station beat.
+      state.clock_start = null;
       state.saved_ms = null;
       state.score = null;
       variantTurn.clear(); // a new run starts on the base lines again (a group.reset clears it too)
       setScene("meadow", "hook");
     } else if (state.clock_start === null && name && ON_CLOCK.has(name)) {
-      state.clock_start = now; // the hook was skipped: start the score clock here
-      observe(`score clock started at ${name} (no hook beat)`);
+      state.clock_start = now;
+      observe(`score clock started at ${name}`);
     }
     if (name === "escape") {
       // v2.1: the score card. Frozen the first time the escape beat starts; re-sent if Unity comes back to escape.
@@ -1011,7 +1014,7 @@ export function startHive(opts: HiveOptions): Hive {
         }
         bus.broadcast(score);
       } else {
-        observe("no score: the clock never started (no hook or station beat before escape)");
+        observe("no score: the clock never started (no station beat before escape)");
       }
       setScene("full_bloom", "escape");
     } else if (name === "t0") {

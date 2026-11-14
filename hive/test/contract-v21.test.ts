@@ -175,9 +175,11 @@ describe("bus directions (v2.1)", () => {
     await Bun.sleep(30);
     for (const r of ROLES) for (const t of ["transcript", "intent", "whatif.force"]) expect(typesSince(m, r)).not.toContain(t);
 
-    // score: everyone, at the escape beat
+    // score: everyone, at the escape beat (v3.1: the clock starts at smoker, not at the hook)
     c.quest.send({ type: "beat.set", n: P.BEATS.indexOf("hook"), name: "hook" });
     await c.board.waitFor("beat.set", (x) => x.name === "hook");
+    c.quest.send({ type: "beat.set", n: P.BEATS.indexOf("smoker"), name: "smoker" });
+    await c.board.waitFor("beat.set", (x) => x.name === "smoker");
     c.quest.send({ type: "beat.set", n: P.BEATS.indexOf("escape"), name: "escape" });
     for (const r of ROLES) {
       const s = await c[r].waitFor("score");

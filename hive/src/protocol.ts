@@ -28,7 +28,7 @@ export type BinaryKind = (typeof BINARY_KIND)[keyof typeof BINARY_KIND];
 // Unity is the ONLY beat clock. It reports `beat.set`; the Hive/Board only send `beat.request`.
 export const BEATS = [
   "pre", //     0  fitting, not on the clock
-  "hook", //    1  0:00-0:15 hive on the real table, HONEYMOON-1 parked, "fix it or we move to the Moon"
+  "hook", //    1  0:00-0:15 hive on the real table, HONEYMOON-1 parked, "fix it or the swarm takes the Earth"
   "meet", //    2  0:15-0:35 Beeswax + the future window opens
   "smoker", //  3  0:35-1:05 station 1
   "feed", //    4  1:05-1:45 station 2 (tip the hive, then feed it)
