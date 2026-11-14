@@ -180,7 +180,7 @@
   - the OVR Metrics Tool is installed
   - "Hey Meta" and voice commands are switched off
 
-  — owner: *suggested Nam* — status: open
+  — owner: **Nam Nguyen** — status: in progress (headset usable with project; OVR Metrics Tool and voice settings need verification)
 
 - **S1.7 Hand over the token and keystore** (P0 · 0.1 h · needs –) — done when: Rome has DM'd Nam and dartiros the Hive token (it goes in `HIVE_TOKEN`) and one shared debug keystore, and both are kept outside the repo — owner: *suggested Rome* — status: open
 
@@ -190,7 +190,7 @@
   - the ProjectSettings and `Assets/XR` from that run are pushed as a bootstrap commit
   - the S1.9 import got kicked off before bed, machine plugged in, sleep off
 
-  — owner: *suggested Nam* — status: open
+  — owner: **Nam Nguyen** — status: in progress (Quest 3 connected; bootstrapping Android build)
 
 - **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:
   - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: *suggested Nam* — status: open
+  — owner: **Nam Nguyen** — status: in progress (generic prefab spawner added; headset hookup/testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1430,3 +1430,9 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 06:55 PT · Rome (agent) · **Unity project is on GitHub: `unity/VirtualBeeSwarm`** (Unity 6000.2.9f1 + Android; the scene builds itself on first open; F2 = autopilot; Virtual Bee Swarm → Build Quest APK). README has the steps. Token goes in `Assets/Resources/beeswax_token.txt` (git-ignored, DM Rome). First APK (v3, before bee delivery) is on pop-os: `~/immerse-the-bay/unity-work/builds/VirtualBeeSwarm-D-4-20261114-0630.apk`; install with `ops/quest-deploy.sh <apk>`. Heads up: Meta's SDK writes an access token into `Assets/Resources/DevAgentSettings.asset` when the editor opens; it's git-ignored now, never force-add it. The v3.1 build (bee delivery, stakes, AR placement, temp art) is in progress → Nam: if you change the project, push small and log it so the merge stays clean.
 - 2026-11-14 13:33 PT · Nam Nguyen (agent) · Claimed S1.10 to fix the Meta Voice SDK NativeWebSocket assembly collision in `unity/VirtualBeeSwarm/Packages/` and verify Android compilation. → team
 - 2026-11-14 14:45 PT · Rome (agent) · **Everyone: move to Unity 6000.3.28f1 LTS** (Hub: Installs -> Install Editor -> LTS 6000.3.28f1, with Android Build Support + OpenJDK + Android SDK & NDK). The project switches once Daniel's art + Nam's PR are merged and pass; don't open main in 6000.2 after that. -> Nam: folding PR #1 in; the junk files `Assets/_Recovery/`, `TempAssembly.dll`, `Assets/#Meta/*.id` get removed and git-ignored; do we need the Voice SDK (`sdk.all`) or only the fix? -> dartiros: your art is wired in. The .blend files need Blender 5.3 (the art README says 4.2); Peach Blush base colour is grey; Mouth O / blush stay full-size in Angry, Sad, Blush, Sooty Shake; insect actions all use the Beeswax Rig slot and their NLA tracks are muted; the full-size wasp is ~6k tris (decimate?). -> everyone: `git pull --rebase` before you start, push small, log here.
+- 2026-11-14 14:46 PT · Nam Nguyen (agent) · Claimed S3.3 to add generic prefab spawning through the AR environment raycaster in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`. → team
+- 2026-11-14 15:00 PT · Nam Nguyen (agent) · Claiming S1.6 to verify Unity/Android modules, headset connectivity, OVR Metrics Tool, and voice settings on Nam's machine. → team
+- 2026-11-14 15:00 PT · Nam Nguyen (agent) · Verified Unity 6000.2.9f1 with SDK/NDK/OpenJDK and Quest 3 visible in adb on Windows. The OVR Metrics Tool app isn't confirmed installed; "Hey Meta" and voice-command settings need headset-side verification. → Nam
+- 2026-11-14 15:14 PT · Nam Nguyen (agent) · Nam confirms the Quest is testable and usable with the Unity project; S1.6 is no longer blocked on project usability. OVR Metrics Tool and voice settings still need verification. → team
+- 2026-11-14 15:10 PT · Nam Nguyen (agent) · Added generic `SpawnObject` using the AR environment raycaster; editor diagnostics report no errors. Scene hookup and Quest verification remain pending. → team
+- 2026-11-14 15:02 PT · Nam Nguyen (agent) · Claiming S1.8 to bootstrap Android settings twice, build and sideload on the Quest 3, then verify passthrough and hand tracking; existing Unity edits are preserved while syncing. → team
