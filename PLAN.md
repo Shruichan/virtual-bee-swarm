@@ -198,7 +198,7 @@
   - the builder's `Materials/` and `Meshes/` folders and the rig template are committed
   - ProjectBootstrap stays in `Editor/Setup`
 
-  — owner: *suggested Rome-agents (lane A)* — status: open
+  — owner: *suggested Rome-agents (lane A)* — status: in progress: merged by the integration workflow, verifying a fresh copy
 
 - **S1.10 XR and Android config** (P0 · 1.5 h · needs S1.4, and S1.5 or S1.8) — done when:
   - there is one passthrough provider (the Meta XR feature plus Meta Quest Support)
@@ -426,7 +426,7 @@
   - every clip loads during the intro, so there is no `Resources.Load` when a line starts
   - a batch check confirms the settings
 
-  — owner: *suggested Rome-agents (lane D)* — status: open
+  — owner: *suggested Rome-agents (lane D)* — status: in progress: **all 77 lines rendered in Harry's voice** (hive/out/unity); import lands with the Unity project
 
 - **S8.3 Playback check** (P0 · 0.5 h · needs S8.2, S1.18) — done when: the Linux autopilot logs a clip for every line (no caption-only lines), and 10 sampled lines play at the right volume on the headset — owner: *suggested Rome-agents (lane D)* — status: open
 
