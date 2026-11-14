@@ -1,0 +1,9 @@
+{
+  "name": "com.virtualbeeswarm.beeswax-client",
+  "version": "0.1.0",
+  "displayName": "Beeswax Client (HONEYMOON)",
+  "description": "Hive bus, polaroid photos, Beeswax's room voice, the Orbis window and the hum detector for the HONEYMOON Quest app. Needs com.endel.nativewebsocket (git URL, see README).",
+  "unity": "6000.0",
+  "license": "MIT",
+  "dependencies": {}
+}

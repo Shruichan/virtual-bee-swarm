@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@mentra/miniapp-cli/schema/miniapp.schema.json",
+  "packageName": "dev.drori.beeswax",
+  "version": "1.0.0",
+  "name": "Beeswax",
+  "description": "HONEYMOON field agent: press the button, show Beeswax a flower, hear the verdict in your ear.",
+  "icon": "icon.png",
+  "type": "standard",
+  "sdkVersion": "0.3.0",
+  "minHostVersion": "3.3.0",
+  "entry": {
+    "background": "background/index.js",
+    "ui": "ui/index.html"
+  },
+  "permissions": [
+    {
+      "type": "CAMERA",
+      "description": "Takes one photo when you press the glasses button, so Beeswax can judge what you're holding. Photos are never saved."
+    },
+    {
+      "type": "MICROPHONE",
+      "description": "Hears what you say about the thing you scan, and your plea to the bees."
+    }
+  ],
+  "hardwareRequirements": [
+    {"type": "CAMERA", "level": "REQUIRED", "description": "Scans flowers and props."},
+    {"type": "MICROPHONE", "level": "REQUIRED", "description": "Hears the scout and the plea."},
+    {"type": "SPEAKER", "level": "REQUIRED", "description": "Beeswax talks in your ear."},
+    {"type": "BUTTON", "level": "OPTIONAL", "description": "Short press scans, long press replays the last line."},
+    {"type": "LIGHT", "level": "OPTIONAL", "description": "Amber while scanning, green or red for the verdict."}
+  ]
+}
