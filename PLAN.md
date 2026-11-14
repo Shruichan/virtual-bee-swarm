@@ -49,6 +49,7 @@
   - **Lane C:** `hive/**` (but not `hive/lines/`) and `unity/BeeswaxClient/**`.
   - **Lane D:** `hive/lines/**`, `GameLines.cs`, `Assets/Resources/BeeswaxLines/`, the meadow clips, `Art/Audio/`.
   - **Lane E:** `pitch/**`, `ops/*.md`, README, LICENSE, and the bookkeeping sections of PLAN.md.
+  - **Lane F:** `glasses/**` (Mentra Live miniapp and its separate release build).
   - **Humans:** `Art/<Slot>/` belongs to dartiros. `Tuning/station-values.json` belongs to Adityash. ProjectSettings changes from Nam's editor only go in as bootstrap commits.
 - **`VirtualBeeSwarm.unity` is a build output.** It's gitignored, and `GameBuild.BuildApk` runs the scene builder first on every machine. Nobody touches it by hand. Changes go through:
   - the builder (lane A)
@@ -132,9 +133,10 @@
 | S14 Venue, rehearsals, judging | Adityash | E |
 | S15 Video | dartiros | E |
 | S16 Devpost, tracks, repo | Rome | E |
+| S17 Mentra Live miniapp | Rome | F |
 
 **Cut, so don't claim these:**
-- glasses (old S17): **later**, not cut. Fit them in once the Quest game works (the app already builds)
+- Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
 - the hornet, the hum, and the hornet and thermometer art
 - the fail ending
 - the custom what-if: **off the demo path** (it's built and hooked up to the Board's text box, but don't rely on it live)
@@ -675,6 +677,10 @@
 - **S16.10 Draft and early submission** (P0 · 0.5 h · needs S15.5) — done when: the draft is saved at 23:00 with the safety cut, and a full submission goes in at 01:00 if Devpost allows edits until 09:00 — owner: *suggested Rome* — status: open
 
 - **S16.11 Final submission (08:30)** (P0 · 0.25 h · needs everything) — done when: the confirmation is on screen and all four members are on the project — owner: *suggested Rome* — status: open
+
+#### S17 Mentra Live miniapp
+
+- **S17.1 Validate the separate Mentra Live build** (P0 · 0.5 h · needs –) — done when: the glasses package passes typecheck, flow tests and production build; the local release path and current Mentra distribution limits are documented; and no Hive token or release artifact is committed — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1440,3 +1446,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 15:38 PT · Nam Nguyen (agent) · Confirmed Windows sleep timeout is Never on AC and DC. Could not confirm physical power connection; a different Unity project is still open, so I left it untouched and did not start a competing import. → Nam: confirm power and close the other Unity project when ready for S1.9 import.
 - 2026-11-14 15:41 PT · Nam Nguyen (agent) · Started and completed a Unity 6000.2.9f1 batch import of `unity/VirtualBeeSwarm`; Asset Database refresh completed, exit code 0, no asset changes or C# compiler errors. This was a warm import, not S1.9's fresh-clone verification. → team
 - 2026-11-14 16:10 PT · Rome (agent) · Claimed: ride script v2 in the game (42 main-path lines re-rendered in Harry's voice, new intro/stations/what-if/end-card lines wired in Unity, build + screenshot review, then push). Touches hive/lines, Assets/Resources/BeeswaxLines, Beats/, Stations/, Core/GameLines.cs. Satie sound and the forecast moment are on main. → Nam: D-8 APK has everything up to Satie; download link coming.
+- 2026-11-14 16:16 PT · Rome (agent) · Claiming S17.1: validate and package the Mentra Live miniapp as an isolated glasses build in `glasses/`, check its end-to-end flow/build path, and document the current local install limits. → team
