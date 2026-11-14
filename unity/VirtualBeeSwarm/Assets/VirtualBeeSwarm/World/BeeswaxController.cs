@@ -5,7 +5,9 @@ namespace VirtualBeeSwarm
     /// <summary>
     /// Beeswax, the union-rep drone (placeholder: sphere body + stripes + wings). Flies to points, faces the
     /// player, bobs, flaps, pulses his mouth/body with his voice (GameNet.VoiceAmplitude), shows his caption
-    /// above him, rides the rocket at T-0 and comes back dusty.
+    /// above him, rides the rocket at T-0 and comes back dusty. v3.1 (V14): waits hidden inside the delivered hive
+    /// (HideInside), then climbs out of the door by code (ClimbOut: squeeze through the slot, pop, shake off, fly up to
+    /// his mark); EmergeNow snaps that end state for a Board jump.
     /// Modeler: replace the children of `body`; keep `mouth` (scaled on Y), the wing transforms (rotated on Z),
     /// and list renderers to grey out in `dustyRenderers`.
     /// </summary>
@@ -42,8 +44,28 @@ namespace VirtualBeeSwarm
         [SerializeField] float wingFlapHz = 18f;
         [SerializeField] float wingFlapDegrees = 35f;
 
+        [Header("Climb out of the hive (V14)")]
+        [SerializeField] float squeezeSeconds = 0.55f;
+        [SerializeField] float popSeconds = 0.14f;
+        [SerializeField] float shakeSeconds = 0.5f;
+        [Tooltip("How far inside the door he starts, and how far out he pops (m).")]
+        [SerializeField] float squeezeFrom = 0.035f;
+        [SerializeField] float squeezeTo = 0.035f;
+        [Tooltip("Body scale while squeezing through the slot (y = flattened).")]
+        [SerializeField] Vector3 squeezeScale = new Vector3(1.12f, 0.42f, 1.1f);
+        [SerializeField] float shakeDegrees = 32f;
+        [SerializeField] float shakeHz = 11f;
+        [Tooltip("Flight speed up to his mark after the shake (m/s).")]
+        [SerializeField] float climbFlySpeed = 1.1f;
+
         public bool Arrived { get; private set; } = true;
+        /// <summary>Where he waits (the hook mark after he climbs out of the hive).</summary>
+        public Transform HomePoint => homePoint;
         public bool Visible => body == null || body.gameObject.activeSelf;
+        /// <summary>Hidden inside the hive (HideInside), not climbing yet.</summary>
+        public bool Inside { get; private set; }
+        /// <summary>Squeezing out / shaking off (the fly-up after it is a normal flight: watch Arrived).</summary>
+        public bool Climbing { get; private set; }
 
         Vector3 _target;
         Transform _targetT, _attached;
@@ -51,6 +73,17 @@ namespace VirtualBeeSwarm
         float _whipUntil = -1f;
         string _shownCaption;
         Vector3 _bodyBaseScale = Vector3.one;
+        Quaternion _bodyBaseRot = Quaternion.identity;
+        Vector3 _captionBaseLocal;
+        Transform _captionAnchor;
+        float _captionAnchorUp;
+        Transform _door, _climbMark;
+        Vector3 _climbOut = Vector3.back;
+        float _climbStart, _flySpeedOverride = -1f;
+        Vector3 _climbScale = Vector3.one;
+        Quaternion _climbRot = Quaternion.identity;
+        bool _wingsFolded;
+        System.Action _climbDone;
         Vector3 _restPos;
         Quaternion _restRot;
         Quaternion _leftWingRest, _rightWingRest;
@@ -59,7 +92,8 @@ namespace VirtualBeeSwarm
         void Awake()
         {
             if (net == null) net = FindAnyObjectByType<GameNet>();
-            if (body != null) _bodyBaseScale = body.localScale;
+            if (body != null) { _bodyBaseScale = body.localScale; _bodyBaseRot = body.localRotation; }
+            if (captionRoot != null) _captionBaseLocal = captionRoot.localPosition;
             if (leftWing != null) _leftWingRest = leftWing.localRotation;
             if (rightWing != null) _rightWingRest = rightWing.localRotation;
             _restPos = transform.position;
@@ -71,6 +105,7 @@ namespace VirtualBeeSwarm
         // ------------------------------------------------------------ API
         public void FlyTo(Transform t)
         {
+            EndClimbState();
             _attached = null;
             _targetT = t;
             Arrived = false;
@@ -78,6 +113,7 @@ namespace VirtualBeeSwarm
 
         public void FlyTo(Vector3 worldPoint)
         {
+            EndClimbState();
             _attached = null;
             _targetT = null;
             _target = worldPoint;
@@ -104,6 +140,7 @@ namespace VirtualBeeSwarm
         public void SnapTo(Transform t)
         {
             if (t == null) return;
+            EndClimbState();
             _attached = null;
             _targetT = t;
             transform.position = t.position;
@@ -114,6 +151,138 @@ namespace VirtualBeeSwarm
         {
             if (body != null && body.gameObject.activeSelf != on) body.gameObject.SetActive(on);
             if (captionRoot != null && captionRoot.gameObject.activeSelf != on) captionRoot.gameObject.SetActive(on);
+        }
+
+        /// <summary>Body only: his caption stays (he talks from inside the hive while it is carried in).</summary>
+        public void SetBodyVisible(bool on)
+        {
+            if (body != null && body.gameObject.activeSelf != on) body.gameObject.SetActive(on);
+        }
+
+        /// <summary>Show his caption at another object (the SIGN HERE clipboard in pre) instead of over him; null = back over him.</summary>
+        public void SetCaptionAnchor(Transform t, float up = 0.12f)
+        {
+            _captionAnchor = t;
+            _captionAnchorUp = up;
+            if (t == null && captionRoot != null) captionRoot.localPosition = _captionBaseLocal;
+        }
+
+        // ------------------------------------------------------------ hive door (V14)
+        /// <summary>v3.1 pre: inside the hive (riding its door point, body hidden) until ClimbOut.</summary>
+        public void HideInside(Transform door)
+        {
+            EndClimbState();
+            _door = door;
+            if (door != null) AttachTo(door);
+            SetBodyVisible(false);
+            Inside = true;
+        }
+
+        /// <summary>
+        /// Climb out of the hive door: squeeze through the slot (flattened, wriggling), pop to full size, shake off like a
+        /// wet dog, then fly up to `mark`. outward = out of the door, into the room. onOut runs when the shake ends.
+        /// </summary>
+        public void ClimbOut(Vector3 outward, Transform mark, System.Action onOut = null)
+        {
+            if (_door == null) _door = _attached;
+            outward.y = 0f;
+            _climbOut = outward.sqrMagnitude > 1e-6f ? outward.normalized : Vector3.back;
+            _climbMark = mark;
+            _climbDone = onOut;
+            _attached = null;
+            _targetT = null;
+            Inside = false;
+            Climbing = true;
+            _climbStart = Time.time;
+            SetBodyVisible(true);
+            Arrived = true;
+        }
+
+        /// <summary>A jump past the climb: out now, at `mark`. A flight someone already ordered keeps its target.</summary>
+        public void EmergeNow(Transform mark)
+        {
+            if (!Inside && !Climbing) return;
+            bool ordered = Inside && _attached == null; // FlyTo/SnapTo while inside: keep that target
+            EndClimbState();
+            Inside = false;
+            SetBodyVisible(true);
+            if (mark != null) transform.position = mark.position;
+            if (!ordered)
+            {
+                _attached = null;
+                _targetT = mark;
+                if (mark == null) _target = transform.position;
+                Arrived = true;
+            }
+        }
+
+        void EndClimbState()
+        {
+            var done = Climbing ? _climbDone : null;
+            Climbing = false;
+            _climbDone = null;
+            _climbScale = Vector3.one;
+            _climbRot = Quaternion.identity;
+            _wingsFolded = false;
+            done?.Invoke();
+        }
+
+        bool UpdateClimb(float t)
+        {
+            if (!Climbing) return false;
+            float ct = t - _climbStart;
+            Vector3 door = _door != null ? _door.position : transform.position;
+            Vector3 right = Vector3.Cross(Vector3.up, _climbOut);
+            Quaternion face = Quaternion.LookRotation(_climbOut, Vector3.up);
+            float sq = Mathf.Max(0.05f, squeezeSeconds), pop = Mathf.Max(0.02f, popSeconds), sh = Mathf.Max(0.05f, shakeSeconds);
+            if (ct < sq)
+            {
+                // squeeze: flattened through the slot, wriggling side to side, wings folded
+                float k = ct / sq, e = Mathf.SmoothStep(0f, 1f, k);
+                float wrig = Mathf.Sin(ct * Mathf.PI * 2f * 9f);
+                transform.position = door + _climbOut * Mathf.Lerp(-squeezeFrom, squeezeTo, e) + right * (wrig * 0.006f * (1f - k));
+                transform.rotation = face;
+                _climbScale = Vector3.Lerp(squeezeScale, Vector3.Lerp(squeezeScale, Vector3.one, 0.6f), e);
+                _climbRot = Quaternion.Euler(0f, 0f, wrig * 9f);
+                _wingsFolded = true;
+                return true;
+            }
+            if (ct < sq + pop)
+            {
+                // pop: springs to full size with an overshoot, a little hop out
+                float k = (ct - sq) / pop;
+                float over = Mathf.Sin(k * Mathf.PI) * 0.18f;
+                Vector3 from = Vector3.Lerp(squeezeScale, Vector3.one, 0.6f);
+                _climbScale = Vector3.Lerp(from, Vector3.one, k) + new Vector3(-over * 0.3f, over, -over * 0.3f);
+                _climbRot = Quaternion.identity;
+                transform.position = door + _climbOut * (squeezeTo + 0.012f * k) + Vector3.up * (0.012f * k);
+                transform.rotation = face;
+                _wingsFolded = false;
+                return true;
+            }
+            if (ct < sq + pop + sh)
+            {
+                // shake off: a fast decaying roll (and a smaller yaw), wings buzzing
+                float u = (ct - sq - pop) / sh;
+                float a = Mathf.Sin(u * sh * Mathf.PI * 2f * shakeHz) * shakeDegrees * (1f - u) * (1f - u);
+                _climbScale = Vector3.one;
+                _climbRot = Quaternion.Euler(0f, a * 0.25f, a);
+                transform.position = door + _climbOut * (squeezeTo + 0.012f) + Vector3.up * (0.012f + 0.01f * Mathf.Sin(u * Mathf.PI));
+                transform.rotation = face;
+                return true;
+            }
+            // up to the mark: a normal flight from here
+            var done = _climbDone;
+            _climbDone = null;
+            Climbing = false;
+            _climbScale = Vector3.one;
+            _climbRot = Quaternion.identity;
+            _targetT = _climbMark;
+            if (_climbMark == null) _target = transform.position + Vector3.up * 0.25f;
+            _flySpeedOverride = climbFlySpeed;
+            Arrived = false;
+            done?.Invoke();
+            return false;
         }
 
         public void SetDusty(bool on)
@@ -130,6 +299,13 @@ namespace VirtualBeeSwarm
 
         public void ResetBeeswax()
         {
+            _climbDone = null;
+            EndClimbState();
+            Inside = false;
+            _door = null;
+            _flySpeedOverride = -1f;
+            SetCaptionAnchor(null);
+            if (body != null) body.localRotation = _bodyBaseRot;
             _attached = null;
             _targetT = homePoint;
             transform.position = homePoint != null ? homePoint.position : _restPos;
@@ -155,7 +331,8 @@ namespace VirtualBeeSwarm
             Transform headT = Head();
 
             // position
-            if (_attached != null)
+            if (UpdateClimb(t)) { }
+            else if (_attached != null)
             {
                 transform.position = _attached.position;
                 transform.rotation = _attached.rotation;
@@ -165,9 +342,9 @@ namespace VirtualBeeSwarm
                 Vector3 goal = _targetT != null ? _targetT.position : _target;
                 Vector3 p = transform.position;
                 float dist = Vector3.Distance(p, goal);
-                float speed = flySpeed * Mathf.Clamp(dist * 4f, 0.25f, 1f);
+                float speed = (_flySpeedOverride > 0f ? _flySpeedOverride : flySpeed) * Mathf.Clamp(dist * 4f, 0.25f, 1f);
                 transform.position = Vector3.MoveTowards(p, goal, speed * dt);
-                if (!Arrived && dist < 0.01f) Arrived = true;
+                if (!Arrived && dist < 0.01f) { Arrived = true; _flySpeedOverride = -1f; }
 
                 // rotation: face the flight direction on long hops, otherwise the player
                 Quaternion want = transform.rotation;
@@ -186,11 +363,12 @@ namespace VirtualBeeSwarm
             float amp = net != null ? net.VoiceAmplitude : 0f;
             if (body != null)
             {
-                body.localPosition = new Vector3(0f, Mathf.Sin(t * bobHz * Mathf.PI * 2f) * bobAmplitude, 0f);
-                body.localScale = _bodyBaseScale * (1f + amp * talkScalePulse);
+                body.localPosition = new Vector3(0f, Climbing ? 0f : Mathf.Sin(t * bobHz * Mathf.PI * 2f) * bobAmplitude, 0f);
+                body.localScale = Vector3.Scale(_bodyBaseScale, _climbScale) * (1f + amp * talkScalePulse);
+                body.localRotation = _bodyBaseRot * _climbRot;
             }
             if (mouth != null) mouth.localScale = Vector3.Lerp(mouthClosedScale, mouthOpenScale, amp);
-            float flap = Mathf.Sin(t * wingFlapHz * Mathf.PI * 2f) * wingFlapDegrees * (_dusty ? 0.3f : 1f);
+            float flap = _wingsFolded ? 0f : Mathf.Sin(t * wingFlapHz * Mathf.PI * 2f) * wingFlapDegrees * (_dusty ? 0.3f : 1f);
             if (leftWing != null) leftWing.localRotation = _leftWingRest * Quaternion.Euler(0f, 0f, flap);
             if (rightWing != null) rightWing.localRotation = _rightWingRest * Quaternion.Euler(0f, 0f, -flap);
 
@@ -204,6 +382,8 @@ namespace VirtualBeeSwarm
                     caption.text = GameMaterials.Wrap(c, captionWrapChars);
                 }
             }
+            if (captionRoot != null && _captionAnchor != null)
+                captionRoot.position = _captionAnchor.position + Vector3.up * _captionAnchorUp;
             if (captionRoot != null && headT != null)
             {
                 Vector3 away = captionRoot.position - headT.position;

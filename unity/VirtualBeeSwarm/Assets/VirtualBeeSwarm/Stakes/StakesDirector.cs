@@ -201,7 +201,12 @@ namespace VirtualBeeSwarm.Stakes
         void HandleVoiceLine(GameNet.VoiceLineInfo info)
         {
             if (director == null || director.Beat != GameBeat.Hook || _poured || _pourAt >= 0f) return;
-            if (info.id == stakesLineId) _pourAt = Time.time + pourDelayIntoLine;
+            if (info.id != stakesLineId) return;
+            // V14: on the words "angry swarms", from the clip length and where they sit in the line; else the fixed delay
+            float delay = HookTiming.ThreatOffset(info, pourDelayIntoLine);
+            _pourAt = Time.time + delay;
+            Debug.Log("[VBS][Stakes] " + stakesLineId + " started: pour in " + delay.ToString("0.00") + " s" +
+                      (delay != pourDelayIntoLine ? " (on \"" + HookTiming.ThreatWords + "\", clip " + info.clipSeconds.ToString("0.00") + " s)" : " (fixed delay)"));
         }
 
         void HandleLog(string message, string stack, LogType type)
