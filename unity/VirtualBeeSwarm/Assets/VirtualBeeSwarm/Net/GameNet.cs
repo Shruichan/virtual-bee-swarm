@@ -7,6 +7,7 @@
 //   * Unity's beat clock never waits for the network (GameDirector's timers).
 //   * Station choices: BeeswaxStations plays the outcome locally (line + window clip + fx) when the Hive can't;
 //     with forceOffline or without BeeswaxStations, the stations play GameLines locally.
+//   * The window: offline, every scene switch also switches the clip (StreamingAssets/<scene>.mp4) locally.
 //   * Lines: beat lines play at once (the Hive never voices beat changes). Only a station outcome without
 //     BeeswaxStations uses SayUnlessHive (wait briefly for the Hive's own room line, else play the local one).
 //   * Desktop/operator simulations (F/P keys) are injected locally (bus.InjectLocal) so every listener reacts.
@@ -385,7 +386,12 @@ namespace VirtualBeeSwarm
         {
             string s = GameIds.StationName(station);
             if (logEvents) Debug.Log("[VBS] choice " + s + "/" + choice + (GameIds.IsCorrect(station, choice) ? " (correct)" : " (wrong)"));
-            if (!string.IsNullOrEmpty(localScene)) SetSceneLocal(localScene);
+            if (!string.IsNullOrEmpty(localScene))
+            {
+                SetSceneLocal(localScene);
+                // Forced offline nobody else moves the window's clip (BeeswaxStations isn't asked): switch it here.
+                if (forceOffline && orbis != null) orbis.ShowSceneLocally(localScene);
+            }
             if (forceOffline) return false;
             if (stations != null) return stations.Choose(s, choice) != null;
             if (_bound != null) _bound.SendChoiceMade(s, choice); // queued by the bus while offline
@@ -394,18 +400,20 @@ namespace VirtualBeeSwarm
 
         /// <summary>
         /// Show a window scene. sendToHive = true: the client's OrbisWindow switches its clip now and asks the Hive to
-        /// steer Orbis there (queued while offline). false: only the local fallback tint (the Hive drives the window
-        /// itself, e.g. after choice.made or a voice intent).
+        /// steer Orbis there (queued while offline). false: the local fallback tint, and while the Hive can't drive the
+        /// window (offline) the clip too (online the Hive drives it itself, e.g. after choice.made or a voice intent).
         /// </summary>
         public void RequestScene(string scene, bool sendToHive)
         {
             if (string.IsNullOrEmpty(scene)) return;
             SetSceneLocal(scene);
-            if (sendToHive && orbis != null)
+            if (orbis == null) return;
+            if (sendToHive)
             {
                 if (forceOffline) orbis.ShowSceneLocally(scene);
                 else orbis.RequestScene(scene);
             }
+            else if (!Online) orbis.ShowSceneLocally(scene);
         }
 
         void SetSceneLocal(string scene)
