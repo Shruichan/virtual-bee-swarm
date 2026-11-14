@@ -190,7 +190,7 @@
   - the ProjectSettings and `Assets/XR` from that run are pushed as a bootstrap commit
   - the S1.9 import got kicked off before bed, machine plugged in, sleep off
 
-  — owner: **Nam Nguyen** — status: in progress (generic MRUK prefab placement)
+  — owner: *suggested Nam* — status: open
 
 - **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:
   - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: *suggested Nam* — status: open
+  — owner: **Nam Nguyen** — status: in progress (generic MRUK prefab placement)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
