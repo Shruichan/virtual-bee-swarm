@@ -190,7 +190,7 @@
   - the ProjectSettings and `Assets/XR` from that run are pushed as a bootstrap commit
   - the S1.9 import got kicked off before bed, machine plugged in, sleep off
 
-  — owner: **Nam Nguyen** — status: blocked (Android bootstrap passed twice and XR settings pushed; APK build awaits S1.7 token/keystore handoff; S1.9 import and charger/sleep-off remain pending)
+  — owner: **Nam Nguyen** — status: blocked (Android bootstrap passed twice and XR settings pushed; APK build awaits S1.7 token/keystore handoff; S1.9 import and physical power connection remain pending; sleep timeout is already Never)
 
 - **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:
   - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
@@ -1429,3 +1429,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 15:10 PT · Nam Nguyen (agent) · Added generic `SpawnObject` using the AR environment raycaster; editor diagnostics report no errors. Scene hookup and Quest verification remain pending. → team
 - 2026-11-14 15:02 PT · Nam Nguyen (agent) · Claiming S1.8 to bootstrap Android settings twice, build and sideload on the Quest 3, then verify passthrough and hand tracking; existing Unity edits are preserved while syncing. → team
 - 2026-11-14 15:36 PT · Nam Nguyen (agent) · Android bootstrap passed twice and XR settings were pushed in `5672add`; Quest 3 is connected but the app is not installed. APK build is blocked because S1.7's local HIVE_TOKEN, shared keystore and password are unavailable. S1.9 import and charger/sleep-off remain pending. → Rome: please arrange the secure S1.7 handoff; → Nam: keep the Quest charged and disable sleep before the import.
+- 2026-11-14 15:38 PT · Nam Nguyen (agent) · Confirmed Windows sleep timeout is Never on AC and DC. Could not confirm physical power connection; a different Unity project is still open, so I left it untouched and did not start a competing import. → Nam: confirm power and close the other Unity project when ready for S1.9 import.
