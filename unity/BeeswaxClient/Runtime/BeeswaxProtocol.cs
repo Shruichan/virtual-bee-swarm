@@ -4,6 +4,8 @@
 // v2.1 (additive, still version 2): choice.request (operator twin of a station choice, the game applies it like the
 // player's own), fx.force (Board → Hive; the Quest receives it as a plain fx), whatif.force (Board → Hive only),
 // score, optional OrbisRequest.want, custom what-ifs (topic "custom", scene "whatif_custom", Intent.custom_prompt).
+// v2.2 (additive, still version 2): scenes forecast_peaceful and forecast_ravaged (the hook's forecast, sent by the
+// Quest). An older client ignores them; an older Hive answers the Quest's request with an error and the clip still plays.
 //
 // JsonUtility has no unions and no nullable types, so:
 //   * Parse() peeks at "type" with a tiny Envelope, then fills the concrete class.
@@ -70,6 +72,7 @@ namespace Beeswax
             Scene.Meadow, Scene.SmokerSettle, Scene.SmokerAngry, Scene.FeedSick, Scene.FeedRecover, Scene.WaspsRaid,
             Scene.WaspsLeave, Scene.HeatStress, Scene.HeatDrink, Scene.WhatIfFire, Scene.FireOut, Scene.WhatIfRain,
             Scene.WhatIfFlowers, Scene.WhatIfSpray, Scene.WhatIfWinter, Scene.WhatIfCustom, Scene.FullBloom, Scene.Moon,
+            Scene.ForecastPeaceful, Scene.ForecastRavaged,
         };
 
         /// <summary>WHATIF_TOPICS.</summary>
@@ -298,6 +301,8 @@ namespace Beeswax
         /// <summary>v2.1: an unplanned what-if (Claude writes a safe Orbis prompt). No recorded clip: clips mode keeps the last clip.</summary>
         public const string WhatIfCustom = "whatif_custom";
         public const string FullBloom = "full_bloom", Moon = "moon";
+        /// <summary>v2.2: the hook's forecast. The Quest sends peaceful when the window opens and ravaged on "angry swarms".</summary>
+        public const string ForecastPeaceful = "forecast_peaceful", ForecastRavaged = "forecast_ravaged";
     }
 
     public static class WhatIfTopic

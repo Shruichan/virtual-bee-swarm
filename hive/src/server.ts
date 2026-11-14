@@ -391,6 +391,8 @@ interface Routed extends RouteResultLike { blocked?: string }
 interface Understood { route: Routed; response: UtteranceResponse }
 
 const isWhatIfScene = (s: Scene) => s.startsWith("whatif_");
+/** The hook's forecast is a moment, not a place the window goes back to: never the base scene. */
+const isForecastScene = (s: Scene) => s.startsWith("forecast_");
 const cleanText = (s: unknown, max = 500) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 function concat(parts: Uint8Array[], total: number): Uint8Array {
@@ -946,7 +948,7 @@ export function startHive(opts: HiveOptions): Hive {
     const prev = state.scene;
     if (next === "whatif_custom" && prev !== "whatif_custom") customClip = fallbackClip(prev);
     state.scene = next;
-    if (!isWhatIfScene(next) && next !== "fire_out") state.base_scene = next;
+    if (!isWhatIfScene(next) && !isForecastScene(next) && next !== "fire_out") state.base_scene = next;
     if (prev === "whatif_fire" && next !== "whatif_fire") bus.fx("embers_stop");
     if (next === "whatif_fire" && prev !== "whatif_fire") bus.fx("embers", { delay_ms: embersDelayMs });
     publishOrbis(true);

@@ -437,6 +437,28 @@ describe("window, beats and score", () => {
     expect(hive.state.base_scene).toBe("meadow");
   });
 
+  test("hook forecast: the Quest's forecast_peaceful then forecast_ravaged reach the window with their clips; the base scene stays the meadow", async () => {
+    hive = makeHive();
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "hook", 1);
+    await board.waitFor("orbis", (m) => m.scene === "meadow");
+    quest.send({ type: "orbis.request", scene: "forecast_peaceful" }); // the window opens on peaceful Paris
+    expect(await board.waitFor("orbis", (m) => m.scene === "forecast_peaceful")).toMatchObject({
+      fallback_clip: "forecast_peaceful.mp4",
+      stage: SCENES.indexOf("forecast_peaceful"),
+    });
+    quest.send({ type: "orbis.request", scene: "forecast_ravaged" }); // on "angry swarms"
+    expect((await board.waitFor("orbis", (m) => m.scene === "forecast_ravaged")).fallback_clip).toBe("forecast_ravaged.mp4");
+    expect(hive.state.base_scene).toBe("meadow"); // an undo or a custom what-if never lands back on the forecast
+    expect(SCENES.indexOf("moon")).toBe(17); // appended: the older scenes keep their stage numbers
+    await setBeat(quest, board, "meet", 2);
+    const seen = board.of("orbis").length;
+    quest.send({ type: "orbis.request", scene: "meadow" }); // meet: back to the meadow
+    await board.waitFor("orbis", (m) => m.scene === "meadow" && board.of("orbis").indexOf(m) >= seen);
+    expect(hive.state.scene).toBe("meadow");
+  });
+
   test("smoker starts the score clock (hook and meet don't); escape logs the score and blooms; t0 is the Moon; a re-sent beat changes nothing", async () => {
     hive = makeHive();
     const quest = await connect("quest");

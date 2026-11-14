@@ -6,6 +6,9 @@
 // Orbis window scenes, fx events. The v1 glasses scan messages stay for the later glasses mode.
 // v2.1 (additive, still PROTOCOL_VERSION 2): operator ops (choice.request, fx.force, whatif.force),
 // a score message, optional `want` on orbis.request, and custom what-ifs (topic "custom" + scene whatif_custom).
+// v2.2 (additive, still PROTOCOL_VERSION 2): scenes forecast_peaceful and forecast_ravaged, the hook's forecast. The
+// Quest asks for them during room_hook_1 (peaceful when the window opens, ravaged on "angry swarms"); appended, so
+// every older scene keeps its stage index.
 
 export const PROTOCOL_VERSION = 2;
 
@@ -89,6 +92,8 @@ export const SCENES = [
   "whatif_custom", //   an unplanned what-if: Claude writes a safe prompt (no recorded clip; clips mode keeps the last clip)
   "full_bloom", //      escape
   "moon", //            t0: grey dust, Earth rising
+  "forecast_peaceful", // hook: a sunny Paris park with the Eiffel Tower (the window opens on it)
+  "forecast_ravaged", //  hook, on "angry swarms": red sky, swarms, a giant laser-eyed bee topples the tower
 ] as const;
 export type Scene = (typeof SCENES)[number];
 export const WHATIF_TOPICS = ["fire", "rain", "flowers", "spray", "winter", "custom"] as const;

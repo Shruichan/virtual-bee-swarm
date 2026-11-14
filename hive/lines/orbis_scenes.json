@@ -88,5 +88,15 @@
     "prompt": "The meadow has turned into the grey cratered surface of the Moon, with a lone white wooden beehive on a low stand in the center of the fine grey dust. The blue and white Earth rises over the horizon into a black sky full of stars. Wide shot, eye-level, static camera, deep depth of field.",
     "seed": 20000,
     "clip": "moon.mp4"
+  },
+  "forecast_peaceful": {
+    "prompt": "A sunny Paris park in spring with a white wooden beehive on a low stand in the foreground, lawns and flower beds of lavender and clover, families picnicking on checkered blankets, and the Eiffel Tower rising behind them under a soft blue sky. Honeybees drift calmly from flower to flower and over the picnic fruit. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "forecast_peaceful.mp4"
+  },
+  "forecast_ravaged": {
+    "prompt": "The same Paris park under a deep red sky, with orange flames across the scorched lawns, a white wooden beehive on a low stand in the foreground, and dark clouds of angry bees swirling over the rooftops. A giant cartoon bee with glowing red laser eyes hovers beside the Eiffel Tower, which has toppled across the park in a shower of sparks and smoke. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "forecast_ravaged.mp4"
   }
 }

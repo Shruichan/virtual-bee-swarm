@@ -10,7 +10,8 @@ Writes DIR/<scene>.mp4 (832x480, H.264 Main, yuv420p, a keyframe every second, n
 DIR/stills/<scene>.jpg (+ DIR/stills/contact_sheet.jpg). --still renders only the middle frame (for look checks).
 Scene ids and creative brief: hive/lines/orbis_scenes.json (named scenes) and hive/orbis-relay/scenes.json (the old
 backyard stages moon_0, stage_1-3, earthrise). Every motion uses whole cycles per clip, so the last frame runs
-straight back into the first.
+straight back into the first. The one exception is forecast_ravaged (the hook's forecast): a one-shot that ends on the
+first frame of its own seamless loop, DIR/forecast_aftermath.mp4.
 """
 import argparse
 import math
@@ -23,7 +24,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-from mathutils import Quaternion, Vector, noise
+from mathutils import Euler, Matrix, Quaternion, Vector, noise
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -59,6 +60,9 @@ C.MATERIALS.update({
     "flame": dict(name="VBS_Flame", emission=1.6),
     "star": dict(name="VBS_Star", emission=6.0),
     "sunmat": dict(name="VBS_Sun", emission=12.0),
+    "laser": dict(name="VBS_Laser", emission=9.0),
+    "laser_halo": dict(name="VBS_LaserHalo", emission=5.0, alpha=0.3),
+    "eyeglow": dict(name="VBS_EyeGlow", emission=7.0),
 })
 
 ANIM = []  # callables f(phase in [0, 1)) that pose the scene for one frame
@@ -268,6 +272,13 @@ class Look:
         self.glare = kw.get("glare", False)
         self.cam = kw.get("cam", "meadow")
         self.palette = kw.get("palette", {})
+        # new palette keys for one scene, each borrowing the slot of a key that scene never uses: {new: (donor, hex)}
+        self.alias = kw.get("alias", {})
+        # one-shot clip (seconds) that ends on the first frame of a seamless loop (seconds) written as loop_id
+        self.oneshot = kw.get("oneshot", 0.0)
+        self.loop = kw.get("loop", 0.0)
+        self.loop_id = kw.get("loop_id", "")
+        self.stills = kw.get("stills", [])  # extra stills: [(name, phase)], phase = scene clock / loop
 
 
 def lin(hx):
@@ -334,6 +345,10 @@ def setup_render(lk, samples):
         cd.lens = 30
         cam.location = (0, -3.0, 0.28)
         target = Vector((0, 6.0, 0.55))
+    elif lk.cam == "paris":  # forecast: a little lower and tilted up, so the Eiffel Tower fits behind the hive
+        cd.lens = 30
+        cam.location = (0, -3.2, 0.55)
+        target = Vector((0.8, 6.0, 1.45))
     else:
         cd.lens = 30
         cam.location = (0, -2.75, 0.62)
@@ -430,6 +445,10 @@ class World:
         for i, (k, _) in enumerate(C.PALETTE):
             if k in lk.palette:
                 C.PALETTE[i] = (k, lk.palette[k])
+        for new, (donor, hx) in lk.alias.items():
+            i = C.PAL[donor]
+            C.PALETTE[i] = (donor, hx)
+            C.PAL[new] = i
         ANIM.clear()
         self.tmp = os.path.join(a.work, "tex")
         C.palette_image(self.tmp)
@@ -1203,7 +1222,602 @@ def yard(w, kind, clothesline=False, patch=False):
                     wob=0.03)
 
 
+# ============================================================================================ forecast (the hook)
+# room_hook_1 ("Let my hive die, and angry swarms ravage the Earth...") in the meadow window: forecast_peaceful, a
+# seamless loop of a sunny Paris park, is cut on "angry swarms" to forecast_ravaged: red sky, dark swarms, and a giant
+# laser-eyed bee slices the Eiffel Tower, which topples while a tiny tourist is flung off the top (cartoon, nobody hurt
+# on screen). The one-shot ends on the first frame of forecast_aftermath, a seamless loop. Unity's ForecastMoment times
+# the SFX to the beats below (cut = t 0): laser 0.10-0.62, the top tips at 0.62 and lands at 1.55, fling at 1.35.
+PARIS = {"eiffel": ("snow", "#7B5C43"), "eiffel_dark": ("snow_shade", "#54402F"), "eiffel_light": ("moon_light", "#B08D63"),
+         "facade": ("fence", "#ECDDBE"), "facade_dark": ("fence_dark", "#CDB88F"), "roof": ("moon", "#66737F"),
+         "roof_dark": ("moon_dark", "#4B5661"), "skin": ("hornet", "#EDB991"), "skin_dark": ("hornet_dark", "#A8714C"),
+         "path": ("plastic", "#E3D3AE"), "laser": ("wasp", "#FF2A18"), "laser_core": ("smoke_wing", "#FFE4DA"),
+         "eye_glow": ("stamp_green", "#FF3A1C"), "scorch": ("terracotta", "#33261F")}
+RAVAGED = dict(PARIS, facade=("fence", "#A38F76"), facade_dark=("fence_dark", "#7A6955"), roof=("moon", "#3E454F"),
+               roof_dark=("moon_dark", "#2B3037"), path=("plastic", "#8F7F68"))
+SCORCHED = {"leaf": "#6E5A3A", "leaf_dark": "#4E3F2A", "purple": "#6B4A5A", "lavender": "#7A6070", "blue": "#4E4E66",
+            "grass_a": "#6A5238", "grass_b": "#54412E", "cream": "#B9A98C", "white": "#D2C9BA"}
+TOWER_AT = Vector((4.6, 19.0, 0.0))
+CUT_Z = 1.9
+# (z, half-width of the four corner legs), bottom to top
+TOWER = [(0.0, 1.55), (0.6, 1.25), (1.2, 1.0), (1.9, 0.82), (2.6, 0.66), (3.6, 0.5), (4.6, 0.38), (5.9, 0.26),
+         (7.2, 0.15)]
+PICNICS = [(-2.2, 3.4, 20.0), (3.3, 3.2, -25.0), (-1.6, 10.5, 5.0)]
+RAV_LOOP = 6.0  # aftermath loop (s); every motion in forecast_ravaged repeats whole cycles of it
+RAV_ONESHOT = 7.0
+LASER_T = (0.10, 0.62, 0.75)  # beams on, sweep done, beams off
+FALL_T = (0.62, 1.55)  # the top tips, lands
+FLING_T = 1.35
+FALL_DIR = Vector((0.82, -0.57, 0.0)).normalized()  # the top falls right and toward the camera (reads bigger)
+
+
+def smooth(a, b, t):
+    u = max(0.0, min(1.0, (t - a) / (b - a)))
+    return u * u * (3 - 2 * u)
+
+
+def tw(z):
+    """Half-width of the tower legs at height z."""
+    for (z0, w0), (z1, w1) in zip(TOWER, TOWER[1:]):
+        if z <= z1:
+            return w0 + (w1 - w0) * (z - z0) / (z1 - z0)
+    return TOWER[-1][1]
+
+
+def eiffel(split):
+    """Low-poly Eiffel Tower at TOWER_AT: four curved legs, X-bracing, arches, two platforms, a cabin and a mast.
+    split: two objects, TowerBase (below CUT_Z) and TowerTop (pivot on the axis at CUT_Z, so it can tip over)."""
+    base, top = C.MB("TowerBase", smooth_angle=0), C.MB("TowerTop", smooth_angle=0)
+    corners = [(1, 1), (1, -1), (-1, -1), (-1, 1)]
+    for (z0, w0), (z1, w1) in zip(TOWER, TOWER[1:]):
+        mb = base if z1 <= CUT_Z + 1e-6 else top
+        r0, r1 = 0.15 * (1 - z0 / 9.0) + 0.03, 0.15 * (1 - z1 / 9.0) + 0.03
+        for sx, sy in corners:  # legs
+            mb.tube("eiffel", (sx * w0, sy * w0, z0), (sx * w1, sy * w1, z1), r0, r1, seg=6)
+        for i in range(4):  # girder ring at the top of the band, and X-bracing on each face (not under the arches)
+            (ax, ay), (bx, by) = corners[i], corners[(i + 1) % 4]
+            mb.tube("eiffel_dark", (ax * w1, ay * w1, z1), (bx * w1, by * w1, z1), 0.035, seg=5)
+            if z0 >= 1.2:
+                mb.tube("eiffel_dark", (ax * w0, ay * w0, z0), (bx * w1, by * w1, z1), 0.022, seg=4)
+                mb.tube("eiffel_dark", (bx * w0, by * w0, z0), (ax * w1, ay * w1, z1), 0.022, seg=4)
+    for i in range(4):  # the big arches between the legs
+        (ax, ay), (bx, by) = corners[i], corners[(i + 1) % 4]
+        pts = []
+        for k in range(9):
+            a = math.pi * k / 8
+            z = 0.12 + 0.95 * math.sin(a)
+            w = tw(z) + 0.02
+            u = 0.5 - 0.5 * math.cos(a)
+            pts.append(((ax + (bx - ax) * u) * w, (ay + (by - ay) * u) * w, z))
+        base.limb("eiffel_light", pts, 0.05, 0.05, seg=5)
+    for z, extra, thick, mb in ((1.2, 0.35, 0.16, base), (2.6, 0.25, 0.12, top)):  # platforms with a light rim
+        w = 2 * tw(z) + extra
+        mb.box("eiffel_dark", C.M((0, 0, z), scale=(w, w, thick)))
+        mb.box("eiffel_light", C.M((0, 0, z + thick / 2 + 0.02), scale=(w + 0.04, w + 0.04, 0.04)))
+    top.box("eiffel_light", C.M((0, 0, 7.36), scale=(0.42, 0.42, 0.34)))  # the top cabin
+    top.box("eiffel_dark", C.M((0, 0, 7.56), scale=(0.5, 0.5, 0.06)))
+    top.cyl("eiffel", 0.17, 0.32, seg=6, m=C.M((0, 0, 7.58)), r2=0.03)
+    top.tube("eiffel_dark", (0, 0, 7.9), (0, 0, 8.2), 0.02, seg=4)
+    if not split:  # one static tower: the base keeps everything
+        return base.to_object(origin=(0, 0, 0)), top.to_object(origin=(0, 0, 0))
+    return base.to_object(origin=(0, 0, 0)), top.to_object(origin=(0, 0, CUT_Z))
+
+
+def person(name, shirt, hair, pose="sit", arm_up=False):
+    """A seated (or standing, arms out) cartoon person ~0.45 m: one mesh. Returns (object, waving arm or None)."""
+    mb = C.MB(name, smooth_angle=60)
+    stand = pose == "stand"
+    hip = 0.32 if stand else 0.06
+    mb.sphere(shirt, C.M((0, 0, hip + 0.11), scale=(0.105, 0.075, 0.15)), seg=8, rings=5)
+    mb.sphere("skin", C.M((0, 0, hip + 0.32), scale=0.075), seg=8, rings=5)
+    mb.sphere(hair, C.M((0, 0.01, hip + 0.345), scale=(0.078, 0.078, 0.055)), seg=8, rings=4)
+    if stand:  # the tourist: legs apart, arms up and out
+        for s in (1, -1):
+            mb.limb("ink", [(0.04 * s, 0, hip), (0.08 * s, 0, hip * 0.5), (0.1 * s, 0, 0.0)], 0.03, 0.025, seg=5)
+            mb.limb(shirt, [(0.1 * s, 0, hip + 0.2), (0.2 * s, 0, hip + 0.3), (0.26 * s, 0, hip + 0.42)], 0.025, seg=5,
+                    end_ball=0.03, end_color="skin")
+    else:  # sitting cross-legged on the blanket, hands in the lap
+        for s in (1, -1):
+            mb.limb("ink", [(0.05 * s, 0, hip), (0.13 * s, -0.12, 0.05), (-0.02 * s, -0.17, 0.03)], 0.032, 0.028, seg=5)
+            if not (arm_up and s == 1):
+                mb.limb(shirt, [(0.1 * s, 0, hip + 0.2), (0.13 * s, -0.05, hip + 0.1), (0.05 * s, -0.12, hip + 0.06)],
+                        0.024, seg=5, end_ball=0.028, end_color="skin")
+    ob = mb.to_object(origin=(0, 0, 0))
+    arm = None
+    if arm_up:  # a waving arm, pivot at the shoulder
+        am = C.MB(name + "Arm", smooth_angle=60)
+        am.limb(shirt, [(0, 0, 0), (0.06, 0, 0.1), (0.07, 0, 0.21)], 0.024, seg=5, end_ball=0.03, end_color="skin")
+        arm = am.to_object(origin=(0, 0, 0))
+    return ob, arm
+
+
+def paris_ground(kind):
+    grass = {"green": ("grass_a", "grass_b", "leaf"), "scorched": ("scorch", "ash", "dry_b")}[kind]
+
+    def key(x, y, r):
+        u = (y + 1.0) / (TOWER_AT.y + 1.0)
+        ax = 1.4 + (TOWER_AT.x - 1.4) * u
+        plaza = math.hypot(x - TOWER_AT.x, (y - TOWER_AT.y) * 0.8) < 3.3
+        if plaza or (-1.0 < y < TOWER_AT.y and abs(x - ax) < 0.45 + 0.03 * y):
+            return "path" if kind == "green" or r.random() < 0.7 else "ash"
+        v = r.random()
+        return grass[0] if v < 0.55 else (grass[1] if v < 0.9 else grass[2])
+    ground(key, hills=False)
+
+
+def paris_city(ravaged):
+    """Haussmann blocks (cream facades, zinc mansard roofs, rows of windows) behind and beside the park.
+    Returns the roof spots fires can sit on."""
+    rnd = random.Random(48)
+    mb = C.MB("Paris", smooth_angle=0)
+    roofs = []
+
+    def block(cx, cy, w, d, h, yaw, windows=True):
+        R = C.M((cx, cy, 0), (0, 0, yaw))
+        mb.box("facade", R @ C.M((0, 0, h / 2), scale=(w, d, h)))
+        mb.box("roof", R @ C.M((0, 0, h + 0.27), scale=(w * 0.96, d * 0.9, 0.54)),
+               lfn=lambda v: Vector((v.x * (1 - 0.3 * (v.z + 0.5)), v.y * (1 - 0.45 * (v.z + 0.5)), v.z)))
+        mb.box("facade_dark", R @ C.M((0, -d / 2 - 0.02, h - 0.04), scale=(w + 0.06, 0.08, 0.08)))
+        mb.box("facade_dark", R @ C.M((0, -d / 2 - 0.02, 0.62), scale=(w, 0.08, 0.05)))
+        for j in range(2):
+            mb.box("facade_dark", R @ C.M((rnd.uniform(-w / 3, w / 3), rnd.uniform(-d / 5, d / 5), h + 0.62),
+                                          scale=(0.16, 0.16, 0.34)))
+        if windows:
+            floors, cols = max(2, int(h / 0.52)), max(2, int(w / 0.55))
+            for i in range(floors):
+                for j in range(cols):
+                    x = (j + 0.5) / cols * w - w / 2
+                    z = 0.3 + i * (h - 0.45) / floors
+                    mb.box("ink", R @ C.M((x, -d / 2 - 0.012, z + 0.12), scale=(0.17, 0.02, 0.25)))
+            for j in range(cols):  # dormers in the roof
+                x = (j + 0.5) / cols * w - w / 2
+                mb.box("facade", R @ C.M((x, -d * 0.36, h + 0.3), scale=(0.18, 0.16, 0.22)))
+        roofs.append(((R @ Vector((rnd.uniform(-w / 4, w / 4), 0, h + 0.5))).to_tuple(), w))
+
+    x = -27.0
+    while x < 32:  # back rows
+        w = rnd.uniform(3.1, 3.6)
+        block(x, 28 + rnd.uniform(-0.6, 0.6), w, 2.6, rnd.uniform(2.1, 2.9), 0)
+        block(x + 1.8, 33.5 + rnd.uniform(-0.6, 0.6), w, 2.6, rnd.uniform(2.6, 3.4), 0)
+        x += w + 0.25
+    for i in range(16):  # far band: plain blocks hide the end of the ground
+        block(-36 + 4.8 * i, 42 + rnd.uniform(-1, 1), 4.4, 3, rnd.uniform(3.4, 5.2), 0, windows=False)
+    y = 6.0
+    while y < 26:  # side rows face the park
+        w = rnd.uniform(3.0, 3.5)
+        block(-11.5, y, w, 2.6, rnd.uniform(2.1, 2.8), 90)
+        block(16.5, y, w, 2.6, rnd.uniform(2.1, 2.8), -90)
+        y += w + 0.3
+    mb.to_object(origin=(0, 0, 0))
+    return roofs
+
+
+def paris_trees(w, kind):
+    rnd = random.Random(36)
+    for x0, ys in ((-4.9, (3.6, 6.2, 8.8, 11.4, 14.0, 16.6)), (12.4, (6.0, 8.6, 11.2, 13.8, 16.4))):
+        for y in ys:
+            inst(w.p["oak_" + kind], (x0 + rnd.uniform(-0.2, 0.2), y, -0.05), rnd.uniform(1.1, 1.3),
+                 (0, 0, rnd.uniform(0, TAU)))
+
+
+def picnic(w, x, y, yaw, people, ravaged):
+    """A checked blanket, a basket and fruit (bees pollinate it), and seated people (none in the ravaged world)."""
+    R = C.M((x, y, 0.004), (0, 0, yaw))
+    mb = C.MB("Picnic", smooth_angle=0)
+    for i in range(4):
+        for j in range(4):
+            key = ("red" if (i + j) % 2 else "white") if not ravaged else ("scorch" if (i + j) % 2 else "ash")
+            mb.box(key, R @ C.M(((i - 1.5) * 0.24, (j - 1.5) * 0.24, 0.0), scale=(0.24, 0.24, 0.012)))
+    tip = 70 if ravaged else 0
+    mb.box("wood", R @ C.M((0.3, 0.3, 0.07), (tip, 0, 15), (0.2, 0.14, 0.13)), bevel=(0.01, 1))
+    mb.torus("wood_dark", 0.08, 0.01, seg=10, seg2=4, m=R @ C.M((0.3, 0.3, 0.14), (90 + tip, 0, 15), (1, 1, 1)))
+    if not ravaged:
+        for i, (fx, fy) in enumerate(((-0.12, 0.08), (-0.05, 0.14), (0.02, 0.06), (0.1, 0.16), (-0.18, -0.02))):
+            mb.sphere("red" if i % 2 else "pink", R @ C.M((fx, fy, 0.035), scale=0.035), seg=6, rings=4)
+            mb.box("leaf", R @ C.M((fx, fy, 0.07), scale=(0.02, 0.02, 0.012)))
+    mb.to_object(origin=(0, 0, 0))
+    if ravaged:
+        return
+    shirts = (("blue", "leather_dark"), ("pink", "honey_dark"), ("leaf", "charcoal"))
+    spots = ((-0.5, 0.05), (0.5, 0.05)) if people == 2 else ((0.0, 0.5),)
+    for k in range(people):
+        shirt, hair = shirts[(int(abs(x) * 7) + k) % 3]
+        ob, arm = person("Picnicker", shirt, hair, arm_up=k == 0)
+        pw = R @ Vector((spots[k][0], spots[k][1], 0.0))
+        face = math.atan2(x - pw.x, -(y - pw.y))  # local -Y (the face) toward the middle of the blanket
+        ob.location = (pw.x, pw.y, 0.0)
+        ob.rotation_euler = (0, 0, face)
+        ob.scale = (1.15,) * 3
+        p = w.rnd.uniform(0, TAU)
+        ANIM.append(lambda ph, ob=ob, face=face, p=p: setattr(ob, "rotation_euler", (0, 0.04 * wave(ph, 2, p), face)))
+        if arm is not None:  # waving
+            arm.scale = (1.15,) * 3
+            arm.location = ob.matrix_basis @ Vector((0.1, 0, 0.26))
+            arm.rotation_mode = "XYZ"
+            ANIM.append(lambda ph, arm=arm, face=face, p=p: setattr(arm, "rotation_euler",
+                                                                  (0, 0.5 + 0.35 * wave(ph, 4, p), face)))
+
+
+def tourist(name="Tourist"):
+    ob, _ = person(name, "honey", "charcoal", pose="stand")
+    ob.rotation_mode = "XYZ"
+    ob.scale = (1.0,) * 3
+    return ob
+
+
+def giant_bee():
+    """An angry giant worker bee (front = +X, ~2.6 m): charcoal head, glowing red eyes under angry brows, flapping
+    wings. Returns (root empty, eyes in root space, wings)."""
+    root = C.empty("GiantBee", (0, 0, 0), size=0.5)
+    mb = C.MB("GiantBeeBody", mat="bee", smooth_angle=60)
+    mb.sphere("charcoal", C.M((1.0, 0, 0.12), scale=(0.42, 0.4, 0.42)), seg=10, rings=7)
+    mb.sphere("honey", C.M((0.35, 0, 0.12), scale=(0.48, 0.45, 0.48)), seg=10, rings=7)
+    m = C.M((-0.62, 0, 0.0), (0, 90, 0), (0.55, 0.55, 0.85))
+    inv = m.inverted()
+    mb.sphere(lambda c, n: C.bands((inv @ c).z, BEE.STRIPES), m, seg=12, rings=9)
+    mb.lathe("charcoal", [(0.09, 0.0), (0.0, 0.3)], seg=6, m=C.frame((-1.4, 0, -0.02), (-1, 0, 0)), cap_top=False,
+             smooth=False)
+    for s in (1, -1):
+        mb.box("charcoal", C.M((1.26, 0.2 * s, 0.47), (28 * s, 0, 0), (0.1, 0.26, 0.07)))  # angry brows
+        mb.limb("charcoal", [(1.2, 0.12 * s, 0.45), (1.45, 0.3 * s, 0.85), (1.7, 0.42 * s, 0.95)], 0.025, seg=5,
+                end_ball=0.06)
+        for k, lx in enumerate((0.55, 0.3, 0.05)):
+            mb.limb("charcoal", [(lx, 0.25 * s, -0.2), (lx + 0.1, 0.45 * s, -0.45), (lx - 0.05 + 0.08 * k, 0.5 * s, -0.75)],
+                    0.035, 0.025, seg=5)
+    body = mb.to_object(origin=(0, 0, 0))
+    body.parent = root
+    em = C.MB("GiantBeeEyes", mat="eyeglow", smooth_angle=60)
+    eyes = [Vector((1.36, 0.21 * s, 0.26)) for s in (1, -1)]
+    for e in eyes:
+        em.sphere("eye_glow", C.M(e, scale=(0.13, 0.15, 0.14)), seg=8, rings=5)
+    ey = em.to_object(origin=(0, 0, 0))
+    ey.parent = root
+    wings = []
+    for s in (1, -1):
+        wm = C.MB("GiantWing", mat="veil_thin", smooth_angle=0)
+        pts = [(0.12, 0.0), (0.22, 0.45), (0.05, 1.2), (-0.25, 1.45), (-0.55, 1.3), (-0.5, 0.75), (-0.25, 0.15)]
+        wm.poly("sky", [(x, y * s) for x, y in pts], 0.02)
+        wo = wm.to_object(origin=(0, 0, 0))
+        wo.parent = root
+        wo.location = (0.35, 0.12 * s, 0.55)
+        wo.rotation_mode = "XYZ"
+        wings.append((wo, s))
+    return root, eyes, wings, ey
+
+
+def specks(w, center, radius, n, k=(1, 2), scale=0.05, buzz=0.18):
+    """A dark swarm far away: n specks on their own orbits inside an ellipsoid."""
+    rnd = w.rnd
+    c = Vector(center)
+    for i in range(n):
+        off = Vector((rnd.uniform(-1, 1) * radius[0], rnd.uniform(-1, 1) * radius[1], rnd.uniform(-1, 1) * radius[2])) * 0.5
+        r = (rnd.uniform(0.3, 1.0) * radius[0], rnd.uniform(0.2, 0.7) * radius[1], rnd.uniform(0.2, 0.7) * radius[2])
+        w.orbit(w.p["speck"], c + off, r, (rnd.choice(k), rnd.choice(k) + 1, rnd.choice(k) + 2),
+                scale * rnd.uniform(0.7, 1.3), buzz=buzz, kb=(29, 31, 37))
+
+
+def gate(objs_before, t0, t1, clock):
+    """Scale every mover created since objs_before by smoothstep(t0, t1, clock(ph)) (runs after their own setters)."""
+    new = [o for o in bpy.data.objects if o.name not in objs_before]
+
+    def f(ph):
+        k = smooth(t0, t1, clock(ph))
+        if k >= 1.0:
+            return
+        for o in new:
+            o.scale = tuple(v * k for v in o.scale)
+    return f
+
+
+@scene("forecast_peaceful", zenith="#4E9EDC", horizon="#D7EEF7", sun=3.4, sun_col="#FFF1D8", sun_dir=(-40, 42),
+       cam="paris", alias=PARIS, stills=[("forecast_peaceful", 0.5)])
+def s_forecast_peaceful(w):
+    w.protos("hive", "flowers", "grass", "bee", "clover", "oak_leafy", "cloud")
+    w.finalize()
+    paris_ground("green")
+    paris_city(False)
+    for o in eiffel(split=False):
+        o.location = TOWER_AT
+    t = tourist()
+    t.location = TOWER_AT + Vector((0.18, -0.18, 7.6))
+    paris_trees(w, "leafy")
+    w.clouds(4)
+    avoid = tuple((x, y, 0.75) for x, y, _ in PICNICS) + ((1.6, 1.5, 0.5), (1.9, 3.0, 0.45))
+    w.meadow_plants(n_flowers=170, n_grass=170, n_clover=90, y1=7.0, avoid=avoid)
+    for x, y, yaw in PICNICS:
+        picnic(w, x, y, yaw, 1 if y > 8 else 2, False)
+    b = w.p["bee"]
+    w.stream(b, HIVE_DOOR, (-1.5, 1.6, 0.3), 3, 1, BEE_S)
+    w.stream(b, (1.2, 1.0, 0.3), HIVE_DOOR, 3, 1, BEE_S)
+    for c in ((-1.0, -0.5, 0.3), (0.95, -0.3, 0.32), (-2.0, 3.3, 0.22), (3.2, 3.0, 0.22), (-0.4, 1.8, 0.3)):
+        w.orbit(b, c, (0.16, 0.11, 0.05), (1, 2, 3), BEE_S)
+
+
+@scene("forecast_ravaged", zenith="#3B0A12", horizon="#FF6A2E", amb="#B5523A", amb_k=0.6, sun=2.2, sun_col="#FF8A50",
+       sun_dir=(150, 14), glare=True, cam="paris", alias=RAVAGED, palette=SCORCHED, oneshot=RAV_ONESHOT,
+       loop=RAV_LOOP, loop_id="forecast_aftermath",
+       stills=[("forecast_laser", 0.42 / RAV_LOOP), ("forecast_aftermath", (RAV_ONESHOT + 3.0) / RAV_LOOP)])
+def s_forecast_ravaged(w):
+    w.protos("hive", "flowers", "grass", "bee", "oak_dusk", "flame", "spark", "smoke_dark")
+    w.p["speck"] = proto_spark("Speck", "charcoal", "pal")
+    w.finalize()
+    clock = lambda ph: ph * RAV_LOOP  # noqa: E731  (scene seconds; 0 = the cut on "angry swarms")
+    rnd = random.Random(66)
+    paris_ground("scorched")
+    roofs = paris_city(True)
+    paris_trees(w, "dusk")
+    w.meadow_plants(n_flowers=110, n_grass=150, n_clover=0, droop=60, sway=False, y1=7.0,
+                    avoid=tuple((x, y, 0.75) for x, y, _ in PICNICS))
+    for x, y, yaw in PICNICS:
+        picnic(w, x, y, yaw, 0, True)
+
+    # ---- the tower: the base stays; the top tips over the cut's front-right edge until its tip hits the ground,
+    # leaving a diagonal of girders from the stub down into the park (reads at window size, unlike lying flat)
+    base, top = eiffel(split=True)
+    base.location = TOWER_AT
+    top.rotation_mode = "QUATERNION"
+    axis = Vector((0, 0, 1)).cross(FALL_DIR)  # tipping about this axis moves +Z toward FALL_DIR
+    wc = tw(CUT_Z)
+    edge = FALL_DIR * wc + Vector((0, 0, CUT_Z))
+    phi_end = math.radians(112)
+
+    def top_pose(t):
+        """(location of TowerTop's origin, the cut centre; tip angle)."""
+        u = max(0.0, min(1.0, (t - FALL_T[0]) / (FALL_T[1] - FALL_T[0])))
+        phi = phi_end * u * u
+        if t > FALL_T[1]:  # a small rebound on landing
+            d = t - FALL_T[1]
+            phi -= 0.06 * math.exp(-8 * d) * abs(math.sin(16 * d))
+        return TOWER_AT + edge + Matrix.Rotation(phi, 3, axis) @ (-FALL_DIR * wc), phi
+
+    def f_top(ph):
+        loc, phi = top_pose(clock(ph))
+        top.location = loc
+        top.rotation_quaternion = Quaternion(axis, phi)
+    ANIM.append(f_top)
+    # glowing cut on the stub, lit as the beam passes each leg, cooling to a steady glow
+    cuts = []
+    for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        glow = C.MB("CutGlow", mat="laser", smooth_angle=0)
+        glow.box("laser", C.M((0, 0, 0), scale=(0.26, 0.26, 0.05)))
+        o = glow.to_object(origin=(0, 0, 0))
+        o.location = TOWER_AT + Vector((sx * wc, sy * wc, CUT_Z))
+        cuts.append((o, LASER_T[0] + (LASER_T[1] - LASER_T[0]) * (0.1 if sx < 0 else 0.9)))
+
+    def f_cut(ph):
+        t = clock(ph)
+        for o, lit in cuts:
+            k = smooth(lit - 0.05, lit + 0.05, t) * (1.0 - 0.45 * smooth(1.2, 3.0, t)) * (1.0 + 0.08 * wave(ph, 3))
+            o.scale = (max(k, 1e-4),) * 3
+    ANIM.append(f_cut)
+
+    # ---- the tourist on the top cabin, flung off as the top whips over (Unity plays the scream at FLING_T)
+    tr, _ = person("Tourist", "sky", "charcoal", pose="stand")
+    tr.rotation_mode = "QUATERNION"
+    tr.scale = (1.6,) * 3  # cartoon-big, so the flight reads at window size
+    local = Vector((0.18, -0.18, 7.6 - CUT_Z))
+    p_fling, phi_fling = top_pose(FLING_T)
+    p_fling = p_fling + Matrix.Rotation(phi_fling, 3, axis) @ local
+    v0, g = Vector((2.4, 4.0, 6.5)), 7.0
+
+    def f_tourist(ph):
+        t = clock(ph)
+        if t < FLING_T:
+            loc, phi = top_pose(t)
+            tr.location = loc + Matrix.Rotation(phi, 3, axis) @ local
+            tr.rotation_quaternion = Quaternion(axis, phi)
+            tr.hide_render = False
+            return
+        d = t - FLING_T  # flung up and away, cartwheeling, down behind the roofs (the scream falls away with him)
+        p = p_fling + v0 * d + Vector((0, 0, -0.5 * g * d * d))
+        tr.location = p
+        tr.rotation_quaternion = Quaternion(axis, phi_fling + TAU * 2.2 * d) @ Quaternion((0, 0, 1), 2.0 * d)
+        tr.hide_render = d > 2.6 or p.z < -0.3
+    ANIM.append(f_tourist)
+
+    # ---- the giant bee and its laser eyes
+    root, eyes, wings, eye_ob = giant_bee()
+    B = Vector((-0.9, 16.5, 4.5))
+    yaw, pitch, big = math.radians(13), math.radians(20), 1.45
+    rot = Euler((0, pitch, yaw), "XYZ").to_matrix() * big
+    root.rotation_euler = (0, pitch, yaw)
+    root.scale = (big,) * 3
+    eye_light = bpy.data.lights.new("EyeLight", "POINT")
+    eye_light.color, eye_light.shadow_soft_size = C.hex_rgb("#FF3A1C"), 0.3
+    eye_lo = link(bpy.data.objects.new("EyeLight", eye_light))
+
+    def bee_at(ph):
+        return B + Vector((0.12 * wave(ph, 1, 0.4), 0.08 * wave(ph, 2, 1.1), 0.16 * wave(ph, 2)))
+
+    def f_bee(ph):
+        root.location = bee_at(ph)
+        for wo, s in wings:
+            wo.rotation_euler = (s * (0.35 + 0.45 * wave(ph, 42)), 0, 0)
+        k = 1.0 + 0.12 * wave(ph, 6) + 0.25 * (1 - smooth(0.0, 0.2, clock(ph)))
+        eye_ob.scale = (k, k, k)
+        eye_lo.location = root.location + rot @ Vector((1.7, 0, 0.3))
+        eye_light.energy = 60 * k
+    ANIM.append(f_bee)
+    beams = []
+    for e in eyes:
+        core = C.MB("Laser", mat="laser", smooth_angle=0)
+        core.cyl("laser_core", 1.0, 1.0, seg=8, smooth=True)
+        halo = C.MB("LaserHalo", mat="laser_halo", smooth_angle=0)
+        halo.cyl("laser", 1.0, 1.0, seg=10, smooth=True)
+        cs, hs = core.to_object(origin=(0, 0, 0)), halo.to_object(origin=(0, 0, 0))
+        for o in (cs, hs):
+            o.rotation_mode = "QUATERNION"
+        beams.append((e, cs, hs))
+
+    def target(t):
+        u = smooth(LASER_T[0] + 0.05, LASER_T[1], t)
+        return TOWER_AT + Vector((-wc + 2 * wc * u, -wc - 0.05, CUT_Z))
+
+    def f_beams(ph):
+        t = clock(ph)
+        on = LASER_T[0] <= t < LASER_T[2]
+        grow = smooth(LASER_T[0], LASER_T[0] + 0.08, t)
+        thin = 1.0 - smooth(LASER_T[1], LASER_T[2], t)
+        for e, cs, hs in beams:
+            for o in (cs, hs):
+                o.hide_render = not on
+            if not on:
+                continue
+            eye = bee_at(ph) + rot @ e
+            d = target(t) - eye
+            q = d.to_track_quat("Z", "Y")
+            for o, r in ((cs, 0.045), (hs, 0.13)):
+                o.location = eye
+                o.rotation_quaternion = q
+                rr = r * (0.85 + 0.15 * wave(ph, 60)) * thin
+                o.scale = (rr, rr, d.length * grow)
+    ANIM.append(f_beams)
+    # sparks where the beam cuts, and a shower when the top lands
+    sparks = []
+    for i in range(80):
+        b0 = rnd.uniform(LASER_T[0] + 0.05, LASER_T[1])
+        v = Vector((rnd.uniform(-1.8, 1.8), rnd.uniform(-2.0, 0.2), rnd.uniform(0.6, 3.4)))
+        sparks.append((mover(w.p["spark"], 0.05), b0, target(b0), v, rnd.uniform(0.3, 0.65)))
+    side = Vector((0, 0, 1)).cross(FALL_DIR)
+    land = []
+    for i in range(40):
+        p0 = TOWER_AT + FALL_DIR * rnd.uniform(0.5, 6.5) + side * rnd.uniform(-0.6, 0.6) + Vector((0, 0, 0.3))
+        v = Vector((rnd.uniform(-1.2, 1.2), rnd.uniform(-1.5, 0.8), rnd.uniform(1.5, 4.0)))
+        land.append((mover(w.p["spark"], 0.035), FALL_T[1] + rnd.uniform(0.0, 0.25), p0, v, rnd.uniform(0.4, 0.9)))
+
+    def f_sparks(ph):
+        t = clock(ph)
+        for o, b0, p0, v, life in sparks + land:
+            d = t - b0
+            if d < 0 or d > life:
+                o.scale = (1e-4,) * 3
+                continue
+            o.location = p0 + v * d + Vector((0, 0, -4.5 * d * d))
+            e = 0.05 * (1 - d / life)
+            o.scale = (e, e, e)
+    ANIM.append(f_sparks)
+    # dust when the top lands: pale puffs along the fallen tower, gone before the loop starts
+    puffs = []
+    for i in range(18):
+        p0 = TOWER_AT + FALL_DIR * rnd.uniform(0.6, 6.6) + side * rnd.uniform(-0.8, 0.8) + Vector((0, 0, 0.25))
+        puffs.append((mover(w.p["smoke_dark"], 0.1), p0, Vector((rnd.uniform(-0.4, 0.4), rnd.uniform(-0.5, 0.3), 0.9)),
+                      rnd.uniform(0.0, 0.2)))
+
+    def f_puffs(ph):
+        t = clock(ph)
+        for o, p0, v, dl in puffs:
+            d = t - FALL_T[1] - dl
+            if d < 0 or d > 2.2:
+                o.scale = (1e-4,) * 3
+                continue
+            o.location = p0 + v * d
+            e = (0.25 + 0.55 * d) * env(d / 2.2, 0.08, 0.5)
+            o.scale = (e * 1.4, e, e)
+    ANIM.append(f_puffs)
+
+    # ---- fire: the park and the roofs burn from the cut on; the fallen tower catches as it lands
+    def flame_at(p, s, start=None):
+        o = inst(w.p["flame"], p, s, (0, 0, rnd.uniform(0, TAU)))
+        k, p1, p2 = rnd.choice((9, 12, 15)), rnd.uniform(0, TAU), rnd.uniform(0, TAU)
+
+        def f(ph, o=o, s=s, k=k, p1=p1, p2=p2, start=start):
+            g = 1.0 if start is None else smooth(start, start + 0.6, clock(ph))
+            h = 1 + 0.28 * wave(ph, k, p1) + 0.12 * wave(ph, 2 * k + 3, p2)
+            wd = 1 + 0.12 * wave(ph, k + 3, p2)
+            o.scale = (max(1e-4, s * wd * g), max(1e-4, s * wd * g), max(1e-4, s * h * g))
+        ANIM.append(f)
+    fires = []
+    while len(fires) < 9:  # clusters of flames in the park
+        y = rnd.uniform(4.0, 17.0)
+        x = rnd.uniform(-1, 1) * (0.55 * (y + 3.2))
+        if (abs(x) < 1.6 and y < 6.0) or any((x - fx) ** 2 + (y - fy) ** 2 < 6.0 for fx, fy in fires):
+            continue
+        fires.append((x, y))
+        for k in range(rnd.choice((3, 4, 5))):
+            flame_at((x + rnd.uniform(-0.6, 0.6), y + rnd.uniform(-0.4, 0.4), -0.02),
+                     rnd.uniform(0.45, 1.1) * (0.8 + 0.04 * y))
+    for (rx, ry, rz), bw in roofs:
+        if rnd.random() < 0.3 and -20 < rx < 26 and ry < 36:
+            flame_at((rx, ry, rz - 0.2), rnd.uniform(1.0, 1.6))
+    for i in range(14):
+        u = (i + 0.5) / 14
+        flame_at(TOWER_AT + FALL_DIR * (0.9 + 6.0 * u + rnd.uniform(-0.2, 0.2)) + side * rnd.uniform(-0.5, 0.5),
+                 rnd.uniform(0.7, 1.2), start=FALL_T[1] + 0.05 + 0.9 * u)
+    mid = TOWER_AT + FALL_DIR * 3.5 + Vector((0, 0, 1.5))
+    for loc, energy, col, start in (((0, 6.0, 1.2), 500, "#FF7A30", None), (mid, 900, "#FF8A3A", FALL_T[1])):
+        ld = bpy.data.lights.new("FireLight", "POINT")
+        ld.color, ld.shadow_soft_size = C.hex_rgb(col), 2.0
+        lo = link(bpy.data.objects.new("FireLight", ld))
+        lo.location = loc
+
+        def f_light(ph, ld=ld, energy=energy, start=start):
+            g = 1.0 if start is None else smooth(start, start + 0.5, clock(ph))
+            ld.energy = energy * g * (1 + 0.15 * wave(ph, 12) + 0.08 * wave(ph, 31))
+        ANIM.append(f_light)
+    soot = proto_blob("Soot", "ash", "veil_thin")
+    C.REGISTRY[:] = [soot]
+    C.finalize(w.tmp)
+    before = {o.name for o in bpy.data.objects}
+    for fx, fy in fires[:6]:
+        if fy > 8:
+            w.particles(soot, 4, ((fx - 0.3, fx + 0.3), (fy - 0.3, fy + 0.3), (1.0, 1.6)), (0.6, 0.5, 4.5), 1, 0.3,
+                        grow=(0.6, 2.2), wob=0.15, fade=(0.15, 0.35))
+    w.particles(w.p["spark"], 150, ((-6, 12), (4.0, 20.0), (0.1, 1.2)), (0.4, -0.3, 3.2), (1, 2), 0.014,
+                grow=(1.0, 0.5), wob=0.15, kw=5)
+    ANIM.append(gate(before, 0.0, 0.5, clock))  # smoke and embers fade in over the first half second
+    before = {o.name for o in bpy.data.objects}
+    w.particles(soot, 10, ((mid.x - 2.0, mid.x + 2.0), (mid.y - 1.2, mid.y + 1.2), (0.8, 1.4)), (0.5, 0.5, 4.0), 1, 0.32,
+                grow=(0.6, 2.2), wob=0.2, fade=(0.15, 0.35))
+    ANIM.append(gate(before, FALL_T[1], FALL_T[1] + 1.2, clock))  # smoke over the fallen tower
+
+    # ---- dark angry swarms over the city, around the giant bee, and furious bees at the hive
+    specks(w, (-6.5, 25.0, 7.0), (3.2, 1.6, 1.3), 320, scale=0.065)
+    specks(w, (10.0, 27.0, 8.5), (3.6, 1.6, 1.4), 320, scale=0.065)
+    specks(w, (4.6, 21.0, 9.5), (2.6, 1.4, 1.0), 220, k=(2, 3), scale=0.06)
+    specks(w, (-0.9, 16.5, 4.6), (2.6, 1.6, 1.4), 160, k=(2, 3), scale=0.05, buzz=0.12)
+    b = w.p["bee"]
+    for i in range(46):
+        r = rnd.uniform(0.2, 0.7)
+        c = (rnd.uniform(-0.2, 0.2), rnd.uniform(-0.45, 0.2), rnd.uniform(0.25, 0.6))
+        w.orbit(b, c, (r, r * 0.7, r * 0.45), (rnd.choice((1, 2)), rnd.choice((2, 3)), rnd.choice((3, 4))), BEE_S * 0.9,
+                buzz=0.02)
+
+    # ---- a short camera shake when the top lands (gone long before the loop)
+    cam_box = []
+
+    def f_shake(ph):
+        cam = bpy.context.scene.camera
+        if not cam_box:
+            cam_box.append(Vector(cam.location))
+        d = clock(ph) - FALL_T[1]
+        k = 0.03 * math.exp(-6 * d) if d > 0 else 0.0
+        cam.location = cam_box[0] + Vector((k * math.sin(55 * d), 0, k * math.sin(71 * d + 1)))
+    ANIM.append(f_shake)
+
+
 # ============================================================================================ render + encode
+def outputs(sid, lk, a):
+    """[(clip id, [phase of each frame])]: a seamless loop of --seconds, or (lk.oneshot) a one-shot of lk.oneshot
+    seconds followed by its seamless loop lk.loop_id of lk.loop seconds (phase = scene seconds / lk.loop)."""
+    if lk.oneshot:
+        n1, n2 = int(round(lk.oneshot * a.fps)), int(round(lk.loop * a.fps))
+        return [(sid, [f / a.fps / lk.loop for f in range(n1)]),
+                (lk.loop_id, [(lk.oneshot + f / a.fps) / lk.loop for f in range(n2)])]
+    n = int(round(a.seconds * a.fps))
+    return [(sid, [f / n for f in range(n)])]
+
+
+def encode(frames, out, fps):
+    for crf in (22, 24, 26, 29, 32):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(fps), "-i",
+                        os.path.join(frames, "%04d.png"), "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
+                        "-pix_fmt", "yuv420p", "-profile:v", "main", "-g", str(fps), "-keyint_min", str(fps),
+                        "-sc_threshold", "0", "-movflags", "+faststart", "-an", out], check=True)
+        if os.path.getsize(out) <= MAX_BYTES * 0.97:
+            break
+    return crf
+
+
 def render_scene(sid, a):
     fn, lk = SCENES[sid]
     w = World(lk, a)
@@ -1213,39 +1827,47 @@ def render_scene(sid, a):
             C.REGISTRY[:] = [o]
             C.finalize(w.tmp)
     setup_render(lk, a.samples)
-    n = int(round(a.seconds * a.fps))
-    frames = os.path.join(a.work, "frames", sid)
-    shutil.rmtree(frames, ignore_errors=True)
-    os.makedirs(frames)
     sc = bpy.context.scene
-    todo = [n // 2] if a.still else range(n)
-    t0 = time.time()
-    for f in todo:
-        ph = f / n
-        for an in ANIM:
-            an(ph)
-        sc.render.filepath = os.path.join(frames, "%04d.png" % f)
-        bpy.ops.render.render(write_still=True)
-    print("VBS_CLIPS %s: %d frame(s) in %.1fs, %d movers" % (sid, len(todo), time.time() - t0, len(ANIM)))
     stills = os.path.join(a.out, "stills")
     os.makedirs(stills, exist_ok=True)
-    mid = os.path.join(frames, "%04d.png" % (n // 2))
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", mid, "-q:v", "3", os.path.join(stills, sid + ".jpg")],
-                   check=True)
-    if a.still:
-        return None
-    out = os.path.join(a.out, sid + ".mp4")
-    for crf in (22, 24, 26, 29, 32):
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(a.fps), "-i",
-                        os.path.join(frames, "%04d.png"), "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
-                        "-pix_fmt", "yuv420p", "-profile:v", "main", "-g", str(a.fps), "-keyint_min", str(a.fps),
-                        "-sc_threshold", "0", "-movflags", "+faststart", "-an", out], check=True)
-        if os.path.getsize(out) <= MAX_BYTES * 0.97:
-            break
-    if not a.keep_frames:
+
+    def shoot(ph, path):
+        for an in ANIM:
+            an(ph)
+        sc.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+
+    made = []
+    named = {}  # still name -> (output index, frame) of the frame nearest its phase
+    outs = outputs(sid, lk, a)
+    for name, ph in lk.stills:
+        best = min(((abs(p - ph), i, f) for i, (_, phs) in enumerate(outs) for f, p in enumerate(phs)))
+        named[name] = best[1:]
+    for i, (cid, phases) in enumerate(outs):
+        frames = os.path.join(a.work, "frames", cid)
         shutil.rmtree(frames, ignore_errors=True)
-    print("VBS_CLIPS_DONE %s %d bytes crf=%d" % (sid, os.path.getsize(out), crf))
-    return out
+        os.makedirs(frames)
+        n = len(phases)
+        todo = sorted({n // 2} | {f for oi, f in named.values() if oi == i}) if a.still else range(n)
+        t0 = time.time()
+        for f in todo:
+            shoot(phases[f], os.path.join(frames, "%04d.png" % f))
+        print("VBS_CLIPS %s: %d frame(s) in %.1fs, %d movers" % (cid, len(todo), time.time() - t0, len(ANIM)))
+        mid = os.path.join(frames, "%04d.png" % (n // 2))
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", mid, "-q:v", "3", os.path.join(stills, cid + ".jpg")],
+                       check=True)
+        for name, (oi, f) in named.items():
+            if oi == i:
+                shutil.copyfile(os.path.join(frames, "%04d.png" % f), os.path.join(stills, name + ".png"))
+        if a.still:
+            continue
+        out = os.path.join(a.out, cid + ".mp4")
+        crf = encode(frames, out, a.fps)
+        if not a.keep_frames:
+            shutil.rmtree(frames, ignore_errors=True)
+        print("VBS_CLIPS_DONE %s %d bytes crf=%d" % (cid, os.path.getsize(out), crf))
+        made.append(out)
+    return made or None
 
 
 def contact_sheet(out, ids):
