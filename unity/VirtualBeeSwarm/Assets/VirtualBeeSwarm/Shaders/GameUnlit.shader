@@ -2,6 +2,10 @@
 // x optional vertex color, an emission multiplier, and blend/zwrite/cull as material properties.
 // One pass, no LightMode tag: renders in URP (SRPDefaultUnlit) and the built-in pipeline.
 // Single-pass instanced / multiview stereo macros included for the Quest.
+// Depth API occlusion (Meta XR Core 209, BiRP include; PLAN.md V9): EnvironmentDepthManager turns on the global
+// keyword HARD_OCCLUSION or SOFT_OCCLUSION; with neither on (desktop, Linux, ar.occlusion=off) every occlusion line
+// below compiles away and the variant is the same as before. _Occlude = 0 opts a material out (window, markers,
+// shadows); _EnvironmentDepthBias (per instance) pushes contact surfaces 6 cm back so they don't flicker.
 Shader "VirtualBeeSwarm/Unlit"
 {
     Properties
@@ -14,6 +18,8 @@ Shader "VirtualBeeSwarm/Unlit"
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 0
         [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 1
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
+        [Toggle] _Occlude ("Hidden by real objects (Depth API)", Float) = 1
+        _EnvironmentDepthBias ("Env depth bias (0.06 on contact surfaces)", Float) = 0
     }
     SubShader
     {
@@ -30,8 +36,13 @@ Shader "VirtualBeeSwarm/Unlit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ HARD_OCCLUSION SOFT_OCCLUSION
             #pragma target 3.0
             #include "UnityCG.cginc"
+            #if defined(HARD_OCCLUSION) || defined(SOFT_OCCLUSION)
+                #define VBS_OCCLUSION 1
+                #include "Packages/com.meta.xr.sdk.core/Shaders/EnvironmentDepth/BiRP/EnvironmentOcclusionBiRP.cginc"
+            #endif
 
             struct appdata
             {
@@ -46,6 +57,10 @@ Shader "VirtualBeeSwarm/Unlit"
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 fixed4 color : COLOR;
+            #ifdef VBS_OCCLUSION
+                META_DEPTH_VERTEX_OUTPUT(1)
+                float2 occ : TEXCOORD2; // x = depth bias, y = _Occlude
+            #endif
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -56,7 +71,13 @@ Shader "VirtualBeeSwarm/Unlit"
 
             UNITY_INSTANCING_BUFFER_START(Props)
                 UNITY_DEFINE_INSTANCED_PROP(fixed4, _Color)
+            #ifdef VBS_OCCLUSION
+                UNITY_DEFINE_INSTANCED_PROP(float, _EnvironmentDepthBias)
+            #endif
             UNITY_INSTANCING_BUFFER_END(Props)
+            #ifdef VBS_OCCLUSION
+            half _Occlude;
+            #endif
 
             v2f vert (appdata v)
             {
@@ -68,6 +89,10 @@ Shader "VirtualBeeSwarm/Unlit"
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 fixed4 vc = lerp(fixed4(1, 1, 1, 1), v.color, _UseVertexColor);
                 o.color = vc * UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
+            #ifdef VBS_OCCLUSION
+                META_DEPTH_INITIALIZE_VERTEX_OUTPUT(o, v.vertex);
+                o.occ = float2(UNITY_ACCESS_INSTANCED_PROP(Props, _EnvironmentDepthBias), _Occlude);
+            #endif
                 return o;
             }
 
@@ -76,6 +101,9 @@ Shader "VirtualBeeSwarm/Unlit"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 fixed4 c = tex2D(_MainTex, i.uv) * i.color;
                 c.rgb *= _Emission;
+            #ifdef VBS_OCCLUSION
+                if (i.occ.y > 0.5) { META_DEPTH_OCCLUDE_OUTPUT_PREMULTIPLY(i, c, i.occ.x); }
+            #endif
                 return c;
             }
             ENDCG
