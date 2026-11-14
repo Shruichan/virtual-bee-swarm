@@ -437,12 +437,19 @@ describe("window, beats and score", () => {
     expect(hive.state.base_scene).toBe("meadow");
   });
 
-  test("hook starts the score clock; escape logs the score and blooms; t0 is the Moon; a re-sent beat changes nothing", async () => {
+  test("smoker starts the score clock (hook and meet don't); escape logs the score and blooms; t0 is the Moon; a re-sent beat changes nothing", async () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
     const monitor = await connect("monitor");
     await setBeat(quest, board, "hook", 1);
+    expect(hive.state.clock_start).toBeNull(); // v3.1: the intro is off the clock
+    await setBeat(quest, board, "meet", 2);
+    expect(hive.state.clock_start).toBeNull();
+    const before = Date.now();
+    await setBeat(quest, board, "smoker", 3);
+    expect(hive.state.clock_start).toBeGreaterThanOrEqual(before);
+    expect((await board.waitFor("log", (m) => m.text.startsWith("score clock started"))).text).toBe("score clock started at smoker");
     hive.state.clock_start = Date.now() - 167_000; // pretend the run took 2:47
     quest.send({ type: "choice.made", station: "smoker", choice: "smoker", correct: true });
     await quest.waitFor("orbis", (m) => m.scene === "smoker_settle");

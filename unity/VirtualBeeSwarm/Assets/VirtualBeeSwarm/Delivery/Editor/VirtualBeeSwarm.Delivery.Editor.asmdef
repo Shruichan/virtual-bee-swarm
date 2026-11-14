@@ -1,0 +1,18 @@
+{
+    "name": "VirtualBeeSwarm.Delivery.Editor",
+    "rootNamespace": "VirtualBeeSwarm.DeliveryEditor",
+    "references": [
+        "VirtualBeeSwarm"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

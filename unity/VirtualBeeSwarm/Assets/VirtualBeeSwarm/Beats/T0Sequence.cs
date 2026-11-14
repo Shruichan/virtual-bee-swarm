@@ -34,7 +34,7 @@ namespace VirtualBeeSwarm
         [SerializeField] SwarmSystem swarm;
 
         IPassthroughDimmer _dimmer;
-        Vector3 _rocketHomePos, _earthHome, _moonScale = Vector3.one;
+        Vector3 _rocketHomePos, _earthHome, _moonHome, _moonScale = Vector3.one;
         Quaternion _rocketHomeRot;
         float _dim;
         bool _launched, _landed;
@@ -49,7 +49,7 @@ namespace VirtualBeeSwarm
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
             if (rocket != null) { _rocketHomePos = rocket.localPosition; _rocketHomeRot = rocket.localRotation; }
             if (earth != null) _earthHome = earth.localPosition;
-            if (moon != null) _moonScale = moon.transform.localScale;
+            if (moon != null) { _moonScale = moon.transform.localScale; _moonHome = moon.transform.localPosition; }
             SetActive(flame, false);
             SetActive(moon, false);
         }
@@ -85,6 +85,8 @@ namespace VirtualBeeSwarm
             for (int n = 3; n >= 1; n--)
             {
                 if (rocketDisplay != null) rocketDisplay.text = n.ToString();
+                var stakes = VirtualBeeSwarm.Stakes.StakesDirector.Instance;
+                if (stakes != null && stakes.Display != null) stakes.Display.ShowPassengerCount(n);
                 yield return Wait(0.9f);
             }
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
@@ -94,6 +96,7 @@ namespace VirtualBeeSwarm
             SetActive(flame, true);
             if (window != null) window.SwellToMoon();
             if (net != null) net.RequestScene(GameIds.Scene.Moon, sendToHive: true);
+            PlaceMoonByWindow();
             if (moon != null)
             {
                 moon.transform.localScale = Vector3.zero;
@@ -103,11 +106,12 @@ namespace VirtualBeeSwarm
             if (rocket != null)
             {
                 Vector3 from = rocket.position;
+                float height = LaunchHeight(from.y);
                 float start = Time.time;
                 while (Time.time - start < launchSeconds)
                 {
                     float k = (Time.time - start) / launchSeconds;
-                    rocket.position = from + Vector3.up * (k * k * launchHeight) + Vector3.right * (Mathf.Sin(Time.time * 25f) * 0.003f);
+                    rocket.position = from + Vector3.up * (k * k * height) + Vector3.right * (Mathf.Sin(Time.time * 25f) * 0.003f);
                     SetDim(Mathf.Lerp(0f, passthroughDim, Mathf.Clamp01(k * 1.5f)));
                     if (earth != null) earth.localPosition = _earthHome + Vector3.up * (earthRise * k * 0.5f);
                     yield return null;
@@ -172,6 +176,22 @@ namespace VirtualBeeSwarm
             Complete(1f);
         }
 
+        /// <summary>V16: up to the ceiling (measured, else ar.ceilingY) minus 5 cm, never more than launchHeight.</summary>
+        float LaunchHeight(float fromY)
+        {
+            var ar = VirtualBeeSwarm.AR.ArRig.Instance;
+            if (ar == null) return launchHeight;
+            return Mathf.Clamp(ar.Room.CeilingOrDefault - fromY - 0.05f, 0.8f, launchHeight);
+        }
+
+        /// <summary>V16: with the window on the real wall, the Moon sits 0.4 m in front of it (window +Z points into the wall), never inside it.</summary>
+        void PlaceMoonByWindow()
+        {
+            if (moon == null || window == null || VirtualBeeSwarm.AR.ArRig.Instance == null || !VirtualBeeSwarm.AR.ArTuning.WindowOnWall) return;
+            var w = window.transform;
+            moon.transform.position = w.position - w.forward * 0.4f;
+        }
+
         void SetDim(float amount)
         {
             _dim = amount;
@@ -212,6 +232,7 @@ namespace VirtualBeeSwarm
                 rocket.localRotation = _rocketHomeRot;
             }
             if (earth != null) earth.localPosition = _earthHome;
+            if (moon != null) moon.transform.localPosition = _moonHome;
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
         }
     }

@@ -95,7 +95,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnRetry(string wrongChoice)
         {
-            SetActive(deepBowl, false);
+            if (delivery == null || !delivery.Active) SetActive(deepBowl, false); // delivered: the repo crew takes it
             HideDrinkers();
         }
 

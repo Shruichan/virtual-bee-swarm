@@ -73,6 +73,7 @@ namespace VirtualBeeSwarm
             }
             if (beeswax != null) beeswax.WhipAround();
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
+            if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
             yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
             OfferChoices();
         }

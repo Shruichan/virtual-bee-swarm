@@ -62,6 +62,7 @@ namespace VirtualBeeSwarm
         static readonly int ColorArrayId = Shader.PropertyToID("_Color");
         float _modeSince, _pourStart;
         bool _instancing;
+        float _pull = 1f; // v3.1: the orbit pulls in 30% while BeeDelivery has a flight in the air (not when Angry)
         Transform _ballTarget;
         Vector3 _ballPoint;
 
@@ -170,6 +171,9 @@ namespace VirtualBeeSwarm
             float dt = Mathf.Min(Time.deltaTime, 0.05f);
             float t = Time.time;
             Agitation = Mathf.MoveTowards(Agitation, 0f, dt * 0.12f);
+            var delivery = BeeDelivery.Instance;
+            float pullTarget = delivery != null && delivery.InFlight > 0 && Mode != SwarmMode.Angry ? 0.7f : 1f;
+            _pull = Mathf.MoveTowards(_pull, pullTarget, dt * 1.5f);
 
             Vector3 center = Center();
             Transform door = hive != null ? hive.DoorPoint : transform;
@@ -238,7 +242,7 @@ namespace VirtualBeeSwarm
                             break;
                         }
                         float a = ph + t * 0.5f * sp;
-                        float r = 0.14f + 0.12f * _radius[i];
+                        float r = (0.14f + 0.12f * _radius[i]) * _pull;
                         target = center + new Vector3(Mathf.Cos(a) * r, -0.02f + 0.2f * _height[i] + Mathf.Sin(t + ph) * 0.02f, Mathf.Sin(a) * r);
                         break;
                     }
@@ -271,7 +275,7 @@ namespace VirtualBeeSwarm
                     default:
                     {
                         float a = ph + t * 0.9f * sp;
-                        float r = 0.18f + 0.17f * _radius[i];
+                        float r = (0.18f + 0.17f * _radius[i]) * _pull;
                         target = center + new Vector3(Mathf.Cos(a) * r, -0.04f + 0.3f * _height[i] + Mathf.Sin(t * 1.3f + ph) * 0.04f, Mathf.Sin(a) * r);
                         break;
                     }

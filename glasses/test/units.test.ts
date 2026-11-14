@@ -237,7 +237,7 @@ test("voice: Beeswax's room lines heard across the table are dropped; the script
 test("voice: the room-line guard follows catalog text edits (the pitch's planned lines, typography)", async () => {
   const {RoomGuard, WEARER_PHRASES, roomGuardProblems, words} = await import("../src/background/voice")
   const {ROOM_TEXTS} = await import("../src/background/lines")
-  // pitch/script-and-build-asks.md's line edits, on top of tonight's lines (a superset only catches more).
+  // the pitch review's line edits, on top of tonight's lines (a superset only catches more).
   const planned = [
     "See that window? That's the meadow. Every choice you make shows up in there.",
     'Your turn. Ask me "what if," and the window shows it.',

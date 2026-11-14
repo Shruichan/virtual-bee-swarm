@@ -20,7 +20,7 @@ namespace VirtualBeeSwarm
         [SerializeField] GameNet net;
         [SerializeField] bool runOnStart;
         [SerializeField] bool makeMistakes = true;
-        [SerializeField] bool forceHornet = true;
+        [SerializeField] bool forceHornet; // v3.1: the hornet is cut from the show (GameSmokeTests still covers it)
         [SerializeField] float timeScale = 1f;
         [Tooltip("Runs back to back (each ends with a reset to pre).")]
         [SerializeField] int runs = 1;

@@ -162,6 +162,13 @@ namespace VirtualBeeSwarm
             Save();
         }
 
+        /// <summary>Aim and pinch (v3.1 V7, AR/ArRig): the rig goes exactly to this pose, saved for the session.</summary>
+        public void PlaceAt(Pose pose)
+        {
+            rigAnchor.SetPositionAndRotation(pose.position, pose.rotation);
+            Save();
+        }
+
         public void PlaceInFrontOfCamera() => PlaceInFront(desktopDistance, desktopBelowEyes);
 
         void PlaceInFront(float distance, float belowEyes)

@@ -75,18 +75,21 @@ namespace VirtualBeeSwarm.EditorTools
         const string MetaXRFeatureId = "com.meta.openxr.feature.metaxr"; //       Meta.XR.MetaXRFeature
         const string OculusTouchProfileId = "com.unity.openxr.feature.input.oculustouch";
         // Unity OpenXR: Meta (com.unity.xr.meta-openxr). Meta's Depth API (occlusion) on the OpenXR
-        // path requires these two (Meta XR Core 209, Editor/EnvironmentDepth/ProjectSetupDepthAPI.cs).
-        // Unity OpenXR: Meta (com.unity.xr.meta-openxr, AR Foundation) features that must stay OFF (PLAN.md S1.10).
-        // Passthrough has exactly ONE provider: Meta XR Core's OVRPassthroughLayer through the Meta XR feature + Meta
-        // Quest Support. The AR Foundation camera would be a second one. Planes, bounding boxes, meshes and raycasts
-        // add com.oculus.permission.USE_SCENE to the manifest (ModifyAndroidManifestMeta), anchors add IoT map data,
-        // and session + occlusion only existed for the Depth API, which the game doesn't use. The boundary goes
-        // through OVRManager (the toggle above), not Unity's boundary feature.
-        static readonly string[] UnityMetaFeaturesOff =
+        // path requires these two (Meta XR Core 209, Editor/EnvironmentDepth/ProjectSetupDepthAPI.cs), on Android AND
+        // Standalone (Link play mode). PLAN.md v3.1 V1: the AR layer uses the Depth API, so they are ON.
+        static readonly string[] UnityMetaFeaturesOn =
         {
             "com.unity.openxr.feature.arfoundation-meta-session",
-            "com.unity.openxr.feature.arfoundation-meta-camera",
             "com.unity.openxr.feature.arfoundation-meta-occlusion",
+        };
+        // Unity OpenXR: Meta (com.unity.xr.meta-openxr, AR Foundation) features that must stay OFF (PLAN.md S1.10, V1).
+        // Passthrough has exactly ONE provider: Meta XR Core's OVRPassthroughLayer through the Meta XR feature + Meta
+        // Quest Support. The AR Foundation camera would be a second one. Planes, bounding boxes, meshes and raycasts
+        // belong to AR Foundation (we use Meta's EnvironmentRaycastManager, which talks to OVRPlugin/MRUK directly),
+        // anchors add IoT map data. The boundary goes through OVRManager (the toggle above), not Unity's boundary feature.
+        static readonly string[] UnityMetaFeaturesOff =
+        {
+            "com.unity.openxr.feature.arfoundation-meta-camera",
             "com.unity.openxr.feature.arfoundation-meta-plane",
             "com.unity.openxr.feature.arfoundation-meta-anchor",
             "com.unity.openxr.feature.arfoundation-meta-bounding-boxes",
@@ -112,7 +115,8 @@ namespace VirtualBeeSwarm.EditorTools
             "Newest Meta XR Simulator",
         };
 
-        // Permissions/features that must never be in the manifest (S1.10).
+        // USE_SCENE must be in the manifest (V1: depth + environment raycast wait for it); the other two must not
+        // unless the boundary toggle asks for them.
         public const string UseScenePermission = "com.oculus.permission.USE_SCENE";
         public const string BoundaryVisibilityPermission = "com.oculus.permission.BOUNDARY_VISIBILITY";
         public const string BoundarylessAppFeature = "com.oculus.feature.BOUNDARYLESS_APP";
@@ -227,6 +231,8 @@ namespace VirtualBeeSwarm.EditorTools
                 ConfigureOvrProjectConfig();
                 DisableUnityMetaFeatures(BuildTargetGroup.Standalone);
                 DisableUnityMetaFeatures(BuildTargetGroup.Android);
+                EnableDepthFeatures(BuildTargetGroup.Standalone);
+                EnableDepthFeatures(BuildTargetGroup.Android);
                 ConfigureRigTemplate();
             });
             Step("custom Android manifest", UpdateCustomAndroidManifest);
@@ -438,7 +444,15 @@ namespace VirtualBeeSwarm.EditorTools
             FeatureHelpers.RefreshFeatures(group);
             // The passthrough is OVRPassthroughLayer (Meta XR Core), NOT AR Foundation's camera feature (S1.10).
             DisableUnityMetaFeatures(group);
+            EnableDepthFeatures(group);
             EditorUtility.SetDirty(settings);
+        }
+
+        /// <summary>Meta Quest: Session + Meta Quest: Occlusion (the Depth API on OpenXR), for this target group (V1).</summary>
+        static void EnableDepthFeatures(BuildTargetGroup group)
+        {
+            if (OpenXRSettings.GetSettingsForBuildTargetGroup(group) == null) return; // module missing, noted elsewhere
+            foreach (var id in UnityMetaFeaturesOn) EnableFeature(group, id, required: true);
         }
 
         static void DisableUnityMetaFeatures(BuildTargetGroup group)
@@ -487,9 +501,10 @@ namespace VirtualBeeSwarm.EditorTools
             // Hands are the game; controllers stay usable for the operator/debugging.
             cfg.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
             cfg.insightPassthroughSupport = OVRProjectConfig.FeatureSupport.Required; // MR only
-            // No scene model (S1.10): Scene Support = None keeps com.oculus.permission.USE_SCENE out of the manifest.
-            // The table is placed by hand (HivePlacement), and nothing in the game uses MRUK or the scene model.
-            cfg.sceneSupport = OVRProjectConfig.FeatureSupport.None;
+            // Scene Support = Required (V1): puts com.oculus.permission.USE_SCENE in the manifest. The Depth API
+            // (occlusion) and EnvironmentRaycastManager (aim-and-pinch, height snap, window on the wall) wait for it;
+            // Meta's Project Setup Tool asks for Required. MRUK scene loading stays off (nothing calls LoadScene*).
+            cfg.sceneSupport = OVRProjectConfig.FeatureSupport.Required;
             cfg.anchorSupport = OVRProjectConfig.AnchorSupport.Enabled; //                 world-locking
             // The boundary toggle: only contextual boundaryless uses the Boundary API
             // (com.oculus.permission.BOUNDARY_VISIBILITY); the rig template's OVRManager asks for the suppression.
@@ -577,7 +592,7 @@ namespace VirtualBeeSwarm.EditorTools
             if (managers.Count != 1) throw new Exception($"{BaseScenePath} should have exactly 1 OVRManager, has {managers.Count}");
             var so = new SerializedObject(managers[0]);
             var changed = new List<string>();
-            SetBool(so, "requestScenePermissionOnStartup", false, changed);
+            SetBool(so, "requestScenePermissionOnStartup", true, changed); // OVRManager is the ONLY requester (V1)
             SetBool(so, "shouldBoundaryVisibilityBeSuppressed", CurrentBoundaryMode == BoundaryMode.Contextual, changed);
             SetBool(so, "isInsightPassthroughEnabled", true, changed);
             SetBool(so, "requestRecordAudioPermissionOnStartup", true, changed);
@@ -704,13 +719,25 @@ namespace VirtualBeeSwarm.EditorTools
                 Req(quest != null && quest.enabled, "Meta Quest Support on");
                 var stillOn = FeatureHelpers.GetFeaturesWithIdsForBuildTarget(BuildTargetGroup.Android, UnityMetaFeaturesOff)
                     .Where(f => f != null && f.enabled).Select(f => f.GetType().Name).ToList();
-                Req(stillOn.Count == 0, "Unity OpenXR: Meta camera/occlusion/planes/anchors/session/... off" +
+                Req(stillOn.Count == 0, "Unity OpenXR: Meta camera/planes/anchors/meshing/bounding boxes/raycast off" +
                                         (stillOn.Count > 0 ? " (still on: " + string.Join(", ", stillOn) + ")" : ""));
+            }
+            foreach (var group in new[] { BuildTargetGroup.Android, BuildTargetGroup.Standalone })
+            {
+                if (OpenXRSettings.GetSettingsForBuildTargetGroup(group) == null) continue; // reported above for Android
+                var depthOff = UnityMetaFeaturesOn
+                    .Where(id => !FeatureHelpers.GetFeaturesWithIdsForBuildTarget(group, new[] { id }).Any(f => f != null && f.enabled))
+                    .ToList();
+                Req(depthOff.Count == 0, $"Meta Quest: Session + Occlusion on ({group})" +
+                                         (depthOff.Count > 0 ? " (off: " + string.Join(", ", depthOff) + ")" : ""));
             }
 
             var cfg = OVRProjectConfig.CachedProjectConfig;
             var mode = CurrentBoundaryMode;
-            Req(cfg.sceneSupport == OVRProjectConfig.FeatureSupport.None, "Meta Scene Support = None (no USE_SCENE)");
+            Req(cfg.sceneSupport == OVRProjectConfig.FeatureSupport.Required, "Meta Scene Support = Required (USE_SCENE, V1)");
+            Req(cfg.anchorSupport == OVRProjectConfig.AnchorSupport.Enabled, "Meta Anchor Support = Enabled (USE_ANCHOR_API)");
+            Req(cfg.targetDeviceTypes.Contains(OVRProjectConfig.DeviceType.Quest3) && cfg.targetDeviceTypes.Contains(OVRProjectConfig.DeviceType.Quest3S),
+                "target devices include Quest 3 and Quest 3S (Depth API)");
             Req(cfg.insightPassthroughSupport != OVRProjectConfig.FeatureSupport.None, "Meta passthrough support");
             Req(cfg.handTrackingSupport != OVRProjectConfig.HandTrackingSupport.ControllersOnly, "Meta hand tracking support");
             Req((cfg.boundaryVisibilitySupport != OVRProjectConfig.FeatureSupport.None) == (mode == BoundaryMode.Contextual),
@@ -720,7 +747,7 @@ namespace VirtualBeeSwarm.EditorTools
             else
             {
                 var manifest = File.ReadAllText(CustomManifestPath);
-                Req(!manifest.Contains(UseScenePermission), CustomManifestPath + " has no USE_SCENE");
+                Req(manifest.Contains(UseScenePermission), CustomManifestPath + " has USE_SCENE");
                 Req(manifest.Contains(BoundaryVisibilityPermission) == (mode == BoundaryMode.Contextual),
                     CustomManifestPath + $" boundary permission matches the toggle ({mode})");
             }
@@ -729,9 +756,9 @@ namespace VirtualBeeSwarm.EditorTools
             {
                 var template = File.ReadAllText(BaseScenePath);
                 // A prefab-instance override in the template (the rig is an OVRCameraRig prefab instance).
-                Req(!System.Text.RegularExpressions.Regex.IsMatch(template,
+                Req(System.Text.RegularExpressions.Regex.IsMatch(template,
                         @"propertyPath: requestScenePermissionOnStartup\s+value: 1"),
-                    "rig template doesn't request the scene permission");
+                    "rig template's OVRManager requests the scene permission (the only requester)");
             }
 
             var nws = UnityEditor.PackageManager.PackageInfo.FindForAssetPath("Packages/com.endel.nativewebsocket/package.json");

@@ -42,7 +42,7 @@ export interface GroupState {
   /** The future window: what it shows now, and the last scene that wasn't a what-if (undo goes back there). */
   scene: Scene;
   base_scene: Scene;
-  /** Score clock: when the hook beat started, and hook -> escape once the hive is saved. */
+  /** Score clock (v3.1): when the first station beat (smoker) started, and smoker -> escape once the hive is saved. */
   clock_start: number | null;
   saved_ms: number | null;
   /** v2.1: the score card, frozen when the escape beat starts (null until then). */

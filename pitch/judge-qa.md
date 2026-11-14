@@ -35,7 +35,7 @@ You can't lose the hive yet. Beeswax goes to the Moon whatever you do, because t
 Your hands are free. You lift the hive and squeeze the smoker with your own hands on your own table, and the embers drift past your head instead of across a screen you're holding.
 
 **8. How do I know the hive is light with no haptics?**
-You see it instead of feeling it: the hive comes up with no resistance and Beeswax says "Light, right? That's bad." TODO: only true once the build does this (see `script-and-build-asks.md`). Beekeepers call this hefting.
+You see it instead of feeling it: the hive comes up with no resistance and Beeswax says "Light, right? That's bad." TODO: only true once the build does this. Beekeepers call this hefting.
 
 **9. Are your bees Japanese honeybees?** *[HORNET]*
 No, it's a regular Western honeybee hive, the kind in US backyards. The hornet ball is the Japanese honeybee's move, and Western honeybees mostly can't pull it off. That's why Beeswax says "My cousins in Japan do this. Never tried it."

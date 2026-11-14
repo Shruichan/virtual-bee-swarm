@@ -22,6 +22,8 @@ namespace VirtualBeeSwarm
         [SerializeField] protected SwarmSystem swarm;
         [SerializeField] protected HiveBody hive;
         [SerializeField] protected BeeswaxController beeswax;
+        [Tooltip("Delivered choices (v3.1 V15). Empty: the StationDelivery on this GameObject, if any (none = today's buttons).")]
+        [SerializeField] protected StationDelivery delivery;
 
         [Header("Timing")]
         [SerializeField] protected float advanceDelay = 1.5f;
@@ -61,6 +63,7 @@ namespace VirtualBeeSwarm
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
             if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
+            if (delivery == null) delivery = GetComponent<StationDelivery>();
             ShowButtons(false);
             SetActive(props, false);
         }
@@ -125,6 +128,7 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i] != null) { buttons[i].MarkWrong(false); buttons[i].SetInteractable(false); }
             SetActive(props, true);
+            if (delivery != null) delivery.Prepare(); // delivery on: the props wait outside the window
             if (beeswax != null) beeswax.GoPresent();
             OnStationEnter();
             _intro = StartCoroutine(StationIntro());
@@ -139,6 +143,7 @@ namespace VirtualBeeSwarm
             Busy = false;
             _intro = null;
             ShowButtons(false);
+            if (delivery != null) delivery.OnStationExit(Solved); // flights snap: the right one on its spot, the rest gone
             OnStationExit();
             if (!KeepPropsAfter) SetActive(props, false);
         }
@@ -163,6 +168,7 @@ namespace VirtualBeeSwarm
                 if (buttons[i] != null) buttons[i].MarkWrong(false);
             ShowButtons(false);
             SetActive(props, false);
+            if (delivery != null) delivery.ResetItems();
             OnStationReset();
         }
 
@@ -181,6 +187,7 @@ namespace VirtualBeeSwarm
         /// <summary>Default intro: prompt line, then the buttons.</summary>
         protected virtual IEnumerator StationIntro()
         {
+            if (delivery != null) delivery.ParkChoices(); // the choices fly in as the prompt starts
             yield return SayAndWait(Prompt, 0.8f, 5f);
             OfferChoices();
         }
@@ -188,6 +195,7 @@ namespace VirtualBeeSwarm
         protected void OfferChoices()
         {
             if (Solved) return;
+            if (delivery != null) delivery.EnsureParked();
             Choosing = true;
             ShowButtons(true);
             for (int i = 0; i < buttons.Length; i++)
@@ -225,11 +233,14 @@ namespace VirtualBeeSwarm
 
             bool correct = GameIds.IsCorrect(station, choice);
             if (correct) _correctPending = true;
+            if (delivery != null) delivery.OnChoiceMade(choice, correct); // stamp, same frame as the poke
+            var stakes = VirtualBeeSwarm.Stakes.StakesDirector.Instance; // the dark swarm as the meter (V19)
+            if (stakes != null) stakes.ReportChoice(station, choice, correct);
             GameLines.TryGetOutcome(station, choice, out var outcome);
             // choice.made -> the Hive plays the line, steers the window, fires fx; BeeswaxStations covers it offline.
             bool clientVoices = net != null && net.MakeChoice(station, choice, outcome.scene);
 
-            StartCoroutine(ShowOutcome(choice, correct));
+            StartCoroutine(OutcomeThenDelivery(choice, correct));
             if (clientVoices) yield return WaitForTalk(minOutcomeSeconds, maxOutcomeSeconds);
             else yield return SayAndWait(outcome.line, minOutcomeSeconds, maxOutcomeSeconds, unlessHive: true);
 
@@ -254,6 +265,13 @@ namespace VirtualBeeSwarm
             }
             Busy = false;
             OfferChoices();
+        }
+
+        /// <summary>The station's own consequence, then the crews: wrong = repo haul, right (feed) = set down.</summary>
+        IEnumerator OutcomeThenDelivery(string choice, bool correct)
+        {
+            yield return ShowOutcome(choice, correct);
+            if (delivery != null) delivery.OnOutcomeShown(choice, correct);
         }
 
         void FinishSolved()

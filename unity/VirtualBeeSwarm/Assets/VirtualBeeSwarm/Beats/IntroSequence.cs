@@ -21,6 +21,14 @@ namespace VirtualBeeSwarm
         [SerializeField] ChoiceButton startButton;
         [Tooltip("Where Beeswax sits on HONEYMOON-1 during pre/hook.")]
         [SerializeField] Transform rocketPerch;
+        [Tooltip("v3.1: rings the window, flies the hive in on bee chains and the rocket in nose-up. Empty = today's hook.")]
+        [SerializeField] BeeDelivery delivery;
+        [Tooltip("HONEYMOON-1 (empty: rocketPerch's parent).")]
+        [SerializeField] Transform rocket;
+
+        bool Delivering => delivery != null && BeeDelivery.Mode != DeliveryMode.Off;
+        Transform Rocket => rocket != null ? rocket : rocketPerch != null ? rocketPerch.parent : null;
+        GameDirector _beats;
 
         public override bool Handles(GameBeat beat) => beat == GameBeat.Pre || beat == GameBeat.Hook || beat == GameBeat.Meet;
 
@@ -33,6 +41,35 @@ namespace VirtualBeeSwarm
             if (hexagons == null) hexagons = FindAnyObjectByType<HexagonPanel>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
             if (embers == null) embers = FindAnyObjectByType<EmbersFx>();
+            if (delivery == null) delivery = FindAnyObjectByType<BeeDelivery>();
+        }
+
+        void Start()
+        {
+            _beats = director != null ? director : GameDirector.Instance;
+            if (_beats != null) _beats.BeatChanged += HandleBeatChanged;
+        }
+
+        void OnDestroy()
+        {
+            if (_beats != null) _beats.BeatChanged -= HandleBeatChanged;
+        }
+
+        // A Board jump / skip past the hook: the hive and the rocket are simply there (no flight holds a beat).
+        void HandleBeatChanged(GameBeat prev, GameBeat beat)
+        {
+            if (beat <= GameBeat.Hook || delivery == null) return;
+            if (hive != null) delivery.EnsureHome(hive.transform, DeliveryStyle.Festoon, 0, HiveLanded);
+            if (Rocket != null) delivery.EnsureHome(Rocket, DeliveryStyle.Crown, 12);
+        }
+
+        void HiveLanded()
+        {
+            if (swarm != null && swarm.Mode == SwarmMode.Hidden)
+            {
+                swarm.Scatter();
+                swarm.SetMode(SwarmMode.Idle);
+            }
         }
 
         void OnEnable() { if (startButton != null) startButton.Pressed += HandleStart; }
@@ -84,17 +121,45 @@ namespace VirtualBeeSwarm
                 beeswax.ResetBeeswax();
                 if (rocketPerch != null) beeswax.AttachTo(rocketPerch);
             }
+            if (delivery == null) return;
+            if (Delivering)
+            {
+                // v3.1: nothing is here until the bees bring it (Beeswax rides in at the hive door: V14 refines that)
+                if (hive != null) delivery.SnapHome(hive.transform, hide: true);
+                if (Rocket != null) delivery.SnapHome(Rocket, hide: true);
+                if (swarm != null) swarm.SetMode(SwarmMode.Hidden);
+                if (beeswax != null && hive != null) beeswax.AttachTo(hive.DoorPoint);
+            }
+            else
+            {
+                if (hive != null) { delivery.SnapHome(hive.transform, hide: false); hive.gameObject.SetActive(true); }
+                if (Rocket != null) { delivery.SnapHome(Rocket, hide: false); Rocket.gameObject.SetActive(true); }
+            }
         }
 
         IEnumerator Hook()
         {
+            bool delivering = Delivering && hive != null;
+            if (delivering)
+            {
+                // 20 bees cut the ring, the window opens, the hive swings in on 6 bee chains (~2 s + 4.5 s)
+                bool cut = false, landed = false;
+                delivery.CutRing(() => cut = true);
+                float t0 = Time.time;
+                while (!cut && Time.time - t0 < 3f) yield return null;
+                if (window != null) window.Open();
+                delivery.DeliverHome(hive.transform, DeliveryStyle.Festoon, 0, () => { landed = true; HiveLanded(); });
+                t0 = Time.time;
+                while (!landed && Time.time - t0 < 6f) yield return null;
+            }
             if (beeswax != null)
             {
-                if (rocketPerch != null) beeswax.AttachTo(rocketPerch);
+                if (!delivering && rocketPerch != null) beeswax.AttachTo(rocketPerch);
                 beeswax.WhipAround();
             }
             if (swarm != null) swarm.SetMode(SwarmMode.Idle);
             yield return SayAndWait(GameLines.Hook, 3f, 8f);
+            if (delivering && Rocket != null) delivery.DeliverHome(Rocket, DeliveryStyle.Crown, 12); // flown in nose-up
             yield return SayAndWait(GameLines.Hook2, 1.5f, 6f);
             Complete(0.4f);
         }

@@ -55,10 +55,12 @@ def build():
     md = C.MB("Mandibles", mat="bee", smooth_angle=20)
     hook = [(0.0, 0.0), (0.012, 0.004), (0.016, -0.010), (0.012, -0.024), (0.004, -0.032), (-0.004, -0.030),
             (0.002, -0.024), (0.004, -0.018), (0.0, -0.016), (0.004, -0.010), (0.0, -0.006)]
+    # art-director pass: the hooks used to lie flat under the face and read as a handlebar moustache. Now they
+    # hang DOWN below the chin like pincers (rotated 72 deg on X), a bit longer, tips curling in toward each other.
     for s in (1, -1):
-        pts = [(x * s + 0.006 * s, y) for x, y in hook]
-        md.poly("charcoal", pts, 0.008, C.M((0, -0.112, -0.010), (-12, 0, 0)), bevel=(0.0015, 1))
-    md.to_object(origin=(0, -0.112, -0.010), parent=root)
+        pts = [(x * s * 1.15 + 0.005 * s, y * 1.3) for x, y in hook]
+        md.poly("charcoal", pts, 0.007, C.M((0, -0.114, -0.014), (72, 0, 0)), bevel=(0.0015, 1))
+    md.to_object(origin=(0, -0.114, -0.014), parent=root)
 
     for s, name in ((1, "WingL"), (-1, "WingR")):
         w = C.MB(name, mat="bee", smooth_angle=30)
@@ -69,6 +71,21 @@ def build():
         w.poly("smoke_wing", [(x * s, y) for x, y in hind], 0.002, C.M((rp[0], rp[1] + 0.012, rp[2] - 0.004),
                                                                         (0, -16 * s, 46 * s)))
         w.to_object(origin=rp, parent=root)
+    scale_all(SCALE)
+
+
+SCALE = 0.8  # art-director pass: 0.33 m long -> ~0.26 m, closer to the ~0.25 m spec
+
+
+def scale_all(s):
+    """Uniformly scale the finished item without leaving scale on any node: meshes are scaled in place and every
+    object's local offset is scaled (parents carry no rotation/scale, so world offsets scale the same)."""
+    sm = C.Matrix.Scale(s, 4)
+    for ob in C.REGISTRY:
+        if ob.type == "MESH":
+            ob.data.transform(sm)
+            ob.data.update()
+        ob.location = ob.location * s
 
 
 if __name__ == "__main__":

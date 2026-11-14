@@ -24,7 +24,7 @@ If sponsor prizes don't count toward the limit: enter Visko either way (with hon
 
 Pick if the gate passes. **One sentence:** "You change a living world by talking to it." Orbis generates the meadow window next to the hive as real-time video (832×480, about 18 fps on Reactor's GPUs). Our relay holds one session for the whole run and sends the frames to the headset. Each station choice and each spoken what-if sends Orbis a new scene prompt mid-stream: the meadow calms down after the smoker, goes grey and sick after the store honey, catches fire when you say "what if a fire starts," recovers when you say "put it out," and turns into the Moon at the end. The window never cuts. Orbis morphs from the frame it's showing into the fire, and it starts when you say the words, not on a timer. Our recorded clips are the backup, and they cut. If the Beat Board's LIVE/CLIPS toggle works at the table, show the judge both. TODO: confirm which scenes actually stream live and which are clip-only.
 
-What would make this track ours (TODO, don't pitch until it works): a what-if nobody planned for still works. Claude writes a safe Orbis prompt from what the player said, and anything moderation would reject gets a Beeswax refusal ("Grievance filed. Not that one."). See `script-and-build-asks.md`.
+What would make this track ours (TODO, don't pitch until it works): a what-if nobody planned for still works. Claude writes a safe Orbis prompt from what the player said, and anything moderation would reject gets a Beeswax refusal ("Grievance filed. Not that one.").
 
 ## ManageXR (AI in the physical world with smart glasses)
 
