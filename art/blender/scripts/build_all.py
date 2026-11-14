@@ -19,7 +19,10 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 ITEMS = ["beeswax", "worker_bee", "hive", "smoker", "honey_jar", "syrup_bottle", "deep_bowl", "pebble_dish", "wasp",
          "giant_hornet", "rocket", "portal_frame", "hexagon_tile", "moon", "earth", "flowers", "grass_tuft", "ember",
-         "clipboard", "seed_packet"]
+         "clipboard", "seed_packet",
+         # v3.1 props (2026-11-14)
+         "swatter", "spray_bottle", "crowbar", "reducer", "rain_cloud", "stamp_approved", "stamp_grievance",
+         "clipboard_sign", "score_card"]
 
 try:
     import bpy  # noqa: F401

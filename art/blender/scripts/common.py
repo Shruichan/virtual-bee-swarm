@@ -66,6 +66,16 @@ PALETTE = [
     ("ink", "#3B3F4A"),
     ("terracotta", "#D9774B"),
     ("smoke_wing", "#FFF1C9"),
+    # added by the art-director pass (2026-11-14): darker can, copper lid, leather pleats, moon crater rims
+    ("steel_mid", "#93A0AC"),
+    ("copper", "#C8783A"),
+    ("leather", "#A8482C"),
+    ("leather_dark", "#4E2414"),
+    ("moon_light", "#D6D6D2"),
+    # added for the v3.1 props (2026-11-14): rubber-stamp green, rain-cloud whites
+    ("stamp_green", "#2E9E58"),
+    ("cloud", "#F4F7FB"),
+    ("cloud_dark", "#AFBCCB"),
 ]
 GRID = 8  # palette texture is GRID x GRID cells
 CELL = 8  # pixels per cell -> 64 x 64 px texture
