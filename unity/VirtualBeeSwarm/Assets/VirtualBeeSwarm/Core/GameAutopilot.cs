@@ -42,6 +42,9 @@ namespace VirtualBeeSwarm
         [SerializeField] bool requireClips;
         [Tooltip("Wait up to this long (real seconds) for GameNet.PreloadVoice before run 1. 0 = don't wait.")]
         [SerializeField] float waitForVoicePreloadSeconds = 30f;
+        [Tooltip("Wait this long (scaled seconds) after a station offers its choices before the first pick (V19 hint test: > 8). " +
+                 "Env VBS_AUTOPILOT_PICK_DELAY overrides it.")]
+        [SerializeField] float pickDelaySeconds;
         [SerializeField] KeyCode toggleKey = KeyCode.F2;
         [SerializeField] float stepTimeoutSeconds = 90f;
 
@@ -132,6 +135,10 @@ namespace VirtualBeeSwarm
             _notPreloaded.Clear();
             _clipIds.Clear();
             _failed = false;
+            var envDelay = Environment.GetEnvironmentVariable("VBS_AUTOPILOT_PICK_DELAY");
+            if (!string.IsNullOrEmpty(envDelay) && float.TryParse(envDelay, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var dly)) pickDelaySeconds = Mathf.Max(0f, dly);
+            if (pickDelaySeconds > 0f) Debug.Log("[VBSAutopilot] pick delay " + pickDelaySeconds.ToString("0.0") + " s at each station");
             Running = true;
             _routine = StartCoroutine(RunAll());
         }
@@ -208,6 +215,7 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBSAutopilot] run " + (r + 1) + (net != null ? " (online=" + net.Online + ", forceOffline=" + net.ForceOffline + ")" : ""));
                 if (director.Beat != GameBeat.Pre) director.ResetToPre();
                 yield return null;
+                _run = r;
                 yield return RunOnce();
             }
             Time.timeScale = 1f;
@@ -242,7 +250,7 @@ namespace VirtualBeeSwarm
             var prevHornet = director.Hornet;
             if (forceHornet) director.Hornet = GameDirector.HornetMode.Always;
 
-            director.Next("autopilot start");
+            yield return StartShow();
             yield return WaitBeat(GameBeat.Smoker);
             yield return Station<SmokerStation>(GameIds.Choice.Swat);
             yield return WaitBeat(GameBeat.Feed);
@@ -319,6 +327,47 @@ namespace VirtualBeeSwarm
             director.Hornet = prevHornet;
         }
 
+        int _run;
+
+        /// <summary>
+        /// START: with deliveries on/swirl, wait for the SIGN HERE clipboard to park and sign it like a poke (V14);
+        /// VBS_AUTOPILOT_PRE_IDLE="0,10" first waits that many seconds after it lands, per run (exercises the room_pre
+        /// nudge). Delivery off, or no clipboard within 5 s: director.Next, as before.
+        /// </summary>
+        IEnumerator StartShow()
+        {
+            var intro = FindAnyObjectByType<IntroSequence>();
+            if (intro != null && intro.SignHereShown)
+            {
+                float from = Time.realtimeSinceStartup;
+                while (!intro.SignHereReady && Time.realtimeSinceStartup - from < 5f) yield return null;
+                float idle = PreIdleSeconds(_run);
+                if (idle > 0f && intro.SignHereReady)
+                {
+                    Debug.Log("[VBSAutopilot] leaving the clipboard unsigned for " + idle.ToString("0.#") + " s");
+                    yield return Seconds(idle);
+                    while (net != null && net.IsSpeaking && director.Beat == GameBeat.Pre) yield return null; // let room_pre finish
+                }
+                if (intro.SignHereNow("autopilot"))
+                {
+                    Debug.Log("[VBSAutopilot] signed the SIGN HERE clipboard");
+                    yield break;
+                }
+                Debug.Log("[VBSAutopilot] SIGN HERE not ready after " + (Time.realtimeSinceStartup - from).ToString("0.0") + " s: START by key");
+            }
+            if (director.Beat == GameBeat.Pre) director.Next("autopilot start");
+        }
+
+        static float PreIdleSeconds(int run)
+        {
+            string env = null;
+            try { env = System.Environment.GetEnvironmentVariable("VBS_AUTOPILOT_PRE_IDLE"); } catch (System.Exception) { }
+            if (string.IsNullOrEmpty(env)) return 0f;
+            var parts = env.Split(',');
+            string p = parts[Mathf.Clamp(run, 0, parts.Length - 1)].Trim();
+            return float.TryParse(p, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? Mathf.Max(0f, v) : 0f;
+        }
+
         IEnumerator Station<T>(string wrong) where T : StationBase
         {
             var st = FindAnyObjectByType<T>();
@@ -330,6 +379,14 @@ namespace VirtualBeeSwarm
                 yield break;
             }
             yield return WaitFor(() => st.Choosing, typeof(T).Name + " offers choices");
+            var sd = st.GetComponent<StationDelivery>();
+            Check(sd == null || sd.AllParked, typeof(T).Name + ": choices offered before they all parked");
+            if (pickDelaySeconds > 0f)
+            {
+                yield return Seconds(pickDelaySeconds);
+                Debug.Log("[VBSAutopilot] " + typeof(T).Name + ": picking after " + pickDelaySeconds.ToString("0.0") + " s; hint showing = " +
+                          (sd != null && sd.Hinting));
+            }
             if (makeMistakes)
             {
                 st.Choose(wrong);

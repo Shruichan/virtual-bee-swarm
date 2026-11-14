@@ -17,7 +17,8 @@ namespace VirtualBeeSwarm.Tests
     /// error log from game or client code. Never touches the network or the mic; listener volume 0.
     /// Not failures (counted and listed in the result): errors with no VirtualBeeSwarm/Beeswax frame in the stack (the Meta
     /// SDK's native plugins don't exist on a Linux editor, so OVRPlugin/MRUK/Meta XR Audio throw every frame there), and
-    /// "VideoPlayer cannot play url" for a window fallback clip that isn't in StreamingAssets yet.
+    /// "VideoPlayer cannot play url" for a window fallback clip that isn't in StreamingAssets yet, or (Linux editor only)
+    /// for an .mp4 one that is: Unity on Linux has no H.264 decoder, the Quest has (the window falls back to its tint).
     /// The editor's Enter Play Mode settings are restored afterwards (they're saved in ProjectSettings/EditorSettings.asset).
     /// </summary>
     public static class GameSmokeRunner
@@ -26,6 +27,7 @@ namespace VirtualBeeSwarm.Tests
         static readonly List<string> Errors = new List<string>();
         static readonly SortedSet<string> Foreign = new SortedSet<string>();
         static readonly SortedSet<string> MissingClips = new SortedSet<string>();
+        static readonly SortedSet<string> UnplayableClips = new SortedSet<string>();
         static int _foreignCount;
         static bool _running;
         static double _deadline;
@@ -74,6 +76,8 @@ namespace VirtualBeeSwarm.Tests
                 {
                     string file = condition.Substring(video.Length).Trim();
                     if (!File.Exists(file)) { MissingClips.Add(Path.GetFileName(file)); return; }
+                    if (Application.platform == RuntimePlatform.LinuxEditor &&
+                        file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) { UnplayableClips.Add(Path.GetFileName(file)); return; }
                 }
                 Errors.Add(type + ": " + condition);
             }
@@ -156,6 +160,9 @@ namespace VirtualBeeSwarm.Tests
                 Debug.Log("[VBSTest] ignored " + _foreignCount + " error(s) outside game code: " + string.Join(" | ", Foreign));
             if (MissingClips.Count > 0)
                 Debug.Log("[VBSTest] window fallback clips not in StreamingAssets yet: " + string.Join(", ", MissingClips));
+            if (UnplayableClips.Count > 0)
+                Debug.Log("[VBSTest] window clips found but not playable in a Linux editor (no H.264; fine on Quest): " +
+                          string.Join(", ", UnplayableClips));
             Debug.Log("[VBSTest] RESULT " + (ok && Errors.Count == 0 ? "PASS" : "FAIL (" + Errors.Count + " errors)"));
             if (EditorApplication.isPlaying) EditorApplication.ExitPlaymode();
             if (Application.isBatchMode) EditorApplication.Exit(ok && Errors.Count == 0 ? 0 : 1);
