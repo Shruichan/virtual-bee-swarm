@@ -1,0 +1,29 @@
+{
+    "name": "VirtualBeeSwarm.Meta.Editor",
+    "rootNamespace": "VirtualBeeSwarm.Meta.Editor",
+    "references": [
+        "VirtualBeeSwarm",
+        "VirtualBeeSwarm.Meta",
+        "Oculus.VR",
+        "Oculus.VR.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "VBS_META"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.sdk.core",
+            "expression": "1.0.0",
+            "define": "VBS_META"
+        }
+    ],
+    "noEngineReferences": false
+}

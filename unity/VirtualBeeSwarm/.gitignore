@@ -1,0 +1,57 @@
+# VirtualBeeSwarm (Unity 6). The repo root .gitignore has the general Unity rules; these are the project's own.
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+# Android native (CMake/Gradle) build temp that Unity 6 writes next to Assets/ during an APK build
+/.utmp/
+*.csproj
+*.sln
+*.slnx
+*.pidb
+*.userprefs
+.vs/
+.idea/
+.vscode/
+*.apk
+*.aab
+
+# The Hive token never goes in git (this repo is public). Anywhere in the project:
+**/beeswax_token.txt
+**/beeswax_token.txt.meta
+
+# The game scene is a BUILD OUTPUT (PLAN.md house rules, S1.9): BuildGameScene regenerates it, GameBuild.BuildApk
+# runs the builder first, and SceneAutoBuild builds it when the editor opens the project without it. Never hand-edit
+# it. Its .meta stays in git (the builder pins that GUID), so Build Settings don't change from machine to machine.
+/Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity
+
+# Generated test scenes (BuildGameScene.BuildOffline, GameSmokeBuild): rebuilt on demand
+/Assets/VirtualBeeSwarm/Scenes/OfflineTest.unity
+/Assets/VirtualBeeSwarm/Scenes/OfflineTest.unity.meta
+/Assets/VirtualBeeSwarm/Scenes/SmokeTest.unity
+/Assets/VirtualBeeSwarm/Scenes/SmokeTest.unity.meta
+
+# com.unity.xr.compositionlayers keeps its runtime settings in a folder named UserSettings (not Unity's per-user
+# folder). Keep it in git despite the [Uu]ser[Ss]ettings/ rule in the repo root .gitignore.
+!/Assets/CompositionLayers/UserSettings/
+# ...but not its editor preferences (per user, written when the editor opens a scene).
+/Assets/CompositionLayers/UserSettings/CompositionLayersPreferences.asset
+/Assets/CompositionLayers/UserSettings/CompositionLayersPreferences.asset.meta
+
+# AR Foundation's XR Simulation per-user preferences (written on open and play; XR Simulation isn't used).
+/Assets/XR/UserSimulationSettings/
+/Assets/XR/UserSimulationSettings.meta
+
+# Meta XR SDK writes these on Play and during builds and deletes them afterwards ("no reason to be persisted",
+# OVRDumpBuildInfo.cs). An interrupted run leaves them behind. Assets/StreamingAssets/ itself stays: fallback clips go there.
+/RuntimeActionBindings.json
+/Assets/StreamingAssets/RuntimeActionBindings.json
+/Assets/StreamingAssets/RuntimeActionBindings.json.meta
+
+# Meta XR dev-agent settings: Meta writes an access token here when the editor opens. Never commit.
+Assets/Resources/DevAgentSettings.asset
+Assets/Resources/DevAgentSettings.asset.meta

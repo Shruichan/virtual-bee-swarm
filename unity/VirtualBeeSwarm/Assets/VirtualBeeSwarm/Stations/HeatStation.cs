@@ -1,0 +1,128 @@
+using System.Collections;
+using UnityEngine;
+
+namespace VirtualBeeSwarm
+{
+    /// <summary>
+    /// Station 4: heat wave, the hive glows red. Deep bowl (wrong: they can't land, they drown), nothing (wrong:
+    /// hotter), shallow dish with pebbles (right: they land, drink, and fan the hive cool). Keys 1-3.
+    /// `drinkers` are a few placeholder bees that fly from the door to the water.
+    /// </summary>
+    public class HeatStation : StationBase
+    {
+        [SerializeField] GameObject deepBowl;
+        [SerializeField] GameObject pebbleDish;
+        [Tooltip("Landing spots on the pebbles (one per drinker).")]
+        [SerializeField] Transform[] pebbleSpots = new Transform[0];
+        [Tooltip("Water surface of the deep bowl (drinkers sink below it).")]
+        [SerializeField] Transform bowlWater;
+        [SerializeField] Transform[] drinkers = new Transform[0];
+
+        protected override GameLine Prompt => GameLines.HeatPrompt;
+        protected override bool KeepPropsAfter => true; // the pebble dish stays on the table
+
+        protected override void Awake()
+        {
+            station = GameStation.Heat;
+            base.Awake();
+            HideAll();
+        }
+
+        protected override void OnStationEnter()
+        {
+            HideAll();
+            if (hive != null) hive.SetHeatGlow(1f);
+            if (swarm != null)
+            {
+                swarm.SetMode(SwarmMode.Idle);
+                swarm.Agitation = 0.4f;
+            }
+            if (net != null) net.RequestScene(GameIds.Scene.HeatStress, sendToHive: false);
+        }
+
+        protected override IEnumerator ShowOutcome(string choice, bool correct)
+        {
+            switch (choice)
+            {
+                case GameIds.Choice.DeepBowl:
+                    SetActive(deepBowl, true);
+                    yield return FlyDrinkers(false);
+                    break;
+                case GameIds.Choice.Nothing:
+                    if (swarm != null) swarm.Spike(0.6f);
+                    if (beeswax != null) beeswax.WhipAround();
+                    break;
+                case GameIds.Choice.PebbleDish:
+                    SetActive(pebbleDish, true);
+                    yield return FlyDrinkers(true);
+                    if (hive != null) hive.SetHeatGlow(0f);
+                    if (swarm != null)
+                    {
+                        swarm.Agitation = 0f;
+                        swarm.SetMode(SwarmMode.Calm);
+                    }
+                    break;
+            }
+        }
+
+        IEnumerator FlyDrinkers(bool pebbles)
+        {
+            if (hive == null || drinkers.Length == 0) yield break;
+            Vector3 from = hive.DoorPoint.position;
+            for (int i = 0; i < drinkers.Length; i++)
+                if (drinkers[i] != null) { drinkers[i].position = from; drinkers[i].gameObject.SetActive(true); }
+
+            float start = Time.time;
+            const float fly = 1.2f, sink = 1.5f;
+            while (Time.time - start < fly + (pebbles ? 0f : sink))
+            {
+                float age = Time.time - start;
+                for (int i = 0; i < drinkers.Length; i++)
+                {
+                    var d = drinkers[i];
+                    if (d == null) continue;
+                    Vector3 land = pebbles
+                        ? (i < pebbleSpots.Length && pebbleSpots[i] != null ? pebbleSpots[i].position : from)
+                        : (bowlWater != null ? bowlWater.position + new Vector3((i - 1) * 0.025f, 0f, (i % 2) * 0.02f) : from);
+                    float k = Mathf.Clamp01((age - i * 0.15f) / fly);
+                    Vector3 p = Vector3.Lerp(from, land, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.08f);
+                    if (!pebbles && k >= 1f) p = land + Vector3.down * Mathf.Clamp01((age - fly - i * 0.15f) / sink) * 0.04f;
+                    d.position = p;
+                }
+                yield return null;
+            }
+        }
+
+        protected override void OnRetry(string wrongChoice)
+        {
+            SetActive(deepBowl, false);
+            HideDrinkers();
+        }
+
+        protected override void OnStationExit()
+        {
+            if (hive != null && Solved) hive.SetHeatGlow(0f);
+            SetActive(deepBowl, false);
+            if (!Solved) { SetActive(pebbleDish, false); HideDrinkers(); }
+        }
+
+        protected override void OnStationReset()
+        {
+            if (hive != null) hive.SetHeatGlow(0f);
+            HideAll();
+        }
+
+        void HideAll()
+        {
+            SetActive(deepBowl, false);
+            SetActive(pebbleDish, false);
+            HideDrinkers();
+        }
+
+        void HideDrinkers()
+        {
+            for (int i = 0; i < drinkers.Length; i++)
+                if (drinkers[i] != null) drinkers[i].gameObject.SetActive(false);
+        }
+    }
+}
