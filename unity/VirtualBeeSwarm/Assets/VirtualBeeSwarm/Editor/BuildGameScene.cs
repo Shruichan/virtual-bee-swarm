@@ -539,6 +539,9 @@ namespace VirtualBeeSwarm.Editor
             // ------------------------------------------------------------ client components (all BeeswaxClient refs live in GameNet)
             net.EnsureClientComponents(clientRoot, bwT.gameObject, windowT.gameObject, offline);
 
+            // ------------------------------------------------------------ art slots (S11.2): Art/<Slot>/<Slot>.prefab over the primitives
+            ArtSlots.Apply(rig);
+
             // ------------------------------------------------------------ save
             bool main = sceneFile == SceneName;
             if (main) PinSceneGuid(scenePath);
