@@ -124,7 +124,7 @@ The glasses are a second priority: we build the Quest game first and fit the gla
 
 - **Mentra Live app** (`glasses/`, second priority: second mic, ear lines, real-prop choices later): owner **Rome**: started, paused until the Quest game works
 
-- **Quest Unity project setup** (Unity 6, OpenXR + Meta XR feature group, Meta XR 209.0.0 Building Blocks, passthrough, hand tracking, boundaryless, floor origin): owner *open (U1)*
+- **Quest Unity project setup** (`unity/HoneymoonQuest`: Unity 6000.2.9f1, opens in 6000.3 LTS too; Meta XR 209 + OpenXR, passthrough, hands, Quest player settings, BeeswaxClient wired): owner **Rome (agent)**: in progress, landing ~3 AM. Placeholder versions of every v3 system (director/beat clock, 4 stations, swarm, Beeswax, window, embers, hornet, escape, Moon, map) come with it, so U1/U2/M replace the placeholders instead of starting from zero
 
 - **Hive placement on the real table**: owner *open (U1)*
 
@@ -156,7 +156,7 @@ The glasses are a second priority: we build the Quest game first and fit the gla
 
 - **Pick 2 tracks + final team name (Sat 9:00 AM)**: owner **everyone**
 
-- **Devpost write-up, 30 s vertical video, 2 min walkthrough**: owner *open*
+- **Devpost write-up, 30 s vertical video, 2 min walkthrough**: owner **Rome (agent)**: drafts in progress in `pitch/` (devpost.md, video-30s.md, walkthrough-2min.md, tracks.md, judge-qa.md, demo-runbook.md); a human edits and records
 
 ## Physical props & shopping
 
@@ -238,3 +238,4 @@ Source of truth: `hive/src/protocol.ts`. If you change it, log it here. **Being 
 - 2026-11-13 23:10 PT · Rome (agent) · **Concept v2 "HONEYMOON" proposed** (6-pitch design panel + judge personas + red team) and the plan rewritten around the real hardware: one Quest, Mentra Live (no display), iPhone. Research notes are in "Tech plan". Rome claimed: Hive backend, Mentra app, Unity client scripts, Orbis relay, voice. → everyone: read Concept v2 and the "Do these tonight" list, then claim a Unity/3D task. → Rome: confirm the concept with the team and log "accepted".
 - 2026-11-13 23:45 PT · Rome (agent) · **Concept v3 is the plan: Adityash's hive escape + HONEYMOON, best of both.** Spine = Adityash's 4 stations + live Orbis future window + voice what-if + escape/score/map. Added from HONEYMOON: Beeswax the union-rep drone, "fix it or we move to the Moon" stakes, hornet hum (if ahead), T-0 Moon ending. Fixed one fact line (smaller door = *fewer guards needed*). Tasks rewritten for v3, so claim yours. → Adityash: thank you, check I kept your beats right. Hive backend/voice/Orbis/Unity client scripts are being built now (Rome).
 - 2026-11-14 00:40 PT · Rome (agent) · **Backend v1 is in the repo and live** at beeswax.drori.dev (Hive bus + Beat Board + monitor + Orbis relay in fake mode; voice off until the ElevenLabs key). Code: `hive/`, `hive/orbis-relay/`, `unity/BeeswaxClient/` (drop-in C#, compiled clean in Unity 6000.2.9f1), `glasses/` (Mentra miniapp, later). Now adapting all of it to concept v3: stations + `choice.made`, voice what-ifs (Quest/glasses mic → speech-to-text → intents → Orbis scene + embers), per-scene fallback clips. Protocol bumps to v2; I'll log when it lands. → Unity folks: start from `unity/BeeswaxClient/README.md`; ask Rome for the token.
+- 2026-11-14 01:00 PT · Rome (agent) · Started the **Unity base project** (`unity/HoneymoonQuest`, Unity 6000.2.9f1, Meta XR 209/OpenXR, Android/Quest settings, placeholder v3 systems, desktop keys for testing without a headset) and the **pitch kit** (`pitch/`). → Unity folks: if you already started your own project, say so here and we'll merge; otherwise wait ~2 h for the base and claim the systems to replace with real art/feel.
