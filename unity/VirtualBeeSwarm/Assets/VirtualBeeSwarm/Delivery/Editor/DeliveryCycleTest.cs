@@ -227,13 +227,14 @@ namespace VirtualBeeSwarm.DeliveryEditor
                     var di = items[i].GetComponent<DeliveryItem>();
                     Check(items[i].gameObject.activeSelf && di.parked && !d.IsFlying(items[i]), "arc: " + items[i].name + " parked");
                     float h = items[i].position.y - tableY;
-                    Check(h >= 0.2f && h <= 0.3f, "arc: " + items[i].name + " 20-30 cm above the table (" + h.ToString("0.000") + ")");
+                    Check(h >= 0.3f && h <= 0.7f && items[i].position.y <= head.position.y - 0.17f, "arc: " + items[i].name + " 30-70 cm above the table, 18+ cm below the eye (" + h.ToString("0.000") + ")");
+                    Check(items[i].position.z < hive.position.z - 0.25f, "arc: " + items[i].name + " in front of the hive's face (z " + items[i].position.z.ToString("0.000") + ")");
                     Check(HorizAngle(head.position, items[i].position, hive.position) <= 25.5f, "arc: " + items[i].name + " within 25 deg of gaze");
                     Vector3 size = Vector3.Scale(di.localBounds.size, items[i].lossyScale);
-                    Check(Mathf.Abs(Mathf.Max(size.x, Mathf.Max(size.y, size.z)) - 0.12f) < 0.002f, "arc: " + items[i].name + " normalized to 12 cm");
+                    Check(Mathf.Abs(Mathf.Max(size.x, Mathf.Max(size.y, size.z)) - 0.17f) < 0.003f, "arc: " + items[i].name + " normalized to 17 cm");
                     var col = items[i].GetComponent<BoxCollider>();
                     Vector3 cs = Vector3.Scale(col.size, items[i].lossyScale);
-                    Check(col.enabled && col.isTrigger && cs.x <= 0.1601f && cs.y <= 0.1601f && cs.z <= 0.1601f, "arc: " + items[i].name + " collider <= 16 cm");
+                    Check(col.enabled && col.isTrigger && cs.x <= 0.2401f && cs.y <= 0.2401f && cs.z <= 0.2401f, "arc: " + items[i].name + " collider <= 24 cm");
                     for (int k = i + 1; k < 3; k++)
                         Check(Vector3.Distance(items[i].position, items[k].position) >= 0.2f, "arc: " + items[i].name + "/" + items[k].name + " 20+ cm apart");
                 }
@@ -284,6 +285,7 @@ namespace VirtualBeeSwarm.DeliveryEditor
 
             sd.ResetItems();
             sd.Prepare();
+            if (off) Check(smoker.gameObject.activeSelf && smoker.localScale == Vector3.one, "off: after a reset (run 2) the legacy smoker is shown again");
             sd.ParkChoices();
             Steps(d, off ? 0.1f : 0.6f); // mid-flight park
             sd.OnChoiceMade(GameIds.Choice.Swat, false);

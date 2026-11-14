@@ -9,16 +9,21 @@ namespace VirtualBeeSwarm.Stakes
     ///   past 4:00               BOARDING DELAYED (UNION RULES)   (no fail ending)
     ///   escape                  EVACUATION CANCELLED
     ///   t0                      PASSENGER: BEESWAX · 3 · 2 · 1, then LIFTOFF
-    /// It draws its own TextMesh next to the rocket's `CountdownDisplay` (same font, place and colour) and hides that
-    /// one's renderer while it runs, so GameDirector's "T-m:ss" and T0Sequence's writes go to an invisible mesh and
-    /// nothing fights. T0Sequence's countdown digits are mirrored from that hidden mesh until T0 calls
+    /// It draws its own TextMesh (same font and colour as the rocket's `CountdownDisplay`; v3.3: a small gate sign on a
+    /// dark backing, on the table just in front of the rocket's base and turned to the player, instead of over the
+    /// fins) and hides that one's renderer while it runs, so GameDirector's "T-m:ss" and T0Sequence's writes go to an
+    /// invisible mesh and nothing fights. T0Sequence's countdown digits are mirrored from that hidden mesh until T0 calls
     /// <see cref="ShowPassengerCount"/> itself (INTEGRATION.md). Text changes at most once a second (no per-frame garbage).
     /// </summary>
     public class StakesRocketDisplay : MonoBehaviour
     {
         [Tooltip("The rocket's CountdownDisplay (GameDirector.countdownText / T0Sequence.rocketDisplay). Found by name if empty.")]
         [SerializeField] TextMesh source;
-        [SerializeField] float charSizeScale = 0.55f;
+        [SerializeField] float charSizeScale = 0.65f;
+        [Tooltip("v3.3: the sign's centre, in the rocket's space (no scale): in front of the base, toward the player (-Z).")]
+        [SerializeField] Vector3 signOffset = new Vector3(0.06f, 0.045f, -0.12f);
+        [SerializeField] Color backingColor = new Color(0.08f, 0.06f, 0.05f, 1f);
+        [SerializeField] Vector2 backingPadding = new Vector2(0.014f, 0.01f);
         [SerializeField] Color color = new Color(1f, 0.85f, 0.3f, 1f);
         [SerializeField] Color delayedColor = new Color(1f, 0.45f, 0.2f, 1f);
         [SerializeField] Color cancelledColor = new Color(0.55f, 1f, 0.55f, 1f);
@@ -28,7 +33,8 @@ namespace VirtualBeeSwarm.Stakes
         public float ClockSeconds => _clockStart < 0f ? -1f : (_clockEnd >= 0f ? _clockEnd : Time.time) - _clockStart;
 
         TextMesh _text;
-        MeshRenderer _sourceRenderer;
+        MeshRenderer _sourceRenderer, _textRenderer;
+        Transform _rocket, _backing;
         GameDirector _director;
         float _clockStart = -1f, _clockEnd = -1f;
         int _lastSecond = int.MinValue;
@@ -44,10 +50,13 @@ namespace VirtualBeeSwarm.Stakes
             if (source == null) source = FindSource();
             if (source == null) { Debug.Log("[VBS][Stakes] rocket display: no CountdownDisplay found, display off"); enabled = false; return; }
             var go = new GameObject("StakesDisplay");
-            go.transform.SetParent(source.transform.parent, false);
-            go.transform.localPosition = source.transform.localPosition;
-            go.transform.localRotation = source.transform.localRotation;
-            go.transform.localScale = source.transform.localScale;
+            _rocket = source.transform.parent;
+            for (var p = source.transform.parent; p != null; p = p.parent)
+                if (p.name == "HONEYMOON-1") { _rocket = p; break; }
+            go.transform.SetParent(_rocket, false);
+            Vector3 ls = _rocket.lossyScale;
+            go.transform.localScale = new Vector3(1f / Mathf.Max(1e-4f, Mathf.Abs(ls.x)), 1f / Mathf.Max(1e-4f, Mathf.Abs(ls.y)), 1f / Mathf.Max(1e-4f, Mathf.Abs(ls.z)));
+            PlaceSign(go.transform);
             go.layer = source.gameObject.layer;
             _text = go.AddComponent<TextMesh>();
             _text.font = source.font;
@@ -59,9 +68,24 @@ namespace VirtualBeeSwarm.Stakes
             _text.color = color;
             _sourceRenderer = source.GetComponent<MeshRenderer>();
             var r = go.GetComponent<MeshRenderer>();
+            _textRenderer = r;
             if (_sourceRenderer != null) r.sharedMaterial = _sourceRenderer.sharedMaterial;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.receiveShadows = false;
+            // the backing: a dark plate behind the text (TextMesh reads from -Z, so behind = +Z)
+            var back = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            back.name = "Backing";
+            var bc = back.GetComponent<Collider>();
+            if (bc != null) Destroy(bc);
+            back.layer = go.layer;
+            _backing = back.transform;
+            _backing.SetParent(go.transform, false);
+            _backing.localPosition = new Vector3(0f, 0f, 0.002f);
+            _backing.localScale = new Vector3(0.17f, 0.06f, 1f);
+            var br = back.GetComponent<MeshRenderer>();
+            br.sharedMaterial = GameMaterials.Create("VBS_RocketDisplayBacking (runtime)", backingColor);
+            br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            br.receiveShadows = false;
             var f = source.font;
             if (f != null)
             {
@@ -69,6 +93,31 @@ namespace VirtualBeeSwarm.Stakes
                 if (!f.HasCharacter('→')) _arrow = "->";
                 if (!f.HasCharacter('·')) _dot = "-";
             }
+        }
+
+        /// <summary>In front of the rocket's base, turned to the player's eye, its lines level in the player's view.</summary>
+        void PlaceSign(Transform t)
+        {
+            if (_rocket == null) return;
+            Quaternion yaw = Quaternion.Euler(0f, _rocket.eulerAngles.y, 0f);
+            Vector3 p = _rocket.position + yaw * signOffset;
+            t.position = p;
+            var cam = Camera.main;
+            Vector3 view = cam != null ? p - cam.transform.position : yaw * new Vector3(0f, -0.7f, 1f);
+            if (view.sqrMagnitude < 1e-6f) view = yaw * Vector3.forward;
+            t.rotation = Quaternion.LookRotation(view, cam != null ? cam.transform.up : Vector3.up); // level on screen
+        }
+
+        /// <summary>The backing follows the text's size (one or two lines).</summary>
+        void FitBacking()
+        {
+            if (_backing == null || _textRenderer == null) return;
+            Bounds b = _textRenderer.localBounds;
+            if (b.size.x < 1e-5f) return;
+            Vector3 ls = _text.transform.lossyScale;
+            float sx = Mathf.Max(1e-4f, Mathf.Abs(ls.x)), sy = Mathf.Max(1e-4f, Mathf.Abs(ls.y));
+            _backing.localPosition = new Vector3(b.center.x, b.center.y, 0.002f);
+            _backing.localScale = new Vector3(b.size.x + 2f * backingPadding.x / sx, b.size.y + 2f * backingPadding.y / sy, 1f);
         }
 
         static TextMesh FindSource()
@@ -124,6 +173,8 @@ namespace VirtualBeeSwarm.Stakes
             bool on = StakesFlags.Display;
             if (_text.gameObject.activeSelf != on) ShowOwn(on);
             if (!on || _director == null) return;
+            if (_director.Beat < GameBeat.T0) PlaceSign(_text.transform); // T-0 on: it rides the rocket as it is
+            FitBacking();
 
             var beat = _director.Beat;
             if (beat == GameBeat.T0) { MirrorT0(); return; }

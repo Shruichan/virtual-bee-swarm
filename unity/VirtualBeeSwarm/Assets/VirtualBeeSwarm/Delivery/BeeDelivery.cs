@@ -231,6 +231,7 @@ namespace VirtualBeeSwarm
             if (beeMaterial == null) beeMaterial = GameMaterials.Create("VBS_DeliveryBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
+            BeeVat.Apply(ref beeMesh, ref beeMaterial, "delivery"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
 
             _bPos = new Vector3[MaxBees];

@@ -10,10 +10,13 @@ namespace VirtualBeeSwarm
     /// it at six points (INTEGRATION.md). With delivery.mode off it does nothing and puts every prop, scale and button
     /// back exactly as the scene builder made them, so today's buttons work unchanged.
     ///
-    /// On: the choices fly in together when the prompt starts and park, perfectly still, in an arc above the table's
-    /// front edge (centred on the hive, 20+ cm apart, within +-25 deg of gaze, 25 cm up). The props are the buttons:
-    /// each ChoiceButton becomes a price tag under its prop, and the prop gets a trigger collider (16 cm max) that
-    /// forwards pokes and clicks to it. Props are normalized to a 12 cm box. On the poke: APPROVED / GRIEVANCE stamp.
+    /// On: the choices fly in together when the prompt starts and park, perfectly still, in an arc centred on the hive
+    /// (20+ cm apart, within +-25 deg of gaze). v3.3: the arc sits between the player and the hive, ~0.2 m in front of
+    /// its face and high enough that every prop is seen above the roof (not over the hive's hexagons / sign, not over
+    /// the rocket), at most 18 cm below the eye; without a head, 25 cm over the table's front edge. The props are the
+    /// buttons: each ChoiceButton becomes a price tag at the foot of its prop, and the prop gets a trigger collider (24 cm
+    /// max) that forwards pokes and clicks to it. Props are normalized to a 17 cm box. On the poke: APPROVED / GRIEVANCE
+    /// stamp, 1.3x, facing the eye, in front of the alarm bees.
     /// Wrong: the station's own consequence plays, then a red repo crew hauls it out. Right: its crew sets it down on
     /// its spot (TableAnchor/Spots/Smoker|Feeder|Door|Dish) and the leftovers fly back out.
     /// Missing props (Swatter, SprayBottle, Crowbar, Reducer, NothingTag) and spots are built at runtime as placeholders.
@@ -45,19 +48,35 @@ namespace VirtualBeeSwarm
         [SerializeField] Transform spot;
 
         [Header("Arc")]
+        [Tooltip("Height over the table when there is no head to place the arc against.")]
         [SerializeField] float arcHeight = 0.25f;
-        [SerializeField] float arcSpacing = 0.22f;
+        [SerializeField] float arcSpacing = 0.21f;
         [SerializeField] float minSpacing = 0.2f;
+        [Tooltip("v3.3: the arc's centre moves this far to the player's right (-: left, away from Beeswax's presenter spot).")]
+        [SerializeField] float arcSideShift = -0.03f;
+        [Tooltip("v3.3: the arc sits this far in front of the hive's face, toward the player...")]
+        [SerializeField] float arcInFrontOfHive = 0.2f;
+        [Tooltip("...but never nearer the eye than this (horizontal).")]
+        [SerializeField] float minArcDistance = 0.42f;
+        [Tooltip("Hive roof (plus the bees on it) above the table, and half its depth: the props clear that line of sight.")]
+        [SerializeField] float hiveTop = 0.34f;
+        [SerializeField] float hiveHalfDepth = 0.13f;
+        [SerializeField] float clearAboveRoof = 0.05f;
+        [SerializeField] float minArcHeight = 0.3f;
+        [SerializeField] float maxBelowEyeMin = 0.18f;
         [Tooltip("Front edge of the table, from the hive centre toward the player (HivePlacement puts the hive 22 cm in).")]
         [SerializeField] float frontEdge = 0.22f;
         [SerializeField] float maxGazeDegrees = 25f;
         [SerializeField] float arcBend = 0.04f;
 
         [Header("Props")]
-        [SerializeField] float normalizeTo = 0.12f;
-        [SerializeField] float maxCollider = 0.16f;
+        [Tooltip("v3.3: 17 cm (was 12): readable from the player's spot.")]
+        [SerializeField] float normalizeTo = 0.17f;
+        [SerializeField] float maxCollider = 0.24f;
         [Tooltip("World scale of the price tag (the ChoiceButton) under each prop.")]
-        [SerializeField] float tagScale = 0.7f;
+        [SerializeField] float tagScale = 0.8f;
+        [Tooltip("v3.3: the price tag's centre sits this far above the prop's bottom: it covers only the prop's foot, and never the hive's face.")]
+        [SerializeField] float tagLift = 0.012f;
 
         [Header("Order")]
         [Tooltip("Right pick: set down on the spot right away (the outcome plays on the spot). Off: after the outcome visuals (feed: the pour).")]
@@ -72,6 +91,10 @@ namespace VirtualBeeSwarm
         [SerializeField] float stampSlamSeconds = 0.08f;
         [SerializeField] float stampSettleSeconds = 0.1f;
         [SerializeField] float stampStartScale = 1.6f;
+        [Tooltip("v3.3: the stamp art's settled size (x its prefab size).")]
+        [SerializeField] float stampScale = 1.3f;
+        [Tooltip("v3.3: the stamp sits this far in front of the prop, toward the eye (clear of the alarm bees).")]
+        [SerializeField] float stampForward = 0.05f;
 
         [Header("Heavy (V17)")]
         [SerializeField] float heavyBuzzPitch = 1.3f;
@@ -429,7 +452,9 @@ namespace VirtualBeeSwarm
             RestoreAll();
             ClearHint(false);
             HideStamps();
-            if (Delivery != null)
+            // v3.3: only items this delivery took over. With delivery off they were never attached, and releasing them
+            // (hide) left the builder's props (the smoker, the jar) hidden from the second run on.
+            if (Delivery != null && _attached)
                 for (int i = 0; i < _n; i++) Delivery.Release(_item[i], hide: true);
             _parked = false;
             _rightSent = false;
@@ -474,7 +499,7 @@ namespace VirtualBeeSwarm
                     float inv = 1f / Mathf.Max(1e-4f, Mathf.Abs(ls.x));
                     _tag[i].localScale = new Vector3(tagScale * inv, tagScale / Mathf.Max(1e-4f, Mathf.Abs(ls.y)), tagScale / Mathf.Max(1e-4f, Mathf.Abs(ls.z)));
                     Bounds lb = di.localBounds;
-                    _tag[i].localPosition = new Vector3(lb.center.x, lb.min.y + 0.025f / Mathf.Max(1e-4f, Mathf.Abs(ls.y)), lb.min.z - 0.012f / Mathf.Max(1e-4f, Mathf.Abs(ls.z)));
+                    _tag[i].localPosition = new Vector3(lb.center.x, lb.min.y + tagLift / Mathf.Max(1e-4f, Mathf.Abs(ls.y)), lb.min.z - 0.012f / Mathf.Max(1e-4f, Mathf.Abs(ls.z)));
                     _tag[i].localRotation = Quaternion.Euler(20f, 0f, 0f);
                     var bt = _button[i].transform;
                     bt.SetParent(_tag[i], false);
@@ -515,7 +540,12 @@ namespace VirtualBeeSwarm
         {
             if (!_attached)
             {
-                for (int i = 0; i < _n; i++) if (_placeholder[i] && _item[i].gameObject.activeSelf) _item[i].gameObject.SetActive(false);
+                // the builder's layout: its props shown (whatever hid them), the runtime placeholders hidden
+                for (int i = 0; i < _n; i++)
+                {
+                    bool on = _legacyActive[i] && !_placeholder[i];
+                    if (_item[i].gameObject.activeSelf != on) _item[i].gameObject.SetActive(on);
+                }
                 return;
             }
             _attached = false;
@@ -558,13 +588,28 @@ namespace VirtualBeeSwarm
             float tableY = Delivery.TableAnchor != null ? Delivery.TableAnchor.position.y : h.y;
             Vector3 c = h - f * frontEdge;
             c.y = tableY + arcHeight;
+            if (head != null)
+            {
+                // v3.3: closer and higher: between the eye and the hive, every prop above the sight line over the roof
+                Vector3 e = head.position;
+                Vector3 toH = h - e;
+                toH.y = 0f;
+                float dFace = Mathf.Max(0.2f, toH.magnitude - hiveHalfDepth);
+                float dArc = Mathf.Clamp(dFace - arcInFrontOfHive, Mathf.Min(minArcDistance, dFace), dFace);
+                float roof = tableY + hiveTop;
+                float sight = e.y - (e.y - roof) * dArc / dFace;
+                float y = sight + clearAboveRoof; // props stand on their pivot (the builder's props sit on y = 0)
+                float lo = tableY + minArcHeight;
+                y = Mathf.Clamp(y, lo, Mathf.Max(lo, e.y - maxBelowEyeMin));
+                c = new Vector3(e.x, y, e.z) + f * dArc + Vector3.Cross(Vector3.up, f) * arcSideShift;
+            }
             int n = _n;
             float s = arcSpacing;
             if (head != null && n > 1)
             {
                 Vector3 toC = c - head.position;
                 toC.y = 0f;
-                float d = Mathf.Max(0.2f, toC.magnitude);
+                float d = Mathf.Max(0.2f, toC.magnitude - arcBend); // the bend brings the outer ones closer
                 float maxHalf = Mathf.Tan(maxGazeDegrees * Mathf.Deg2Rad) * d;
                 float half = (n - 1) * 0.5f * s;
                 if (half > maxHalf) s = Mathf.Max(minSpacing, maxHalf / ((n - 1) * 0.5f));
@@ -657,13 +702,14 @@ namespace VirtualBeeSwarm
             Bounds lb = di != null ? di.localBounds : new Bounds(new Vector3(0f, 0.05f, 0f), Vector3.one * 0.1f);
             Vector3 c = t.TransformPoint(lb.center);
             Transform h = Delivery != null ? Delivery.Head : null;
+            // v3.3: faces the eye itself (not just its bearing: no more lying back), barely rolled, and stands
+            // stampForward in front of the prop so the alarm bees around the hive don't cover it
             Vector3 toHead = h != null ? h.position - c : -t.forward;
-            toHead.y = 0f;
             if (toHead.sqrMagnitude < 1e-6f) toHead = -t.forward;
             toHead.Normalize();
             float radius = di != null ? di.Radius : 0.05f;
-            Vector3 face = c + toHead * (radius + 0.012f);
-            Quaternion rest = Quaternion.LookRotation(toHead, Vector3.up) * Quaternion.Euler(0f, 0f, i % 2 == 0 ? -8f : 8f); // art front = +Z
+            Vector3 face = c + toHead * (radius + stampForward);
+            Quaternion rest = Quaternion.LookRotation(toHead, Vector3.up) * Quaternion.Euler(0f, 0f, i % 2 == 0 ? -3f : 3f); // art front = +Z
 
             float slam = Mathf.Max(0.01f, stampSlamSeconds), settle = Mathf.Max(0.01f, stampSettleSeconds);
             float scale, lift, pitch;
@@ -686,7 +732,7 @@ namespace VirtualBeeSwarm
 
             art.position = face + toHead * lift + Vector3.up * (lift * 0.5f);
             art.rotation = rest * Quaternion.Euler(pitch, 0f, 0f);
-            art.localScale = Vector3.one * scale; // the mount is ~unit scale in world, so this is the world size
+            art.localScale = Vector3.one * (scale * stampScale); // the mount is ~unit scale in world, so this is the world size
         }
 
         void HideStamp(int i)

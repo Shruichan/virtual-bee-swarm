@@ -129,31 +129,38 @@ namespace VirtualBeeSwarm
         // ------------------------------------------------------------ captions
         static readonly StringBuilder Sb = new StringBuilder(256);
 
-        /// <summary>Greedy word wrap for TextMesh (which can't wrap). Allocates the result: call it when the text changes.</summary>
+        /// <summary>Greedy word wrap for TextMesh (which can't wrap). Allocates the result: call it when the text changes.
+        /// Keeps the text's own line breaks, folds runs of spaces, and hard-splits a word longer than maxChars (a URL,
+        /// "BZZZZZ...") so no line is ever longer than maxChars.</summary>
         public static string Wrap(string text, int maxChars)
         {
-            if (string.IsNullOrEmpty(text) || text.Length <= maxChars) return text ?? "";
+            if (string.IsNullOrEmpty(text)) return "";
+            if (maxChars < 4) maxChars = 4;
+            if (text.Length <= maxChars && text.IndexOf('\n') < 0) return text;
             Sb.Length = 0;
             int lineLen = 0;
-            int i = 0;
-            while (i < text.Length)
+            int i = 0, n = text.Length;
+            while (i < n)
             {
-                int j = text.IndexOf(' ', i);
-                if (j < 0) j = text.Length;
+                char ch = text[i];
+                if (ch == '\n') { Sb.Append('\n'); lineLen = 0; i++; continue; }
+                if (ch == ' ' || ch == '\t' || ch == '\r') { i++; continue; }
+                int j = i;
+                while (j < n && text[j] != ' ' && text[j] != '\n' && text[j] != '\t' && text[j] != '\r') j++;
                 int wordLen = j - i;
-                if (lineLen > 0 && lineLen + 1 + wordLen > maxChars)
+                if (lineLen > 0 && lineLen + 1 + wordLen > maxChars) { Sb.Append('\n'); lineLen = 0; }
+                else if (lineLen > 0) { Sb.Append(' '); lineLen++; }
+                while (wordLen > maxChars - lineLen) // a word longer than a line: split it
                 {
-                    Sb.Append('\n');
+                    int take = maxChars - lineLen;
+                    Sb.Append(text, i, take).Append('\n');
+                    i += take;
+                    wordLen -= take;
                     lineLen = 0;
-                }
-                else if (lineLen > 0)
-                {
-                    Sb.Append(' ');
-                    lineLen++;
                 }
                 Sb.Append(text, i, wordLen);
                 lineLen += wordLen;
-                i = j + 1;
+                i = j;
             }
             return Sb.ToString();
         }

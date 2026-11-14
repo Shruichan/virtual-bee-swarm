@@ -57,6 +57,10 @@ namespace VirtualBeeSwarm.Stakes
         [SerializeField] float strikeDelay = 2f;
         [SerializeField] float strikeMaxWait = 14f;
 
+        [Header("Room")]
+        [Tooltip("Ceiling (above the floor) handed to the band when the room model has none: band centre <= ~2.25 m.")]
+        [SerializeField] float defaultCeilingAboveFloor = 2.55f;
+
         [Header("Desktop")]
         [SerializeField] KeyCode comfortKey = KeyCode.F3;
 
@@ -69,11 +73,38 @@ namespace VirtualBeeSwarm.Stakes
         public StakesRocketDisplay Display => display;
         /// <summary>The meter: meet size + 30 per grievance − 20 per fix, clamped.</summary>
         public int MeterCount => Mathf.Clamp(meetCount + Grievances * perGrievance - Fixes * perFix, minDuringStations, maxCount);
-        /// <summary>Ceiling height for the band (NaN = unknown). The room model sets it when it has one.</summary>
+        /// <summary>Ceiling height for the band (NaN = unknown). Every frame: the AR room model's ceiling when it has
+        /// one, else floor + defaultCeilingAboveFloor (see <see cref="RoomCeiling"/>). Setting it overrides that.</summary>
         public float CeilingY
         {
             get => swarm != null ? swarm.CeilingY : float.NaN;
-            set { if (swarm != null) swarm.CeilingY = value; }
+            set { _ceilingOverride = value; if (swarm != null) swarm.CeilingY = value; }
+        }
+
+        float _ceilingOverride = float.NaN, _loggedCeiling = float.NaN;
+
+        /// <summary>The ceiling the band stays under: measured (RoomModel.CeilingY), else a safe default above the floor.</summary>
+        public float RoomCeiling(out bool measured)
+        {
+            var rig = AR.ArRig.Instance;
+            var room = rig != null ? rig.Room : null;
+            measured = room != null && !float.IsNaN(room.CeilingY);
+            if (measured) return room.CeilingY;
+            return (room != null ? room.FloorY : 0f) + defaultCeilingAboveFloor;
+        }
+
+        void ApplyCeiling()
+        {
+            if (swarm == null) return;
+            bool measured = false, set = !float.IsNaN(_ceilingOverride);
+            float c = set ? _ceilingOverride : RoomCeiling(out measured);
+            if (swarm.CeilingY != c) swarm.CeilingY = c;
+            if (float.IsNaN(_loggedCeiling) || Mathf.Abs(c - _loggedCeiling) > 0.005f) // only when it changes (placement)
+            {
+                _loggedCeiling = c;
+                Debug.Log("[VBS][Stakes] swarm ceiling y=" + c.ToString("0.00") + " (" +
+                          (set ? "set by code" : measured ? "room model" : "default: no ceiling in the room model") + ")");
+            }
         }
 
         bool _poured, _explicitChoices, _subscribed;
@@ -248,6 +279,7 @@ namespace VirtualBeeSwarm.Stakes
 
         void HandleBeat(GameBeat prev, GameBeat beat)
         {
+            ApplyCeiling();
             if (beat == GameBeat.Pre) { ResetRun(prev == GameBeat.Pre ? "start" : "pre"); return; }
             bool showSwarm = StakesFlags.Swarm && swarm != null;
 
@@ -332,6 +364,7 @@ namespace VirtualBeeSwarm.Stakes
         {
             if (GameInput.KeyDown(comfortKey)) StakesFlags.Comfort = !StakesFlags.Comfort;
             if (swarm == null || director == null) return;
+            ApplyCeiling(); // before any pour / snap this frame
             if (swarm.Comfort != StakesFlags.Comfort) swarm.Comfort = StakesFlags.Comfort;
             if (!StakesFlags.Swarm && swarm.Mode != DarkSwarmMode.Hidden) swarm.Clear();
 

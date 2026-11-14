@@ -13,15 +13,18 @@ namespace VirtualBeeSwarm.Stakes
     /// <summary>
     /// The swarm's ultimatum (V13 / V19): up to 150 dark red-brown bees, 5 cm, in one instanced draw. A second swarm,
     /// separate from the hive's SwarmSystem so neither can break the other.
-    ///   PourOut(150)  bees leave the meadow window a few per frame, arc up over the player (peak at least 0.6 m above
-    ///                 the head and at least 0.4 m in front of the face, never behind) and settle in the band.
+    ///   PourOut(150)  bees leave the meadow window a few per frame, arc up over the player (peak 0.6-0.75 m above the
+    ///                 head and ~0.8 m in front of the face, ~40 deg up, so a 25-30 deg glance holds it; never behind) and
+    ///                 settle in the band.
     ///   SetCount(n)   eases the size: new bees fly out of the window into the band, extra bees fly back in.
     ///   Tendril()     8 bees dip down to the table in front of the hive and back.
     ///   Dive(n)       n bees swoop at the face and stop 40 cm short (off in comfort mode).
     ///   Home()        the bees turn gold and stream home through the window, then it hides.
     ///   Snap(n)       the end state at once (beat jumps, Board jumps): n bees in the band, nothing in flight.
     /// The band: 1.2 m wide, 0.4 m deep, centred on the head→window direction, 30° above the eye (25–35°; keep it at
-    /// 30 or less for a 3S), at least 1 m out, and below CeilingY − 0.2 when the ceiling is known.
+    /// 30 or less for a 3S), at least 1 m out, never more than maxRiseAboveEye (0.65 m) above the eye, and below
+    /// CeilingY − 0.2 (StakesDirector hands it the room model's ceiling, or a 2.55 m default). When a cap lowers it, it
+    /// comes closer (not nearer than 1 m) to stay ~30° up.
     /// Safety, applied to every bee every frame: never closer than 0.4 m to the face, never less than 0.4 m in front of
     /// the head along the head→window direction (so never beside or behind the player).
     /// Comfort: every size × 60/150 (150 → 60), straight up from the window to the band (no overhead pass), no dives.
@@ -55,12 +58,17 @@ namespace VirtualBeeSwarm.Stakes
         [SerializeField] float minElevationDeg = 25f;
         [SerializeField] float minBandDistance = 1.0f;
         [SerializeField] float ceilingMargin = 0.2f;
+        [Tooltip("The band centre never sits more than this above the eye (a far window would put it ~1.5 m up).")]
+        [SerializeField] float maxRiseAboveEye = 0.65f;
 
         [Header("Safety")]
         [Tooltip("The overhead pass peaks at least this far above the head.")]
         [SerializeField] float overheadClearance = 0.6f;
-        [Tooltip("The overhead pass peaks this far in front of the face (at least 0.4).")]
-        [SerializeField] float peakInFront = 0.5f;
+        [Tooltip("The overhead pass peaks this far in front of the face (at least 0.4). 0.8 m at 0.6-0.75 m up = ~40 deg.")]
+        [SerializeField] float peakInFront = 0.8f;
+        [Tooltip("Extra height of the peak above overheadClearance: base + up to `spread` (per bee).")]
+        [SerializeField] float peakExtra = 0.03f;
+        [SerializeField] float peakSpread = 0.12f;
         [Tooltip("No bee is ever less than this far in front of the head (along head → window).")]
         [SerializeField] float minFront = 0.4f;
         [Tooltip("Dives stop this far from the face; no bee ever comes closer.")]
@@ -128,6 +136,7 @@ namespace VirtualBeeSwarm.Stakes
                 beeMaterial = GameMaterials.Create("VBS_DarkBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
+            BeeVat.Apply(ref beeMesh, ref beeMaterial, "dark swarm"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
             Allocate();
         }
@@ -340,17 +349,18 @@ namespace VirtualBeeSwarm.Stakes
 
             float d = Mathf.Max(minBandDistance, dist);
             float y = _headPos.y + d * Mathf.Tan(bandElevationDeg * Mathf.Deg2Rad);
-            if (!float.IsNaN(CeilingY))
+            float maxY = _headPos.y + maxRiseAboveEye;
+            if (!float.IsNaN(CeilingY)) maxY = Mathf.Min(maxY, CeilingY - ceilingMargin - bandHeight * 0.5f);
+            if (y > maxY)
             {
-                float maxY = CeilingY - ceilingMargin - bandHeight * 0.5f;
-                if (y > maxY)
-                {
-                    y = maxY;
-                    // keep it at least minElevationDeg up by bringing it closer (not nearer than 0.8 m)
-                    float rise = Mathf.Max(0.05f, y - _headPos.y);
-                    float dMax = rise / Mathf.Tan(minElevationDeg * Mathf.Deg2Rad);
-                    if (dMax < d) d = Mathf.Max(0.8f, dMax);
-                }
+                y = maxY;
+                // v3.3: come closer to stay at bandElevationDeg (not nearer than minBandDistance); if even that is
+                // below minElevationDeg (a low ceiling), closer still, but not nearer than 0.8 m
+                float rise = Mathf.Max(0.05f, y - _headPos.y);
+                float dWant = Mathf.Max(minBandDistance, rise / Mathf.Tan(bandElevationDeg * Mathf.Deg2Rad));
+                if (rise / dWant < Mathf.Tan(minElevationDeg * Mathf.Deg2Rad))
+                    dWant = Mathf.Max(0.8f, rise / Mathf.Tan(minElevationDeg * Mathf.Deg2Rad));
+                if (dWant < d) d = dWant;
             }
             Vector3 desired = new Vector3(_headPos.x, y, _headPos.z) + _fwd * d;
             if (snapBand || !_bandValid) _band = desired;
@@ -422,7 +432,7 @@ namespace VirtualBeeSwarm.Stakes
                 // a cubic through the peak K at t = 0.5: K is in front of the face and high over the head
                 Vector3 k = new Vector3(_headPos.x, 0f, _headPos.z) + _fwd * Mathf.Max(0.4f, peakInFront)
                             + _right * (_slot[i].x * 0.55f)
-                            + Vector3.up * (_headPos.y + overheadClearance + 0.12f + 0.2f * r);
+                            + Vector3.up * (_headPos.y + overheadClearance + peakExtra + peakSpread * r);
                 Vector3 c = (8f * k - p0 - p3) / 6f;
                 Launch(i, now, p0, c, c, p3, pourFlightSeconds * (0.85f + 0.3f * r), AfterBand, true);
             }

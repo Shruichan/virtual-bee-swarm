@@ -22,7 +22,8 @@ namespace VirtualBeeSwarm.Capture
     /// camera (standing eye height, the player's head for the game) and a wide 3/4 camera, inside a stand-in room
     /// (floor, table, wall, warm light) that also takes the stakes dim. Voice lines are held for their clip length in
     /// game time (the player has no audio) and logged to lines.tsv; every log line goes to events.tsv with its frame.
-    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS ("pov,wide"), VBS_CAPTURE_MAX_SECONDS (stop early);
+    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS ("pov,wide"), VBS_CAPTURE_MAX_SECONDS (stop early),
+    /// VBS_CAPTURE_EVERY (write every Nth frame only: stills; the clock still runs at fps);
     /// while a file <out>/hold exists the capture waits (an encoder working through the frames).
     /// </summary>
     [DefaultExecutionOrder(10000)]
@@ -36,7 +37,7 @@ namespace VirtualBeeSwarm.Capture
         [SerializeField] Vector3 povPos = new Vector3(0f, 1.6f, -0.7f);
         [SerializeField] Vector3 povLook = new Vector3(0f, 1.02f, 0.6f);
         [SerializeField] float povFov = 56f;
-        [SerializeField] float lookUpDegrees = 48f;
+        [SerializeField] float lookUpDegrees = 30f; // v3.3: the band and the pour sit ~25-40 deg up
         [SerializeField] Vector3 widePos = new Vector3(1.5f, 1.75f, -1.95f);
         [SerializeField] Vector3 wideLook = new Vector3(-0.15f, 2.0f, 0.8f);
         [SerializeField] float wideFov = 60f;
@@ -58,7 +59,7 @@ namespace VirtualBeeSwarm.Capture
         readonly List<RenderTexture> _ss = new List<RenderTexture>(), _out = new List<RenderTexture>();
         Camera _pov;
         string _dir;
-        int _frame;
+        int _frame, _every = 1;
         bool _capturing;
         int _readbacks, _encodes;
         volatile string _writeError;
@@ -199,6 +200,7 @@ namespace VirtualBeeSwarm.Capture
         void SetUpCameras()
         {
             if (int.TryParse(Environment.GetEnvironmentVariable("VBS_CAPTURE_MAX_SECONDS"), out int maxS) && maxS > 0) maxSeconds = maxS;
+            if (int.TryParse(Environment.GetEnvironmentVariable("VBS_CAPTURE_EVERY"), out int every) && every > 1) _every = every;
             var env = Environment.GetEnvironmentVariable("VBS_CAPTURE_VIEWS");
             var want = string.IsNullOrEmpty(env) ? new[] { "pov", "wide" } : env.Split(',');
             var desk = FindAnyObjectByType<DesktopTestCamera>();
@@ -299,6 +301,7 @@ namespace VirtualBeeSwarm.Capture
         {
             if (!_capturing || _cams.Count == 0 || this == null) return;
             int frame = _frame++;
+            if (frame % _every != 0) return;
             for (int i = 0; i < _cams.Count; i++)
             {
                 _cams[i].Render();
@@ -378,9 +381,10 @@ namespace VirtualBeeSwarm.Capture
             var wall = Mat(new Color(0.96f, 0.93f, 0.87f), NoiseTexture(), 0.05f, new Vector2(3f, 2f));
             var trim = Mat(new Color(0.97f, 0.95f, 0.9f), null, 0.2f, Vector2.one);
             var rug = Mat(new Color(0.42f, 0.5f, 0.52f), NoiseTexture(), 0f, new Vector2(4f, 4f));
-            // High ceiling: the dark swarm's band sits ~3.1 m up here (nothing hands DarkSwarm a CeilingY), and on the
-            // headset nothing real hides it, so the stand-in ceiling must not either.
-            const float W = 6f, H = 3.6f, back = 6f;
+            // The ceiling the game believes in (StakesDirector hands it to the dark swarm's band), so nothing real or
+            // stand-in hides the band.
+            const float W = 6f, back = 6f;
+            float H = rig != null ? Mathf.Max(2.3f, rig.Room.CeilingOrDefault) : 2.4f;
             float midZ = wallZ - back * 0.5f;
             Box(root, "Floor", new Vector3(0f, -0.01f, midZ), new Vector3(W, 0.02f, back), floor);
             Box(root, "Ceiling", new Vector3(0f, H + 0.01f, midZ), new Vector3(W, 0.02f, back), trim);
