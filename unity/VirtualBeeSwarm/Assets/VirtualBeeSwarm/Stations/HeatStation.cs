@@ -46,6 +46,7 @@ namespace VirtualBeeSwarm
             {
                 case GameIds.Choice.DeepBowl:
                     SetActive(deepBowl, true);
+                    GameSound.Cue("bowl_splash", bowlWater != null ? bowlWater : deepBowl != null ? deepBowl.transform : null, 1.2f); // first drinker lands
                     yield return FlyDrinkers(false);
                     break;
                 case GameIds.Choice.Nothing:
@@ -54,6 +55,7 @@ namespace VirtualBeeSwarm
                     break;
                 case GameIds.Choice.PebbleDish:
                     SetActive(pebbleDish, true);
+                    GameSound.Cue("pebble_sip", pebbleDish != null ? pebbleDish.transform : null, 1.2f); // first drinker lands
                     yield return FlyDrinkers(true);
                     if (hive != null) hive.SetHeatGlow(0f);
                     if (swarm != null)

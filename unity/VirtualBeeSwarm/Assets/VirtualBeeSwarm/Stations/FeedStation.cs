@@ -98,6 +98,7 @@ namespace VirtualBeeSwarm
                 Vector3 home = prop.position;
                 Quaternion rot = prop.rotation;
                 yield return MoveTo(prop, pourPoint.position, 0.7f);
+                GameSound.Cue("jar_tip", prop);
                 float t0 = Time.time;
                 while (Time.time - t0 < 0.5f)
                 {

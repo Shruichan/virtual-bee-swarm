@@ -45,6 +45,7 @@ namespace VirtualBeeSwarm
             if (choice == GameIds.Choice.BiggerDoor)
             {
                 if (hive != null) hive.SetDoor(HiveBody.DoorSize.Big);
+                GameSound.Cue("door_widen", hive != null ? hive.DoorPoint : null);
                 yield return Wait(0.6f);
                 SetState(WaspState.Raid);
                 if (swarm != null) swarm.Spike(0.7f);
@@ -52,6 +53,7 @@ namespace VirtualBeeSwarm
             else
             {
                 if (hive != null) hive.SetDoor(HiveBody.DoorSize.Small);
+                GameSound.Cue("door_narrow", hive != null ? hive.DoorPoint : null);
                 if (swarm != null) swarm.SetGuardCount(guardsAtSmallDoor);
                 yield return Wait(1.2f);
                 SetState(WaspState.Leave);

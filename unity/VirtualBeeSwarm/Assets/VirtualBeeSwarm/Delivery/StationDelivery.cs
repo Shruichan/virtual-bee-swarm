@@ -684,6 +684,7 @@ namespace VirtualBeeSwarm
             _stampAt[i] = Time.time;
             PoseStamp(i, art, 0f);
             Debug.Log("[VBS][Stations] stamp " + (approved ? "APPROVED" : "GRIEVANCE") + " on " + t.name + ": art prefab " + prefab.name + " (slam-down)");
+            GameSound.Cue(approved ? "stamp_approved" : "stamp_grievance", t);
             return true;
         }
 

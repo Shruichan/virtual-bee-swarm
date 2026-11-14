@@ -95,6 +95,7 @@ namespace VirtualBeeSwarm
                         _state = State.Raining;
                         _rainSince = Time.time;
                         if (_rain != null) _rain.Play(true);
+                        GameSound.Cue("fire_out", cloud);
                     }
                     else if (!cloud.gameObject.activeInHierarchy) _state = State.Idle;
                     break;

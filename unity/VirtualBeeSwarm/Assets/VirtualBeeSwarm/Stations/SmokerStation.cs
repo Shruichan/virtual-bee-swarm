@@ -33,10 +33,12 @@ namespace VirtualBeeSwarm
             switch (choice)
             {
                 case GameIds.Choice.Swat:
+                    GameSound.Cue("swat");
                     if (beeswax != null) beeswax.WhipAround();
                     if (swarm != null) swarm.Spike(1f);
                     break;
                 case GameIds.Choice.SprayWater:
+                    GameSound.Cue("water_spray", waterPuff != null ? waterPuff.transform : null);
                     if (waterPuff != null) waterPuff.Emit(puffParticles);
                     if (swarm != null) swarm.Spike(0.8f);
                     break;
@@ -44,6 +46,7 @@ namespace VirtualBeeSwarm
                     for (int k = 0; k < 3; k++)
                     {
                         if (smokePuff != null) smokePuff.Emit(puffParticles);
+                        GameSound.Cue("smoker_puff", smokePuff != null ? smokePuff.transform : null);
                         yield return Wait(0.4f);
                     }
                     if (swarm != null)

@@ -258,6 +258,7 @@ namespace VirtualBeeSwarm.Stakes
             }
             _cursor = (_cursor + 17) % _n;
             if (sent > 0) Debug.Log("[VBS][Stakes] swarm tendril " + sent + " bees to the table");
+            if (sent > 0) GameSound.Cue("dark_tendril", table);
         }
 
         /// <summary>`count` bees swoop at the face and stop `faceStop` short. Off in comfort mode.</summary>
@@ -277,6 +278,7 @@ namespace VirtualBeeSwarm.Stakes
             }
             _cursor = (_cursor + 29) % _n;
             if (sent > 0) Debug.Log("[VBS][Stakes] swarm dive " + sent + " bees (stop " + faceStop.ToString("0.00") + " m from the face)");
+            if (sent > 0) GameSound.Cue("dark_dive", _headPos + toBand * faceStop);
         }
 
         /// <summary>Everything off at once (reset).</summary>

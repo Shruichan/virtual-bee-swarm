@@ -52,6 +52,8 @@ namespace VirtualBeeSwarm
         public Transform DoorPoint => doorPoint != null ? doorPoint : transform;
         public Transform SwarmCenter => swarmCenter != null ? swarmCenter : transform;
         public float HeatGlow { get; private set; }
+        /// <summary>0 = healthy .. 1 = sick (the body colour blend).</summary>
+        public float Sick => _sick;
 
         Vector3 _restPos;
         Quaternion _restRot;

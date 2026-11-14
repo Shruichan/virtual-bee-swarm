@@ -85,6 +85,7 @@ namespace VirtualBeeSwarm
             if (beeswax != null) beeswax.GoPresent();
             yield return Wait(0.8f);
             if (hive != null) hive.SetDoor(HiveBody.DoorSize.Open);
+            GameSound.Cue("door_open", hive != null ? hive.DoorPoint : null);
             yield return Wait(0.5f);
             if (swarm != null) swarm.SetMode(SwarmMode.PourOut);
             if (window != null) { window.Open(); window.Grow(); }

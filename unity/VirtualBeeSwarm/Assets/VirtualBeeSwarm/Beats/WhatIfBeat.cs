@@ -42,6 +42,8 @@ namespace VirtualBeeSwarm
 
         public bool FireStarted { get; private set; }
         public bool FireOut { get; private set; }
+        /// <summary>The talk input is held in a voice beat, online or offline (the game sound stays silent meanwhile).</summary>
+        public static bool TalkHeld { get; private set; }
 
         bool _wasOnline = true;
         bool _holdPrev;         // talk input held last frame (edge detection: one BeginTalk per press)
@@ -68,6 +70,7 @@ namespace VirtualBeeSwarm
 
         void OnDisable()
         {
+            TalkHeld = false;
             if (net == null) return;
             net.TranscriptReceived -= HandleTranscript;
             net.IntentReceived -= HandleIntent;
@@ -116,6 +119,7 @@ namespace VirtualBeeSwarm
             bool voiceBeat = IsActive || (talkInAllVoiceBeats && IsVoiceBeat(beat));
 
             bool hold = voiceBeat && (GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld() || (IsActive && GameHands.AnyPinchHeld()));
+            TalkHeld = hold;
             if (hold && !_holdPrev)
             {
                 // Decide once per press: online -> stream the mic; offline -> the release is the question (what-if only).

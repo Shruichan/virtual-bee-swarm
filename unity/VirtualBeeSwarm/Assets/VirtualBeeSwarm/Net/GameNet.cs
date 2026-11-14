@@ -121,6 +121,8 @@ namespace VirtualBeeSwarm
         public bool OrbisIsLive => orbis != null && orbis.IsLive;
         public bool HasVoiceInput => voiceInput != null;
         public bool Talking => voiceInput != null && voiceInput.IsTalking;
+        /// <summary>The mic is taking the player's voice (push-to-talk / VAD) or the hornet's hum: game sound stays silent.</summary>
+        public bool MicListening => (voiceInput != null && (voiceInput.IsTalking || voiceInput.IsDucking)) || (hum != null && hum.Listening);
         /// <summary>Between the end of an utterance and its intent: show "thinking...".</summary>
         public bool AwaitingReply => voiceInput != null && voiceInput.AwaitingReply;
         public string HostName => _bound != null ? _bound.CurrentHost : "";

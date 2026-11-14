@@ -494,6 +494,7 @@ namespace VirtualBeeSwarm
             _trail.enabled = true;
             _trailFadeStart = -1f;
             Log("ring cut r=" + radius.ToString("0.00"));
+            GameSound.Cue("window_cut", windowPose.position);
         }
 
         /// <summary>CutRing around the window pane (radius = half the pane's larger side, else 0.3 m).</summary>
@@ -606,6 +607,7 @@ namespace VirtualBeeSwarm
             di.stampAt = _now;
             if (stampClip != null && _audio != null) _audio.PlayOneShot(stampClip, 0.8f);
             Log((approved ? "APPROVED " : "GRIEVANCE ") + item.name);
+            GameSound.Cue(approved ? "stamp_approved" : "stamp_grievance", item);
         }
 
         public void ClearStamp(Transform item)
@@ -728,6 +730,7 @@ namespace VirtualBeeSwarm
                 t.SetPositionAndRotation(worldPos, worldRot);
                 t.localScale = Vector3.zero;
                 Log((land ? "swirl-deliver " : "swirl-park ") + t.name);
+                GameSound.Cue("swirl_in", t);
                 RecountInFlight();
                 return;
             }
@@ -758,6 +761,7 @@ namespace VirtualBeeSwarm
             else if (j.heavy) j.duration = Mathf.Clamp(dist / heavySpeed, crownMinSeconds, heavyMaxSeconds);
             else j.duration = Mathf.Clamp(dist / crownSpeed, crownMinSeconds, crownMaxSeconds);
             Log((land ? "deliver " : "park ") + t.name + " " + StyleName(style) + " crew " + j.crew + " " + j.duration.ToString("0.00") + " s" + (wasActive ? " (from here)" : ""));
+            GameSound.Cue(style == DeliveryStyle.Festoon ? "hive_festoon" : "crew_depart", t);
             RecountInFlight();
         }
 
@@ -815,6 +819,7 @@ namespace VirtualBeeSwarm
                 j.phase = Phase.SwirlOut;
                 j.duration = swirlSeconds;
                 Log((repo ? "swirl-repo " : "swirl-return ") + t.name);
+                GameSound.Cue("swirl_in", t);
                 RecountInFlight();
                 return;
             }
@@ -834,6 +839,7 @@ namespace VirtualBeeSwarm
                 j.duration = approachSeconds;
             }
             Log((repo ? "repo " : "return ") + t.name + " crew " + j.crew);
+            GameSound.Cue(repo ? "repo_haul" : "choices_return", t);
             RecountInFlight();
         }
 
@@ -1428,6 +1434,7 @@ namespace VirtualBeeSwarm
         void Touchdown(DeliveryItem item)
         {
             var t = item.transform;
+            GameSound.Cue(item.Heavy ? "touchdown_heavy" : "touchdown_light", t);
             if (TouchdownHook != null) { TouchdownHook(t, item.weight); return; }
             if (ArActive && Mode != DeliveryMode.Off)
             {
