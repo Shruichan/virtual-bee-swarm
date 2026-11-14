@@ -45,9 +45,9 @@ Keep the two folders side by side. The relative path in `manifest.json` depends 
 - **Internet Access = Require.** `RECORD_AUDIO` is guaranteed by a post-Gradle manifest hook (also in `ProjectBootstrap.cs`), and the base scene's OVRManager asks for it at startup.
 - Cleartext allowed (`insecureHttpOption = AlwaysAllowed`, Meta's network security config off) so the `ws://<laptop-LAN-IP>` fallback works.
 - XR Plug-in Management: **OpenXR** loader on Android and Standalone. Render mode: single-pass instanced (**multiview**).
-- OpenXR features (S1.10: **one passthrough provider**): the **Meta XR feature group** (Meta XR feature, foveation, subsampled layout) plus **Meta Quest Support** (internet permission kept) and the Oculus Touch profile. Passthrough is Meta XR Core's `OVRPassthroughLayer` on the rig. Every *Unity OpenXR: Meta* (AR Foundation) feature is **off**: Camera (it would be a second passthrough provider), Occlusion, Planes, Anchors, Bounding Boxes, Meshes, Raycasts, Session and Unity's Boundary Visibility. Planes, boxes, meshes and raycasts would each add `USE_SCENE`.
-- Meta project config: Quest 2 / Pro / 3 / 3S, **hand tracking** (controllers and hands), **passthrough required**, spatial anchors, passthrough loading screen. **Scene Support = None**, so there's no `USE_SCENE` and no scene model: nothing uses MRUK, and the table is placed by hand. The boundary follows the toggle (below).
-- The rig template (`Scenes/RigTemplate.unity`): the OVRManager doesn't request the scene permission, the boundary suppression follows the toggle, passthrough and the mic request stay on. No MRUK or `OVRSceneManager` component is allowed in it, and the bootstrap and `GameBuild` both refuse one.
+- OpenXR features (S1.10: **one passthrough provider**): the **Meta XR feature group** (Meta XR feature, foveation, subsampled layout) plus **Meta Quest Support** (internet permission kept) and the Oculus Touch profile. Passthrough is Meta XR Core's `OVRPassthroughLayer` on the rig. Of the *Unity OpenXR: Meta* (AR Foundation) features only **Session and Occlusion are on** (v3.1 V1, for the Depth API); Camera (it would be a second passthrough provider), Planes, Anchors, Bounding Boxes, Meshes, Raycasts and Unity's Boundary Visibility stay **off**. Planes, boxes, meshes and raycasts would each add `USE_SCENE`.
+- Meta project config: Quest 2 / Pro / 3 / 3S, **hand tracking** (controllers and hands), **passthrough required**, spatial anchors, passthrough loading screen. **Scene Support = Required** (v3.1 V1): `USE_SCENE` is in the manifest for the Depth API and the environment raycast (aim-and-pinch placement). There's still no scene model: nothing loads MRUK. The boundary follows the toggle (below).
+- The rig template (`Scenes/RigTemplate.unity`): the OVRManager requests the scene permission (the only requester), the boundary suppression follows the toggle, passthrough and the mic request stay on. No MRUK or `OVRSceneManager` component is allowed in it, and the bootstrap and `GameBuild` both refuse one.
 - Then Meta's **Project Setup Tool** fixes: every Required and Recommended item with an automatic fix, except two.
   - The XR Simulator install is skipped: it's an async download that batch mode would wait on until it times out.
   - MRUK's "Scene Support should be Required" rule is marked **Ignored**. It fires for any scene with an OVRCameraRig, and its fix would bring `USE_SCENE` back. Meta stores the ignore in `Assets/Oculus/OculusProjectSetupSettings.asset`, which is in git, so **Fix All** in the editor skips it on every machine.
@@ -55,9 +55,9 @@ Keep the two folders side by side. The relative path in `manifest.json` depends 
 - `Assets/Plugins/Android/AndroidManifest.xml` is re-patched from the Meta config on every run (Meta's **Update AndroidManifest.xml**). At build time Meta's hook only *adds* to a custom manifest, so a stale `USE_SCENE` in it would otherwise ship.
 - Last step: the **S1.10 check**. The run fails unless all of these hold:
   - IL2CPP, ARM64, min API 32, ASTC, Vulkan, the package name
-  - the OpenXR loader only, multiview, Meta XR feature + Quest Support on, every Unity Meta feature off
-  - Scene Support None, passthrough, hands, the boundary consistent with the toggle
-  - no `USE_SCENE` in the custom manifest, no scene-permission request in the rig template
+  - the OpenXR loader only, multiview, Meta XR feature + Quest Support on, the other Unity Meta features off
+  - Scene Support Required, Session + Occlusion on, passthrough, hands, the boundary consistent with the toggle
+  - `USE_SCENE` in the custom manifest, the scene-permission request in the rig template
   - NativeWebSocket embedded
 
   `GameBuild` runs the same check before every APK.
@@ -113,11 +113,11 @@ Only one Unity process may have the project open at a time.
 
 `GameBuild.BuildApk` (S1.14) builds type **D** (development; `Debug.isDebugBuild` is true, so this is where the self-test switches itself on; never quote fps from it) or **R** (release). Use the menu **Virtual Bee Swarm → Build Quest APK (D, development)** / **(R, release)**, or headless with `VBS_BUILD_TYPE=D|R`. Each build does this:
 1. Checks the Android target and the S1.10 settings.
-2. Runs the scene builder and checks the scene: no MRUK, no scene-permission request.
+2. Runs the scene builder and checks the scene: no MRUK, and the OVRManager requests the scene permission.
 3. Writes `HIVE_TOKEN` into `Assets/Resources/beeswax_token.txt` and deletes it after the build. There's no build without a token.
 4. Signs with the shared debug keystore. The passwords come from env vars and never reach `ProjectSettings`.
 5. Writes `VirtualBeeSwarm-<D|R>-<n>-<commit or date>.apk`.
-6. Checks the manifest with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking and PASSTHROUGH must be there, and USE_SCENE must not. A failed check renames the APK `*.apk.REJECTED`.
+6. Checks the manifest with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH, USE_SCENE and USE_ANCHOR_API must be there. A failed check renames the APK `*.apk.REJECTED`.
 
 The env vars are listed at the top of `Editor/GameBuild.cs`. The keystore and its passwords live outside the repo, in `~/immerse-the-bay/keys/` on pop-os (S1.7).
 

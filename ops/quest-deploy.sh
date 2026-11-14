@@ -12,7 +12,9 @@
 #   --no-launch  install only: no logcat -c, no launch, no logging
 #
 # What it does:
-#   1. adb install -r -g APK (-g grants RECORD_AUDIO and the other runtime permissions, so no mic dialog).
+#   1. adb install -r -g APK (-g grants RECORD_AUDIO and the other runtime permissions, so no mic dialog), then
+#      pm grant USE_SCENE + RECORD_AUDIO again and checks `dumpsys package` shows both granted=true (PLAN.md V1:
+#      a judge must never see a permission dialog; depth + raycast placement wait for USE_SCENE).
 #      On INSTALL_FAILED_UPDATE_INCOMPATIBLE (the installed copy was signed with a different key) or
 #      INSTALL_FAILED_VERSION_DOWNGRADE, it uninstalls the app and installs again. The uninstall wipes the app's
 #      data, including a tuning.json pushed into its persistentDataPath.
@@ -102,8 +104,14 @@ if echo "$out" | grep -qE "INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VER
 fi
 echo "$out" | grep -q "^Success" || die "install failed (see above)"
 echo "quest-deploy: installed in $(( $(date +%s) - t0 )) s"
-# -g already grants it; this is only a fallback for installers that ignore -g.
+# -g already grants them; this is the fallback for installers that ignore -g, then a check (V1).
 q shell pm grant "$pkg" android.permission.RECORD_AUDIO >/dev/null 2>&1 || true
+q shell pm grant "$pkg" com.oculus.permission.USE_SCENE >/dev/null 2>&1 || true
+perms="$(q shell dumpsys package "$pkg" 2>/dev/null | tr -d '\r' | grep -E "(com\.oculus\.permission\.USE_SCENE|android\.permission\.RECORD_AUDIO): granted=")"
+for p in com.oculus.permission.USE_SCENE android.permission.RECORD_AUDIO; do
+  if echo "$perms" | grep -q "$p: granted=true"; then echo "quest-deploy: $p granted"
+  else echo "quest-deploy: WARNING: $p is NOT granted (a permission dialog will show; USE_SCENE off = manual placement, no occlusion)" >&2; fi
+done
 
 [ "$launch" = 1 ] || { echo "quest-deploy: --no-launch: done"; exit 0; }
 

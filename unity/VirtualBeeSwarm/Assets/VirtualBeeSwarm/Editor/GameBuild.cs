@@ -18,14 +18,15 @@ namespace VirtualBeeSwarm.Editor
     /// self-test can switch itself on; never quote fps from it) and R = release. Each build:
     ///   1. checks the Android target is active and the S1.10 Quest settings hold (ProjectBootstrap's check);
     ///   2. runs the scene builder (VirtualBeeSwarm.unity is a build output) and checks the build list is exactly that
-    ///      scene, with no MRUK / scene-model component and no scene-permission request in it;
+    ///      scene, with no MRUK / scene-model component in it, and its OVRManager requesting the scene permission
+    ///      (the only requester: PLAN.md V1);
     ///   3. writes the Hive token from the HIVE_TOKEN env var into Assets/Resources/beeswax_token.txt (git-ignored)
     ///      and deletes it again after the build, whatever happens. No token = no build;
     ///   4. signs with the shared debug keystore (kept outside the repo; the passwords come from env vars and are
     ///      never saved into ProjectSettings);
     ///   5. writes &lt;VBS_BUILD_DIR&gt;/VirtualBeeSwarm-&lt;D|R&gt;-&lt;n&gt;-&lt;commit or date&gt;.apk;
-    ///   6. checks the APK's manifest with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking and PASSTHROUGH
-    ///      present, USE_SCENE absent. A failed check renames the APK to *.apk.REJECTED and the build fails.
+    ///   6. checks the APK's manifest with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH,
+    ///      USE_SCENE and USE_ANCHOR_API present. A failed check renames the APK to *.apk.REJECTED and the build fails.
     ///
     /// Headless (exit code 0 = a checked APK was written):
     ///   HIVE_TOKEN=... VBS_KEYSTORE_PASS=... Unity -batchmode -nographics -quit -projectPath P -buildTarget Android \
@@ -58,10 +59,12 @@ namespace VirtualBeeSwarm.Editor
             ("hand tracking permission", @"uses-permission: name='com\.oculus\.permission\.HAND_TRACKING'"),
             ("hand tracking feature", @"uses-feature(-not-required)?: name='oculus\.software\.handtracking'"),
             ("PASSTHROUGH feature", @"uses-feature(-not-required)?: name='com\.oculus\.feature\.PASSTHROUGH'"),
+            // V1: the Depth API and EnvironmentRaycastManager wait for USE_SCENE; anchors keep world-locking.
+            ("USE_SCENE", @"uses-permission: name='com\.oculus\.permission\.USE_SCENE'"),
+            ("USE_ANCHOR_API", @"uses-permission: name='com\.oculus\.permission\.USE_ANCHOR_API'"),
         };
         static readonly (string what, string pattern)[] Forbidden =
         {
-            ("USE_SCENE", @"com\.oculus\.permission\.USE_SCENE"),
         };
 
         [MenuItem("Virtual Bee Swarm/Build Quest APK (D, development)")]
@@ -192,9 +195,9 @@ namespace VirtualBeeSwarm.Editor
                 managers++;
                 var so = new SerializedObject(c);
                 var scenePerm = so.FindProperty("requestScenePermissionOnStartup");
-                if (scenePerm != null && scenePerm.boolValue)
-                    throw new Exception($"{scenePath}: OVRManager requests the scene permission at startup (S1.10: no USE_SCENE). " +
-                                        "Re-run the bootstrap (it fixes the rig template), then build again.");
+                if (scenePerm == null || !scenePerm.boolValue)
+                    throw new Exception($"{scenePath}: OVRManager doesn't request the scene permission at startup (V1: it is the only " +
+                                        "USE_SCENE requester). Re-run the bootstrap (it fixes the rig template), then build again.");
             }
             if (managers != 1) throw new Exception($"{scenePath} should have exactly 1 OVRManager, has {managers}");
         }
@@ -436,7 +439,7 @@ namespace VirtualBeeSwarm.Editor
                 File.Move(apk, rejected);
                 throw new Exception("manifest check FAILED: " + string.Join("; ", problems) + $" (APK renamed to {rejected})");
             }
-            Debug.Log($"{Tag} manifest check: PASS (RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH; no USE_SCENE)");
+            Debug.Log($"{Tag} manifest check: PASS (RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH, USE_SCENE, USE_ANCHOR_API)");
         }
 
         static string FindAapt2()

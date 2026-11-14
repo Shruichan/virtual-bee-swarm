@@ -37,7 +37,7 @@ Hosts are tried in order: `wss://beeswax-venue.drori.dev` (the venue laptop on d
 
 | Object | What |
 |---|---|
-| `OVRCameraRig` | Copied from the rig template `Scenes/RigTemplate.unity`: passthrough underlay, mic permission request at startup (no scene permission: S1.10), boundary per the toggle (off by default, `README-setup.md`), floor-level origin, an `OVRHand` + `OVRSkeleton` per hand (no hand mesh, so the real hands show). |
+| `OVRCameraRig` | Copied from the rig template `Scenes/RigTemplate.unity`: passthrough underlay, mic and scene (USE_SCENE) permission requests at startup (v3.1 V1), boundary per the toggle (off by default, `README-setup.md`), floor-level origin, an `OVRHand` + `OVRSkeleton` per hand (no hand mesh, so the real hands show). |
 | `Beeswax (client)` | `BeeswaxBus`, `BeeswaxStations`, `HumDetector`, `BeeswaxVoiceInput`, `LatencyReporter`. No token in the scene. |
 | `GameRig/Systems` | `GameNet` (the only code that calls the client), `GameDirector` (the beat clock), debug HUD, autopilot, `Beats/` (intro, hornet, what-if, escape, T-0, map). |
 | `GameRig/TableAnchor` | Everything on the table: hive + hexagons, HONEYMOON-1, the meadow window (`OrbisWindow` + embers), Beeswax (`BeeswaxRoomVoice` + `AudioSource`), the four stations, thermometer, score card, map, Moon. `HivePlacement` on the base plate moves it. |
@@ -80,7 +80,7 @@ materials and meshes are kept.
 | F / P | what-if: "what if a fire starts?" / "put it out!" (offline/operator backup) |
 | K | hornet: auto / always / never |
 | O | force offline on/off |
-| F2 | autopilot: plays the whole show (wrong choice first at each station, hornet on) |
+| F2 | autopilot: plays the whole show (wrong choice first at each station; the hornet is cut in v3.1, K brings it back) |
 | F1 | debug HUD |
 | Right mouse + WASD, Q/E | look and move |
 
@@ -93,9 +93,9 @@ One-time setup:
    copies B or C.
 3. Run **Virtual Bee Swarm → Bootstrap Project Settings** twice. The first run applies the Android settings and the
    second must change nothing. The last line has to say `S1.10 check: PASS`. That check covers:
-   - one passthrough provider (Meta XR feature + Meta Quest Support, every Unity OpenXR: Meta feature off)
+   - one passthrough provider (Meta XR feature + Meta Quest Support; of the Unity OpenXR: Meta features only Session and Occlusion are on)
    - multiview, IL2CPP ARM64, ASTC, min API 32, Vulkan
-   - no `USE_SCENE`, no MRUK scene loading, the boundary toggle, NativeWebSocket vendored
+   - `USE_SCENE` (Scene Support Required, v3.1 V1), no MRUK scene loading, the boundary toggle, NativeWebSocket vendored
 
    Details are in `README-setup.md`. **Meta XR → Project Setup Tool** should then show only the XR Simulator item open.
 4. Get the shared **debug keystore** and the **Hive token** from Rome (S1.7). Both stay outside the repo. Set the env
@@ -116,11 +116,11 @@ Build (S1.14):
 - On pop-os, run `~/immerse-the-bay/unity-work/A/build-apk.sh D`. It reads the token and the keystore settings itself
   and writes `~/immerse-the-bay/unity-work/builds/VirtualBeeSwarm-D-<n>-<date>.apk` plus `<apk>.manifest.txt`.
 - Every build does these steps:
-  1. runs the scene builder and refuses MRUK or a scene-permission request
+  1. runs the scene builder, refuses MRUK and requires the OVRManager scene-permission request
   2. injects `HIVE_TOKEN` into `Assets/Resources/beeswax_token.txt` and deletes it afterwards (no token, no build)
   3. signs with the shared keystore
-  4. checks the APK with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking and PASSTHROUGH must be there, and
-     USE_SCENE must not
+  4. checks the APK with aapt2: RECORD_AUDIO, INTERNET, cleartext, hand tracking, PASSTHROUGH,
+     USE_SCENE and USE_ANCHOR_API must be there
 - D = development build (`Debug.isDebugBuild` is true, so the self-test can switch on; never quote fps from it). R =
   release. Without git, the APK's name carries the date-time.
 
