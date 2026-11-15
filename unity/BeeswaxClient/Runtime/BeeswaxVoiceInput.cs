@@ -151,6 +151,7 @@ namespace Beeswax
         byte[] _frame = new byte[1280];
         int _frameFill;
         string _deliverMode = ListenMode.Ptt;
+        string _utteranceGroup;
 
         // VAD
         float _floorDb = -60f, _vadOnset, _vadSilence, _vadSpeech;
@@ -168,7 +169,7 @@ namespace Beeswax
         void OnDisable()
         {
             if (_talking) Finish(EndReason.Disabled, cancel: true);
-            DropDelivery();
+            DiscardPending();
             SetDuck(false);
             CloseMic();
             Unbind();
@@ -217,6 +218,17 @@ namespace Beeswax
         public void Cancel()
         {
             if (_talking) Finish(EndReason.Cancelled, cancel: true);
+        }
+
+        /// <summary>Leave a gameplay beat: stop capture and discard audio waiting for a reconnect.</summary>
+        public void DiscardPending()
+        {
+            Cancel();
+            DropDelivery();
+            _prerollCount = 0;
+            _endSentAt = -1f;
+            _utteranceGroup = null;
+            LatencyReporter.Clear("voice");
         }
 
         /// <summary>Open the mic now so the next BeginTalk has pre-roll and no start-up gap.</summary>
@@ -326,6 +338,7 @@ namespace Beeswax
             _endSentAt = -1f;
             TalkModeName = listenMode;
             _deliverMode = listenMode;
+            _utteranceGroup = _bound?.GroupId;
             _frames.Clear();
             _sent = 0;
             _streamOpen = false;
@@ -375,15 +388,22 @@ namespace Beeswax
         void Deliver(float now)
         {
             var b = _bound;
-            if (b != null)
+            if (b != null && b.State == BusState.Welcomed)
             {
+                // A new group may have started while this device was away. Wait for welcome before replaying audio.
+                if (!string.IsNullOrEmpty(_utteranceGroup) && _utteranceGroup != b.GroupId)
+                {
+                    DiscardPending();
+                    return;
+                }
+                _utteranceGroup = b.GroupId;
                 if (_streamOpen && !b.IsListening)
                 {
                     // The link dropped (or someone else closed the utterance): the Hive lost it. Re-send from the start.
                     _streamOpen = false;
                     _sent = 0;
                 }
-                if (!_streamOpen && b.IsConnected && b.SendListenStart(_deliverMode)) { _streamOpen = true; _sent = 0; }
+                if (!_streamOpen && b.SendListenStart(_deliverMode)) { _streamOpen = true; _sent = 0; }
                 if (_streamOpen)
                 {
                     while (_sent < _frames.Count && b.QueuedSendBytes < maxQueuedSendBytes)
@@ -413,7 +433,7 @@ namespace Beeswax
         void FlushDelivery()
         {
             var b = _bound;
-            if (_streamOpen && b != null && b.IsListening)
+            if (_streamOpen && b != null && b.State == BusState.Welcomed && _utteranceGroup == b.GroupId && b.IsListening)
             {
                 while (_sent < _frames.Count && b.SendMicFrame(_frames[_sent])) _sent++;
                 b.SendListenEnd(cancel: _sent < _frames.Count);

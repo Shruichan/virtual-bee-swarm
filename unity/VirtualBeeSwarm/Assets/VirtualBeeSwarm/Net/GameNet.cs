@@ -109,7 +109,7 @@ namespace VirtualBeeSwarm
         public bool ForceOffline
         {
             get => forceOffline;
-            set { forceOffline = value; if (value) EndTalk(true); }
+            set { forceOffline = value; if (value && voiceInput != null) voiceInput.DiscardPending(); }
         }
         public string CurrentScene { get; private set; } = "";
         public bool IsSpeaking => voice != null ? voice.IsSpeaking : Time.time < _localCaptionUntil;
@@ -317,6 +317,7 @@ namespace VirtualBeeSwarm
         void HandleGroupReset(Beeswax.GroupReset g)
         {
             if (forceOffline) return;
+            if (voiceInput != null) voiceInput.DiscardPending();
             _hasPending = false;
             _localCaptionUntil = -1f;
             if (logEvents) Debug.Log("[VBS] <- group.reset");
@@ -390,9 +391,13 @@ namespace VirtualBeeSwarm
         }
 
         // ---------------------------------------------------------------- outbound
+        GameBeat? _lastReportedBeat;
+
         /// <summary>Unity is the only beat clock: report every beat change. The bus re-sends it after a reconnect.</summary>
         public void SendBeat(GameBeat beat, int? scoreSeconds = null)
         {
+            if (_lastReportedBeat != beat && voiceInput != null) voiceInput.DiscardPending();
+            _lastReportedBeat = beat;
             if (logEvents) Debug.Log("[VBS] beat " + (int)beat + " " + GameIds.BeatName(beat) + (Online ? "" : " (offline)"));
             if (forceOffline || _bound == null) return;
             _bound.SendBeatSet((int)beat, scoreSeconds);

@@ -388,6 +388,8 @@ interface VoiceTurn {
   group: string;
   beat: BeatName;
   beatRevision: number;
+  groupRevision: number;
+  isLatestListen?: () => boolean;
 }
 
 interface Listen {
@@ -482,6 +484,7 @@ export function startHive(opts: HiveOptions): Hive {
   const prewarmStaleMs = opts.prewarmStaleMs ?? 45 * 60_000;
   const state = createState();
   let beatRevision = 0;
+  let groupRevision = 0;
   const jobs = new Map<string, ScanJob>(); // by scan_id (current + recent, for idempotent retries)
   const audio = new AudioCache(50);
   let baseUrl = opts.publicBaseUrl?.replace(/\/+$/, "") || "";
@@ -1122,6 +1125,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   function groupReset(): void {
+    groupRevision++;
     dropJobs();
     for (const [id, l] of listens) {
       clearTimeout(l.watchdog);
@@ -1140,15 +1144,17 @@ export function startHive(opts: HiveOptions): Hive {
   // ------------------------------------------------------------ voice in: listen.start, MIC_PCM16, listen.end
 
   const listens = new Map<string, Listen>(); // by client id
+  const latestListen = new WeakMap<Client, number>();
   const strayWarned = new Set<string>();
   let listenSeq = 0;
 
-  function captureVoiceTurn(): VoiceTurn {
-    return { group: state.group_id, beat: beatName(state), beatRevision };
+  function captureVoiceTurn(isLatestListen?: () => boolean): VoiceTurn {
+    return { group: state.group_id, beat: beatName(state), beatRevision, groupRevision, isLatestListen };
   }
 
   function voiceTurnIsCurrent(turn: VoiceTurn, operator = false): boolean {
-    return turn.group === state.group_id && (operator || turn.beatRevision === beatRevision);
+    return turn.groupRevision === groupRevision &&
+      (operator || turn.beatRevision === beatRevision) && turn.isLatestListen?.() !== false;
   }
 
   function listenStart(ws: Client, mode: "ptt" | "vad"): void {
@@ -1159,6 +1165,7 @@ export function startHive(opts: HiveOptions): Hive {
       log(`listen ${id}#${old.n}: restarted, ${old.bytes} bytes dropped`);
     }
     const n = ++listenSeq;
+    latestListen.set(ws, n);
     const watchdog = setTimeout(() => {
       if (listens.get(id)?.n !== n) return;
       log(`listen ${id}#${n}: no listen.end after ${listenWatchdogMs} ms, finishing`);
@@ -1167,7 +1174,7 @@ export function startHive(opts: HiveOptions): Hive {
     listens.set(id, {
       n,
       source: ws.data.role === "glasses" ? "glasses" : "quest",
-      turn: captureVoiceTurn(),
+      turn: captureVoiceTurn(() => latestListen.get(ws) === n),
       mode,
       startedAt: Date.now(),
       chunks: [],
@@ -1201,6 +1208,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   function finishListen(ws: Client, why: "end" | "cancel" | "closed" | "watchdog"): void {
+    if (why === "closed" || why === "cancel") latestListen.delete(ws);
     const l = listens.get(ws.data.id);
     if (!l) {
       if (why === "end" || why === "cancel") log(`listen ${ws.data.id}: listen.end without listen.start`);

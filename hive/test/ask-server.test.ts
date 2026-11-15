@@ -62,7 +62,9 @@ afterEach(async () => {
 
 describe("ASK BEESWAX in the Hive", () => {
 
-  test.each(["transcription", "routing"] as const)("group reset discards an utterance waiting on %s", async (stage) => {
+  test.each(["transcription", "routing", "transcription with the same group ID"] as const)("group reset discards an utterance waiting on %s", async (scenario) => {
+    const stage = scenario === "routing" ? "routing" : "transcription";
+    const reuseGroupId = scenario === "transcription with the same group ID";
     const reached = Promise.withResolvers<void>();
     const resume = Promise.withResolvers<void>();
     const wait = async (pendingStage: typeof stage) => {
@@ -86,7 +88,7 @@ describe("ASK BEESWAX in the Hive", () => {
     await setBeat(quest, board, "whatif", 8);
     quest.say(question);
     await reached.promise;
-    board.send({ type: "group.reset" });
+    board.send({ type: "group.reset", ...(reuseGroupId ? { group_id: hive.state.group_id } : {}) });
     try {
       await quest.waitFor("group.reset");
       const before = quest.msgs.length;
@@ -95,6 +97,54 @@ describe("ASK BEESWAX in the Hive", () => {
       const afterReset = quest.msgs.slice(before);
       expect(afterReset.some((m) => m.type === "transcript" || m.type === "intent")).toBe(false);
       expect(afterReset.some((m) => m.type === "orbis" && m.scene === "whatif_fire")).toBe(false);
+    } finally {
+      resume.resolve();
+    }
+  });
+
+  test.each(["disconnect", "cancel after watchdog", "new utterance"] as const)("%s invalidates pending microphone transcription", async (change) => {
+    const reached = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const oldQuestion = "what if a fire starts?";
+    const newQuestion = "what if it rains?";
+    hive = makeHive({
+      transcribe: async (pcm) => {
+        const transcript = mockTranscribe(pcm);
+        if (transcript.text === oldQuestion) {
+          reached.resolve();
+          await resume.promise;
+        }
+        return transcript;
+      },
+    }, { listenWatchdogMs: 20 }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "whatif", 8);
+    if (change === "cancel after watchdog") {
+      quest.send({ type: "listen.start", mode: "ptt" });
+      quest.sendMic(new TextEncoder().encode(oldQuestion));
+    } else {
+      quest.say(oldQuestion);
+    }
+    try {
+      await reached.promise;
+      if (change === "disconnect") {
+        quest.close();
+        await board.waitFor("log", (m) => m.text === "quest disconnected");
+        await connect("quest");
+      } else if (change === "cancel after watchdog") {
+        quest.send({ type: "listen.end", cancel: true });
+        // A duplicate beat.set on the same socket acknowledges ordering without changing the beat revision.
+        board.events.length = 0;
+        await setBeat(quest, board, "whatif", 8);
+      } else {
+        quest.say(newQuestion);
+        await board.waitFor("intent", (m) => m.text === newQuestion && m.topic === "rain");
+      }
+      resume.resolve();
+      await Bun.sleep(60);
+      expect(board.of("intent").some((m) => m.text === oldQuestion)).toBe(false);
+      expect(board.of("orbis").some((m) => m.scene === "whatif_fire")).toBe(false);
     } finally {
       resume.resolve();
     }
