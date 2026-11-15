@@ -205,6 +205,12 @@ namespace VirtualBeeSwarm.Tests
             yield return WaitUntil(() => escape.LastScore.Length > 0, 10f, "score");
             Debug.Log("[VBSTest] " + escape.LastScore + " (scaled time x" + TimeScale + ")");
 
+            bool moonLineStarted = false;
+            net.VoiceLineStarted += line =>
+            {
+                if (line.id == GameLines.RoomT0FakeMoon.id && director.Beat == GameBeat.T0)
+                    moonLineStarted = true;
+            };
             yield return WaitForBeat(director, GameBeat.T0, 40f);
             var launch = UnityEngine.Object.FindAnyObjectByType<T0Sequence>();
             Assert.IsNotNull(launch, "launch sequence");
@@ -217,6 +223,7 @@ namespace VirtualBeeSwarm.Tests
             Assert.AreEqual(GameBeat.T0, director.Beat, "the Moon award is shown before the map");
             Assert.IsTrue(launch.MoonAwardVisible, "the rocket scene reveals the Moon award");
             yield return WaitForBeat(director, GameBeat.Map, 90f);
+            Assert.IsTrue(moonLineStarted, "Beeswax explains the award during the rocket scene");
             var map = UnityEngine.Object.FindAnyObjectByType<LevelMap>();
             Assert.IsNotNull(map, "level map");
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");

@@ -263,6 +263,8 @@ namespace VirtualBeeSwarm
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
 
             yield return SayAndWait(GameLines.T0Back, 2.5f, 7f);
+            // The award line belongs to this reveal, so clear any earlier narration still queued.
+            if (net != null) net.StopVoice();
             MoonAwardVisible = true;
             yield return SayAndWait(GameLines.RoomT0FakeMoon, 2.5f, LineTime.Seconds(net, GameLines.RoomT0FakeMoon) + 1f);
             Complete(0.7f);
