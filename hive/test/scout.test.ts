@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, IDLE_EVERY_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
-import { SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel } from "../src/scout-protocol";
+import { SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel } from "../src/scout-protocol";
 import { makeHive, TestClient, TOKEN } from "./helpers";
 
 const LINES = loadScoutLines();
@@ -656,6 +656,294 @@ describe("SCOUT_PRACTICE env", () => {
     } finally {
       if (prev === undefined) delete process.env.SCOUT_PRACTICE;
       else process.env.SCOUT_PRACTICE = prev;
+    }
+  });
+});
+
+// ---------------------------------------------------------------- booth mode (pitch/scout-booth.md)
+
+const B = SCOUT_BOOTH_TUNING;
+type Box = { label: ScoutClass; score: number; x: number; y: number; w: number; h: number; via?: "detector" | "marker" | "refs" };
+/** A box centered at (cx, cy), w x h, normalized. */
+const box = (label: ScoutClass, cx = 0.5, cy = 0.5, w = 0.2, h = 0.25, score = 0.8, via?: Box["via"]): Box => ({
+  label,
+  score,
+  x: cx - w / 2,
+  y: cy - h / 2,
+  w,
+  h,
+  ...(via ? { via } : {}),
+});
+
+function boothReady(order?: ScoutLabel[]) {
+  const s = setup();
+  s.game.setMode("booth", order);
+  s.game.start();
+  s.advance(1000 + B.gapMs + 100); // one intro line, then the booth gap
+  s.says.length = 0;
+  s.events.length = 0;
+  const see = (boxes: Box[], ms: number, top: { label: ScoutClass; score: number }[] = [{ label: "background", score: 0.5 }]) => {
+    for (let t = 0; t <= ms; t += 100) {
+      s.game.frame({ at: s.now(), frame_ms: 30, fps: 10, top, boxes, source: "test" });
+      if (t < ms) s.advance(100);
+    }
+  };
+  return { ...s, see };
+}
+
+describe("booth lines", () => {
+  test("every booth line id has a placeholder; the booth file is merged in", () => {
+    const have = new Map(LINES.map((l) => [l.id, l]));
+    const need: string[] = [SCOUT_BOOTH_LINES.intro, SCOUT_BOOTH_LINES.chimeAsk, SCOUT_BOOTH_LINES.silenceYes, SCOUT_BOOTH_LINES.no, SCOUT_BOOTH_LINES.rude, SCOUT_BOOTH_LINES.done];
+    need.push(...Object.values(SCOUT_BOOTH_LINES.dir), ...SCOUT_LABELS.map((l) => SCOUT_BOOTH_LINES.next(l)));
+    for (const id of need) expect(have.get(id)?.text, id).toBeTruthy();
+    expect(have.get("scout_chime_ask")!.text).toContain("learn more");
+    expect(have.has("scout_hook_beehive")).toBe(true); // the main file is still there
+  });
+});
+
+describe("booth mode", () => {
+  test("mode, order and next in the state; start plays the one booth intro", () => {
+    const s = setup();
+    s.game.setMode("booth");
+    expect(s.game.state()).toMatchObject({ mode: "booth", practice: false, next: "native_flower", order: [...SCOUT_BOOTH_ORDER] });
+    expect(SCOUT_BOOTH_ORDER.slice(0, 4)).toEqual(["native_flower", "honey_jar", "bug_spray", "bee_hotel"]);
+    s.game.start();
+    expect(s.ids()).toEqual(["scout_booth_intro"]);
+    expect(s.game.state().phase).toBe("intro");
+    s.game.setMode("demo");
+    expect(s.game.state()).toMatchObject({ mode: "demo", next: null });
+  });
+
+  test("only the expected-next object triggers: chime_ask, then offering", () => {
+    const s = boothReady();
+    s.look("honey_jar", 3000); // a later station, steady and clear
+    expect(s.says).toEqual([]);
+    expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "honey_jar", reason: "not_next" });
+    s.look("native_flower", T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+    expect(s.game.state()).toMatchObject({ phase: "offering", offer: "native_flower" });
+    expect(s.events.find((e) => e.type === "found")).toMatchObject({ label: "native_flower" });
+  });
+
+  test("a neighbour slightly ahead in the scores still loses to the expected object", () => {
+    const s = boothReady();
+    for (let t = 0; t <= T.steadyMs + 100; t += 100) {
+      s.frame([
+        { label: "honey_jar", score: 0.8 },
+        { label: "native_flower", score: 0.74 },
+      ]);
+      s.advance(100);
+    }
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+    expect(s.game.state().offer).toBe("native_flower");
+  });
+
+  test("boxes: the most central expected box wins; a lone edge box only cues", () => {
+    const s = boothReady();
+    s.see([box("native_flower", 0.1), box("honey_jar", 0.5), box("native_flower", 0.52)], T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+
+    const t = boothReady();
+    t.see([box("native_flower", 0.1), box("honey_jar", 0.5)], 3000, [{ label: "native_flower", score: 0.9 }]);
+    expect(t.ids()).toEqual(["scout_dir_left"]); // seen at the frame edge: guide, don't trigger
+    expect(t.game.state().phase).toBe("looking");
+  });
+
+  test("an AprilTag (via marker) counts at any score", () => {
+    const s = boothReady();
+    s.see([box("native_flower", 0.5, 0.5, 0.15, 0.15, 0.3, "marker")], T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+  });
+
+  test("yes -> fact -> direction to the next station -> looking for it", () => {
+    const s = boothReady();
+    s.look("native_flower", T.steadyMs + 100);
+    expect(s.game.utterance("yes")).toBe("yes");
+    expect(s.ids()).toEqual(["scout_chime_ask", "scout_fact_native_flower", "scout_next_honey_jar"]);
+    expect(s.game.state()).toMatchObject({ phase: "telling", found: ["native_flower"], next: "honey_jar" });
+    s.advance(3000);
+    expect(s.game.state()).toMatchObject({ phase: "looking", offer: null, next: "honey_jar" });
+  });
+
+  test("the glasses button is yes", () => {
+    const s = boothReady();
+    s.look("native_flower", T.steadyMs + 100);
+    expect(s.game.button()).toBe(true);
+    expect(s.ids()).toContain("scout_fact_native_flower");
+  });
+
+  test("silence counts as yes after 4 s from the end of the ask", () => {
+    const s = boothReady();
+    s.look("native_flower", T.steadyMs + 100);
+    s.advance(1000 + B.offerTimeoutMs - 300);
+    expect(s.game.state().phase).toBe("offering");
+    s.advance(400);
+    expect(s.ids()).toEqual(["scout_chime_ask", "scout_silence_yes", "scout_fact_native_flower", "scout_next_honey_jar"]);
+    expect(s.game.state()).toMatchObject({ found: ["native_flower"], next: "honey_jar" });
+  });
+
+  test("no -> short reply, then on to the next station anyway; go away -> rude, on", () => {
+    const s = boothReady();
+    s.look("native_flower", T.steadyMs + 100);
+    expect(s.game.utterance("no thanks")).toBe("no");
+    expect(s.ids()).toEqual(["scout_chime_ask", "scout_booth_no", "scout_next_honey_jar"]);
+    expect(s.game.state()).toMatchObject({ found: [], skipped: ["native_flower"], next: "honey_jar" });
+    s.advance(3000 + B.gapMs);
+    s.says.length = 0;
+    s.look("honey_jar", T.steadyMs + 100);
+    expect(s.game.utterance("go away")).toBe("rude");
+    expect(s.ids()).toEqual(["scout_chime_ask", "scout_rude", "scout_next_bug_spray"]);
+    expect(s.game.state().next).toBe("bug_spray");
+  });
+
+  test("after the last station: fact, scout_booth_done, phase done", () => {
+    const s = boothReady(["honey_jar", "bug_spray"]);
+    expect(s.game.state().next).toBe("honey_jar");
+    s.look("honey_jar", T.steadyMs + 100);
+    s.game.utterance("sure");
+    s.advance(3000 + B.gapMs);
+    s.says.length = 0;
+    s.look("bug_spray", T.steadyMs + 100);
+    s.game.utterance("yes");
+    expect(s.ids()).toEqual(["scout_chime_ask", "scout_fact_bug_spray", "scout_booth_done"]);
+    expect(s.game.state()).toMatchObject({ phase: "done", next: null, found: ["honey_jar", "bug_spray"] });
+    s.advance(20_000);
+    s.look("native_flower", 2000);
+    expect(s.ids().at(-1)).toBe("scout_booth_done");
+  });
+
+  test("the booth gap: 1.5 s after the station lines end", () => {
+    const s = boothReady();
+    s.look("native_flower", T.steadyMs);
+    s.game.utterance("yes"); // ask + fact + direction end 3 s after the find
+    s.advance(3000);
+    s.says.length = 0;
+    s.look("honey_jar", B.gapMs - 100);
+    expect(s.ids()).toEqual([]);
+    s.look("honey_jar", 200);
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+  });
+
+  test("direction cues: left, right, closer, down; at most one every 8 s", () => {
+    const s = boothReady();
+    s.see([box("native_flower", 0.15)], 500);
+    expect(s.ids()).toEqual(["scout_dir_left"]);
+    s.see([box("native_flower", 0.85)], B.cueEveryMs - 1000);
+    expect(s.ids()).toEqual(["scout_dir_left"]);
+    s.see([box("native_flower", 0.85)], 1000);
+    expect(s.ids()).toEqual(["scout_dir_left", "scout_dir_right"]);
+    s.advance(B.cueEveryMs);
+    s.see([box("native_flower", 0.5, 0.5, 0.04, 0.05)], 200);
+    expect(s.ids().at(-1)).toBe("scout_dir_closer");
+    s.advance(B.cueEveryMs);
+    s.see([box("native_flower", 0.5, 0.1)], 200); // top edge: the camera aims below the gaze
+    expect(s.ids().at(-1)).toBe("scout_dir_down");
+    expect(s.events.some((e) => e.type === "found")).toBe(false);
+  });
+
+  test("no cue for other stations' boxes, and none over Beeswax's own lines", () => {
+    const s = boothReady();
+    s.see([box("honey_jar", 0.1)], 2000);
+    expect(s.says).toEqual([]);
+    s.look("native_flower", T.steadyMs + 100);
+    s.see([box("native_flower", 0.1)], 500); // while offering
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+  });
+
+  test("lost: expected object unseen for 10 s -> scout_dir_lost, at most every 10 s", () => {
+    const s = boothReady();
+    s.advance(B.lostMs - 1700);
+    expect(s.says).toEqual([]);
+    s.advance(500);
+    expect(s.ids()).toEqual(["scout_dir_lost"]);
+    s.advance(B.lostMs);
+    expect(s.ids()).toEqual(["scout_dir_lost"]);
+    s.advance(1500);
+    expect(s.ids()).toEqual(["scout_dir_lost", "scout_dir_lost"]);
+  });
+
+  test("seeing the expected object holds the lost nudge off", () => {
+    const s = boothReady();
+    for (let i = 0; i < 4; i++) {
+      s.advance(5000);
+      s.see([box("native_flower", 0.5, 0.5, 0.2, 0.2, 0.3)], 0); // a weak sighting, not enough to trigger
+    }
+    expect(s.ids().filter((id) => id === "scout_dir_lost")).toEqual([]);
+  });
+
+  test("operator: force (next / given), yes, next, reset", () => {
+    const s = boothReady();
+    expect(s.game.force()).toBe(true); // the expected station, no dwell
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
+    expect(s.game.state()).toMatchObject({ phase: "offering", offer: "native_flower" });
+    expect(s.events.find((e) => e.type === "found")).toMatchObject({ label: "native_flower", look_ms: 0 });
+    expect(s.game.button(undefined, "(operator yes)")).toBe(true);
+    expect(s.game.state()).toMatchObject({ found: ["native_flower"], next: "honey_jar" });
+    s.advance(4000);
+    expect(s.game.skipStation()).toBe(true);
+    expect(s.game.state()).toMatchObject({ next: "bug_spray", skipped: ["honey_jar"], phase: "looking" });
+    expect(s.game.force("bee_hotel")).toBe(true); // jump ahead
+    expect(s.game.state()).toMatchObject({ offer: "bee_hotel", next: "bee_hotel" });
+    expect(s.game.force("bee_hotel")).toBe(false); // already offering it
+    s.game.start(); // reset
+    expect(s.game.state()).toMatchObject({ phase: "intro", found: [], skipped: [], next: "native_flower" });
+    expect(s.ids().at(-1)).toBe("scout_booth_intro");
+  });
+
+  test("next past the last station -> done; force works in demo mode too", () => {
+    const s = boothReady(["beehive"]);
+    expect(s.game.skipStation()).toBe(true);
+    expect(s.game.state()).toMatchObject({ phase: "done", next: null });
+    expect(s.game.skipStation()).toBe(false);
+    s.game.setMode("booth", ["beehive", "honey_jar"]); // switching to booth restarts at the first station
+    expect(s.game.state()).toMatchObject({ phase: "looking", next: "beehive", found: [], skipped: [] });
+    const d = ready();
+    expect(d.game.force("pebble_dish")).toBe(true);
+    expect(d.ids()).toEqual(["scout_chime", "scout_hook_pebble_dish"]);
+  });
+});
+
+describe("booth routes", () => {
+  test("SCOUT_MODE=booth + SCOUT_ORDER at startup; /scout/mode, force, yes, next, reset over HTTP", async () => {
+    const prev = { m: process.env.SCOUT_MODE, o: process.env.SCOUT_ORDER };
+    process.env.SCOUT_MODE = "booth";
+    process.env.SCOUT_ORDER = "honey_jar,bug_spray";
+    const hive = makeHive({}, { prewarmOnStart: false });
+    try {
+      const post = (path: string, body: unknown = {}, token = TOKEN) =>
+        fetch(`${hive.url}${path}?token=${token}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const st = await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json();
+      expect(st).toMatchObject({ mode: "booth", order: ["honey_jar", "bug_spray"], next: "honey_jar" });
+
+      // boxes ride through POST /scout/frame: a centered AprilTag box alone triggers the expected station (fresh Hive: no gap)
+      let found = false;
+      const t0 = Date.now();
+      while (!found && Date.now() - t0 < 6000) {
+        await post("/scout/frame", { at: Date.now(), top: [{ label: "background", score: 0.9 }], boxes: [{ label: "honey_jar", score: 0.3, x: 0.4, y: 0.4, w: 0.2, h: 0.2, via: "marker" }, { label: "nope", score: 1, x: 0, y: 0, w: 1, h: 1 }] });
+        found = (await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json()).phase === "offering";
+        await Bun.sleep(80);
+      }
+      expect(found).toBe(true);
+      expect((await post("/scout/force", {}, "nope")).status).toBe(401);
+      expect((await post("/scout/mode", { mode: "party" })).status).toBe(400);
+      expect((await post("/scout/mode", { mode: "booth", order: ["honey_jar", "honey_jar"] })).status).toBe(400);
+      expect((await post("/scout/mode", { mode: "booth", order: ["snowboard"] })).status).toBe(400);
+      expect(await (await post("/scout/mode", { mode: "booth", order: ["native_flower", "bee_hotel"] })).json()).toMatchObject({ mode: "booth", next: "native_flower" });
+
+      expect((await post("/scout/yes")).status).toBe(409); // nothing offered yet
+      expect((await post("/scout/force", { label: "snowboard" })).status).toBe(400);
+      expect(await (await post("/scout/force")).json()).toMatchObject({ ok: true, phase: "offering", offer: "native_flower" });
+      expect(await (await post("/scout/yes")).json()).toMatchObject({ ok: true, found: ["native_flower"], next: "bee_hotel" });
+      expect(await (await post("/scout/next")).json()).toMatchObject({ ok: true, phase: "done", next: null });
+      expect(await (await post("/scout/reset")).json()).toMatchObject({ ok: true, phase: "intro", next: "native_flower" });
+
+    } finally {
+      await hive.stop();
+      for (const [k, v] of [["SCOUT_MODE", prev.m], ["SCOUT_ORDER", prev.o]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   });
 });
