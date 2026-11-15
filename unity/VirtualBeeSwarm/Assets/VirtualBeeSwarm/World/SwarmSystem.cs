@@ -131,9 +131,11 @@ namespace VirtualBeeSwarm
         public void Scatter()
         {
             Vector3 c = Center();
+            var clearance = MeasureHive(beeLength * 1.4f);
             for (int i = 0; i < _n; i++)
             {
                 _pos[i] = c + _dir[i] * (0.15f + 0.2f * _radius[i]);
+                clearance.KeepOutside(ref _pos[i], _dir[i]);
                 _vel[i] = Vector3.zero;
             }
         }
@@ -166,6 +168,70 @@ namespace VirtualBeeSwarm
         }
 
         Vector3 Center() => hive != null ? hive.SwarmCenter.position : transform.position;
+
+        HiveClearance MeasureHive(float length)
+        {
+            return hive != null && hive.TryGetBodyBounds(out var frame, out var bounds)
+                ? new HiveClearance(frame, bounds, length * 0.65f + 0.025f) : default;
+        }
+
+        internal readonly struct HiveClearance
+        {
+            readonly bool _valid;
+            readonly Matrix4x4 _toHive, _toWorld;
+            readonly Vector3 _center, _extents;
+
+            internal HiveClearance(Transform frame, Bounds bounds, float margin)
+            {
+                _valid = true;
+                _toHive = frame.worldToLocalMatrix;
+                _toWorld = frame.localToWorldMatrix;
+                _center = bounds.center;
+                _extents = bounds.extents + new Vector3(
+                    margin / _toWorld.MultiplyVector(Vector3.right).magnitude,
+                    margin / _toWorld.MultiplyVector(Vector3.up).magnitude,
+                    margin / _toWorld.MultiplyVector(Vector3.forward).magnitude);
+            }
+
+            internal bool KeepOutside(ref Vector3 point, Vector3 fallback, bool allowRoof = false)
+            {
+                if (!_valid) return false;
+                Vector3 local = _toHive.MultiplyPoint3x4(point) - _center;
+                if (Mathf.Abs(local.y) >= _extents.y) return false;
+                float x = local.x / _extents.x;
+                float z = local.z / _extents.z;
+                float norm = x * x * x * x + z * z * z * z;
+                // A fourth-power envelope rounds the corners while enclosing the padded box.
+                if (norm >= 2f) return false;
+                if (norm < 1e-8f)
+                {
+                    Vector3 direction = _toHive.MultiplyVector(fallback);
+                    x = direction.x;
+                    z = direction.z;
+                    if (Mathf.Abs(x) + Mathf.Abs(z) < 1e-4f) z = 1f;
+                    norm = x * x * x * x + z * z * z * z;
+                }
+                float stretch = Mathf.Sqrt(Mathf.Sqrt(2f / norm));
+                local.x = x * stretch * _extents.x;
+                local.z = z * stretch * _extents.z;
+                Vector3 side = _toWorld.MultiplyPoint3x4(_center + local);
+                if (allowRoof)
+                {
+                    Vector3 roof = point + _toWorld.MultiplyVector(Vector3.up * (_extents.y - local.y));
+                    if ((roof - point).sqrMagnitude < (side - point).sqrMagnitude) side = roof;
+                }
+                point = side;
+                return true;
+            }
+        }
+
+        static bool InDoorApproach(Vector3 point, Vector3 door, Vector3 forward, Vector3 right)
+        {
+            Vector3 offset = point - door;
+            return Vector3.Dot(offset, forward) > -0.08f &&
+                   Mathf.Abs(Vector3.Dot(offset, right)) < 0.10f &&
+                   Mathf.Abs(Vector3.Dot(offset, Vector3.Cross(forward, right))) < 0.12f;
+        }
 
         Transform Head()
         {
@@ -237,12 +303,14 @@ namespace VirtualBeeSwarm
 
             float _spread = Bloom.MeadowLayout.SwarmSpread; // meadow: orbit the scaled-up hive, not inside it
             float bl = beeLength * (_spread > 1.01f ? 1.4f : 1f); // meadow: bees that read across the room
+            var clearance = MeasureHive(bl);
             for (int i = 0; i < _n; i++)
             {
                 float ph = _phase[i];
                 float sp = _speed[i];
                 Vector3 target;
                 Color col = baseColor;
+                bool doorPath = false;
 
                 switch (Mode)
                 {
@@ -265,6 +333,7 @@ namespace VirtualBeeSwarm
                     {
                         if (Mode == SwarmMode.Guard && i < GuardCount)
                         {
+                            doorPath = true;
                             float k = GuardCount <= 1 ? 0f : (float)i / (GuardCount - 1) - 0.5f;
                             target = doorPos + doorRight * (k * 0.1f) + doorFwd * (0.025f + 0.01f * Mathf.Sin(t * 5f + ph))
                                      + Vector3.up * (0.012f * Mathf.Sin(t * 9f + ph));
@@ -294,6 +363,7 @@ namespace VirtualBeeSwarm
                         }
                         else if (t < leaveAt + 0.5f)
                         {
+                            doorPath = true;
                             target = doorPos + doorFwd * 0.1f;
                         }
                         else
@@ -325,6 +395,7 @@ namespace VirtualBeeSwarm
                 }
 
                 // steer: spring toward the target, damped; plus separation from two fixed neighbours
+                if (!doorPath && Mode != SwarmMode.Ball) clearance.KeepOutside(ref target, _dir[i]);
                 Vector3 p = _pos[i];
                 Vector3 v = _vel[i];
                 Vector3 steer = (target - p) * accel - v * (accel * 0.35f);
@@ -351,6 +422,14 @@ namespace VirtualBeeSwarm
                 }
                 if (room != null && room.ClampAboveTable(ref p, bl * 0.3f) > 0f)
                     v.y = Mathf.Max(v.y, 0f);
+                Vector3 unclamped = p;
+                bool throughDoor = doorPath && InDoorApproach(_pos[i], doorPos, doorFwd, doorRight) &&
+                                   InDoorApproach(p, doorPos, doorFwd, doorRight);
+                if (Mode != SwarmMode.Ball && !throughDoor && clearance.KeepOutside(ref p, _pos[i] - center, allowRoof: true))
+                {
+                    Vector3 away = (p - unclamped).normalized;
+                    v -= away * Mathf.Min(0f, Vector3.Dot(v, away));
+                }
                 _pos[i] = p;
                 _vel[i] = v;
 

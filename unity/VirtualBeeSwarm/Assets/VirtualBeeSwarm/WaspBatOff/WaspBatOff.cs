@@ -3,16 +3,17 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.XR;
 using VirtualBeeSwarm.Juice;
+using VirtualBeeSwarm.Stakes;
 
 namespace VirtualBeeSwarm.BatOff
 {
     /// <summary>
-    /// Wasp bat-off (station 3): right after "wasps made a beeline for the syrup", a ~16 s burst of 12 wasps dives in
-    /// waves at the hive door (every third one buzzes the player's face first, stopping short of it). Bat them away
+    /// Wasp bat-off (station 3): right after "wasps made a beeline for the syrup", 12 wasps dive in over ~15 s
+    /// one by one toward the front of the hive. Missed wasps regroup at the roof and shake the hive. Bat them away
     /// with an open hand or a controller: the hand's velocity (frame deltas) becomes a real Rigidbody knockback, the wasp
     /// hit-stops for 50 ms, tumbles, bounces off the floor, sees stars, then flies off out of the room. Nobody is
-    /// squished. A wasp that reaches the door makes the guards scramble (swarm spike, gold burst) and they shove her
-    /// out. GUARD DUTY card counts the bounces. Then the station carries on to its door choice unchanged.
+    /// squished. Guards break up the raid (swarm spike and gold burst). GUARD DUTY counts the bounces.
+    /// Then the station carries on to its door choice.
     /// Self-installing; hooks in through WaspsStation.BatOff. Desktop/autopilot (no hands tracked): a ghost paw bats
     /// most wasps; key V bats the nearest one. Tuning: wasps.batOff, wasps.batSeconds, wasps.batCount (BatOffTuning).
     /// Budget: 14 wasps x ~140 tris, one shared unlit material, physics only on the wasps (+ one floor box while one
@@ -27,17 +28,17 @@ namespace VirtualBeeSwarm.BatOff
         const float WaspLength = 0.09f, WaspRadius = 0.028f, HandRadius = 0.06f, ControllerRadius = 0.075f;
         const float SwatterLength = 0.28f, SwingSpeed = 1.25f;
         const float HitStopSeconds = 0.05f, TumbleSeconds = 1.8f, DazedSeconds = 0.75f, LeaveSeconds = 2.4f;
-        const float HeadKeepOut = 0.36f, HeadSafe = 0.5f, MaxBatSpeed = 4.5f, FaceSize = 0.65f;
+        const float HeadKeepOut = 0.36f, HeadSafe = 0.5f, MaxBatSpeed = 4.5f, RaidSeconds = 2.2f;
         const KeyCode BatKey = KeyCode.V;
 
-        enum S { Gone, Wait, Dive, Hover, HitStop, Tumble, Dazed, Leave }
+        enum S { Gone, Wait, Dive, Hover, Raid, HitStop, Tumble, Dazed, Leave }
 
         struct Wasp
         {
             public S state;
             public float at, spawnAt, dur, lastHit, phase, verticalSpeed;
             public Vector3 from, ctrl, to, launch, last;
-            public bool face, small, autoBat, counted, reached;
+            public bool autoBat, counted;
         }
 
         readonly Wasp[] _w = new Wasp[Max];
@@ -59,10 +60,14 @@ namespace VirtualBeeSwarm.BatOff
         SwarmSystem _swarm;
         FutureWindow _window;
         WaspsStation _station;
+        AudioSource _raidBuzz;
+        Transform _shakeRoot;
+        Vector3 _shakeBase, _shakeApplied;
+        bool _shaking;
 
         bool _running, _burstDone, _saidNice, _saidDoor, _auto, _pilot;
         int _n, _bounced, _reached;
-        float _startedAt, _lastLineAt, _cardHideAt = -1f, _floorY, _scale = 1f, _roofY, _frontD;
+        float _startedAt, _lastLineAt, _cardHideAt = -1f, _floorY, _scale = 1f, _roofY, _frontD, _raidAt = -1f;
         Vector3 _cardPos, _hiveC, _toPlayer;
 
         static readonly Color Star = new Color(1f, 0.86f, 0.2f), Puff = new Color(1f, 0.97f, 0.88f), Gold = new Color(1f, 0.72f, 0.12f);
@@ -87,9 +92,12 @@ namespace VirtualBeeSwarm.BatOff
         void OnDestroy()
         {
             if (Instance != this) return;
+            StopRaid();
             Instance = null;
             if (WaspsStation.BatOff == (System.Func<WaspsStation, IEnumerator>)Run) WaspsStation.BatOff = null;
         }
+
+        void OnDisable() => StopRaid();
 
         /// <summary>The director's wasps cap (50 s) was set before the burst existed: give the burst its seconds back.</summary>
         void ExtendWaspsCap()
@@ -153,6 +161,17 @@ namespace VirtualBeeSwarm.BatOff
 
             _fx = gameObject.AddComponent<JuiceParticles>();
             _card = GuardDutyCard.Create(transform);
+            var buzz = new GameObject("Wasp Raid Buzz");
+            buzz.transform.SetParent(transform, false);
+            _raidBuzz = buzz.AddComponent<AudioSource>();
+            _raidBuzz.clip = Resources.Load<AudioClip>("SatieTakes/loop_shared_wasp_buzz");
+            _raidBuzz.playOnAwake = false;
+            _raidBuzz.loop = true;
+            _raidBuzz.spatialBlend = 1f;
+            _raidBuzz.dopplerLevel = 0f;
+            _raidBuzz.minDistance = 0.65f;
+            _raidBuzz.maxDistance = 5f;
+            _raidBuzz.pitch = 0.82f;
             BuildSwatters();
         }
 
@@ -200,6 +219,8 @@ namespace VirtualBeeSwarm.BatOff
 
             _n = BatOffTuning.Count;
             _bounced = _reached = 0;
+            _raidAt = -1f;
+            _shakeRoot = _hive.transform.Find("LiftRoot");
             _saidNice = _saidDoor = false;
             _startedAt = Time.time;
             _cardHideAt = -1f;
@@ -207,23 +228,15 @@ namespace VirtualBeeSwarm.BatOff
             _running = true;
             _auto = AutoMode();
 
-            // waves of 2-3, the first after the intro's opening words, the last ~6 s before the end
-            int waves = Mathf.CeilToInt(_n / 2.5f);
-            float gap = Mathf.Max(1.4f, (BatOffTuning.Seconds - 7f) / Mathf.Max(1, waves - 1));
-            int k = 0;
-            for (int wave = 0; wave < waves && k < _n; wave++)
+            // Stagger the whole pool across the round so there is always another wasp on the way.
+            for (int i = 0; i < _n; i++)
             {
-                int size = wave % 2 == 0 ? 2 : 3;
-                for (int j = 0; j < size && k < _n; j++, k++)
-                {
-                    ref var w = ref _w[k];
-                    w = default;
-                    w.state = S.Wait;
-                    w.spawnAt = _startedAt + 1.2f + wave * gap + j * 0.35f + Random.Range(0f, 0.2f);
-                    w.face = k % 3 == 1;
-                    w.autoBat = k % 4 != 3; // the ghost paw lets every 4th through, so the door flinch shows too
-                    w.phase = Random.Range(0f, 10f);
-                }
+                ref var w = ref _w[i];
+                w = default;
+                w.state = S.Wait;
+                w.spawnAt = _startedAt + Mathf.Lerp(0.35f, BatOffTuning.Seconds - 2.2f, i / (float)(_n - 1));
+                w.autoBat = i % 4 != 3; // exercise the missed-wasp payoff on desktop
+                w.phase = Random.Range(0f, 10f);
             }
             for (int i = 0; i < Max; i++)
             {
@@ -234,7 +247,7 @@ namespace VirtualBeeSwarm.BatOff
             _card.Show(true);
             _card.SetCount(0);
             Say(RideLines.Get("room_wasps_batoff", "Guard duty! Bounce 'em, don't squish 'em. A squished wasp's alarm scent calls in her nestmates."));
-            Debug.Log("[VBS][BatOff] start: " + _n + " wasps in " + waves + " waves over " + BatOffTuning.Seconds.ToString("0") + " s, wasp " + (WaspLength * _scale * 100f).ToString("0") + " cm" +
+            Debug.Log("[VBS][BatOff] start: " + _n + " wasps over " + BatOffTuning.Seconds.ToString("0") + " s, wasp " + (WaspLength * Size(0) * 100f).ToString("0") + " cm" +
                       (_auto ? " (ghost paw: no hands tracked)" : "") + ", floor y " + _floorY.ToString("0.00"));
             return true;
         }
@@ -282,7 +295,8 @@ namespace VirtualBeeSwarm.BatOff
             bool key = GameInput.KeyDown(BatKey);
             int nearest = -1;
             float nearestD = float.MaxValue;
-            bool anyLive = false, anyTumbling = false;
+            bool anyLive = false, anyTumbling = false, anyRaid = false;
+            float age = now - _startedAt;
 
             for (int i = 0; i < _n; i++)
             {
@@ -303,7 +317,7 @@ namespace VirtualBeeSwarm.BatOff
                         Vector3 p = Bezier(w.from, w.ctrl, w.to, k) + Buzz(now, w.phase, 0.012f);
                         p = KeepOffHead(p, headPos);
                         Fly(i, p, now);
-                        if (_auto && w.autoBat && !w.face && k > 0.6f) { GhostBat(i, headPos); break; }
+                        if (_auto && w.autoBat && k > 0.78f) { GhostBat(i, headPos); break; }
                         if (k >= 1f) { w.state = S.Hover; w.at = now; }
                         break;
                     }
@@ -312,9 +326,23 @@ namespace VirtualBeeSwarm.BatOff
                         anyLive = true;
                         Vector3 p = KeepOffHead(w.to + Buzz(now * 1.7f, w.phase, 0.025f), headPos);
                         Fly(i, p, now);
-                        if (_auto && w.autoBat && (!w.face || now - w.at > 0.35f)) { GhostBat(i, headPos); break; }
-                        if (w.face && now - w.at > 0.9f) Retarget(i, now); // buzzed the face: now the door
-                        else if (!w.face && !w.reached) ReachDoor(i);
+                        if (_auto && w.autoBat) { GhostBat(i, headPos); break; }
+                        if (age >= BatOffTuning.Seconds)
+                        {
+                            w.from = p;
+                            w.state = S.Raid;
+                            w.at = now;
+                            _reached++;
+                            if (_raidAt < 0f) StartRaid(now);
+                            anyRaid = true;
+                        }
+                        break;
+                    }
+                    case S.Raid:
+                    {
+                        anyLive = anyRaid = true;
+                        Vector3 p = Vector3.Lerp(w.from, RaidPoint(i, now), Mathf.SmoothStep(0f, 1f, (now - w.at) / 0.38f));
+                        Fly(i, KeepOffHead(p, headPos), now);
                         break;
                     }
                     case S.HitStop:
@@ -364,10 +392,10 @@ namespace VirtualBeeSwarm.BatOff
                         break;
                     }
                 }
-                if (w.state == S.Dive || w.state == S.Hover || w.state == S.Tumble)
+                if (w.state == S.Dive || w.state == S.Hover || w.state == S.Raid || w.state == S.Tumble)
                 {
                     TouchHands(i, headPos);
-                    if (key && (w.state == S.Dive || w.state == S.Hover))
+                    if (key && (w.state == S.Dive || w.state == S.Hover || w.state == S.Raid))
                     {
                         float d = (tr.position - headPos).sqrMagnitude;
                         if (d < nearestD) { nearestD = d; nearest = i; }
@@ -383,12 +411,15 @@ namespace VirtualBeeSwarm.BatOff
                 Say(RideLines.Get("room_wasps_batoff_nice", "Look at you, bouncing. Real guard bees check everyone at the door and shove intruders out."));
             }
 
-            float age = now - _startedAt;
-            if (!_burstDone && (!anyLive || age > BatOffTuning.Seconds + 3f)) EndBurst(anyLive ? "time" : "all bounced or shoved out");
+            if (_raidAt >= 0f && !anyRaid) StopRaid();
+            if (!_burstDone && (!anyLive || age >= BatOffTuning.Seconds + RaidSeconds ||
+                (_raidAt >= 0f && now - _raidAt >= RaidSeconds)))
+                EndBurst(anyLive ? "time" : "all bounced or shoved out");
         }
 
         void LateUpdate()
         {
+            ShakeHive();
             if (!_card.isActiveAndEnabled) return;
             var head = Head();
             if (head == null) return;
@@ -412,10 +443,9 @@ namespace VirtualBeeSwarm.BatOff
                 from = headPos + Quaternion.Euler(0f, yaw, 0f) * fwd * Random.Range(2.0f, 3.0f) + Vector3.up * Random.Range(-0.2f, 0.6f);
             }
             w.from = from;
-            w.to = w.face ? FacePoint(headPos, fwd) : DoorPoint();
-            Path(ref w, Random.Range(0.25f, 0.5f), Random.Range(0.9f, 1.25f));
+            w.to = HoverPoint(i, headPos);
+            Path(ref w, Random.Range(0.22f, 0.45f), Random.Range(1.5f, 2.1f));
             if (Vector3.Dot(from - _hiveC, _toPlayer) < _frontD + 0.1f) OverRoof(ref w); // spawned behind the hive: never through it
-            w.small = w.face;
             w.state = S.Dive;
             w.at = Time.time;
             w.last = from;
@@ -425,23 +455,12 @@ namespace VirtualBeeSwarm.BatOff
             tr.gameObject.SetActive(true);
         }
 
-        void Retarget(int i, float now)
-        {
-            ref var w = ref _w[i];
-            w.face = false;
-            w.from = _t[i].position;
-            w.to = DoorPoint();
-            Path(ref w, 0.15f, 1.1f);
-            w.state = S.Dive;
-            w.at = now;
-        }
-
         static void Path(ref Wasp w, float arc, float speed)
         {
             Vector3 d = w.to - w.from;
             Vector3 side = Vector3.Cross(Vector3.up, d.sqrMagnitude > 1e-4f ? d.normalized : Vector3.forward);
             w.ctrl = Vector3.Lerp(w.from, w.to, 0.5f) + Vector3.up * arc + side * Random.Range(-0.45f, 0.45f);
-            w.dur = Mathf.Clamp(d.magnitude / speed, 1.2f, 3.6f);
+            w.dur = Mathf.Clamp(d.magnitude / speed, 1.05f, 2.1f);
         }
 
         /// <summary>Behind the hive: start above the roof and bend in over the front edge, so the dive drops onto the door
@@ -455,7 +474,7 @@ namespace VirtualBeeSwarm.BatOff
             w.dur = Mathf.Max(w.dur, 1.6f);
         }
 
-        float Size(int i) => Mathf.Max(2.4f, _scale) * (_w[i].small ? FaceSize : 1f);
+        float Size(int i) => Mathf.Max(2.4f, _scale);
         float Radius(int i) => WaspRadius * Size(i);
 
         /// <summary>Strips the part of a velocity that heads into the player's face while the wasp is near it.</summary>
@@ -469,16 +488,22 @@ namespace VirtualBeeSwarm.BatOff
             return toward < 0f ? v - n * toward : v;
         }
 
-        Vector3 DoorPoint()
+        Vector3 HoverPoint(int i, Vector3 headPos)
         {
-            Transform door = _hive.DoorPoint;
-            return door.position - door.forward * 0.05f + door.right * Random.Range(-0.03f, 0.03f) + Vector3.up * Random.Range(0f, 0.03f);
+            Vector3 side = Vector3.Cross(Vector3.up, _toPlayer);
+            Vector3 p = _hiveC + _toPlayer * (_frontD + 0.22f + (i % 2) * 0.13f) +
+                side * ((i % 5 - 2) * 0.15f);
+            p.y = Mathf.Clamp(headPos.y - 0.50f, _floorY + 0.20f, _roofY + 0.23f) + (i % 3 - 1) * 0.11f;
+            return p;
         }
 
-        static Vector3 FacePoint(Vector3 headPos, Vector3 fwd)
+        Vector3 RaidPoint(int i, float now)
         {
-            Vector3 right = Vector3.Cross(Vector3.up, fwd);
-            return headPos + fwd * 0.5f + right * Random.Range(-0.2f, 0.2f) + Vector3.up * Random.Range(-0.18f, -0.02f);
+            float a = now * 8f + i * 2.39996f;
+            Vector3 side = Vector3.Cross(Vector3.up, _toPlayer);
+            Vector3 p = _hiveC + _toPlayer * (_frontD + 0.10f + 0.10f * Mathf.Cos(a)) + side * (0.21f * Mathf.Sin(a));
+            p.y = _roofY + 0.12f + 0.08f * Mathf.Sin(a * 1.4f);
+            return p;
         }
 
         static Vector3 KeepOffHead(Vector3 p, Vector3 head)
@@ -488,26 +513,51 @@ namespace VirtualBeeSwarm.BatOff
             return m < HeadKeepOut ? head + (m > 1e-4f ? d / m : Vector3.forward) * HeadKeepOut : p;
         }
 
-        void ReachDoor(int i)
+        void StartRaid(float now)
         {
-            ref var w = ref _w[i];
-            w.reached = true;
-            _reached++;
-            Transform door = _hive.DoorPoint;
+            _raidAt = now;
+            Vector3 attack = _hive.DoorPoint.position;
             if (_swarm != null) _swarm.Spike(0.35f);
-            _fx.Burst(door.position, 10, Gold, 0.7f, 0.45f, 0.012f * _scale, gravity: 0.6f, upBias: 0.4f);
-            Debug.Log("[VBS][BatOff] a wasp reached the door (" + _reached + "): the guards scramble and shove her out");
+            _fx.Burst(attack, 10, Gold, 0.7f, 0.45f, 0.012f * _scale, gravity: 0.6f, upBias: 0.4f);
+            if (_raidBuzz.clip != null && Sound.SoundDirector.Instance != null && Sound.SoundDirector.Instance.isActiveAndEnabled)
+            {
+                _raidBuzz.transform.position = attack;
+                _raidBuzz.volume = 0.34f;
+                _raidBuzz.Play();
+            }
+            Debug.Log("[VBS][BatOff] missed wasps swarm the hive");
             if (!_saidDoor && Time.time - _lastLineAt > 3f && (_net == null || !_net.IsSpeaking))
             {
                 _saidDoor = true;
                 Say(RideLines.Get("room_wasps_batoff_door", "One made it to the door! Guards are on her. Shoving's in the job description."));
             }
-            // the guards push her out: a gentle shove, not a bat (no count)
-            Vector3 outward = -door.forward;
-            outward.y = 0f;
-            outward = outward.sqrMagnitude > 1e-4f ? outward.normalized : Vector3.back;
-            _t[i].position += outward * (Radius(i) + 0.04f); // clear of the hive's colliders: no physics pop
-            Launch(i, outward * 1.3f + Vector3.up * 1.4f);
+        }
+
+        void ShakeHive()
+        {
+            RestoreShake();
+            if (_raidAt < 0f || _shakeRoot == null || _hive == null || _hive.Held || _hive.LiftHeight > 0.001f) return;
+            float t = Time.time - _raidAt;
+            float fade = Mathf.Clamp01(t * 10f) * Mathf.Clamp01((RaidSeconds - t) * 5f);
+            float strength = (StakesFlags.Comfort ? 0.009f : 0.024f) * fade;
+            _shakeBase = _shakeRoot.localPosition;
+            _shakeApplied = _shakeBase + new Vector3(Mathf.Sin(t * 44f), Mathf.Abs(Mathf.Sin(t * 57f)) * 0.5f, Mathf.Cos(t * 39f) * 0.5f) * strength;
+            _shakeRoot.localPosition = _shakeApplied;
+            _shaking = true;
+        }
+
+        void RestoreShake()
+        {
+            if (_shaking && _shakeRoot != null && _shakeRoot.localPosition == _shakeApplied)
+                _shakeRoot.localPosition = _shakeBase;
+            _shaking = false;
+        }
+
+        void StopRaid()
+        {
+            RestoreShake();
+            if (_raidBuzz != null && _raidBuzz.isPlaying) _raidBuzz.Stop();
+            _raidAt = -1f;
         }
 
         void Hit(int i, Vector3 handVel, Vector3 away, int hand, Vector3 headPos)
@@ -764,13 +814,14 @@ namespace VirtualBeeSwarm.BatOff
         {
             if (_burstDone) return;
             _burstDone = true;
+            StopRaid();
             float now = Time.time;
             Vector3 headPos = Head() != null ? Head().position : Vector3.up * 1.6f;
             for (int i = 0; i < _n; i++)
             {
                 ref var w = ref _w[i];
                 if (w.state == S.Wait) { w.state = S.Gone; Park(i); }
-                else if (w.state == S.Dive || w.state == S.Hover || w.state == S.HitStop) Leave(i, now, headPos);
+                else if (w.state == S.Dive || w.state == S.Hover || w.state == S.Raid || w.state == S.HitStop) Leave(i, now, headPos);
             }
             if (_station != null && (_station.Busy || _station.Solved || _station.Choosing)) _cardHideAt = now + 1f; // Run was stopped: hide the card ourselves
             Debug.Log("[VBS][BatOff] done (" + why + "): " + _bounced + " bounced, " + _reached + " reached the door, " +

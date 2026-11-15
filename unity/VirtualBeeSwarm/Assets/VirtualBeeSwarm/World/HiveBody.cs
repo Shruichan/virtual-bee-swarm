@@ -52,6 +52,32 @@ namespace VirtualBeeSwarm
         internal bool LiftReported => _liftReported;
         public Transform DoorPoint => doorPoint != null ? doorPoint : transform;
         public Transform SwarmCenter => swarmCenter != null ? swarmCenter : transform;
+
+        internal bool TryGetBodyBounds(out Transform frame, out Bounds bounds)
+        {
+            frame = liftRoot != null ? liftRoot : transform;
+            bounds = default;
+            bool found = false;
+            Matrix4x4 worldToHive = frame.worldToLocalMatrix;
+            foreach (var body in bodyRenderers)
+            {
+                if (body == null || !body.enabled || !body.gameObject.activeInHierarchy) continue;
+                Matrix4x4 toHive = worldToHive * body.localToWorldMatrix;
+                Bounds local = body.localBounds;
+                Vector3 x = toHive.MultiplyVector(Vector3.right * local.extents.x);
+                Vector3 y = toHive.MultiplyVector(Vector3.up * local.extents.y);
+                Vector3 z = toHive.MultiplyVector(Vector3.forward * local.extents.z);
+                Vector3 extents = new Vector3(Mathf.Abs(x.x) + Mathf.Abs(y.x) + Mathf.Abs(z.x),
+                                              Mathf.Abs(x.y) + Mathf.Abs(y.y) + Mathf.Abs(z.y),
+                                              Mathf.Abs(x.z) + Mathf.Abs(y.z) + Mathf.Abs(z.z));
+                var piece = new Bounds(toHive.MultiplyPoint3x4(local.center), 2f * extents);
+                if (found) bounds.Encapsulate(piece);
+                else bounds = piece;
+                found = true;
+            }
+            return found;
+        }
+
         public float HeatGlow { get; private set; }
         /// <summary>0 = healthy .. 1 = sick (the body colour blend).</summary>
         public float Sick => _sick;

@@ -5,8 +5,8 @@ namespace VirtualBeeSwarm.Pals
 {
     /// <summary>
     /// Beeswax plays with the player's hands (tuning pals.on, default on):
-    ///   boop       a fingertip (or controller tip) pokes him: he's knocked back on a spring and reacts, a new variant each
-    ///              time (giggle wiggle, "that's harassment, I'm filing", a spin, a blush), a line at most every 6 s.
+    ///   pet        gentle strokes touching his body make him blush with drifting pink pollen.
+    ///   swat       a quick tap or fast hit makes him spring back indignantly with a bright impact burst.
     ///   wave       a raised hand waved side to side (3 turns): he waves back with his front leg.
     ///   high-five  a raised open palm held still, facing away from you: he flies over, slaps it (sparkle burst, squash),
     ///              then goes back to where the script had him.
@@ -37,12 +37,18 @@ namespace VirtualBeeSwarm.Pals
         Quaternion _wroteTilt = Quaternion.identity, _baseTilt = Quaternion.identity;
         Vector3 _wroteSquash = Vector3.one, _baseSquash = Vector3.one;
         bool _wrote;
-        float _spinFrom = -1f, _wiggleFrom = -1f, _squashFrom = -1f;
+        float _wiggleFrom = -1f, _squashFrom = -1f;
 
-        // boop
-        readonly bool[] _touching = new bool[2];
-        float _nextBoop;
-        int _boops, _lastVariant = -1;
+        enum Touch { Pet, Swat }
+        struct Contact
+        {
+            public bool armed, touching, reacted;
+            public Vector3 previousTip, previousPalm;
+            public float startedAt, travel;
+        }
+        readonly Contact[] _contacts = new Contact[2];
+        float _nextTouch;
+        int _boops;
 
         // wave
         readonly float[] _waveX = new float[2], _waveExt = new float[2], _waveStart = new float[2];
@@ -68,6 +74,7 @@ namespace VirtualBeeSwarm.Pals
 
         public static bool On { get; set; } = true;
         public int Boops => _boops;
+        public int Pets { get; private set; }
         public int HighFives { get; private set; }
         public int WavesBack { get; private set; }
 
@@ -82,7 +89,7 @@ namespace VirtualBeeSwarm.Pals
             _fx = FindAnyObjectByType<JuiceParticles>();
             if (_bw != null) _bw.Ordered += OnOrdered;
             if (_net != null) _net.VoiceLineStarted += OnLine;
-            Debug.Log("[VBS][Pals] on: boop, wave, high-five" + (_bw == null ? " (no Beeswax: off)" : "") + ", radius " + Radius().ToString("0.00") + " m");
+            Debug.Log("[VBS][Pals] on: pet, swat, wave, high-five" + (_bw == null ? " (no Beeswax: off)" : "") + ", radius " + Radius().ToString("0.00") + " m");
         }
 
         void OnDestroy()
@@ -178,12 +185,19 @@ namespace VirtualBeeSwarm.Pals
                 for (int h = 0; h < 2; h++)
                 {
                     var hand = hands.Hands[h];
-                    if (!hand.tracked) { _touching[h] = false; _waveTurns[h] = 0; continue; }
-                    Boop(h, hand);
+                    if (!hand.tracked) { _contacts[h] = default; _waveTurns[h] = 0; continue; }
+                    if (_five != Five.Idle && h == _fiveHand) _contacts[h] = default;
+                    else CheckTouch(h, hand);
                     Wave(h, hand);
-                    if (free) FiveWatch(h, hand);
+                    if (free && !_contacts[h].touching) FiveWatch(h, hand);
+                    else if (_five == Five.Idle && h == _fiveHand && _contacts[h].touching)
+                    {
+                        _fiveHeld = 0f;
+                        _fiveHand = -1;
+                    }
                 }
             }
+            else System.Array.Clear(_contacts, 0, _contacts.Length);
             StepFive(hands);
             Body();
         }
@@ -230,37 +244,92 @@ namespace VirtualBeeSwarm.Pals
             return true;
         }
 
-        // ------------------------------------------------------------------ boop
-        void Boop(int h, PalHand hand)
+        // ------------------------------------------------------------------ touch
+        void CheckTouch(int h, PalHand hand)
         {
             Vector3 c = Centre();
             float r = Radius() * 0.75f + 0.015f;
-            float d = Vector3.Distance(hand.tip, c);
-            if (d > r + 0.03f) { _touching[h] = false; return; }
-            if (_touching[h] || d > r) return;
-            _touching[h] = true;
-            if (Time.time < _nextBoop) return;
-            _nextBoop = Time.time + 0.8f;
-            _boops++;
-            Vector3 push = c - hand.tip;
-            if (push.sqrMagnitude < 1e-6f) push = _bw.transform.position - (Head() != null ? Head().position : c - Vector3.forward);
-            push.Normalize();
-            _offVel += push * (0.55f + Radius() * 1.5f); // knocked back, springs home
-            _squashFrom = Time.time;
-            int v = Random.Range(0, 4);
-            if (v == _lastVariant) v = (v + 1 + Random.Range(0, 3)) % 4;
-            _lastVariant = v;
-            switch (v)
+            ref Contact contact = ref _contacts[h];
+            bool palm = hand.palm && !hand.pinch && (hand.centre - c).sqrMagnitude < (hand.tip - c).sqrMagnitude;
+            Vector3 point = palm ? hand.centre : hand.tip;
+            Vector3 previous = palm ? contact.previousPalm : contact.previousTip;
+            contact.previousTip = hand.tip;
+            contact.previousPalm = hand.centre;
+            Vector3 radial = point - c;
+            float distance = radial.magnitude;
+            if (!contact.armed)
             {
-                case 0: _wiggleFrom = Time.time; Rig("Wag", "boop: giggle"); Say(PalLines.BoopGiggle); break;
-                case 1: Rig("No Shake", "boop: grievance"); Rig("Angry", "boop: grievance"); Say(PalLines.BoopFile); break;
-                case 2: _spinFrom = Time.time; Rig("Startle", "boop: spin"); break; // silence is a line
-                default: Rig("Blush", "boop: blush"); _wiggleFrom = Time.time; Say(PalLines.BoopBlush); break;
+                contact.armed = distance > r + 0.015f;
+                return;
             }
-            if (_fx != null) _fx.Burst(hand.tip, 6, new Color(1f, 0.55f, 0.75f), 0.35f, 0.45f, 0.012f, 0.4f);
+
+            float now = Time.time;
+            float dt = Mathf.Max(Time.deltaTime, 0.001f);
+            float inward = (Vector3.Distance(previous, c) - distance) / dt;
+            float step = Vector3.Distance(previous, point);
+            if (step > 0.20f || Time.deltaTime > 0.1f)
+            {
+                contact.armed = distance > r + 0.015f;
+                contact.touching = contact.reacted = false;
+                return;
+            }
+            if (distance > r + 0.015f)
+            {
+                bool tap = contact.touching && !contact.reacted && now - contact.startedAt <= 0.28f &&
+                           contact.travel >= 0.012f && inward < -0.12f;
+                contact.touching = contact.reacted = false;
+                if (tap) React(Touch.Swat, c, previous);
+                return;
+            }
+            if (!contact.touching)
+            {
+                if (distance > r || inward < 0.08f) return;
+                contact.touching = true;
+                contact.reacted = now < _nextTouch;
+                contact.startedAt = now;
+                contact.travel = 0f;
+            }
+            if (contact.reacted || distance > r) return;
+            if (inward > 0.85f)
+            {
+                contact.reacted = true;
+                React(Touch.Swat, c, point);
+                return;
+            }
+            // Small tracking jitter and fast exits do not count as a gentle stroke.
+            if (step > 0.001f && step / dt < 0.65f) contact.travel += step;
+            if (now - contact.startedAt < 0.36f || contact.travel < 0.05f) return;
+            contact.reacted = true;
+            React(Touch.Pet, c, point);
+        }
+
+        void React(Touch touch, Vector3 centre, Vector3 point)
+        {
+            if (Time.time < _nextTouch) return;
+            _nextTouch = Time.time + 0.9f;
+            Vector3 outward = (point - centre).normalized;
+            if (outward == Vector3.zero) outward = -_bw.transform.forward;
+            if (touch == Touch.Pet)
+            {
+                Pets++;
+                _wiggleFrom = Time.time;
+                Rig("Blush", "gentle pet");
+                _fx?.Burst(centre + Vector3.up * Radius(), 10, new Color(1f, 0.55f, 0.75f), 0.22f, 0.8f, 0.012f, -0.38f);
+                Say(PalLines.BoopBlush);
+                Log("pet #" + Pets + ": blush");
+                return;
+            }
+
+            _boops++;
+            _offVel -= outward * (0.55f + Radius() * 1.5f);
+            _squashFrom = Time.time;
+            Rig("Angry", "quick swat");
+            Vector3 impact = centre + outward * Mathf.Min(Vector3.Distance(point, centre), Radius());
+            _fx?.Ring(impact, outward, 10, new Color(1f, 0.55f, 0.18f), 0.8f, 0.35f, 0.013f);
+            _fx?.Burst(impact, 5, new Color(1f, 0.86f, 0.3f), 0.55f, 0.35f, 0.01f, 0.4f);
             GameSound.Cue("beeswax_boop", _bw.transform);
-            Log("boop #" + _boops + " (" + (hand.ghost ? "ghost" : ((GameHand)h).ToString().ToLowerInvariant()) + "): " +
-                (v == 0 ? "giggle" : v == 1 ? "grievance" : v == 2 ? "spin" : "blush"));
+            Say(PalLines.BoopFile);
+            Log("swat #" + _boops + ": grievance");
         }
 
         // ------------------------------------------------------------------ wave
@@ -407,12 +476,6 @@ namespace VirtualBeeSwarm.Pals
             _offset += _offVel * dt;
             Quaternion tilt = Quaternion.identity;
             Vector3 squash = Vector3.one;
-            if (_spinFrom >= 0f)
-            {
-                float k = (t - _spinFrom) / 0.6f;
-                if (k >= 1f) _spinFrom = -1f;
-                else tilt *= Quaternion.Euler(0f, 360f * Mathf.SmoothStep(0f, 1f, k), 0f);
-            }
             if (_wiggleFrom >= 0f)
             {
                 float s = t - _wiggleFrom;
