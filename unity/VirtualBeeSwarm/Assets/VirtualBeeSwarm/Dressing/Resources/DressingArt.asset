@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e08ed26a33d0a75f7afe3e8125542403, type: 3}
+  m_Name: DressingArt
+  m_EditorClassIdentifier: VirtualBeeSwarm::VirtualBeeSwarm.Dressing.DressingArt
+  nest: {fileID: 613875916945153153, guid: 6697380767436b015b2f220f986dc899, type: 3}
+  solitaryBee: {fileID: 4995549858028353663, guid: 75ed48e28d8ca3a93b27b1055c97676f, type: 3}
+  bumblebee: {fileID: 260700129377609599, guid: 29db742e23f779c72bc9176b330c60c5, type: 3}
+  tinyWasp: {fileID: 4057518096767707265, guid: 6e1ffcf9e2376ce1ea2988564e15db6b, type: 3}
+  seedPacket: {fileID: 8606810848076016795, guid: 15249ad90aba0294ca78352f2c4d7516, type: 3}
+  grass: {fileID: -1654447762313879000, guid: d7350046438d39691b3f7e39d8162866, type: 3}
+  grassMaterial: {fileID: 2100000, guid: 0ae78794f1b2ff044a5b85a9f1687279, type: 2}
+  vertexColorMaterial: {fileID: 2100000, guid: dd6259e851e0a8ee8a8bc8c5aee1e4f0, type: 2}
