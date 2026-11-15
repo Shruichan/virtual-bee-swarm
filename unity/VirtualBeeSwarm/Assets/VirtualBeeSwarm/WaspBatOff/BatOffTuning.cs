@@ -9,14 +9,18 @@ namespace VirtualBeeSwarm.BatOff
 {
     /// <summary>
     /// tuning.json keys for the wasp bat-off (same files as GameTuning): wasps.batOff (on | off, default on),
-    /// wasps.batSeconds (length of the burst, default 15), wasps.batCount (wasps in the burst, 4-14, default 12).
+    /// wasps.batSeconds (length of the burst, default 30), wasps.batCount (wasps in the burst, 4-32, default 28),
+    /// wasps.batWinShare (bounce this share of them to win and end the burst early, default 0.6). dartiros: 2x longer,
+    /// many more wasps, and a win (was 15 s, 12 wasps, no win).
     /// Env VBS_BATOFF=0|1 wins; VBS_BATOFF_AUTO=1 makes the ghost paw bat even when hands are tracked.
     /// </summary>
     public static class BatOffTuning
     {
         public static bool Enabled = true;
-        public static float Seconds = 15f;
-        public static int Count = 12;
+        public static float Seconds = 30f;
+        public static int Count = 28;
+        public static float WinShare = 0.6f;
+        public const int MaxCount = 32;
         public static bool ForceAuto;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -30,8 +34,9 @@ namespace VirtualBeeSwarm.BatOff
 #endif
             Read(Path.Combine(Application.persistentDataPath, "tuning.json"), flat);
             Enabled = Flag(Get(flat, "wasps.batOff"), true);
-            Seconds = Mathf.Clamp(Number(Get(flat, "wasps.batSeconds"), 15f), 6f, 30f);
-            Count = Mathf.Clamp(Mathf.RoundToInt(Number(Get(flat, "wasps.batCount"), 12f)), 4, 14);
+            Seconds = Mathf.Clamp(Number(Get(flat, "wasps.batSeconds"), 30f), 6f, 60f);
+            Count = Mathf.Clamp(Mathf.RoundToInt(Number(Get(flat, "wasps.batCount"), 28f)), 4, MaxCount);
+            WinShare = Mathf.Clamp(Number(Get(flat, "wasps.batWinShare"), 0.6f), 0.2f, 1f);
             try
             {
                 Enabled = Flag(Environment.GetEnvironmentVariable("VBS_BATOFF"), Enabled);

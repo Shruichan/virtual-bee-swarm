@@ -25,11 +25,13 @@ namespace VirtualBeeSwarm.BatOff
     {
         public static WaspBatOff Instance { get; private set; }
 
-        const int Max = 14;
+        const int Max = BatOffTuning.MaxCount; // dartiros: was 14 (the burst now has up to 32)
         const float WaspLength = 0.09f, WaspRadius = 0.028f, HandRadius = 0.06f, ControllerRadius = 0.075f;
         const float SwatterLength = 0.28f, SwingSpeed = 1.25f;
         const float HitStopSeconds = 0.05f, TumbleSeconds = 1.8f, DazedSeconds = 0.75f, LeaveSeconds = 2.4f;
         const float HeadKeepOut = 0.36f, HeadSafe = 0.5f, MaxBatSpeed = 4.5f, RaidSeconds = 2.2f;
+        // a wasp that got past the player lingers this long in front, then rises onto the roof (RoofSeconds) for another swing
+        const float LingerSeconds = 1.2f, RoofSeconds = 0.9f;
         const KeyCode BatKey = KeyCode.V;
 
         enum S { Gone, Wait, Dive, Hover, Raid, HitStop, Tumble, Dazed, Leave }
@@ -67,7 +69,8 @@ namespace VirtualBeeSwarm.BatOff
         bool _shaking;
 
         bool _running, _burstDone, _saidNice, _saidDoor, _auto, _pilot;
-        int _n, _bounced, _reached;
+        int _n, _bounced, _reached, _goal;
+        bool _won;
         float _startedAt, _lastLineAt, _cardHideAt = -1f, _floorY, _scale = 1f, _roofY, _frontD, _raidAt = -1f;
         Vector3 _cardPos, _hiveC, _toPlayer;
 
@@ -218,8 +221,10 @@ namespace VirtualBeeSwarm.BatOff
             Vector3 side = Vector3.Cross(Vector3.up, toPlayer);
             _cardPos = new Vector3(hb.center.x, hb.max.y + 0.22f, hb.center.z) - side * (hb.extents.x + 0.12f) + toPlayer * 0.1f;
 
-            _n = BatOffTuning.Count;
+            _n = Mathf.Min(BatOffTuning.Count, Max);
             _bounced = _reached = 0;
+            _goal = Mathf.Clamp(Mathf.CeilToInt(_n * BatOffTuning.WinShare), 1, _n);
+            _won = false;
             _raidAt = -1f;
             _shakeRoot = _hive.transform.Find("LiftRoot");
             _saidNice = _saidDoor = false;
@@ -247,9 +252,10 @@ namespace VirtualBeeSwarm.BatOff
             }
             _card.transform.position = _cardPos;
             _card.Show(true);
+            _card.SetGoal(_goal);
             _card.SetCount(0);
             Say(RideLines.Get("room_wasps_batoff", "Guard duty! Bounce 'em, don't squish 'em. A squished wasp's alarm scent calls in her nestmates."));
-            Debug.Log("[VBS][BatOff] start: " + _n + " wasps over " + BatOffTuning.Seconds.ToString("0") + " s, wasp " + (WaspLength * Size(0) * 100f).ToString("0") + " cm" +
+            Debug.Log("[VBS][BatOff] start: " + _n + " wasps over " + BatOffTuning.Seconds.ToString("0") + " s, bounce " + _goal + " to win, wasp " + (WaspLength * Size(0) * 100f).ToString("0") + " cm" +
                       (_auto ? " (ghost paw: no hands tracked)" : "") + ", floor y " + _floorY.ToString("0.00"));
             return true;
         }
@@ -326,7 +332,10 @@ namespace VirtualBeeSwarm.BatOff
                     case S.Hover:
                     {
                         anyLive = true;
-                        Vector3 p = KeepOffHead(w.to + Buzz(now * 1.35f, w.phase, 0.025f), headPos);
+                        // dartiros: got past the player: linger, then float up onto the roof and bob there, still swattable
+                        float up = Mathf.Clamp01((now - w.at - LingerSeconds) / RoofSeconds);
+                        Vector3 hover = up > 0f ? ToRoof(w.to, RoofPoint(i), up) : w.to;
+                        Vector3 p = KeepOffHead(hover + Buzz(now * 1.35f, w.phase, 0.025f), headPos);
                         Fly(i, p, now);
                         if (_auto && w.autoBat) { GhostBat(i, headPos); break; }
                         if (age >= BatOffTuning.Seconds)
@@ -414,6 +423,7 @@ namespace VirtualBeeSwarm.BatOff
             }
 
             if (_raidAt >= 0f && !anyRaid) StopRaid();
+            if (!_burstDone && !_won && _bounced >= _goal) Win(now);
             if (!_burstDone && (!anyLive || age >= BatOffTuning.Seconds + RaidSeconds ||
                 (_raidAt >= 0f && now - _raidAt >= RaidSeconds)))
                 EndBurst(anyLive ? "time" : "all bounced or shoved out");
@@ -496,6 +506,25 @@ namespace VirtualBeeSwarm.BatOff
             Vector3 p = _hiveC + _toPlayer * (_frontD + 0.22f + (i % 2) * 0.13f) +
                 side * ((i % 5 - 2) * 0.15f);
             p.y = Mathf.Clamp(headPos.y - 0.50f, _floorY + 0.20f, _roofY + 0.23f) + (i % 3 - 1) * 0.11f;
+            return p;
+        }
+
+        /// <summary>Straight up in front of the hive to roof height first, then in over the roof (never through the front face).</summary>
+        static Vector3 ToRoof(Vector3 hover, Vector3 roof, float k)
+        {
+            Vector3 lifted = new Vector3(hover.x, Mathf.Max(hover.y, roof.y), hover.z);
+            return k < 0.5f ? Vector3.Lerp(hover, lifted, Mathf.SmoothStep(0f, 1f, k * 2f))
+                            : Vector3.Lerp(lifted, roof, Mathf.SmoothStep(0f, 1f, k * 2f - 1f));
+        }
+
+        /// <summary>Above the hive roof, spread over its footprint (golden angle), low enough to reach with a swatter.</summary>
+        Vector3 RoofPoint(int i)
+        {
+            float a = i * 2.39996f;
+            float r = (0.05f + 0.11f * Mathf.Repeat(i * 0.618034f, 1f)) * Mathf.Max(1f, _scale * 0.8f);
+            Vector3 side = Vector3.Cross(Vector3.up, _toPlayer);
+            Vector3 p = _hiveC + side * (Mathf.Cos(a) * r) + _toPlayer * (Mathf.Sin(a) * r * 0.7f);
+            p.y = _roofY + 0.12f + (i % 3) * 0.06f;
             return p;
         }
 
@@ -846,6 +875,20 @@ namespace VirtualBeeSwarm.BatOff
         }
 
         // ------------------------------------------------------------ end
+        /// <summary>Bounced enough (dartiros): the rest flee, gold bursts over the hive, the card says YOU WIN.</summary>
+        void Win(float now)
+        {
+            _won = true;
+            _card.SetWon(_bounced);
+            Vector3 top = new Vector3(_hiveC.x, _roofY + 0.15f, _hiveC.z);
+            _fx.Burst(top, 24, Gold, 1.1f, 0.7f, 0.016f * _scale, gravity: 0.5f, upBias: 0.8f);
+            _fx.Burst(top, 12, Star, 0.9f, 0.6f, 0.014f * _scale, gravity: -0.2f, upBias: 1f);
+            GameSound.Cue("stamp_approved", _hive.transform);
+            GameSound.Cue("happy_hive_swarm", _hive.transform);
+            if (_swarm != null) _swarm.Agitation = 0f;
+            EndBurst("won: " + _bounced + " of " + _n + " bounced (goal " + _goal + ")");
+        }
+
         void EndBurst(string why)
         {
             if (_burstDone) return;
@@ -857,7 +900,8 @@ namespace VirtualBeeSwarm.BatOff
             {
                 ref var w = ref _w[i];
                 if (w.state == S.Wait) { w.state = S.Gone; Park(i); }
-                else if (w.state == S.Dive || w.state == S.Hover || w.state == S.Raid || w.state == S.HitStop) Leave(i, now, headPos);
+                // a wasp mid-hit (the winning swat) keeps its launch, tumble and stars; it leaves on its own after the daze
+                else if (w.state == S.Dive || w.state == S.Hover || w.state == S.Raid) Leave(i, now, headPos);
             }
             if (_station != null && (_station.Busy || _station.Solved || _station.Choosing)) _cardHideAt = now + 1f; // Run was stopped: hide the card ourselves
             Debug.Log("[VBS][BatOff] done (" + why + "): " + _bounced + " bounced, " + _reached + " reached the door, " +
