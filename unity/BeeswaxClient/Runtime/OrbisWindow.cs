@@ -42,6 +42,13 @@ namespace Beeswax
         [SerializeField] bool connectOnStart = true;
         [Tooltip("Show the fallback clip when no live frame arrived for this long.")]
         [SerializeField] float staleSeconds = 8f;
+        [Tooltip("Right after a scene change, show the new scene's clip when no live frame came for this long, so a slow or " +
+                 "dead stream never leaves the window on the old picture.")]
+        [SerializeField] float sceneChangeStaleSeconds = 2.5f;
+        [Tooltip("The same limit after a question's cut (the relay restarts its stream, so frames really stop for a while).")]
+        [SerializeField] float cutStaleSeconds = 1f;
+        [Tooltip("How long after a scene change the shorter limit applies.")]
+        [SerializeField] float sceneChangeWatchSeconds = 10f;
         [SerializeField] float maxDecodesPerSecond = 24f;
         [Tooltip("Ask the relay for its status JSON on the frames socket (?status=1), so failed/ended switch to clips at once.")]
         [SerializeField] bool relayStatus = true;
@@ -121,7 +128,7 @@ namespace Beeswax
         BeeswaxBus _bound;
         byte[] _pending;
         int _pendingOffset;
-        float _lastFrameAt = -1f, _nextDecodeAt, _nextAttemptAt;
+        float _lastFrameAt = -1f, _nextDecodeAt, _nextAttemptAt, _sceneChangedAt = -100f, _cutAt = -100f, _clipFirstUntil = -1f;
         int _failures;
         string _socketHost = "";
         bool _wantConnected, _forceFallback, _sourceChosen, _clipFailed, _wantKnown;
@@ -386,6 +393,12 @@ namespace Beeswax
                 }
                 if (s.scene.Length > 0 && BeeswaxProtocol.IsScene(s.scene))
                 {
+                    // A question's window moment: its clip answers at once, live takes over once the stream caught up.
+                    if (s.scene != Scene && s.clip_first_s > 0f)
+                    {
+                        _clipFirstUntil = Time.realtimeSinceStartup + Mathf.Min(s.clip_first_s, 10f);
+                        _cutAt = Time.realtimeSinceStartup;
+                    }
                     _pendingScene = "";
                     ApplyScene(s.scene);
                 }
@@ -462,6 +475,7 @@ namespace Beeswax
         {
             if (scene == Scene) return;
             Scene = scene;
+            _sceneChangedAt = Time.realtimeSinceStartup;
             if (HasOwnClip(scene)) _clipScene = scene;
             ChooseSource(force: true);
             try { OnSceneChanged?.Invoke(scene); } catch (Exception e) { Debug.LogException(e); }
@@ -472,7 +486,12 @@ namespace Beeswax
         {
             bool off = Want == "off";
             bool stateAllowsLive = State != OrbisState.Failed && State != OrbisState.Ended && State != OrbisState.Off;
-            bool live = !off && !_forceFallback && Want != "clips" && stateAllowsLive && SecondsSinceFrame < staleSeconds;
+            float now = Time.realtimeSinceStartup;
+            float stale = staleSeconds;
+            if (now - _sceneChangedAt < sceneChangeWatchSeconds) stale = Mathf.Min(stale, sceneChangeStaleSeconds);
+            if (now - _cutAt < sceneChangeWatchSeconds) stale = Mathf.Min(stale, cutStaleSeconds);
+            bool live = !off && !_forceFallback && Want != "clips" && stateAllowsLive && SecondsSinceFrame < stale &&
+                        (Time.realtimeSinceStartup >= _clipFirstUntil || !HasClipToShow());
             if (!force && _sourceChosen && live == IsLive) return;
             _sourceChosen = true;
             IsLive = live;
@@ -505,6 +524,12 @@ namespace Beeswax
             }
             else if (!videoPlayer.isPlaying) videoPlayer.Play();
             return _rt;
+        }
+
+        bool HasClipToShow()
+        {
+            ResolveClip(out VideoClip clip, out string file);
+            return clip != null || !string.IsNullOrEmpty(file);
         }
 
         /// <summary>A scene with a recorded clip, or one given a clip in sceneClips.</summary>
