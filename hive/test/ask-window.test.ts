@@ -207,6 +207,26 @@ describe("the window reacts to Ask Beeswax", () => {
 });
 
 describe("the live window never gets stuck", () => {
+  test("a late question prompt cannot repaint the window after leaving Ask", async () => {
+    mockAsk("Beeswax. Shop steward. Local Twenty Thousand.", ["beeswax"]);
+    const calls = mockWindow(BARE, 200);
+    const relay = fakeRelay();
+    hive = makeHive({ ask: askModule, window: windowModule }, { orbisRelayUrl: relay.url, orbisPollMs: 40 }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+    await goLive(board, relay);
+    const before = relay.stages().length;
+    quest.say("who are you?");
+    await quest.waitFor("say", (m) => typeof m.caption === "string" && m.caption.includes("Shop steward"));
+    expect(calls.n).toBe(1);
+    await setBeat(quest, board, "meet", 2);
+    await Bun.sleep(300);
+
+    expect(quest.msgs.some((m) => m.type === "orbis" && m.scene === "whatif_custom")).toBe(false);
+    expect(relay.stages().slice(before)).toEqual([]);
+  });
+
   test("live small talk: Claude has nothing, the window and the relay stay as they are", async () => {
     mockAsk("Beeswax. Shop steward. Local Twenty Thousand.", ["beeswax"]);
     const calls = mockWindow(null);

@@ -8,20 +8,17 @@ namespace VirtualBeeSwarm.HandsOn
     /// The HIVE-DRAULIC lever: a honey dipper on a hex base. Pinch the head (or ray-grab, or mouse-drag) and pull it
     /// toward you. No physics: the hand's travel along the pull direction turns the arm (0-70 deg), a ratchet tooth
     /// lights every 14 deg, and at 62 deg it snaps and fires Pulled. It re-arms below 15 deg, so it can be pumped
-    /// without letting go; released, it springs back. Not Live: it only wobbles and says "not yet".
+    /// without letting go; released, it springs back. It folds away between uses.
     /// Desktop: key Y (HandsOnDirector) = SimulatePull.
     /// </summary>
     public class HoneyLever : MonoBehaviour, IGameGrabTarget
     {
         public const float MaxAngle = 70f, SnapAngle = 62f, RearmAngle = 15f, ToothStep = 14f, RestLean = 20f;
-        const float ArmLength = 0.17f, NotLiveAngle = 10f;
+        const float ArmLength = 0.17f, RevealSeconds = 0.22f, RetractSeconds = 0.28f;
         static readonly Vector3 PivotLocal = new Vector3(0f, 0.04f, 0f);
         static readonly Vector3 PullDir = new Vector3(0f, -0.3f, -0.954f); // toward the player and a little down (local)
 
         public event Action Pulled;
-        /// <summary>A grab or a key on a lever that is not live.</summary>
-        public event Action Refused;
-
         public bool Grabbable => this != null && isActiveAndEnabled && _live;
         public bool Held { get; private set; }
         public float Angle => _angle;
@@ -30,6 +27,7 @@ namespace VirtualBeeSwarm.HandsOn
         /// <summary>Where a prop is docked next to the lever (the smoker, nozzle at the hive).</summary>
         public Pose CradlePose => new Pose(_pad.position + transform.up * 0.012f, transform.rotation);
         public Vector3 HeadPosition => _head.position;
+        internal Transform VisualRoot { get; private set; }
 
         public bool Live
         {
@@ -40,6 +38,23 @@ namespace VirtualBeeSwarm.HandsOn
                 _live = value;
                 _armed = true;
                 _painted = false;
+                if (value)
+                {
+                    _angle = _vel = _pop = 0f;
+                    _tooth = 0;
+                    _flashAt = -1f;
+                    _flash.gameObject.SetActive(false);
+                    Apply();
+                    VisualRoot.gameObject.SetActive(true);
+                }
+                else
+                {
+                    StopSim();
+                    Held = false;
+                    _target = 0f;
+                    if (_pad.gameObject.activeSelf) _cradleRetractAt = Time.time;
+                    if (_visibility <= 0f) VisualRoot.gameObject.SetActive(false);
+                }
                 if (_capsule != null) _capsule.enabled = value;
                 if (_ball != null) _ball.enabled = value;
                 Debug.Log("[VBS][HandsOn] lever " + (value ? "live" : "locked"));
@@ -52,8 +67,9 @@ namespace VirtualBeeSwarm.HandsOn
         CapsuleCollider _capsule;
         SphereCollider _ball;
         bool _live, _armed = true, _painted;
-        float _angle, _vel, _target, _grabAngle, _pop, _flashAt = -1f;
-        Vector3 _grabPoint;
+        float _angle, _vel, _target, _grabAngle, _pop, _visibility, _flashAt = -1f;
+        float _cradleRetractAt = -1f;
+        Vector3 _grabPoint, _cradleHome;
         int _tooth;
         Coroutine _sim;
 
@@ -63,27 +79,30 @@ namespace VirtualBeeSwarm.HandsOn
             root.SetParent(parent, false);
             root.localPosition = localPos;
             var lever = root.gameObject.AddComponent<HoneyLever>();
+            var visual = new GameObject("Lever Visual").transform;
+            visual.SetParent(root, false);
+            lever.VisualRoot = visual;
 
-            HandsOnKit.Hexagon("Base", root, Vector3.zero, 0.16f, 0.04f, HandsOnKit.Wood);
-            HandsOnKit.Hexagon("Rim", root, new Vector3(0f, 0.04f, 0f), 0.145f, 0.006f, HandsOnKit.Honey);
-            HandsOnKit.Prim(PrimitiveType.Cube, "Plate", root, new Vector3(0f, 0.02f, -0.0695f), new Vector3(0.078f, 0.024f, 0.004f), HandsOnKit.Brass);
-            HandsOnKit.Text("PlateText", root, new Vector3(0f, 0.02f, -0.0722f), "HIVE-DRAULIC", 0.0014f, HandsOnKit.Ink);
+            HandsOnKit.Hexagon("Base", visual, Vector3.zero, 0.16f, 0.04f, HandsOnKit.Wood);
+            HandsOnKit.Hexagon("Rim", visual, new Vector3(0f, 0.04f, 0f), 0.145f, 0.006f, HandsOnKit.Honey);
+            HandsOnKit.Prim(PrimitiveType.Cube, "Plate", visual, new Vector3(0f, 0.02f, -0.0695f), new Vector3(0.078f, 0.024f, 0.004f), HandsOnKit.Brass);
+            HandsOnKit.Text("PlateText", visual, new Vector3(0f, 0.02f, -0.0722f), "HIVE-DRAULIC", 0.0014f, HandsOnKit.Ink);
 
             // ratchet quadrant on the outer side: a disc in the pull plane with five teeth around its rim
             float side = left ? -0.05f : 0.05f;
-            var quad = HandsOnKit.Prim(PrimitiveType.Cylinder, "Quadrant", root, PivotLocal + new Vector3(side, 0f, 0f), new Vector3(0.15f, 0.004f, 0.15f), HandsOnKit.Brass);
+            var quad = HandsOnKit.Prim(PrimitiveType.Cylinder, "Quadrant", visual, PivotLocal + new Vector3(side, 0f, 0f), new Vector3(0.15f, 0.004f, 0.15f), HandsOnKit.Brass);
             quad.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
             lever._teeth = new Renderer[5];
             for (int k = 0; k < 5; k++)
             {
                 Vector3 dir = Quaternion.Euler(RestLean - (k + 1) * ToothStep, 0f, 0f) * Vector3.up;
-                var tooth = HandsOnKit.Prim(PrimitiveType.Cube, "Tooth" + k, root, PivotLocal + new Vector3(side, 0f, 0f) + dir * 0.083f, new Vector3(0.012f, 0.016f, 0.012f), HandsOnKit.Honey);
+                var tooth = HandsOnKit.Prim(PrimitiveType.Cube, "Tooth" + k, visual, PivotLocal + new Vector3(side, 0f, 0f) + dir * 0.083f, new Vector3(0.012f, 0.016f, 0.012f), HandsOnKit.Honey);
                 tooth.transform.localRotation = Quaternion.Euler(RestLean - (k + 1) * ToothStep, 0f, 0f);
                 lever._teeth[k] = tooth.GetComponent<Renderer>();
             }
 
             lever._arm = new GameObject("Arm").transform;
-            lever._arm.SetParent(root, false);
+            lever._arm.SetParent(visual, false);
             lever._arm.localPosition = PivotLocal;
             HandsOnKit.Prim(PrimitiveType.Sphere, "Hub", lever._arm, Vector3.zero, Vector3.one * 0.034f, HandsOnKit.Brass);
             HandsOnKit.Prim(PrimitiveType.Cylinder, "Shaft", lever._arm, new Vector3(0f, ArmLength * 0.5f, 0f), new Vector3(0.018f, ArmLength * 0.5f, 0.018f), HandsOnKit.Brass);
@@ -116,40 +135,50 @@ namespace VirtualBeeSwarm.HandsOn
             ball.enabled = false;
             lever._ball = ball;
 
-            lever._flash = HandsOnKit.Glow(PrimitiveType.Cylinder, "Flash", root, new Vector3(0f, 0.05f, 0f), new Vector3(0.16f, 0.002f, 0.16f), Color.clear);
+            lever._flash = HandsOnKit.Glow(PrimitiveType.Cylinder, "Flash", visual, new Vector3(0f, 0.05f, 0f), new Vector3(0.16f, 0.002f, 0.16f), Color.clear);
             lever._flash.gameObject.SetActive(false);
 
             // the dock for a prop the crew parks at the lever (toward the middle of the table)
             lever._pad = HandsOnKit.Hexagon("Cradle", root, new Vector3(left ? 0.16f : -0.16f, 0f, 0.02f), 0.13f, 0.008f, HandsOnKit.Honey);
+            lever._cradleHome = lever._pad.localPosition;
             lever._pad.gameObject.SetActive(false);
 
             lever.Apply();
             lever.Paint();
+            visual.localScale = Vector3.one * 0.001f;
+            visual.gameObject.SetActive(false);
             return lever;
         }
 
+        internal void PlaceCradle(Vector3 contact) => _pad.position = contact - transform.up * 0.012f;
+
         public void ShowCradle(bool on)
         {
-            if (_pad != null && _pad.gameObject.activeSelf != on) _pad.gameObject.SetActive(on);
+            _cradleRetractAt = -1f;
+            if (_pad == null) return;
+            _pad.localScale = Vector3.one;
+            if (_pad.gameObject.activeSelf != on) _pad.gameObject.SetActive(on);
+            if (!on) _pad.localPosition = _cradleHome;
         }
 
         // ------------------------------------------------------------ grab (IGameGrabTarget)
         public void BeginGrab(Vector3 grabPoint)
         {
+            if (!Grabbable) return;
             StopSim();
             Held = true;
             _grabPoint = grabPoint;
             _grabAngle = _angle;
             _target = _angle;
-            if (!_live) Refused?.Invoke();
         }
 
         public void UpdateGrab(Vector3 handPoint)
         {
+            if (!Held || !_live) return;
             // travel along the pull direction, as an angle on the arm's circle
             float travel = Vector3.Dot(transform.InverseTransformVector(handPoint - _grabPoint), PullDir);
             float a = _grabAngle + travel / (ArmLength + 0.03f) * Mathf.Rad2Deg;
-            _target = Mathf.Clamp(a, 0f, _live ? MaxAngle : NotLiveAngle);
+            _target = Mathf.Clamp(a, 0f, MaxAngle);
         }
 
         public void EndGrab() => Held = false;
@@ -157,18 +186,17 @@ namespace VirtualBeeSwarm.HandsOn
         /// <summary>Desktop key / autopilot: one full pull, animated (0.35 s), through the same detents and snap.</summary>
         public void SimulatePull()
         {
-            if (Held || _sim != null || !isActiveAndEnabled) return;
-            if (!_live) Refused?.Invoke();
+            if (!Grabbable || Held || _sim != null) return;
             _sim = StartCoroutine(SimRoutine());
         }
 
         IEnumerator SimRoutine()
         {
-            float top = _live ? MaxAngle : NotLiveAngle, t = 0f;
+            float t = 0f;
             while (t < 0.35f && !Held)
             {
                 t += Time.deltaTime;
-                _target = top * HandsOnKit.Smooth(t / 0.35f);
+                _target = MaxAngle * HandsOnKit.Smooth(t / 0.35f);
                 yield return null;
             }
             _target = 0f;
@@ -190,7 +218,30 @@ namespace VirtualBeeSwarm.HandsOn
         // ------------------------------------------------------------ motion
         void Update()
         {
+            if (_cradleRetractAt >= 0f)
+            {
+                float remaining = 1f - (Time.time - _cradleRetractAt) / RetractSeconds;
+                if (remaining <= 0f) ShowCradle(false);
+                else _pad.localScale = Vector3.one * Mathf.Lerp(0.001f, 1f, HandsOnKit.Smooth(remaining));
+            }
+            if (!_live && !VisualRoot.gameObject.activeSelf) return;
             float dt = Time.deltaTime;
+            float visibility = Mathf.MoveTowards(_visibility, _live ? 1f : 0f, dt / (_live ? RevealSeconds : RetractSeconds));
+            if (visibility != _visibility)
+            {
+                _visibility = visibility;
+                VisualRoot.localScale = Vector3.one * Mathf.Lerp(0.001f, 1f, HandsOnKit.Smooth(_visibility));
+            }
+            if (!_live && _visibility <= 0f)
+            {
+                VisualRoot.gameObject.SetActive(false);
+                _angle = _vel = _pop = 0f;
+                _tooth = 0;
+                _flashAt = -1f;
+                _flash.gameObject.SetActive(false);
+                Apply();
+                return;
+            }
             if (Held || _sim != null)
             {
                 _angle = Mathf.Lerp(_angle, _target, 1f - Mathf.Exp(-30f * dt));
@@ -216,7 +267,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _pop = 1f;
                 _flashAt = Time.time;
                 Pulls++;
-                GameSound.Cue("lever_snap", _head);
+                GameSound.Cue("touchdown_light", _head); // "lever_snap" has no voice in SatieScene (it was silent)
                 Debug.Log("[VBS][HandsOn] lever pulled (" + Pulls + ")");
                 Pulled?.Invoke();
             }

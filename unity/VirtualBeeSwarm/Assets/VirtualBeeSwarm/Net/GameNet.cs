@@ -113,7 +113,15 @@ namespace VirtualBeeSwarm
         public bool ForceOffline
         {
             get => forceOffline;
-            set { forceOffline = value; if (value) EndTalk(true); }
+            set
+            {
+                forceOffline = value;
+                if (value)
+                {
+                    voiceInput?.CancelPendingTurn();
+                    ResetVoiceWakeGate();
+                }
+            }
         }
         public string CurrentScene { get; private set; } = "";
         public bool IsSpeaking => voice != null ? voice.IsSpeaking : Time.time < _localCaptionUntil;
@@ -337,6 +345,7 @@ namespace VirtualBeeSwarm
         {
             EndVoiceDialogue();
             if (forceOffline) return;
+            voiceInput?.CancelPendingTurn();
             _hasPending = false;
             _localCaptionUntil = -1f;
             if (logEvents) Debug.Log("[VBS] <- group.reset");

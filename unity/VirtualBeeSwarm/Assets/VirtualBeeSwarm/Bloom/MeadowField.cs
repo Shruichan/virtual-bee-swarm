@@ -581,7 +581,7 @@ namespace VirtualBeeSwarm.Bloom
                 for (int i = 0; i < sides; i++) b.T(c0, c0 + 1 + (i + 1) % sides, c0 + 1 + i);
             }
 
-            int blades = Mathf.RoundToInt(250 * density * (far ? 0.6f : 1f));
+            int blades = Mathf.RoundToInt(220 * density * (far ? 0.6f : 1f));
             int g = Mathf.CeilToInt(Mathf.Sqrt(blades));
             int made = 0;
             for (int gx = 0; gx < g && made < blades; gx++)

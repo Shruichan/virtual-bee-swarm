@@ -54,9 +54,9 @@ namespace VirtualBeeSwarm.Pals
         Five _five;
         int _fiveHand = -1;
         float _fiveHeld, _fiveAt, _nextFive, _slapAt, _retargetAt;
-        Vector3 _fivePalm, _fiveNormal, _prevGoal;
+        Vector3 _fivePalm, _prevGoal;
         Transform _prevGoalT;
-        bool _mine, _interrupted;
+        bool _mine;
 
         float _nextLine;
 
@@ -161,8 +161,8 @@ namespace VirtualBeeSwarm.Pals
             if (_mine || _five == Five.Idle) return;
             if (what == "fly" || what == "present" || what == "home" || what == "attach" || what == "hide" || what == "snap" || what == "reset" || what == "climb")
             {
-                _interrupted = true;
                 _five = Five.Idle;
+                ClearFiveOffer();
                 Log("high-five dropped: the script ordered " + what);
             }
         }
@@ -172,16 +172,23 @@ namespace VirtualBeeSwarm.Pals
         {
             if (_bw == null) return;
             var hands = PalHands.Instance;
-            bool free = Free();
+            bool free = On && hands != null && Free();
+            if (_five == Five.Idle && !free) ClearFiveOffer();
             if (On && hands != null && _bw.Visible && Allowed(false))
             {
                 for (int h = 0; h < 2; h++)
                 {
                     var hand = hands.Hands[h];
-                    if (!hand.tracked) { _touching[h] = false; _waveTurns[h] = 0; continue; }
+                    if (!hand.tracked)
+                    {
+                        _touching[h] = false;
+                        _waveTurns[h] = 0;
+                        if (_five == Five.Idle && h == _fiveHand) ClearFiveOffer();
+                        continue;
+                    }
                     Boop(h, hand);
                     Wave(h, hand);
-                    if (free) FiveWatch(h, hand);
+                    if (free && _five == Five.Idle) FiveWatch(h, hand);
                 }
             }
             StepFive(hands);
@@ -200,7 +207,7 @@ namespace VirtualBeeSwarm.Pals
                 float a = env * (110f + 28f * Mathf.Sin((t - _waveBackFrom) * Mathf.PI * 2f * 2.2f));
                 if (_legR != null) _legR.rotation = Quaternion.AngleAxis(a * OutSign(_legR), _bw.transform.forward) * _legR.rotation; // swung outward
             }
-            if (_five == Five.Slap || (_five == Five.Back && t - _slapAt < 0.35f))
+            if (_five == Five.Slap)
             {
                 if (_legL == null && !_triedL) { _triedL = true; _legL = Bone("Leg_Front_Upper.L"); }
                 float k = Mathf.Clamp01((t - _slapAt + 0.25f) / 0.25f);
@@ -311,32 +318,44 @@ namespace VirtualBeeSwarm.Pals
         }
 
         // ------------------------------------------------------------------ high-five
+        void ClearFiveOffer()
+        {
+            _fiveHand = -1;
+            _fiveHeld = 0f;
+        }
+
         void FiveWatch(int h, PalHand hand)
         {
+            if (_fiveHand >= 0 && _fiveHand != h) return;
             Transform head = Head();
-            if (head == null || !hand.palm || !hand.open) { if (h == _fiveHand) _fiveHeld = 0f; return; }
+            if (head == null || !hand.palm || !hand.open)
+            {
+                ClearFiveOffer();
+                return;
+            }
             Vector3 eye = head.position;
             Vector3 rel = hand.centre - eye;
             float dist = rel.magnitude;
             bool up = rel.y > -0.22f && dist > 0.28f && dist < 0.85f && Vector3.Dot(Flat(rel), Flat(head.forward)) > 0.1f;
             bool facingOut = Vector3.Dot(hand.normal, rel / Mathf.Max(dist, 1e-4f)) > 0.45f && hand.normal.y > -0.5f;
             bool still = hand.vel.magnitude < 0.3f;
-            if (!(up && facingOut && still) || (_fiveHand >= 0 && _fiveHand != h)) { if (h == _fiveHand || _fiveHand < 0) { _fiveHeld = 0f; _fiveHand = -1; } return; }
+            if (!(up && facingOut && still))
+            {
+                ClearFiveOffer();
+                return;
+            }
             _fiveHand = h;
             _fiveHeld += Time.deltaTime;
             if (_fiveHeld < 0.45f) return;
             // go
             _fiveHeld = 0f;
             _fivePalm = hand.centre;
-            _fiveNormal = hand.normal;
             _prevGoalT = _bw.GoalTransform;
             _prevGoal = _bw.Goal;
-            _interrupted = false;
             _five = Five.Flying;
             _fiveAt = Time.time;
             _retargetAt = Time.time + 0.3f;
             Order(() => _bw.FlyTo(FiveSpot(hand.centre, hand.normal)));
-            Rig("Celebrate", "high-five: up top");
             Log("high-five offered (" + (hand.ghost ? "ghost" : ((GameHand)h).ToString().ToLowerInvariant()) + "): he flies over");
         }
 
@@ -346,49 +365,64 @@ namespace VirtualBeeSwarm.Pals
         {
             if (_five == Five.Idle) return;
             float t = Time.time;
-            bool handOk = hands != null && _fiveHand >= 0 && hands.Hands[_fiveHand].tracked && hands.Hands[_fiveHand].palm;
             if (_five == Five.Flying)
             {
-                if (handOk)
+                var hand = hands != null && _fiveHand >= 0 ? hands.Hands[_fiveHand] : default;
+                if (!hand.tracked || !hand.palm || !hand.open)
                 {
-                    var hand = hands.Hands[_fiveHand];
-                    if (t >= _retargetAt && (hand.centre - _fivePalm).sqrMagnitude > 0.05f * 0.05f)
-                    {
-                        _fivePalm = hand.centre;
-                        _fiveNormal = hand.normal;
-                        _retargetAt = t + 0.3f;
-                        Order(() => _bw.FlyTo(FiveSpot(_fivePalm, _fiveNormal)));
-                    }
+                    Log("high-five dropped: lost the open palm");
+                    ReturnFromFive(t);
+                    return;
                 }
-                float d = Vector3.Distance(Centre(), _fivePalm);
-                if (d < Radius() + 0.08f || t - _fiveAt > 1.8f)
+                Vector3 awayFromPalm = Centre() - hand.centre;
+                float d = awayFromPalm.magnitude;
+                if (d < Radius() + 0.08f)
                 {
                     _five = Five.Slap;
                     _slapAt = t;
                     _squashFrom = t;
-                    _offVel += (Centre() - _fivePalm).normalized * 0.5f;
+                    _offVel += awayFromPalm.normalized * 0.5f;
                     HighFives++;
+                    Rig("Celebrate", "high-five: contact");
                     if (_fx != null)
                     {
-                        _fx.Burst(_fivePalm, 16, new Color(1f, 0.86f, 0.3f), 0.9f, 0.55f, 0.016f, 0.3f);
-                        _fx.Ring(_fivePalm, _fiveNormal, 10, Color.white, 0.6f, 0.4f, 0.012f);
+                        _fx.Burst(hand.centre, 16, new Color(1f, 0.86f, 0.3f), 0.9f, 0.55f, 0.016f, 0.3f);
+                        _fx.Ring(hand.centre, hand.normal, 10, Color.white, 0.6f, 0.4f, 0.012f);
                     }
-                    GameSound.Cue("high_five", _fivePalm);
+                    GameSound.Cue("high_five", hand.centre);
                     Say(PalLines.HighFive, 20f);
-                    Log("high-five! " + (d < Radius() + 0.08f ? "contact" : "air five (couldn't reach: " + d.ToString("0.00") + " m)"));
+                    Log("high-five! contact");
+                }
+                else if (t - _fiveAt > 1.8f)
+                {
+                    Log("high-five dropped: couldn't reach the palm (" + d.ToString("0.00") + " m)");
+                    ReturnFromFive(t);
+                }
+                else if (t >= _retargetAt && (hand.centre - _fivePalm).sqrMagnitude > 0.05f * 0.05f)
+                {
+                    _fivePalm = hand.centre;
+                    _retargetAt = t + 0.3f;
+                    Order(() => _bw.FlyTo(FiveSpot(hand.centre, hand.normal)));
                 }
             }
             else if (_five == Five.Slap && t - _slapAt > 0.5f)
             {
-                _five = Five.Back;
-                Order(() => { if (_prevGoalT != null) _bw.FlyTo(_prevGoalT); else _bw.FlyTo(_prevGoal); });
+                ReturnFromFive(t);
             }
-            else if (_five == Five.Back && (_bw.Arrived || t - _slapAt > 2.5f))
+            else if (_five == Five.Back && (_bw.Arrived || t - _fiveAt > 2f))
             {
                 _five = Five.Idle;
-                _fiveHand = -1;
+                ClearFiveOffer();
                 _nextFive = t + 3f;
             }
+        }
+
+        void ReturnFromFive(float t)
+        {
+            _five = Five.Back;
+            _fiveAt = t;
+            ClearFiveOffer();
+            Order(() => { if (_prevGoalT != null) _bw.FlyTo(_prevGoalT); else _bw.FlyTo(_prevGoal); });
         }
 
         void Order(System.Action a)

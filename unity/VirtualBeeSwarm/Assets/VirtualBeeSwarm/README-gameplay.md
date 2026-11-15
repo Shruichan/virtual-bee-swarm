@@ -160,7 +160,7 @@ back to tinted noise when neither is available.
 - `DesktopCamera` switches itself off when an XR device is active and on Android.
 - Token: `Resources/beeswax_token.txt` or `HIVE_TOKEN` (see the client README). Pre-grant the mic permission.
 - The meadow culls floor tiles. The bee swarms use instancing and choose the animated VAT model for nearby bees
-  and lower-detail models farther away. Check GPU time on a headset with the full meadow and swarm enabled.
+  and the worker's static shader-flap mesh farther away. Check GPU time on a headset with the full meadow and swarm enabled.
 
 ## Smoke test (whole run, no headset, no network, no mic, no sound)
 

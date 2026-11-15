@@ -9,14 +9,15 @@
 
 | Role | Who | Job |
 |---|---|---|
-| **Mediator** (wears the "union mediator" lanyard) | TODO | Greets judges, does the 30 s intro, fits the headset, says the nudge lines below, does the after-pitch. The only person talking to the player. |
-| **Operator** | Rome (TODO confirm) | Laptop + Beat Board. Watches the run, steps in only when something fails. Doesn't talk unless asked a backend question. |
-| **Spotter** | TODO | Stands next to the player. Keeps the play area clear and checks room placement between groups. |
-| **Host** | TODO | Talks to the second judge or anyone waiting. Points at the cast screen and explains what they're seeing. Takes the questions while the player is still in the headset. |
+| **Mediator** (wears the "union mediator" lanyard) | Adityash | Greets judges, does the 30 s intro, fits the headset, says the nudge lines below, does the after-pitch. The only person talking to the player. |
+| **Operator** | Nam | Laptop + Beat Board. Watches the run, steps in only when something fails. Doesn't talk unless asked a backend question. |
+| **Spotter** | dartiros | Stands next to the player. Keeps the play area clear and checks room placement between groups. |
+| **Host** | Rome | Talks to the second judge or anyone waiting. Points at the cast screen and explains what they're seeing. Takes the questions while the player is still in the headset. |
 
 ## The night before / Sunday morning
 
-- [ ] **7:30 AM build lock.** Keep the sideloaded APK on the laptop (TODO: path). If the app breaks on the headset: `adb install -r <apk>`.
+- [ ] **7:30 AM build lock.** Keep the signed APK on the laptop and two private backups. Reinstall with `adb install -r <locked-apk>` if needed.
+- [ ] **7:45 AM locked-build rehearsal.** Run all four repairs, the fire and Moon, then reset for the next group.
 - [ ] Devpost + 30 s video submitted by ~8:30 AM (see `devpost.md`, `video-30s.md`).
 - [ ] Everyone has read `judge-qa.md` once.
 - [ ] Mediator has done the intro out loud at least twice.
@@ -73,7 +74,7 @@
 On the what-if beat, hold a pinch or controller trigger, or use the controller talk button. For desktop rehearsal, hold T.
 
 Fit the headset. **Spotter:** "Can you see the meadow and the clipboard? Hold up your hands."
-**Operator:** Confirm the Quest is connected. Set the Board to SOLO, or DUO when using glasses. Use LIVE if the relay passed rehearsal and shows `ready`, or select CLIPS.
+**Operator:** Confirm the Quest is connected. Use SOLO with CLIPS for the Quest demo. Use LIVE when a judge asks and the relay has passed rehearsal and shows `ready`. Use DUO only for the combined Quest and glasses path. Live Bee Scout has its own booth flow.
 
 ### On the clock
 
@@ -113,7 +114,7 @@ For "we have two minutes." Skips stations 1, 3 and 4, keeps the three things peo
 
 | Time | Beat | Operator (Board) | Mediator |
 |---|---|---|---|
-| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | Short intro: "The bees' union voted to move to the Moon. Fix the hive. Beeswax is scripted." |
+| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | Short intro: "Fix the hive before Earth has to evacuate to the Moon. Order supplies from the bee crew." |
 | 0:00–0:40 | Station 2: lift + feed | Make sure the station and order board open before starting the cut. | For the scripted mistake, ask them to order store honey first, then recover with syrup. |
 | 0:40–1:10 | What-if | Jump to the **what-if** beat | "Ask him: what if a fire starts?" |
 | 1:10–1:50 | T-0 | Jump to **T-0** | Nothing. Let the Moon play. |
@@ -140,8 +141,8 @@ TODO: run this cut once on Saturday with a stopwatch.
 
 ## Reset between groups (target: 60 s)
 
-1. [ ] Board → **RESET GROUP**. Headset goes back to the start. TODO U1: confirm reset puts Unity back to the `pre` beat with all four hexagons off.
-2. [ ] Window: still `ready`? Session time under ~10 min? Otherwise OFF → LIVE. Long gap expected: OFF.
+1. [ ] Board → **RESET GROUP**. Confirm the headset goes back to SIGN HERE with all four hexagons off and the previous score cleared.
+2. [ ] If using LIVE, make sure the window is still `ready` and the session is under ~10 min. Otherwise restart LIVE. For a long gap, switch it OFF. If using CLIPS, leave CLIPS selected.
 3. [ ] Check the play area is clear and the clipboard is reachable from the start position.
 4. [ ] Headset: wipe the face cover, check battery, plug in if under 40%.
 5. [ ] Board mode SOLO or DUO for the next group.

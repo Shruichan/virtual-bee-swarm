@@ -190,7 +190,7 @@ namespace VirtualBeeSwarm.AR
 
     /// <summary>
     /// The landing beat for anything set down on the table (PLAN.md V5): a darker shadow, a 70 ms squash
-    /// (1.06, 0.92, 1.06), 8 dust particles from one shared system, and an optional thunk (no clip is assigned by
+    /// (1.06, 0.92, 1.06), a dust cloud from one shared system, and an optional thunk (no clip is assigned by
     /// default: the game stays silent until lane D adds one). BeeDelivery calls Touchdown.Play(item, weight).
     /// </summary>
     public static class Touchdown
@@ -206,6 +206,57 @@ namespace VirtualBeeSwarm.AR
             Count++;
             EnsureRunner();
             _runner.Play(item, Mathf.Clamp(weight, 0.2f, 3f));
+        }
+
+        public static void ClearDust()
+        {
+            if (_runner != null) _runner.ClearDust();
+        }
+
+        // Both delivery paths put the expanding cloud around the actual footprint instead of the prop pivot.
+        public static Vector3 EmitCloud(ParticleSystem dust, Transform item, float weight, int count)
+        {
+            var bounds = new Bounds(item.position, Vector3.zero);
+            bool any = false;
+            foreach (var renderer in item.GetComponentsInChildren<Renderer>())
+            {
+                if (!renderer.enabled || renderer.forceRenderingOff || renderer is ParticleSystemRenderer ||
+                    renderer is LineRenderer || renderer.GetComponent<TextMesh>() != null ||
+                    IsDeliveryUi(renderer.transform, item)) continue;
+                if (any) bounds.Encapsulate(renderer.bounds);
+                else { bounds = renderer.bounds; any = true; }
+            }
+
+            var centre = new Vector3(bounds.center.x, bounds.min.y + 0.018f, bounds.center.z);
+            if (!any || dust == null || count <= 0) return centre;
+
+            float spread = Mathf.Max(bounds.extents.x, bounds.extents.z);
+            float heft = Mathf.Max(Mathf.InverseLerp(0.2f, 3f, weight), Mathf.InverseLerp(0.15f, 0.54f, spread));
+            float size = Mathf.Lerp(0.045f, 0.10f, heft);
+            float radiusX = Mathf.Clamp(bounds.extents.x, 0.025f, 0.65f);
+            float radiusZ = Mathf.Clamp(bounds.extents.z, 0.025f, 0.65f);
+            int puffs = QuestPerf.Particles(count + Mathf.RoundToInt(8f * heft));
+            var particle = new ParticleSystem.EmitParams { applyShapeToPosition = false };
+            for (int i = 0; i < puffs; i++)
+            {
+                float angle = Mathf.PI * 2f * i / puffs;
+                var outward = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                float variation = 0.75f + (i % 4) * 0.11f;
+                particle.position = centre + new Vector3(outward.x * radiusX, 0f, outward.z * radiusZ) * 0.88f;
+                particle.velocity = outward * Mathf.Lerp(0.09f, 0.22f, heft) * variation + Vector3.up * Mathf.Lerp(0.12f, 0.24f, heft) * variation;
+                particle.startSize = size * variation;
+                particle.startLifetime = 0.35f + variation * 0.17f;
+                dust.Emit(particle, 1);
+            }
+            Debug.Log("[VBS][Touchdown] cloud " + item.name + " at " + centre.ToString("F2") + ", puffs=" + puffs);
+            return centre;
+        }
+
+        static bool IsDeliveryUi(Transform node, Transform item)
+        {
+            for (; node != null && node != item; node = node.parent)
+                if (node.name.StartsWith("[VBS]", System.StringComparison.Ordinal)) return true;
+            return false;
         }
 
         static void EnsureRunner()
@@ -228,37 +279,14 @@ namespace VirtualBeeSwarm.AR
                 go.transform.SetParent(transform, false);
                 _dust = go.AddComponent<ParticleSystem>();
                 _dust.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-                var main = _dust.main;
-                main.playOnAwake = false;
-                main.loop = false;
-                main.startLifetime = 0.6f;
-                main.startSpeed = 0.18f;
-                main.startSize = 0.025f;
-                main.gravityModifier = 0.05f;
-                main.simulationSpace = ParticleSystemSimulationSpace.World;
-                main.startColor = new Color(0.75f, 0.7f, 0.62f, 0.7f);
-                main.maxParticles = 64;
-                var em = _dust.emission;
-                em.enabled = false;
-                var shape = _dust.shape;
-                shape.shapeType = ParticleSystemShapeType.Circle;
-                shape.radius = 0.05f;
-                shape.rotation = new Vector3(-90f, 0f, 0f);
-                var col = _dust.colorOverLifetime;
-                col.enabled = true;
-                var g = new Gradient();
-                g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                    new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
-                col.color = g;
-                var r = go.GetComponent<ParticleSystemRenderer>();
                 var mat = GameMaterials.Create("VBS_Dust (runtime)", Color.white, GameMaterials.Blend.Alpha, vertexColors: true);
                 var dot = GameMeshes.CreateDotTexture(32);
                 if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", dot);
                 if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", dot);
                 ArMaterials.MarkNeverOccluded(mat);
-                r.sharedMaterial = mat;
-                r.shadowCastingMode = ShadowCastingMode.Off;
-                r.receiveShadows = false;
+                EmbersFx.ConfigurePuff(_dust, mat, new Color(0.75f, 0.7f, 0.58f, 0.72f), 0.2f, 0.08f, 0.6f, 0f);
+                var main = _dust.main;
+                main.maxParticles = QuestPerf.Particles(72);
                 _audio = gameObject.AddComponent<AudioSource>();
                 _audio.playOnAwake = false;
                 _audio.spatialBlend = 1f;
@@ -267,26 +295,24 @@ namespace VirtualBeeSwarm.AR
             public void Play(Transform item, float weight)
             {
                 if (ContactShadows.Instance != null) ContactShadows.Instance.Pulse(item);
-                Vector3 baseAt = item.position;
-                var rs = item.GetComponentsInChildren<Renderer>();
-                if (rs.Length > 0)
+                // The hive's shadow caster is LiftRoot/Body (a collider, no renderers): measure and squash the whole hive.
+                Transform visual = item;
+                if (item.name == "Body" && item.parent != null && item.parent.name == "LiftRoot")
                 {
-                    var b = rs[0].bounds;
-                    for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-                    baseAt = new Vector3(b.center.x, b.min.y + 0.005f, b.center.z);
+                    var hive = item.GetComponentInParent<HiveBody>();
+                    if (hive != null) visual = hive.transform;
                 }
-                _dust.transform.position = baseAt;
-                var sh = _dust.shape;
-                sh.radius = 0.03f + 0.02f * weight;
-                _dust.Emit(8);
+                Vector3 baseAt = EmitCloud(_dust, visual, weight, 8);
                 if (Thunk != null)
                 {
                     _audio.transform.position = baseAt;
                     _audio.pitch = Mathf.Lerp(1.15f, 0.7f, Mathf.InverseLerp(0.2f, 3f, weight));
                     _audio.PlayOneShot(Thunk, 0.8f);
                 }
-                StartCoroutine(SquashRoutine(item));
+                StartCoroutine(SquashRoutine(visual));
             }
+
+            public void ClearDust() => _dust.Clear();
 
             IEnumerator SquashRoutine(Transform item)
             {

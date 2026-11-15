@@ -4,15 +4,17 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
+using UnityEditor.XR.Management;
 using UnityEngine;
 using UnityEngine.Video;
+using UnityEngine.XR.Management;
 using VirtualBeeSwarm.Editor;
 using Object = UnityEngine.Object;
 
 namespace VirtualBeeSwarm.Capture.Editor
 {
     /// <summary>
-    /// Builds a silent Linux player of a generated capture scene: the offline desktop scene + ShowCapture (stand-in room,
+    /// Builds a silent Windows or Linux player of a generated capture scene: the offline desktop scene + ShowCapture (stand-in room,
     /// POV + wide cameras, PNG frames), the autopilot started by ShowCapture with delivery on.
     ///   Unity -batchmode -nographics -quit -projectPath P -executeMethod VirtualBeeSwarm.Capture.Editor.CaptureBuild.Build
     ///   P/Builds/Capture/vbs-capture.x86_64 -batchmode -force-vulkan  (env VBS_CAPTURE_OUT=dir; needs a GPU + an X display)
@@ -30,13 +32,24 @@ namespace VirtualBeeSwarm.Capture.Editor
             const string audioPath = "ProjectSettings/AudioManager.asset";
             Object audio = null;
             bool audioWasDisabled = false;
+            XRGeneralSettings standaloneXr = null;
+            bool xrWasEnabled = false;
             string scenePath = null;
             try
             {
-                if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneLinux64)
-                    throw new Exception("active build target is " + EditorUserBuildSettings.activeBuildTarget + ", not Linux64");
+                BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+                if (target != BuildTarget.StandaloneLinux64 && target != BuildTarget.StandaloneWindows64)
+                    throw new Exception("active build target is " + target + ", expected Linux64 or Windows64");
                 scenePath = BuildGameScene.BuildScene(SceneFile, offline: true, withRig: false);
                 var scene = EditorSceneManager.OpenScene(scenePath);
+
+                var roomType = Type.GetType("MetaXRAudioRoomAcousticProperties, Meta.XR.Audio");
+                if (roomType != null)
+                {
+                    var room = Object.FindAnyObjectByType(roomType) as Behaviour;
+                    if (room == null) room = (Behaviour)new GameObject("Disabled Meta Audio Room").AddComponent(roomType);
+                    room.enabled = false;
+                }
 
                 var ap = Object.FindAnyObjectByType<GameAutopilot>(FindObjectsInactive.Include);
                 if (ap == null) throw new Exception("no GameAutopilot in the generated scene");
@@ -57,6 +70,7 @@ namespace VirtualBeeSwarm.Capture.Editor
                 var mat = new Material(shader);
                 AssetDatabase.CreateAsset(mat, TempMat);
                 var cap = new GameObject("ShowCapture").AddComponent<ShowCapture>();
+                cap.gameObject.AddComponent<RoomPlaytest>();
                 var cso = new SerializedObject(cap);
                 cso.FindProperty("litTemplate").objectReferenceValue = mat;
                 cso.ApplyModifiedPropertiesWithoutUndo();
@@ -102,15 +116,24 @@ namespace VirtualBeeSwarm.Capture.Editor
                 disable.boolValue = true;
                 audioSo.ApplyModifiedPropertiesWithoutUndo();
 
+                // Capture uses desktop rooms. Native XR startup can crash this player before the scene loads.
+                standaloneXr = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Standalone);
+                if (standaloneXr != null)
+                {
+                    xrWasEnabled = standaloneXr.InitManagerOnStart;
+                    SetXrStartup(standaloneXr, false);
+                }
+
                 string outDir = Environment.GetEnvironmentVariable("CAPTURE_OUT");
                 if (string.IsNullOrEmpty(outDir)) outDir = Path.GetFullPath("Builds/Capture");
                 Directory.CreateDirectory(outDir);
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = new[] { scenePath },
-                    locationPathName = Path.Combine(outDir, "vbs-capture.x86_64"),
-                    target = BuildTarget.StandaloneLinux64,
-                    options = BuildOptions.None,
+                    locationPathName = Path.Combine(outDir, target == BuildTarget.StandaloneWindows64 ? "vbs-capture.exe" : "vbs-capture.x86_64"),
+                    target = target,
+                    options = Environment.GetEnvironmentVariable("CAPTURE_DEVELOPMENT") == "1"
+                        ? BuildOptions.Development : BuildOptions.None,
                 });
                 Debug.Log("[VBSCapture] build " + report.summary.result + " errors=" + report.summary.totalErrors + " -> " + outDir);
                 code = report.summary.result == BuildResult.Succeeded ? 0 : 1;
@@ -122,6 +145,7 @@ namespace VirtualBeeSwarm.Capture.Editor
             }
             finally
             {
+                if (standaloneXr != null) SetXrStartup(standaloneXr, xrWasEnabled);
                 if (audio != null)
                 {
                     var audioSo = new SerializedObject(audio);
@@ -137,6 +161,13 @@ namespace VirtualBeeSwarm.Capture.Editor
                 AssetDatabase.DeleteAsset(TempMat);
             }
             if (Application.isBatchMode) EditorApplication.Exit(code);
+        }
+
+        static void SetXrStartup(XRGeneralSettings settings, bool enabled)
+        {
+            settings.InitManagerOnStart = enabled;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssetIfDirty(settings);
         }
 
         static int MissingScripts(string path)

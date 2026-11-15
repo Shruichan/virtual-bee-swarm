@@ -33,9 +33,9 @@ namespace VirtualBeeSwarm
         [Tooltip("Tilted back this much so it faces a standing player's eye.")]
         [SerializeField] float cardTiltDegrees = 14f;
         [Header("End card (v2, map beat)")]
-        [Tooltip("Held this far in front of the head, its middle this far below the eye.")]
-        [SerializeField] float endCardAhead = 0.62f;
-        [SerializeField] float endCardBelowEye = 0.43f;
+        [Tooltip("Reading distance ahead of the head. The vertical offset is capped to keep the contract in view.")]
+        [SerializeField] float endCardAhead = 0.78f;
+        [SerializeField] float endCardAboveEye = 0.09f;
         [SerializeField] float endCardTiltDegrees = 22f;
         [SerializeField] int endCardCrew = 6;
 
@@ -68,6 +68,8 @@ namespace VirtualBeeSwarm
                 _cardScale = card.localScale;
                 _cardParentScale = ParentScale(card);
                 BuildEndPanel(card);
+                if (!scoreCard.TryGetComponent<DeliveryItem>(out var item)) item = scoreCard.AddComponent<DeliveryItem>();
+                item.castShadow = false; // the score and contract are held in the air
             }
             SetActive(scoreCard, false);
         }
@@ -185,7 +187,7 @@ namespace VirtualBeeSwarm
 
         /// <summary>
         /// v2, map beat (room_end_contract): a crew delivers the score card again, now with the contract under the score,
-        /// and holds it in front of the player (endCardAhead, a little below the eye, tilted to face them).
+        /// and holds it in front of the player, above the dialogue and tilted to face them.
         /// </summary>
         public void DeliverEndCard()
         {
@@ -196,17 +198,17 @@ namespace VirtualBeeSwarm
             Transform head = delivery != null ? delivery.Head : (Camera.main != null ? Camera.main.transform : null);
             Vector3 eye = head != null ? head.position : t.position + Vector3.up * 0.4f;
             Vector3 fwd = head != null ? head.forward : Vector3.forward;
-            fwd.y = 0f;
-            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
-            fwd.Normalize();
-            Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(endCardTiltDegrees, 0f, 0f);
-            // the card's pivot is the score line; the whole card (score + contract) is centred on the target
+            Vector3 up = head != null ? head.up : Vector3.up;
+            Quaternion rot = Quaternion.LookRotation(fwd, up) * Quaternion.Euler(endCardTiltDegrees, 0f, 0f);
+            // Leave room below the contract for Beeswax's closing captions.
             float below = (_cardBottom + 0.012f + _endPanelHeight) * 0.5f;
-            Vector3 centre = eye + fwd * endCardAhead - Vector3.up * endCardBelowEye;
+            float eyeOffset = Mathf.Clamp(endCardAboveEye, 0f, endCardAhead * 0.12f);
+            Vector3 centre = eye + fwd * endCardAhead + up * eyeOffset;
             Vector3 pivot = centre + rot * Vector3.up * below;
             Vector3 scale = SetDisplayScale(t);
             if (delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
             {
+                delivery.Register(t)?.Measure();
                 delivery.Park(t, new Pose(pivot, rot), endCardCrew);
             }
             else
@@ -261,7 +263,14 @@ namespace VirtualBeeSwarm
             if (delivery != null) delivery.Release(scoreCard.transform, hide: true);
             SetActive(scoreCard, false);
             SetActive(_endPanel, false);
+            RestoreCardScale();
+        }
+
+        void RestoreCardScale()
+        {
+            if (scoreCard == null) return;
             scoreCard.transform.localScale = _cardScale;
+            if (scoreCard.TryGetComponent<DeliveryItem>(out var item)) item.Measure();
         }
 
         protected override void OnEnter(GameBeat beat) => StartCoroutine(Run());
@@ -369,7 +378,7 @@ namespace VirtualBeeSwarm
         {
             if (delivery != null && scoreCard != null) delivery.Release(scoreCard.transform, hide: true);
             SetActive(scoreCard, false);
-            if (scoreCard != null) scoreCard.transform.localScale = _cardScale;
+            RestoreCardScale();
         }
 
         protected override void OnResetState()
@@ -380,7 +389,7 @@ namespace VirtualBeeSwarm
             SetActive(scoreCard, false);
             SetActive(_endPanel, false);
             DrawOnTop(false);
-            if (scoreCard != null) scoreCard.transform.localScale = _cardScale;
+            RestoreCardScale();
         }
     }
 }

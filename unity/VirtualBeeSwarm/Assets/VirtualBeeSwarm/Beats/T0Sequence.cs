@@ -133,7 +133,6 @@ namespace VirtualBeeSwarm
                 while (!beeswax.Arrived && Time.time - t0 < 3f) yield return null;
                 beeswax.AttachTo(seat);
             }
-            if (net != null) net.Say(GameLines.T0Launch);
             for (int n = 3; n >= 1; n--)
             {
                 if (rocketDisplay != null) rocketDisplay.text = n.ToString();
@@ -142,6 +141,7 @@ namespace VirtualBeeSwarm
                 yield return Wait(0.9f);
             }
             if (LaunchGate != null) yield return LaunchGate(rocketDisplay); // HANDSON hook
+            if (net != null) net.Say(GameLines.T0Launch); // "TAKE ME TO THE MOON!" lands with the lever pull and the flame
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
 
             // launch
@@ -241,8 +241,83 @@ namespace VirtualBeeSwarm
 
             yield return SayAndWait(GameLines.T0Back, 2.5f, 7f);
             MoonAwardVisible = true;
+            StartCoroutine(AwardTrophy());
             yield return SayAndWait(GameLines.RoomT0FakeMoon, 2.5f, LineTime.Seconds(net, GameLines.RoomT0FakeMoon) + 1f);
             Complete(0.7f);
+        }
+
+        // ------------------------------------------------------------ the Moon itself on the award card (dartiros: "and there's the flag")
+        Transform _trophy;
+
+        /// <summary>A little copy of the Moon with its union flag, standing on StickerDirector's "You got the Moon" card,
+        /// so it pops in, follows and hides with the card.</summary>
+        IEnumerator AwardTrophy()
+        {
+            ClearTrophy();
+            yield return Wait(0.4f); // the card turns on next update and pops to full size in 0.32 s: measure it after that
+            var card = GameObject.Find("[VBS] Moon Award");
+            if (card == null || moon == null) yield break;
+            var moonBall = moon.transform.Find("Moon");
+            var src = moonBall != null ? moonBall.gameObject : moon;
+            var mini = Instantiate(src, card.transform, true);
+            mini.name = "[VBS] MoonTrophy";
+            mini.SetActive(true);
+            foreach (var c in mini.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+            foreach (var mb in mini.GetComponentsInChildren<MonoBehaviour>(true)) mb.enabled = false; // a trophy, not a second Moon
+            var own = mini.transform.Find("NP_MoonFlag");
+            if (own != null) own.gameObject.SetActive(true);
+            mini.transform.rotation = card.transform.rotation;
+            FitOnCard(mini.transform, card.transform, 0.1f);
+            if (own == null) PlantTrophyFlag(mini.transform, card.transform);
+            _trophy = mini.transform;
+        }
+
+        /// <summary>Scale an object to `size` (largest side) and stand it on top of the card's centre.</summary>
+        static void FitOnCard(Transform t, Transform card, float size)
+        {
+            if (!Bounds(t, out var b)) return;
+            float big = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+            if (big > 1e-4f) t.localScale *= size / big;
+            if (!Bounds(card, out var cb, t) || !Bounds(t, out b)) return;
+            t.position += new Vector3(cb.center.x - b.center.x, cb.max.y + 0.005f - b.min.y, cb.center.z - b.center.z);
+        }
+
+        /// <summary>No flag on the Moon (it was planted on the table's Moon ground): copy the planted one onto the trophy.</summary>
+        void PlantTrophyFlag(Transform mini, Transform card)
+        {
+            Transform src = null;
+            foreach (var t in transform.root.GetComponentsInChildren<Transform>(true)) // once per ride
+                if (t.name == "NP_MoonFlag" && !t.IsChildOf(mini)) { src = t; break; }
+            if (src == null || !Bounds(mini, out var mb)) return;
+            var flag = Instantiate(src.gameObject, mini, true);
+            flag.name = "[VBS] MoonTrophyFlag";
+            flag.SetActive(true);
+            flag.transform.rotation = card.rotation; // first: rotating moves the bounds
+            foreach (var c in flag.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+            if (!Bounds(flag.transform, out var fb)) { Destroy(flag); return; }
+            if (fb.size.y > 1e-4f) flag.transform.localScale *= (mb.size.y * 0.7f) / fb.size.y;
+            if (!Bounds(flag.transform, out fb)) return;
+            Vector3 top = new Vector3(mb.center.x, mb.max.y - mb.size.y * 0.08f, mb.center.z) + card.right * (mb.size.x * 0.15f);
+            flag.transform.position += top - new Vector3(fb.center.x, fb.min.y, fb.center.z);
+        }
+
+        /// <summary>World bounds of t's renderers (minus `skip`'s), false when there are none.</summary>
+        static bool Bounds(Transform t, out Bounds b, Transform skip = null)
+        {
+            b = default;
+            bool any = false;
+            foreach (var r in t.GetComponentsInChildren<Renderer>())
+            {
+                if (skip != null && r.transform.IsChildOf(skip)) continue;
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            }
+            return any;
+        }
+
+        void ClearTrophy()
+        {
+            if (_trophy != null) Destroy(_trophy.gameObject);
+            _trophy = null;
         }
 
         Transform FacingSeat()
@@ -320,11 +395,36 @@ namespace VirtualBeeSwarm
 
         Pose GetCrashPose()
         {
+            if (Bloom.MeadowLayout.Active && _hasLaunchPose)
+            {
+                // The launch pad is already clear of the hive at the current meadow scale.
+                Transform anchor = rocket.parent;
+                Vector3 position = anchor != null ? anchor.TransformPoint(_launchPose.position) : _launchPose.position;
+                Quaternion upright = anchor != null ? anchor.rotation * _launchPose.rotation : _launchPose.rotation;
+                Transform hive = anchor != null ? anchor.Find("Hive") : null;
+                float side = hive == null || Vector3.Dot(position - hive.position, upright * Vector3.right) >= 0f ? 1f : -1f;
+                Quaternion tilted = upright * Quaternion.Euler(0f, 0f, -18f * side);
+                if (rocket.TryGetComponent(out DeliveryItem body) && body.measured)
+                {
+                    Vector3 scale = rocket.lossyScale;
+                    Vector3 centre = Vector3.Scale(body.localBounds.center, scale);
+                    Vector3 extent = Vector3.Scale(body.localBounds.extents, new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+                    position.y += LowestPoint(centre, extent, upright) - LowestPoint(centre, extent, tilted);
+                }
+                if (crashSpot != null) crashSpot.position = position; // the crash sound uses this anchor
+                return new Pose(position, tilted);
+            }
             if (crashSpot != null)
                 return new Pose(crashSpot.position, crashSpot.rotation * Quaternion.Euler(0f, 0f, 28f));
             var parent = rocket.parent;
             return new Pose(parent != null ? parent.TransformPoint(_rocketHomePos) : _rocketHomePos,
                 (parent != null ? parent.rotation * _rocketHomeRot : _rocketHomeRot) * Quaternion.Euler(0f, 0f, 28f));
+        }
+
+        static float LowestPoint(Vector3 centre, Vector3 extent, Quaternion rotation)
+        {
+            Vector3 up = Quaternion.Inverse(rotation) * Vector3.up;
+            return Vector3.Dot(centre, up) - Vector3.Dot(extent, new Vector3(Mathf.Abs(up.x), Mathf.Abs(up.y), Mathf.Abs(up.z)));
         }
 
         void PutRocketDown()
@@ -338,6 +438,7 @@ namespace VirtualBeeSwarm
         {
             _hasLaunchPose = false;
             MoonAwardVisible = false;
+            ClearTrophy();
             SetDim(0f);
             SetActive(flame, false);
             SetActive(moon, false);

@@ -60,7 +60,8 @@ materials and meshes are kept.
 - Use **ORDER UP** to order a smoker and pump it with the honey-dipper lever. Lift the hive and pour syrup into the
   feeder. Fit the entrance reducer, then set down the pebble dish and pull the lever to fill it.
 - The hive makes a sound when you lift it. With a Touch controller, the hand lifting it gets one short pulse.
-  The pebble dish gives a little dust and a thunk when it snaps into place.
+  Landed props kick up dust at their contact point. The lever appears for smoke, water and liftoff, then folds away.
+  The used station tools also disappear once their outcomes play. The filled pebble dish stays in the meadow.
 - Hold a pinch to ask the future window a **what if**, or use B/Y on a controller. Ask about a fire, then say
   **put it out**. Beeswax demonstrates and clears the fire if the player stays quiet, including when the Hive is down.
 - After the hive is saved, pull the lever to launch the rocket. The Moon appears at liftoff. The map and final
@@ -204,6 +205,26 @@ in the comment at the top of `Editor/GameSmokeBuild.cs`.
 - Android (S1.10 + S1.14, ~06:25 PT, pop-os copy A): the bootstrap ran twice, the second run changed no file, and the
   S1.10 check passes. The cold IL2CPP D build had 0 script errors and 0 script warnings. The aapt2 check passed, and
   the signer is the shared debug key (SHA-256 `39:5E:44:51:…:CE:87:5D`).
+
+## Room recordings
+
+Build a Windows capture player from Unity 6000.2.9f1 with
+`-batchmode -quit -force-d3d11 -buildTarget StandaloneWindows64 -executeMethod VirtualBeeSwarm.Capture.Editor.CaptureBuild.Build`.
+Set `CAPTURE_OUT` if you want the player outside the project. The default output is `Builds/Capture`.
+Set `CAPTURE_DEVELOPMENT=1` when building a player for development previews. For a Pals recording, run that player with `VBS_OPENING_BEESWAX=1`, `VBS_PALS_DEMO=1` and `VBS_AUTOPILOT_PRE_IDLE=30`.
+
+From the repo root, use Python with Pillow and FFmpeg with H.264 support. The runner accepts FFmpeg on PATH,
+`--ffmpeg`, or the binary bundled with `imageio-ffmpeg`.
+
+```powershell
+py ops/room-playtest.py --player "C:\path\to\vbs-capture.exe" --out "C:\path\to\room-review"
+```
+
+Open `index.html` in the output folder. It links each room's video, review frames, and event timeline. Use
+`--rooms 4 9 20` to repeat selected cases in a fresh output folder. The desktop run uses furniture volumes for
+placement and sightline checks. Review the video even when the script completes all four hand actions.
+The starting gaze can hide controls, and a partial floor fit can intersect furniture. Dialogue is reconstructed
+from the captured timestamps. Quest tracking, passthrough, physical reach, and headset frame time still need a device run.
 
 ## Known gaps
 

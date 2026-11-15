@@ -121,7 +121,8 @@ namespace VirtualBeeSwarm
         IEnumerator Intro()
         {
             yield return SayAndWait(GameLines.WhatIfPrompt, 1.5f, LineTime.Seconds(net, GameLines.WhatIfPrompt) + 1f);
-            if (!FireStarted)
+            // skip it if the player already barged in to talk (the mic must not hear "Just not fire.")
+            if (!FireStarted && !TalkHeld && !net.Talking && !net.AwaitingReply)
             {
                 var notFire = RideLines.WhatIfNotFire; // reverse psychology: "Just not fire."
                 yield return SayAndWait(notFire, 1f, LineTime.Seconds(net, notFire) + 1f);
@@ -156,6 +157,8 @@ namespace VirtualBeeSwarm
             TalkHeld = hold;
             if (hold && !_holdPrev)
             {
+                // Barge-in, as on the Ask card: the mic must never hear Beeswax ("Just not fire." would block the fast path).
+                if (IsActive && net.IsSpeaking) net.StopVoice();
                 // Decide once per press: online -> stream the mic; offline -> the release is the question (what-if only).
                 _pressStreams = net.Online && net.BeginTalk();
             }
@@ -182,9 +185,14 @@ namespace VirtualBeeSwarm
             if (online != _wasOnline && hintText != null)
             {
                 _wasOnline = online;
-                hintText.text = online
-                    ? "Hold pinch / trigger (or T) and ask"
-                    : "Hold pinch (or T), ask, let go.  F = fire, P = put it out";
+                // One card, not two: the separate hint card sat 4.5 cm under the prompt and the themed cards collided
+                // (room playtests). Keyboard keys only on the desktop: the headset player has no T / F / P.
+                bool headset = UnityEngine.XR.XRSettings.isDeviceActive;
+                string how = headset
+                    ? (online ? "Hold a pinch and ask." : "Hold a pinch, ask, let go.")
+                    : (online ? "Hold pinch / trigger (or T) and ask" : "Hold pinch (or T), ask, let go.  F = fire, P = put it out");
+                hintText.text = "";
+                if (promptText != null) promptText.text = "Ask me anything.\n\"What if...?\"\n" + how;
             }
 
             if (GameInput.KeyDown(fireKey)) LocalWhatIfFire();
@@ -232,7 +240,17 @@ namespace VirtualBeeSwarm
             }
             if (FireOut) return; // MarkFireOut adjourns
             if (_otherWhatIfAt >= 0f && speaking) _otherWhatIfAt = now; // count the 5 s from the end of its line
-            if (_otherWhatIfAt >= 0f && !speaking && now - _otherWhatIfAt >= adjournAfterWhatIfSeconds) StartAdjourn("another what-if + " + adjournAfterWhatIfSeconds.ToString("0") + " s");
+            if (_otherWhatIfAt >= 0f && !speaking && now - _otherWhatIfAt >= adjournAfterWhatIfSeconds)
+            {
+                // The fire is the must-show moment: after another what-if, steer to it instead of adjourning.
+                // The silence fallback (fireAfterSilenceSeconds) and the beat's time limit still end the beat.
+                Debug.Log("[VBS][Ride] what-if: another what-if done, steering to the fire");
+                _otherWhatIfAt = -1f;
+                if (!_hinted && !holding) { _hinted = true; _quietSince = -1f; net.Say(RideLines.HintWhatIf); }
+                // already hinted: don't wait the full silence fallback (it could run into the beat's 60 s cap); the
+                // fire starts after ~6 s more of quiet
+                else _quietSince = now - Mathf.Max(0f, fireAfterSilenceSeconds - 6f);
+            }
             else if (_otherWhatIfAt < 0f && fireAfterSilenceSeconds > 0f && quiet >= fireAfterSilenceSeconds) LocalWhatIfFire();
         }
 

@@ -5,7 +5,9 @@
         "VirtualBeeSwarm",
         "VirtualBeeSwarm.Editor",
         "VirtualBeeSwarm.Capture",
-        "Beeswax.Client"
+        "Beeswax.Client",
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor"
     ],
     "includePlatforms": [
         "Editor"
