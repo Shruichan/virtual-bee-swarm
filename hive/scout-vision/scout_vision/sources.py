@@ -84,7 +84,7 @@ class Source:
         try:
             if self.label.startswith("folder:"):
                 self._run_folder()
-            elif self.spec.startswith("rtsp://") and shutil.which("ffmpeg") and os.environ.get("SCOUT_CAPTURE", "ffmpeg") == "ffmpeg":
+            elif self.spec.startswith("rtsp://") and shutil.which("ffmpeg") and os.environ.get("SCOUT_CAPTURE", "opencv") == "ffmpeg":
                 self._run_ffmpeg()
             elif self.spec.startswith("webcam:") or "://" in self.spec:
                 self._run_live()
