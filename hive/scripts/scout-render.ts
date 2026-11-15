@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-// Render the Live Bee Scout lines (lines/scout_lines.json) to lines/scout_audio/<id>.mp3 + manifest.json.
+// Render the Live Bee Scout lines (lines/scout_lines.json + lines/scout_lines_booth.json) to
+// lines/scout_audio/<id>.mp3 + manifest.json. An id may live in only one of the two files.
 //   bun scripts/scout-render.ts                 ElevenLabs (needs ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID, from the
 //                                               env or hive/.env); same model as prerender.ts (TTS_MODEL). The manifest
 //                                               names the voice from VOICE_NAMES, or --voice-name
@@ -8,7 +9,7 @@
 //                                               of unchanged text unless --all)
 //   bun scripts/scout-render.ts --all           re-render every line, not just changed ones
 //   bun scripts/scout-render.ts --only id,id    re-render just these ids
-// Output: mp3, mono, 44.1 kHz, 64 kbps, loudness-normalized to -16 LUFS. scout_chime gets a two-note ding in
+// Output: mp3, mono, 44.1 kHz, 64 kbps, loudness-normalized to -16 LUFS. Chime lines get a two-note ding in
 // front of the voice. manifest.json: { "<id>": { ms, voice, chars, hash } }. The game uses ms for timing.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -19,6 +20,7 @@ import type { ScoutLine } from "../src/scout-protocol";
 
 const HIVE = resolve(import.meta.dir, "..");
 export const SCOUT_LINES_FILE = join(HIVE, "lines", "scout_lines.json");
+export const SCOUT_BOOTH_LINES_FILE = join(HIVE, "lines", "scout_lines_booth.json");
 export const SCOUT_AUDIO_DIR = join(HIVE, "lines", "scout_audio");
 export const SCOUT_MANIFEST_FILE = join(SCOUT_AUDIO_DIR, "manifest.json");
 
@@ -36,13 +38,24 @@ export interface ManifestEntry { ms: number; voice: ScoutVoice; chars: number; h
 export type ScoutManifest = Record<string, ManifestEntry>;
 
 /** What the audio for a line depends on, apart from the voice. */
-export function lineHash(line: Pick<ScoutLine, "id" | "text">): string {
-  const chime = line.id === "scout_chime" ? "|ding" : "";
+export function lineHash(line: Pick<ScoutLine, "kind" | "text">): string {
+  const chime = line.kind === "chime" ? "|ding" : "";
   return createHash("sha1").update(`v${RENDER_VERSION}|${line.text}${chime}`).digest("hex").slice(0, 12);
 }
 
+export function readLinesFile(file: string): ScoutLine[] {
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as ScoutLine[]) : [];
+}
+
+/** Both lines files, demo first. Throws on an id defined twice (the game would silently pick the booth one). */
 export function readScoutLines(): ScoutLine[] {
-  return JSON.parse(readFileSync(SCOUT_LINES_FILE, "utf8")) as ScoutLine[];
+  const all = [...readLinesFile(SCOUT_LINES_FILE), ...readLinesFile(SCOUT_BOOTH_LINES_FILE)];
+  const seen = new Set<string>();
+  for (const l of all) {
+    if (seen.has(l.id)) throw new Error(`line id ${l.id} is defined twice across scout_lines*.json`);
+    seen.add(l.id);
+  }
+  return all;
 }
 
 export function readManifest(): ScoutManifest {
