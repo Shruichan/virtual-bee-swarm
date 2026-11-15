@@ -84,7 +84,7 @@ namespace VirtualBeeSwarm
 
             bool open = _openMaps == this;
             bool visible = open || CanOpenMaps();
-            if (visible && _menu == null) _menu = new MapMenu(transform, OpenMaps, ReplayHive, BackFromMaps);
+            if (visible && _menu == null) _menu = new MapMenu(transform, tiles, OpenMaps, ReplayHive, BackFromMaps);
             _menu?.Show(visible, open);
         }
 

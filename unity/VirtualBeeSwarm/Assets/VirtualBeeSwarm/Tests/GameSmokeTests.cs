@@ -302,10 +302,34 @@ namespace VirtualBeeSwarm.Tests
 
             // group reset puts everything back
             var lid = hive.GetComponentsInChildren<ArtAnimProp>(true).Single(prop => prop.trigger == ArtAnimProp.Trigger.Beat && prop.beat == GameBeat.Escape);
+            var mapPreview = new SerializedObject(map).FindProperty("mapRoot").objectReferenceValue as GameObject;
+            var crashDust = new SerializedObject(launch).FindProperty("dustPuff").objectReferenceValue as ParticleSystem;
+            var meadow = Bloom.MeadowField.Instance;
+            escape.DeliverEndCard();
+            Assert.IsTrue(escape.EndCardShown, "the previous contract is visible before reset");
+            net.RequestScene(GameIds.Scene.FullBloom, sendToHive: false);
             director.ResetToPre();
+            Assert.AreEqual(GameBeat.Pre, director.Beat);
+            Assert.AreEqual(GameIds.Scene.Meadow, net.CurrentScene, "the previous finale scene is replaced at reset");
+            Assert.IsFalse(map.UnloadDone || LevelMap.MapsMenuOpen, "the previous map and its menu are closed");
+            Assert.IsFalse(mapPreview != null && mapPreview.activeSelf, "the map preview is hidden");
+            Assert.IsFalse(escape.EndCardShown, "the previous contract is hidden");
+            Assert.IsFalse(launch.MoonAwardVisible, "the previous Moon award is cleared");
+            Assert.That(Vector3.Distance(rocket.position, rocketItem.HomePosition), Is.LessThan(0.01f), "the rocket is returned to its pad");
+            Assert.That(Vector3.Distance(rocket.localScale, restingScale), Is.LessThan(0.001f), "the rocket returns to its resting size");
+            if (crashDust != null) Assert.AreEqual(0, crashDust.particleCount, "reset clears crash dust");
+            if (Bloom.MeadowLayout.Active && meadow != null)
+                Assert.That(meadow.Health, Is.EqualTo(0.3f).Within(0.001f), "the meadow immediately starts fresh");
+            yield return null;
+            Assert.IsNull(GameObject.Find("[VBS] Moon Award"), "the old award card is no longer visible");
+            Assert.IsNull(GameObject.Find("[VBS] MoonTrophy"), "the old Moon trophy is gone");
+            if (BeeDelivery.Mode != DeliveryMode.Off)
+            {
+                Assert.IsTrue(intro.SignHereShown, "the new ride invites the player to sign");
+                yield return WaitUntil(() => intro.SignHereReady, 10f, "fresh SIGN HERE clipboard");
+            }
             float resetAt = Time.time;
             yield return WaitUntil(() => Time.time - resetAt > lid.delay, 4f, "delayed lid reset");
-            Assert.AreEqual(GameBeat.Pre, director.Beat);
             Assert.AreEqual(0, director.SolvedStations);
             Assert.AreEqual(0, hex.LitCount);
             Assert.IsFalse(lid.GetComponent<Animation>().IsPlaying(lid.clip), "the escape lid cannot open after reset");

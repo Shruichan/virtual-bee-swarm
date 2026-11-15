@@ -33,6 +33,11 @@ namespace VirtualBeeSwarm.Bloom
         public int VineCount { get; private set; }
         public int Draws => _meshes.Count;
         public string Source { get; private set; } = "none";
+        BloomRect _lastOpening;
+        bool _hadOpening;
+        bool _windowWasOpen;
+        bool _hasWalls;
+        FutureWindow _window;
 
         public MeadowWalls()
         {
@@ -82,7 +87,11 @@ namespace VirtualBeeSwarm.Bloom
             }
             else Source = "no wall known";
 
+            _hasWalls = walls.Count > 0;
             var window = WindowRect(out bool hasWindow);
+            System.Predicate<Vector3> sightline = null;
+            if (MeadowLayout.Active && hasWindow)
+                sightline = point => BlocksPortalView(window, player, point);
             var paths = new List<VinePath>(96);
             foreach (var wall in walls)
             {
@@ -110,7 +119,11 @@ namespace VirtualBeeSwarm.Bloom
             {
                 int from = k * MaxPerMesh, n = Mathf.Min(MaxPerMesh, VineCount - from);
                 if (n <= 0) break;
-                var s = new BloomSurfaces { FloorY = floorY, HasWindow = hasWindow, Window = window, WaveOrigin = new Vector3(hive.x, floorY, hive.z), WaveStart = 100f };
+                var s = new BloomSurfaces
+                {
+                    FloorY = floorY, HasWindow = hasWindow, Window = window, WallSightlineKeepOut = sightline,
+                    WaveOrigin = new Vector3(hive.x, floorY, hive.z), WaveStart = 100f,
+                };
                 for (int i = 0; i < n; i++) s.Vines.Add(paths[from + i]);
                 var mesh = Vines.Build(s, 50f, seed + 17 * k, out int tris, out _);
                 if (mesh != null) { _meshes.Add(mesh); Tris += tris; }
@@ -129,35 +142,49 @@ namespace VirtualBeeSwarm.Bloom
             return false;
         }
 
-        static BloomRect WindowRect(out bool ok)
+        public bool OpeningMoved()
         {
+            if (!MeadowLayout.Active || !_hasWalls || _window == null) return false;
+            bool found = _window.TryGetVineOpening(out var current);
+            return found != _hadOpening || (found &&
+                (Vector3.SqrMagnitude(current.center - _lastOpening.center) > 0.01f ||
+                 Vector3.Angle(current.normal, _lastOpening.normal) > 8f ||
+                 Vector2.SqrMagnitude(current.half - _lastOpening.half) > 0.01f ||
+                 (_window.IsOpen && !_windowWasOpen)));
+        }
+
+        BloomRect WindowRect(out bool ok)
+        {
+            _window = _window != null ? _window : Object.FindAnyObjectByType<FutureWindow>(FindObjectsInactive.Include);
             ok = false;
-            var r = default(BloomRect);
-            // meadow: the portal floats in the meadow, off the wall (ArRig), so the wall vines grow right across the wall
-            if (MeadowLayout.Active) return r;
-            var w = Object.FindAnyObjectByType<FutureWindow>(FindObjectsInactive.Include);
-            if (w == null || !w.gameObject.activeInHierarchy || w.PaneTransform == null) return r;
-            var t = w.PaneTransform;
-            Vector3 s = t.lossyScale;
-            r.center = t.position;
-            r.right = t.right;
-            r.up = t.up;
-            r.normal = -t.forward;
-            r.half = new Vector2(Mathf.Abs(s.x) * 1.2f, Mathf.Abs(s.y) * 1.2f);
+            if (_window == null) return default;
             if (MeadowLayout.Active)
             {
-                // closed (title) the pane is scaled to nothing: use the meadow window's full size and a frame's margin
-                var wt = w.transform;
-                float width = MeadowLayout.WindowWidth, height = width * 0.66f;
-                r.center = wt.position;
-                r.right = wt.right;
-                r.up = wt.up;
-                r.normal = -wt.forward;
-                r.half = new Vector2(width * 0.5f + 0.15f, height * 0.5f + 0.15f);
+                _hadOpening = ok = _window.TryGetVineOpening(out _lastOpening);
+                _windowWasOpen = _window.IsOpen;
+                return _lastOpening;
             }
-            ok = r.half.x > 0.01f;
-            return r;
+            if (!_window.gameObject.activeInHierarchy || _window.PaneTransform == null) return default;
+            var t = _window.PaneTransform;
+            Vector3 scale = t.lossyScale;
+            ok = Mathf.Abs(scale.x) > 0.01f;
+            return new BloomRect
+            {
+                center = t.position, right = t.right, up = t.up, normal = -t.forward,
+                half = new Vector2(Mathf.Abs(scale.x) * 1.2f, Mathf.Abs(scale.y) * 1.2f),
+            };
         }
+
+        public static bool BlocksPortalView(BloomRect window, Vector3 eye, Vector3 point)
+        {
+            float eyeDepth = Vector3.Dot(eye - window.center, window.normal);
+            float pointDepth = Vector3.Dot(point - window.center, window.normal);
+            if (eyeDepth <= 0.01f || pointDepth < -0.16f || pointDepth >= eyeDepth - 0.01f) return false;
+            Vector3 onPane = eye + (point - eye) * (eyeDepth / (eyeDepth - pointDepth));
+            return window.Contains(onPane, 0.24f, 0.01f);
+        }
+
+        public void ResetGrowth() { _bt = 0f; _grown = false; }
 
         /// <summary>Health 0.3 (sick) .. 1.5 (escape): how far up the walls the green has climbed.</summary>
         public void Draw(float health, int layer)

@@ -308,10 +308,10 @@ namespace VirtualBeeSwarm
             PlayedHornet = false;
             if (net != null)
             {
-                net.StopVoice();
                 net.ResetHum();
                 net.CalibrateHum();
                 net.SendBeat(GameBeat.Pre);
+                net.ResetReplayMedia();
             }
             Debug.Log("[VBS] reset to pre");
             EnterBeat(GameBeat.Pre);

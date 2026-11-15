@@ -490,13 +490,14 @@ namespace VirtualBeeSwarm
 
         void HandleOrbisScene(string scene)
         {
-            if (!string.IsNullOrEmpty(scene) && scene != CurrentScene) SetSceneLocal(scene);
+            if (!_replayBootWindow && !string.IsNullOrEmpty(scene) && scene != CurrentScene) SetSceneLocal(scene);
         }
 
         // ---------------------------------------------------------------- outbound
         GameBeat? _lastBeat;
         bool _askUtterance, _wakeUtterance;
         bool _deviceAskReplyPending;
+        bool _replayBootWindow;
 
         static string PreloadedAnswerId(string caption)
         {
@@ -531,6 +532,11 @@ namespace VirtualBeeSwarm
         /// <summary>Unity is the only beat clock: report every beat change. The bus re-sends it after a reconnect.</summary>
         public void SendBeat(GameBeat beat, int? scoreSeconds = null)
         {
+            if (_replayBootWindow && beat != GameBeat.Pre)
+            {
+                _replayBootWindow = false;
+                orbis?.ClearClipPreview();
+            }
             if (_lastBeat != beat)
             {
                 voiceInput?.CancelPendingTurn();
@@ -540,6 +546,22 @@ namespace VirtualBeeSwarm
             if (logEvents) Debug.Log("[VBS] beat " + (int)beat + " " + GameIds.BeatName(beat) + (Online ? "" : " (offline)"));
             if (forceOffline || _bound == null) return;
             _bound.SendBeatSet((int)beat, scoreSeconds);
+        }
+
+        /// <summary>Replay resets this player's media while the normal beat clock handles the next run.</summary>
+        public void ResetReplayMedia()
+        {
+            _replayBootWindow = false;
+            voiceInput?.CancelPendingTurn();
+            EndVoiceDialogue();
+            StopVoice();
+            _localCaption = "";
+            _replayBootWindow = true;
+            if (voice != null) voice.SuppressAskReplies = true;
+            SetSceneLocal(GameIds.Scene.Meadow);
+            if (orbis == null) return;
+            orbis.ShowSceneLocally(GameIds.Scene.Meadow);
+            orbis.PreviewClip(GameIds.Scene.Meadow, float.PositiveInfinity);
         }
 
         /// <summary>
@@ -795,7 +817,7 @@ namespace VirtualBeeSwarm
         {
             _askUtterance = _wakeUtterance = false;
             _deviceAskReplyPending = false;
-            if (voice != null) voice.SuppressAskReplies = false;
+            if (voice != null) voice.SuppressAskReplies = _replayBootWindow;
         }
 
         public void EndVoiceDialogue()
@@ -803,7 +825,7 @@ namespace VirtualBeeSwarm
             _askQuestionsLeft = 0;
             _askFollowUpUntil = 0f;
             ResetVoiceWakeGate();
-            orbis?.ClearClipPreview();
+            if (!_replayBootWindow) orbis?.ClearClipPreview();
             if (voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
         }
 

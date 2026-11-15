@@ -80,7 +80,7 @@ namespace VirtualBeeSwarm.Bloom
         int _n;
         IBloomSceneSource _scene;
         readonly BloomScene _sceneData = new BloomScene();
-        bool _sceneBegun, _sceneUsed, _subscribed;
+        bool _sceneBegun, _sceneUsed, _scannedWallsUsed, _subscribed;
         float _health = 0.3f, _nextSceneTry, _layoutAt = -1f;
         Vector3 _layoutHive, _start;
         string _source = "none";
@@ -142,6 +142,7 @@ namespace VirtualBeeSwarm.Bloom
             bool desktop = rig == null || rig.DesktopMode;
             if (desktop) _scene = new BloomFakeRoom();
             else if (MeadowTuning.Mruk) _scene = BloomPlatform.Scene;
+            BeginRoomScan();
             if (rig != null) rig.RoomChanged += OnRoomChanged;
             _layoutAt = Time.time + 0.2f;
         }
@@ -180,14 +181,22 @@ namespace VirtualBeeSwarm.Bloom
 
         void OnBeat(GameBeat prev, GameBeat beat)
         {
-            if (beat == GameBeat.Pre && !_sceneBegun && _scene != null && MeadowTuning.On)
+            if (beat == GameBeat.Pre)
             {
-                _sceneBegun = true;
-                try { _scene.Begin(); }
-                catch (Exception e) { Debug.LogWarning("[VBS][Meadow] scene source " + _scene.Name + ": " + e.Message); }
+                BeginRoomScan();
+                _health = TargetHealth();
+                _walls?.ResetGrowth();
             }
             if (beat == GameBeat.Escape || beat == GameBeat.Pre)
                 Debug.Log("[VBS][Meadow] beat " + GameIds.BeatName(beat) + ": health " + _health.ToString("0.00", C) + " -> " + TargetHealth().ToString("0.00", C));
+        }
+
+        void BeginRoomScan()
+        {
+            if (_sceneBegun || _scene == null || !MeadowTuning.On) return;
+            _sceneBegun = true;
+            try { _scene.Begin(); }
+            catch (Exception e) { Debug.LogWarning("[VBS][Meadow] scene source " + _scene.Name + ": " + e.Message); }
         }
 
         float TargetHealth()
@@ -326,13 +335,7 @@ namespace VirtualBeeSwarm.Bloom
                     }
             }
             if (_bees == null) _bees = new MeadowBees();
-            if (_walls != null && _walls.Ok)
-            {
-                BloomScene wallScene = null;
-                if (_scene != null) { try { if (_scene.TryFill(_sceneData) && _sceneData.Walls.Count > 0) wallScene = _sceneData; } catch (Exception) { } }
-                float ceil = room != null ? room.CeilingOrDefault : FloorY + 2.4f;
-                _walls.Build(wallScene, room, FloorY, ceil, hive, player, 4711);
-            }
+            BuildWalls(scene, room, hive, player);
             int meadowDraws = (_nNear > 0 ? 1 : 0) + (_nFar > 0 ? 1 : 0);
             int draws = meadowDraws + (_walls != null ? _walls.Draws : 0) + (MeadowTuning.Bees ? 1 : 0);
             LastStats = "tiles=" + n + " (near " + _nNear + " x " + TrisPerTile + " tris, far " + _nFar + " x " + _trisFar + " tris" + (cand.Count > n ? ", of " + cand.Count + " capped" : "") + capped + ")" +
@@ -341,6 +344,14 @@ namespace VirtualBeeSwarm.Bloom
                         " | floor " + _source + " y=" + FloorY.ToString("0.00", C) + " | start " + V(player) + " hive " + V(hive) +
                         " | walls: " + (_walls != null ? _walls.Describe() : "off") + " | " + MeadowLayout.RigStats + " | " + MeadowLayout.LastPose + " | buildMs=" + sw.Elapsed.TotalMilliseconds.ToString("0.0", C);
             Debug.Log("[VBS][Meadow] laid out (" + why + "): " + LastStats);
+        }
+
+        void BuildWalls(BloomScene scene, RoomModel room, Vector3 hive, Vector3 player)
+        {
+            if (_walls == null || !_walls.Ok) return;
+            _scannedWallsUsed = scene != null && scene.Walls.Count > 0;
+            float ceil = room != null ? room.CeilingOrDefault : FloorY + 2.4f;
+            _walls.Build(_scannedWallsUsed ? scene : null, room, FloorY, ceil, hive, player, 4711);
         }
 
         /// <summary>Where the hive rests on the stand (the anchor + its scene offset), not where it is flying in the hook.</summary>
@@ -364,12 +375,25 @@ namespace VirtualBeeSwarm.Bloom
             }
             else if (_mat != null && MeadowTuning.On && (Flat(HivePos()) - Flat(_layoutHive)).sqrMagnitude > 0.25f * 0.25f && !Holding())
                 Layout("the hive moved"); // not while the hidden re-place grab is dragging it (RoomChanged covers the drop)
-            else if (!_sceneUsed && _scene != null && _sceneBegun && Time.time >= _nextSceneTry && _director != null && _director.Beat == GameBeat.Pre)
+            else if (_scene != null && _sceneBegun && (!_sceneUsed || (_walls != null && !_scannedWallsUsed)) &&
+                Time.time >= _nextSceneTry)
             {
                 _nextSceneTry = Time.time + 2f;
-                bool ok = false;
-                try { ok = _scene.TryFill(_sceneData) && _sceneData.FloorPolygon.Count >= 3; } catch (Exception) { }
-                if (ok) Layout("room scan loaded");
+                bool ready = false;
+                try
+                {
+                    ready = _scene.TryFill(_sceneData) && ((!_sceneUsed && _sceneData.FloorPolygon.Count >= 3) ||
+                        (_walls != null && !_scannedWallsUsed && _sceneData.Walls.Count > 0));
+                }
+                catch (Exception) { }
+                if (ready) Layout("room geometry loaded");
+            }
+            if (_walls != null && _walls.OpeningMoved() && !Holding())
+            {
+                var rig = ArRig.Instance;
+                var camera = Camera.main;
+                BuildWalls(_scannedWallsUsed ? _sceneData : null, rig != null ? rig.Room : null,
+                    HivePos(), camera != null ? camera.transform.position : _start);
             }
             float target = TargetHealth();
             float k = 1f - Mathf.Exp(-Time.deltaTime * (target > _health ? 0.9f : 3f));

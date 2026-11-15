@@ -42,6 +42,7 @@ namespace VirtualBeeSwarm
 
         IPassthroughDimmer _dimmer;
         Vector3 _rocketHomePos, _earthHome, _moonHome, _moonScale = Vector3.one;
+        Vector3 _crashSpotHome, _dustHome;
         Quaternion _rocketHomeRot;
         float _dim;
         bool _launched, _landed;
@@ -66,6 +67,8 @@ namespace VirtualBeeSwarm
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
             _hive = FindAnyObjectByType<HiveBody>();
             if (rocket != null) { _rocketHomePos = rocket.localPosition; _rocketHomeRot = rocket.localRotation; }
+            if (crashSpot != null) _crashSpotHome = crashSpot.localPosition;
+            if (dustPuff != null) _dustHome = dustPuff.transform.localPosition;
             if (earth != null) _earthHome = earth.localPosition;
             if (moon != null) { _moonScale = moon.transform.localScale; _moonHome = moon.transform.localPosition; }
             SetActive(flame, false);
@@ -380,7 +383,11 @@ namespace VirtualBeeSwarm
 
         void ClearTrophy()
         {
-            if (_trophy != null) Destroy(_trophy.gameObject);
+            if (_trophy != null)
+            {
+                _trophy.gameObject.SetActive(false);
+                Destroy(_trophy.gameObject);
+            }
             _trophy = null;
         }
 
@@ -570,12 +577,26 @@ namespace VirtualBeeSwarm
         protected override void OnResetState()
         {
             if (rocket != null && _hasLaunchPose) rocket.localScale = _launchScale;
+            if (beeswax != null && _hasLaunchPose)
+            {
+                beeswax.Detach();
+                beeswax.SetDusty(false);
+            }
             _hasLaunchPose = false;
+            _launched = _landed = false;
             MoonAwardVisible = false;
             ClearTrophy();
             SetDim(0f);
+            if (window != null) window.NormalSize();
             SetActive(flame, false);
             SetActive(moon, false);
+            if (dustPuff != null)
+            {
+                dustPuff.Clear(true);
+                dustPuff.transform.localPosition = _dustHome;
+            }
+            if (crashSpot != null) crashSpot.localPosition = _crashSpotHome;
+            _crashPose = default;
             if (rocket != null)
             {
                 rocket.gameObject.SetActive(true);
@@ -583,7 +604,11 @@ namespace VirtualBeeSwarm
                 rocket.localRotation = _rocketHomeRot;
             }
             if (earth != null) earth.localPosition = _earthHome;
-            if (moon != null) moon.transform.localPosition = _moonHome;
+            if (moon != null)
+            {
+                moon.transform.localPosition = _moonHome;
+                moon.transform.localScale = _moonScale;
+            }
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
         }
     }

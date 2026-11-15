@@ -115,6 +115,23 @@ namespace VirtualBeeSwarm
 
         public void NormalSize() => _sizeTarget = 1f;
 
+        public bool TryGetVineOpening(out Bloom.BloomRect opening)
+        {
+            opening = default;
+            if (_fx == null || _fx.OuterSize.x <= 0f || _fx.OuterSize.y <= 0f) return false;
+            float size = Mathf.Min(moonScale, Mathf.Max(1f, MaxSize));
+            var local = Matrix4x4.TRS(portalRoot.localPosition, portalRoot.localRotation, _baseScale * size);
+            var world = portalRoot.parent != null ? portalRoot.parent.localToWorldMatrix * local : local;
+            opening = new Bloom.BloomRect
+            {
+                center = world.MultiplyPoint3x4(_fx.OuterCenter), right = transform.right, up = transform.up,
+                normal = -transform.forward,
+                half = Vector2.Scale(_fx.OuterSize * 0.5f, new Vector2(
+                    world.MultiplyVector(Vector3.right).magnitude, world.MultiplyVector(Vector3.up).magnitude)),
+            };
+            return true;
+        }
+
         /// <summary>Show this texture instead of the Hive's live/clip picture (null: back to the Hive's).</summary>
         public void SetOverride(Texture tex) => _override = tex;
 

@@ -74,17 +74,12 @@ namespace VirtualBeeSwarm
 
         void OnEnable()
         {
-            // the station hid this prop meanwhile (and cleared its puffs): count from what is there now
-            if (_ps != null) _lastCount = _ps.particleCount;
-            _repeatsLeft = 0;
-            _seqEnd = -1f;
-            _punchAt = -1f;
-            if (trigger != Trigger.Beat) return;
+            ResetPlayback();
             if (_director == null) _director = GameDirector.Instance != null ? GameDirector.Instance : FindFirstObjectByType<GameDirector>();
             if (_director == null) return;
             _director.BeatChanged += OnBeat;
-            if (_director.Beat < beat) Snap(false);
-            else if (!_open && _director.Beat != GameBeat.Field) _pending = Time.time + delay;
+            if (trigger == Trigger.Beat && _director.Beat >= beat && _director.Beat != GameBeat.Field)
+                _pending = Time.time + delay;
         }
 
         void OnDisable()
@@ -96,16 +91,28 @@ namespace VirtualBeeSwarm
 
         void OnBeat(GameBeat from, GameBeat to)
         {
+            if (to == GameBeat.Pre) { ResetPlayback(); return; }
+            if (trigger != Trigger.Beat) return;
             if (to == GameBeat.Field) { _pending = -1f; return; }
             if (to >= beat && !_open) { _pending = Time.time + delay; return; }
             if (to < beat)
             {
                 _pending = -1f;
                 if (!_open) return;
-                if (to == GameBeat.Pre) Snap(false);
-                else Play(followClip, "beat " + to);
+                Play(followClip, "beat " + to);
                 _open = false;
             }
+        }
+
+        void ResetPlayback()
+        {
+            if (_punchAt >= 0f) transform.localScale = _punchBase;
+            _punchAt = _pending = _seqEnd = _nextRepeat = -1f;
+            _lastFire = -10f;
+            _repeatsLeft = 0;
+            _wasActive = false;
+            _lastCount = _ps != null ? _ps.particleCount : 0;
+            if (_anim != null && _anim[clip] != null) Snap(false);
         }
 
         void Snap(bool open)

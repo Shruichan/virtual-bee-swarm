@@ -72,6 +72,10 @@ namespace VirtualBeeSwarm.Bloom
             return b.V.Count > 0 ? b.ToMesh("VBS_BloomVines") : null;
         }
 
+        static bool InWindowOpening(BloomSurfaces s, Vector3 point) =>
+            (s.HasWindow && s.Window.Contains(point, WindowPad, 0.5f)) ||
+            (s.WallSightlineKeepOut != null && s.WallSightlineKeepOut(point));
+
         static Spine NewSpine() => new Spine { p = new List<Vector3>(48), n = new List<Vector3>(48), t = new List<float>(48) };
 
         static Spine WallSpine(VinePath v, BloomSurfaces s, float birth, System.Random rnd)
@@ -85,7 +89,7 @@ namespace VirtualBeeSwarm.Bloom
             for (float y = 0f; y <= v.height + 1e-4f; y += Step)
             {
                 Vector3 p = v.root + Vector3.up * y + v.tangent * (amp * Mathf.Sin(y * freq + ph) - amp * Mathf.Sin(ph) + drift * y);
-                if (s.HasWindow && s.Window.Contains(p, WindowPad, 0.5f)) break; // never over the window
+                if (InWindowOpening(s, p)) break; // never over the window
                 if (sp.p.Count > 0) arc += Vector3.Distance(prev, p);
                 sp.p.Add(p);
                 sp.n.Add(v.normal);
@@ -135,7 +139,7 @@ namespace VirtualBeeSwarm.Bloom
             Vector3 p = main.p[at];
             for (int k = 0; arc <= len; k++)
             {
-                if (s.HasWindow && s.Window.Contains(p, WindowPad, 0.5f)) break;
+                if (InWindowOpening(s, p)) break;
                 sp.p.Add(p);
                 sp.n.Add(n);
                 sp.t.Add(main.t[at] + 0.2f + arc / Climb);

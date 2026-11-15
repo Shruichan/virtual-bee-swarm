@@ -185,14 +185,46 @@ namespace VirtualBeeSwarm.Pals
 
         void OnOrdered(string what)
         {
+            if (what == "reset")
+            {
+                ResetReactions();
+                return;
+            }
             // the script sent him somewhere: a high-five in flight gives way at once
             if (_mine || _five == Five.Idle) return;
-            if (what == "fly" || what == "present" || what == "home" || what == "attach" || what == "hide" || what == "snap" || what == "reset" || what == "climb")
+            if (what == "fly" || what == "present" || what == "home" || what == "attach" || what == "hide" || what == "snap" || what == "climb")
             {
                 _five = Five.Idle;
                 ClearFiveOffer();
                 Log("high-five dropped: the script ordered " + what);
             }
+        }
+
+        void ResetReactions()
+        {
+            _five = Five.Idle;
+            ClearFiveOffer();
+            _prevGoalT = null;
+            _danceFrom = _waveBackFrom = _waveBackUntil = _wiggleFrom = _squashFrom = _rollFrom = -1f;
+            _nextFive = _nextWave = _nextTouch = _nextRoll = _nextLine = _nextSpark = 0f;
+            _lastPet = -10f;
+            _petStreak = _nextHeart = 0;
+            System.Array.Clear(_contacts, 0, _contacts.Length);
+            System.Array.Clear(_hearts, 0, _hearts.Length);
+            System.Array.Clear(_waveX, 0, _waveX.Length);
+            System.Array.Clear(_waveExt, 0, _waveExt.Length);
+            System.Array.Clear(_waveStart, 0, _waveStart.Length);
+            System.Array.Clear(_waveDir, 0, _waveDir.Length);
+            System.Array.Clear(_waveTurns, 0, _waveTurns.Length);
+            _offset = _offVel = Vector3.zero;
+            // Remove only our additive pose. The controller or motion module may already have set the new pose.
+            if (_wrote && _bw != null)
+            {
+                if (_bw.BodyOffset == _wroteOffset) _bw.BodyOffset = _baseOffset;
+                if (_bw.BodyTilt == _wroteTilt) _bw.BodyTilt = _baseTilt;
+                if (_bw.BodySquash == _wroteSquash) _bw.BodySquash = _baseSquash;
+            }
+            _wrote = false;
         }
 
         // ------------------------------------------------------------------ frame

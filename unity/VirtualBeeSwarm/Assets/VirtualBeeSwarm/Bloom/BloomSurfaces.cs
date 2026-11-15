@@ -150,6 +150,7 @@ namespace VirtualBeeSwarm.Bloom
         public Vector3 HiveFloor;
         public bool HasWindow;
         public BloomRect Window; // exclusion (pane x1.5 when grown, + 0.15 m)
+        public System.Predicate<Vector3> WallSightlineKeepOut;
         public readonly List<Vector3> Floor = new List<Vector3>(BloomTuning.MaxClumps);
         public readonly List<VinePath> Vines = new List<VinePath>(MaxVines);
         public int Candidates, SceneCount, ProbeCount, RingCount;

@@ -184,6 +184,29 @@ namespace VirtualBeeSwarm.AR.Tests
         }
 
         [Test]
+        public void PortalSightline_RemovesOnlyFoliageProjectedIntoTheOpening()
+        {
+            var window = new BloomRect
+            {
+                center = new Vector3(0f, 1.5f, 2f),
+                right = Vector3.right,
+                up = Vector3.up,
+                normal = Vector3.back,
+                half = new Vector2(0.5f, 0.3f)
+            };
+            var eye = new Vector3(0f, 1.5f, 0f);
+
+            Assert.IsTrue(MeadowWalls.BlocksPortalView(window, eye, new Vector3(0.10f, 1.55f, 1f)),
+                "foliage in front whose sightline crosses the aperture is cleared");
+            Assert.IsFalse(MeadowWalls.BlocksPortalView(window, eye, new Vector3(0.45f, 1.5f, 1f)),
+                "perspective puts this foliage beside the aperture");
+            Assert.IsFalse(MeadowWalls.BlocksPortalView(window, eye, new Vector3(0f, 2f, 1f)),
+                "foliage seen above the aperture stays in place");
+            Assert.IsFalse(MeadowWalls.BlocksPortalView(window, eye, new Vector3(0.10f, 1.55f, 2.35f)),
+                "foliage behind the portal plane and its trim stays in place");
+        }
+
+        [Test]
         public void Tuning_ParsesNestedAndFlatKeys()
         {
             var flat = new Dictionary<string, string>();

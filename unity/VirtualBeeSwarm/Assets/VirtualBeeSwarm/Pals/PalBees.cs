@@ -25,7 +25,7 @@ namespace VirtualBeeSwarm.Pals
         readonly Matrix4x4[] _m = new Matrix4x4[N];
         readonly Vector4[] _c = new Vector4[N];
         State _state;
-        int _hand = -1;
+        int _hand = -1, _needRelease;
         float _held, _at, _nextTry;
         bool _said;
         Vector3 _centre, _normal = Vector3.up, _fingers = Vector3.forward;
@@ -39,10 +39,30 @@ namespace VirtualBeeSwarm.Pals
         public bool Landed => _state == State.Landed;
         public int Landings { get; private set; }
 
-        void Start()
+        void OnEnable()
         {
             _net = FindAnyObjectByType<GameNet>();
             _director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
+            if (_director != null) _director.GroupResetDone += ResetRiders;
+        }
+
+        void OnDisable()
+        {
+            if (_director != null) _director.GroupResetDone -= ResetRiders;
+            ResetRiders();
+        }
+
+        void ResetRiders()
+        {
+            _state = State.Off;
+            _hand = -1;
+            _held = _nextTry = 0f;
+            _said = false;
+            _needRelease = 0;
+            var hands = PalHands.Instance;
+            if (hands == null) return;
+            for (int h = 0; h < 2; h++)
+                if (OfferingPalm(hands.Hands[h])) _needRelease |= 1 << h;
         }
 
         void Build()
@@ -74,12 +94,15 @@ namespace VirtualBeeSwarm.Pals
 
             if (_state == State.Off)
             {
+                // A palm that was already up at reset must come down before it can invite the next crew.
+                for (int h = 0; h < 2; h++)
+                    if (!OfferingPalm(hands.Hands[h])) _needRelease &= ~(1 << h);
                 if (!allowed || t < _nextTry) return;
                 int best = -1;
                 for (int h = 0; h < 2; h++)
                 {
                     var p = hands.Hands[h];
-                    if (PalmUp(p)) { best = h; break; }
+                    if ((_needRelease & (1 << h)) == 0 && PalmUp(p)) { best = h; break; }
                 }
                 if (best < 0 || (_hand >= 0 && best != _hand)) { _held = 0f; _hand = -1; return; }
                 _hand = best;
@@ -157,9 +180,11 @@ namespace VirtualBeeSwarm.Pals
             if (n > 0) Draw(n);
         }
 
+        static bool OfferingPalm(PalHand p) => p.tracked && p.palm && p.open && !p.fist && p.normal.y >= 0.7f;
+
         bool PalmUp(PalHand p)
         {
-            if (!p.tracked || !p.palm || !p.open || p.normal.y < 0.7f || p.vel.magnitude > 0.25f) return false;
+            if (!OfferingPalm(p) || p.vel.magnitude > 0.25f) return false;
             var cam = Camera.main;
             if (cam == null) return true;
             Vector3 rel = p.centre - cam.transform.position;
