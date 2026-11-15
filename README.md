@@ -22,7 +22,7 @@ For headset controls, APK builds, and smoke tests, see the [Unity setup guide](u
 | [`hive/`](hive/) | The backend, operator board, and dialogue data. |
 | [`glasses/`](glasses/) | The Mentra glasses app. |
 
-In Unity's `Art/` folder, `Bee/` is the low-poly fallback for the swarm, `WorkerBee/` is the animated worker model, and `BeeVAT/` is the baked animation used by the swarm. The import and animation scripts are in [`ArtAnim/`](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/ArtAnim/).
+In Unity's `Art/` folder, `Bee/` holds the swarm's baked rest mesh, `WorkerBee/` is the authored rig, and `BeeVAT/` holds baked animation for nearby bees. The import and animation scripts are in [`ArtAnim/`](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/ArtAnim/).
 
 Beeswax's Blender source and export notes are in [`art/blender/beeswax/`](art/blender/beeswax/). The tracked FBX is under [Unity's Beeswax rig](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Art/Beeswax/Rig/).
 

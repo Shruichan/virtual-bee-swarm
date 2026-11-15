@@ -562,13 +562,16 @@ export function wants(text: string, beat: BeatName): boolean {
  * Answer one question. Never throws. Order: echo guard, local keywords (ack / filler noise), canned match, answer cache,
  * then Claude (hooks.onLive fires right before the first live call of a group, so the Hive can play the filler line).
  */
-export async function answer(text: string, ctx: AskContext, hooks: { onLive?: () => void; model?: string } = {}): Promise<AskReply> {
+export async function answer(
+  text: string, ctx: AskContext, hooks: { onLive?: () => void; isCurrent?: () => boolean; model?: string } = {},
+): Promise<AskReply> {
   const t0 = performance.now();
   const ms = () => Math.round(performance.now() - t0);
   const said = spoken(text).slice(0, 300);
   const group = ctx?.group ?? "";
   const local = (r: AskReply): AskReply => {
-    if (r.text) noteReply(group, said, r.text, Date.now(), r.kind === "answer" || r.kind === "canned");
+    if (r.text && hooks.isCurrent?.() !== false)
+      noteReply(group, said, r.text, Date.now(), r.kind === "answer" || r.kind === "canned");
     return r;
   };
   if (!said) return fromCanned("ask_not_heard", "not_heard", "local", ms());
@@ -613,7 +616,7 @@ export async function answer(text: string, ctx: AskContext, hooks: { onLive?: ()
       `[ask] ${typeof msg.model === "string" ? msg.model : model} ${r.ms}ms req${which} ${parsed.kind}->${r.kind}${r.ask_id ? `/${r.ask_id}` : ""}` +
         `${r.error ? ` (${r.error})` : ""} cache_read=${msg.usage?.cache_read_input_tokens ?? "?"} ${JSON.stringify(said.slice(0, 60))}`,
     );
-    if (!followUp && (r.kind === "answer" || r.kind === "canned")) cacheSet(said, r);
+    if (!followUp && (r.kind === "answer" || r.kind === "canned") && hooks.isCurrent?.() !== false) cacheSet(said, r);
     return local(r);
   } catch (e) {
     const code = errCode(e);

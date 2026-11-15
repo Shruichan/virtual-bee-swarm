@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { cachedAudioSeconds, prepareSpeech } from "../src/ask";
 import { TTS_SAMPLE_RATE, ttsAvailable, ttsLimits, ttsMp3, ttsPcm } from "../src/tts";
 
 const realFetch = globalThis.fetch;
@@ -98,12 +99,23 @@ describe("ttsPcm", () => {
     expect(performance.now() - t0).toBeLessThan(1500);
   });
 
-  test("a stream that stalls ends after the idle timeout, keeping what arrived", async () => {
+  test("a stalled stream plays its first chunk but never caches the partial reply", async () => {
+    const text = "Try this reply again.";
     mockFetch(() => new Response(streamOf([bytes(6)], true), { status: 200 }));
-    const t0 = performance.now();
-    const out = await collect(ttsPcm("Noted."));
-    expect(out.reduce((n, c) => n + c.length, 0)).toBe(6);
-    expect(performance.now() - t0).toBeLessThan(1500);
+    const first = await prepareSpeech(text, ttsPcm);
+    expect(first).not.toBeNull();
+    const partial = first![Symbol.asyncIterator]();
+    expect((await partial.next()).value).toEqual(new Uint8Array(bytes(6)));
+    await expect(partial.next()).rejects.toThrow();
+    expect(cachedAudioSeconds(text)).toBe(0);
+
+    mockFetch(() => new Response(streamOf([bytes(8)]), { status: 200 }));
+    const second = await prepareSpeech(text, ttsPcm);
+    expect(second).not.toBeNull();
+    const retried = second![Symbol.asyncIterator]();
+    expect((await retried.next()).value).toEqual(new Uint8Array(bytes(8)));
+    expect((await retried.next()).done).toBe(true);
+    expect(calls).toHaveLength(1);
   });
 
   test("missing env or empty text: no request", async () => {

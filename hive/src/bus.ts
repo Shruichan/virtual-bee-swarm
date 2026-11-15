@@ -309,13 +309,15 @@ export class Bus {
     sampleRate: number,
     chunks: () => AsyncIterable<Uint8Array>,
     onDiscard?: () => void,
+    options: { shouldPlay?: () => boolean; onStart?: () => void } = {},
   ): Promise<void> {
     const { signal } = this.ttsRun;
     const job = async () => {
-      if (signal.aborted || this.count("quest") === 0) {
+      if (signal.aborted || this.count("quest") === 0 || options.shouldPlay?.() === false) {
         onDiscard?.();
         return;
       }
+      options.onStart?.();
       await this.streamTts(tts_id, caption, sampleRate, chunks, signal);
     };
     const run = this.ttsTail.then(job, job);
