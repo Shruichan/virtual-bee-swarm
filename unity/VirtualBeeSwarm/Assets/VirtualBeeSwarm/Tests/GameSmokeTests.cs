@@ -217,11 +217,14 @@ namespace VirtualBeeSwarm.Tests
             Assert.AreEqual(scoreTime, director.RunSeconds, "re-entering escape keeps the same rescue score");
 
             // group reset puts everything back
+            var lid = hive.GetComponentsInChildren<ArtAnimProp>(true).Single(prop => prop.trigger == ArtAnimProp.Trigger.Beat && prop.beat == GameBeat.Escape);
             director.ResetToPre();
-            yield return null;
+            float resetAt = Time.time;
+            yield return WaitUntil(() => Time.time - resetAt > lid.delay, 4f, "delayed lid reset");
             Assert.AreEqual(GameBeat.Pre, director.Beat);
             Assert.AreEqual(0, director.SolvedStations);
             Assert.AreEqual(0, hex.LitCount);
+            Assert.IsFalse(lid.GetComponent<Animation>().IsPlaying(lid.clip), "the escape lid cannot open after reset");
             Debug.Log("[VBSTest] full run OK (forceOffline=" + forceOffline + ")");
         }
 

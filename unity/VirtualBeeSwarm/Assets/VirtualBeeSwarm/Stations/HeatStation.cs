@@ -85,8 +85,9 @@ namespace VirtualBeeSwarm
                 if (drinkers[i] != null) { drinkers[i].position = from; drinkers[i].gameObject.SetActive(true); }
 
             float start = Time.time;
-            const float fly = 1.2f, sink = 1.5f;
-            while (Time.time - start < fly + (pebbles ? 0f : sink))
+            const float fly = 1.2f, sink = 1.5f, stagger = 0.15f;
+            float duration = fly + stagger * (drinkers.Length - 1) + (pebbles ? 0f : sink);
+            while (true)
             {
                 float age = Time.time - start;
                 for (int i = 0; i < drinkers.Length; i++)
@@ -96,11 +97,12 @@ namespace VirtualBeeSwarm
                     Vector3 land = pebbles
                         ? (i < pebbleSpots.Length && pebbleSpots[i] != null ? pebbleSpots[i].position : from)
                         : (bowlWater != null ? bowlWater.position + new Vector3((i - 1) * 0.025f, 0f, (i % 2) * 0.02f) : from);
-                    float k = Mathf.Clamp01((age - i * 0.15f) / fly);
+                    float k = Mathf.Clamp01((age - i * stagger) / fly);
                     Vector3 p = Vector3.Lerp(from, land, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.08f);
-                    if (!pebbles && k >= 1f) p = land + Vector3.down * Mathf.Clamp01((age - fly - i * 0.15f) / sink) * 0.04f;
+                    if (!pebbles && k >= 1f) p = land + Vector3.down * Mathf.Clamp01((age - fly - i * stagger) / sink) * 0.04f;
                     d.position = p;
                 }
+                if (age >= duration) yield break;
                 yield return null;
             }
         }

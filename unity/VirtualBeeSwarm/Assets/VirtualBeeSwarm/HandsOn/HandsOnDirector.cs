@@ -467,6 +467,7 @@ namespace VirtualBeeSwarm.HandsOn
             {
                 _pumps++;
                 Vector3 from = _item != null && _item.gameObject.activeInHierarchy ? _item.position + Vector3.up * 0.12f : _lever.HeadPosition;
+                if (_item != null) _item.GetComponentInChildren<ArtAnimProp>()?.PlayActuation();
                 Puff(from, _hive.SwarmCenter.position, new Color(0.92f, 0.92f, 0.95f), 3);
                 GameSound.Cue("smoker_puff", _item != null ? _item : _lever.transform);
                 if (_swarm != null) _swarm.Agitation *= 0.5f;

@@ -87,13 +87,22 @@ namespace VirtualBeeSwarm
         void OnBeat(GameBeat from, GameBeat to)
         {
             if (to >= beat && !_open && to != GameBeat.Field) { _pending = Time.time + delay; return; }
-            if (to < beat && _open)
+            if (to < beat)
             {
                 _pending = -1f;
+                if (!_open) return;
                 if (to == GameBeat.Pre) Snap(false);
                 else Play(followClip, "beat " + to);
                 _open = false;
             }
+        }
+
+        /// <summary>Play one squeeze for a hand-operated puff, which uses its own visual effect.</summary>
+        public void PlayActuation()
+        {
+            if (trigger != Trigger.ParticleBurst || !isActiveAndEnabled) return;
+            _repeatsLeft = 0;
+            Play(clip, "hand pump");
         }
 
         void Snap(bool open)
