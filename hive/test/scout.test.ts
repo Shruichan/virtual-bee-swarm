@@ -1041,3 +1041,43 @@ describe("marker boxes (via marker)", () => {
     expect(s.ids()).toEqual(["scout_chime_ask"]);
   });
 });
+
+// ---------------------------------------------------------------- two-line facts
+
+describe("two-line facts (scout_fact_<label>_2)", () => {
+  function twoLine(mode: "demo" | "practice" | "booth") {
+    let clock = 1_000_000;
+    const says: string[] = [];
+    const lines = [...LINES, { id: "scout_fact_native_flower_2", kind: "fact" as const, label: "native_flower" as const, text: "Second half of the flower fact." }];
+    const game = new ScoutGame({ lines, now: () => clock, say: (x) => says.push(x.line_id), durationMs: () => 1000 });
+    game.setMode(mode);
+    return { game, says, tick: (ms: number) => ((clock += ms), game.tick()) };
+  }
+
+  test("demo: fact, its second line, then progress; busy-until covers both", () => {
+    const g = twoLine("demo");
+    g.game.force("native_flower");
+    const before = g.game.busyUntil;
+    g.game.utterance("yes");
+    expect(g.says).toEqual(["scout_chime", "scout_hook_native_flower", "scout_fact_native_flower", "scout_fact_native_flower_2", "scout_progress_1"]);
+    expect(g.game.busyUntil - before).toBe(3000);
+    g.tick(2900 + 2000); // chime + hook + 3 lines = 5 s
+    expect(g.game.state().phase).toBe("telling");
+    g.tick(200);
+    expect(g.game.state().phase).toBe("looking");
+  });
+
+  test("practice and booth say both lines too; a label without _2 says one", () => {
+    const p = twoLine("practice");
+    p.game.force("native_flower");
+    expect(p.says).toEqual(["scout_chime", "scout_fact_native_flower", "scout_fact_native_flower_2"]);
+    p.tick(5000);
+    p.game.force("honey_jar");
+    expect(p.says.slice(3)).toEqual(["scout_chime", "scout_fact_honey_jar"]);
+
+    const b = twoLine("booth");
+    b.game.force();
+    b.game.button();
+    expect(b.says).toEqual(["scout_chime_ask", "scout_fact_native_flower", "scout_fact_native_flower_2", "scout_next_honey_jar"]);
+  });
+});
