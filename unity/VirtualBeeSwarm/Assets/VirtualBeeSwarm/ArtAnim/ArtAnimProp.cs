@@ -32,6 +32,8 @@ namespace VirtualBeeSwarm
         [Tooltip("Plays per detected burst (the smoker puffs 3 times, 0.4 s apart, and the puff system caps its particles, so only the first burst is reliably visible).")]
         public int repeat = 1;
         public float repeatGap = 0.4f;
+        [Tooltip("Rome (agent): clip speed for a manual action (a pump the player did), capped so one squeeze reads.")]
+        public float manualSpeed = 1f;
 
         [Header("ObjectActive")]
         public string watchName;
@@ -48,6 +50,8 @@ namespace VirtualBeeSwarm
         float _lastFire = -10f, _pending = -1f, _seqEnd = -1f, _nextRepeat = -1f;
         int _repeatsLeft;
         bool _wasActive, _open, _searched;
+        float _punchAt = -1f; // Rome (agent): squash punch on a manual action
+        Vector3 _punchBase;
 
         void Awake()
         {
@@ -59,6 +63,8 @@ namespace VirtualBeeSwarm
                 return;
             }
             _anim.playAutomatically = false;
+            // Rome (agent): BasedOnRenderers left the props frozen whenever Unity judged them off-screen; a few props, cheap
+            _anim.cullingType = AnimationCullingType.AlwaysAnimate;
             _anim[clip].speed = speed;
             if (trigger == Trigger.ObjectActive && !string.IsNullOrEmpty(followClip) && _anim[followClip] != null)
                 _anim[followClip].wrapMode = WrapMode.Loop;
@@ -72,6 +78,7 @@ namespace VirtualBeeSwarm
             if (_ps != null) _lastCount = _ps.particleCount;
             _repeatsLeft = 0;
             _seqEnd = -1f;
+            _punchAt = -1f;
             if (trigger != Trigger.Beat) return;
             if (_director == null) _director = GameDirector.Instance != null ? GameDirector.Instance : FindFirstObjectByType<GameDirector>();
             if (_director == null) return;
@@ -82,6 +89,7 @@ namespace VirtualBeeSwarm
 
         void OnDisable()
         {
+            if (_punchAt >= 0f) { transform.localScale = _punchBase; _punchAt = -1f; }
             _pending = -1f;
             if (_director != null) _director.BeatChanged -= OnBeat;
         }
@@ -115,8 +123,24 @@ namespace VirtualBeeSwarm
             if (!isActiveAndEnabled || _anim == null || trigger != Trigger.ParticleBurst) return;
             _repeatsLeft = 0;
             _lastFire = Time.time;
+            // Rome (agent): one readable squeeze at manualSpeed (speed 2 = 0.38 s, too quick to see on a headset), the
+            // particle watcher stays quiet for it, and the whole prop gives a squash so every press visibly lands
+            var s = _anim[clip];
+            s.speed = Mathf.Min(speed, manualSpeed);
+            _seqEnd = Time.time + s.length / Mathf.Max(0.01f, s.speed) * 0.8f;
+            if (_punchAt < 0f) _punchBase = transform.localScale;
+            _punchAt = Time.time;
             _anim.Rewind(clip);
             Play(clip, "manual action");
+        }
+
+        void LateUpdate() // Rome (agent): the squash punch
+        {
+            if (_punchAt < 0f) return;
+            float k = (Time.time - _punchAt) / 0.3f;
+            if (k >= 1f) { transform.localScale = _punchBase; _punchAt = -1f; return; }
+            float w = Mathf.Sin(k * Mathf.PI) * (1f - k);
+            transform.localScale = Vector3.Scale(_punchBase, new Vector3(1f + 0.14f * w, 1f - 0.16f * w, 1f + 0.14f * w));
         }
 
         void Play(string c, string why)
@@ -167,6 +191,7 @@ namespace VirtualBeeSwarm
                         _seqEnd = Time.time + repeat * repeatGap - 0.05f;
                         _repeatsLeft = repeat - 1;
                         _nextRepeat = Time.time + repeatGap;
+                        _anim[clip].speed = speed; // Rome (agent): a manual action may have slowed it
                         _anim.Rewind(clip);
                         Play(clip, particleName + " +" + (n - _lastCount) + (repeat > 1 ? ", x" + repeat : ""));
                     }
@@ -176,6 +201,7 @@ namespace VirtualBeeSwarm
                         _nextRepeat += repeatGap;
                         _anim.Rewind(clip);
                         _anim.Play(clip);
+                        ArtAnimLog.Clip(this, clip); // Rome (agent): VBS_ANIM_LOG=1 only
                     }
                     _lastCount = n;
                     break;
