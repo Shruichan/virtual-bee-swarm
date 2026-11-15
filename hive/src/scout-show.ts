@@ -9,7 +9,7 @@
 //   webrtc  MediaMTX WebRTC base URL (default http://<page host>:8889)
 //   video   play this video URL instead of the stream (dev harness only)
 //   sound=1 start with the audio mirror armed (a browser still needs one click or key press first)
-// Keys: M = sound on/off, F = full screen.
+// Keys: M = sound on/off, F = full screen, Esc = close the lessons panel.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,8 +19,8 @@ import { SCOUT_BACKGROUND, SCOUT_LABELS, SCOUT_PORTS, SCOUT_STREAM_PATH, type Sc
 const SHOW_NAMES: Record<ScoutLabel, string> = {
   beehive: "Beehive",
   native_flower: "Sunflower",
-  honey_jar: "Store honey",
-  pebble_dish: "Bee water dish",
+  honey_jar: "Honeycomb",
+  pebble_dish: "Water dish",
   bug_spray: "Bug spray",
   bee_hotel: "Bee hotel",
 };
@@ -28,7 +28,7 @@ const SHOW_NAMES: Record<ScoutLabel, string> = {
 const SHOW_TAGS: Record<ScoutLabel, string> = {
   beehive: "Home sweet home",
   native_flower: "Lunch for bees",
-  honey_jar: "Yummy for you, risky for bees",
+  honey_jar: "Where bees keep their honey",
   pebble_dish: "A drinking fountain for bees",
   bug_spray: "Bad news for bees",
   bee_hotel: "A home for wild bees",
@@ -63,6 +63,22 @@ const BG_SVG =
   sprig(170, 70, -10, 1.1) + sprig(40, 180, 40, 0.9) + sprig(250, 360, -30, 1) + sprig(330, 170, 60, 0.8) +
   `</g></svg>`;
 const BG_URL = `url("data:image/svg+xml,${encodeURIComponent(BG_SVG)}")`;
+const LESSON_ICONS: Record<string, string> = {
+  bees: `<svg viewBox="0 0 64 64"><ellipse cx="32" cy="36" rx="17" ry="14" fill="#f2c230" stroke="#55290f" stroke-width="3"/><path d="M25 23v26M36 22v28" stroke="#55290f" stroke-width="5"/><ellipse cx="24" cy="18" rx="9" ry="6" fill="#fff" stroke="#55290f" stroke-width="2.5" transform="rotate(-25 24 18)"/><ellipse cx="40" cy="17" rx="9" ry="6" fill="#fff" stroke="#55290f" stroke-width="2.5" transform="rotate(25 40 17)"/></svg>`,
+  butterflies: `<svg viewBox="0 0 64 64"><path d="M32 30C22 12 6 14 10 28c3 9 14 8 22 4zM32 30c10-18 26-16 22-2-3 9-14 8-22 4zM32 34c-8 2-16 6-14 16 2 7 12 2 14-8zM32 34c8 2 16 6 14 16-2 7-12 2-14-8z" fill="#e58f5a" stroke="#55290f" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 22v26M32 22l-5-8M32 22l5-8" stroke="#55290f" stroke-width="3" stroke-linecap="round"/></svg>`,
+  compost: `<svg viewBox="0 0 64 64"><path d="M14 40h36l-4 16H18z" fill="#9b6a43" stroke="#55290f" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 40V24" stroke="#55290f" stroke-width="3" stroke-linecap="round"/><path d="M32 30c-12 0-16-8-16-14 10 0 16 4 16 14zM32 26c0-10 6-15 16-15 0 8-6 15-16 15z" fill="#8fa886" stroke="#55290f" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+  water: `<svg viewBox="0 0 64 64"><path d="M32 8C24 22 16 30 16 40a16 16 0 0 0 32 0c0-10-8-18-16-32z" fill="#7fb3d5" stroke="#55290f" stroke-width="3" stroke-linejoin="round"/><path d="M24 42a8 8 0 0 0 7 8" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`,
+  birds: `<svg viewBox="0 0 64 64"><path d="M12 38c0-12 10-20 22-20 8 0 12 4 14 8l8 2-8 4c0 12-10 20-22 20-8 0-14-6-14-14z" fill="#d9822b" stroke="#55290f" stroke-width="3" stroke-linejoin="round"/><path d="M20 38c6 6 14 6 20 0" stroke="#55290f" stroke-width="2.5" fill="none" stroke-linecap="round"/><circle cx="40" cy="26" r="2.6" fill="#55290f"/></svg>`,
+};
+const LOCK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>`;
+const LESSONS = [
+  ["butterflies", "Butterflies and moths"],
+  ["compost", "Composting"],
+  ["water", "Clean water"],
+  ["birds", "Backyard birds"],
+]
+  .map(([icon, title]) => `<li class="lesson locked"><span class="lic">${LESSON_ICONS[icon!]}</span><b>${title}</b><small>${LOCK_ICON}Coming soon: your teacher can assign this</small></li>`)
+  .join("");
 const DAISY_ICON = `<svg viewBox="0 0 100 100" aria-hidden="true">${daisy(50, 50, 44, 0, "#c9a77f")}</svg>`;
 
 // NOTE: the inline script avoids backticks and "${" so it can live inside this template string.
@@ -140,9 +156,23 @@ const SHOW = `<!doctype html>
   #pin.on { transform: scale(1); }
   #pin img { width: 3.4rem; height: 3.4rem; border-radius: 50%; object-fit: cover; }
   .under { display: flex; align-items: flex-start; gap: 1.4rem; min-height: 3.6rem; }
-  .seeing { display: flex; align-items: center; gap: .6rem; padding-top: .7rem; font-size: 1.45rem; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
-  .seeing i { width: .9rem; height: .9rem; border-radius: 50%; background: rgba(85, 41, 15, .3); }
-  .playing .seeing i { background: #e0452b; box-shadow: 0 0 0 .3rem rgba(224, 69, 43, .2); animation: blink 1.6s ease-in-out infinite; }
+  .quiet { display: flex; align-items: center; gap: .45rem; margin-top: .4rem; padding: .45rem .9rem .45rem .7rem; border: 0; border-radius: 99rem; cursor: pointer;
+    background: transparent; color: var(--ink-soft); font-size: 1.15rem; font-weight: 700; opacity: .7; white-space: nowrap; }
+  .quiet svg { width: 1.3rem; height: 1.3rem; }
+  .quiet:hover, .quiet:focus-visible { opacity: 1; background: rgba(255, 253, 248, .6); }
+  .quiet.confirm { opacity: 1; background: var(--paper); color: var(--rust); box-shadow: 0 0 0 .12rem var(--rust); }
+  button:focus-visible { outline: .2rem solid var(--honey); outline-offset: .2rem; }
+  #more { align-self: flex-end; margin-top: 1.3rem; padding: .7rem 1.5rem; border: 0; border-radius: 99rem; cursor: pointer; background: var(--butter);
+    color: var(--brown); font-size: 1.4rem; font-weight: 800; box-shadow: 0 0 0 .14rem var(--brown), 0 .3rem 0 var(--brown); }
+  #more:active { transform: translateY(.2rem); box-shadow: 0 0 0 .14rem var(--brown), 0 .1rem 0 var(--brown); }
+  /* "Ask Beeswax": the wearer's question sits above Beeswax, his answer fills the big bubble */
+  #ask { position: relative; align-self: flex-end; max-width: 88%; margin-bottom: 1rem; padding: .6rem 1.3rem .7rem; border-radius: 1.2rem; background: var(--sage-soft);
+    box-shadow: 0 0 0 .12rem rgba(85, 41, 15, .16); font-size: 1.7rem; font-weight: 700; line-height: 1.2; transition: opacity .4s; }
+  #ask::after { content: ""; position: absolute; bottom: -.75rem; right: 2.4rem; border: .8rem solid transparent; border-bottom: 0; border-top-color: var(--sage-soft); }
+  #ask small { display: block; font-size: 1.1rem; color: #5d7553; }
+  #ask.gone { display: none; }
+  #ask.fresh { animation: pop .5s cubic-bezier(.2, 1.6, .4, 1); }
+  .asking .beeswax img { width: 7.5rem; height: 7.5rem; }
   @keyframes blink { 50% { opacity: .35; } }
   /* the wearer's words: a little bubble rising out of their camera view */
   #you { position: relative; margin-left: auto; max-width: 62%; padding: .6rem 1.3rem .7rem; border-radius: 1.2rem; background: var(--sage-soft);
@@ -167,7 +197,11 @@ const SHOW = `<!doctype html>
   #bubble::after { top: -1.3rem; border-width: 0 1.07rem 1.32rem; border-bottom-color: var(--paper); }
   #cap { margin: 0; font-size: 2.45rem; font-weight: 700; line-height: 1.2; }
   #cap.long { font-size: 2.1rem; }
+  #cap.xlong { font-size: 1.8rem; }
+  #bubble { max-height: 30rem; overflow: hidden; }
+  #bubble.thinking #cap::after { content: "…"; animation: blink 1s ease-in-out infinite; }
   #cap span { display: inline-block; white-space: pre; opacity: 0; animation: word .35s ease-out forwards; }
+  #cap span.seen { opacity: 1; animation: none; }
   @keyframes word { from { opacity: 0; transform: translateY(.4rem); } to { opacity: 1; transform: none; } }
   #bubble.idle #cap { color: var(--ink-soft); font-size: 2.1rem; }
 
@@ -188,6 +222,37 @@ const SHOW = `<!doctype html>
     font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
   .hello div::before { content: ""; position: absolute; left: -.95rem; top: 50%; margin-top: -.8rem; border: .8rem solid transparent; border-left: 0; border-right-color: var(--brown); border-right-width: .95rem; }
   .hello div::after { content: ""; position: absolute; left: -.72rem; top: 50%; margin-top: -.66rem; border: .66rem solid transparent; border-left: 0; border-right-color: var(--paper); border-right-width: .8rem; }
+
+  /* ---------------------------------------------------------------- "Learn about something else": the teacher panel */
+  #teacher { position: fixed; inset: 0; z-index: 15; display: grid; place-items: center; visibility: hidden; cursor: pointer; }
+  #teacher .wash { position: absolute; inset: 0; background: rgba(212, 208, 201, .9); backdrop-filter: blur(.4rem); opacity: 0; transition: opacity .3s; }
+  #teacher.on { visibility: visible; }
+  #teacher.on .wash { opacity: 1; }
+  .tbox { position: relative; width: min(92vw, 96rem); display: flex; flex-direction: column; align-items: center; gap: 2.4rem; transform: translateY(2rem); opacity: 0; transition: transform .4s cubic-bezier(.2, 1.4, .4, 1), opacity .3s; }
+  #teacher.on .tbox { transform: none; opacity: 1; }
+  .tsay { display: flex; align-items: center; gap: 1.4rem; }
+  .tsay img { width: 10rem; height: 10rem; flex: none; animation: chatter .5s ease-in-out 6 alternate; }
+  .tbub { position: relative; padding: 1.3rem 2rem; border-radius: 1.8rem; background: var(--paper); box-shadow: 0 0 0 .16rem var(--brown), 0 1rem 2rem rgba(85, 41, 15, .15); }
+  .tbub::before { content: ""; position: absolute; left: -1.2rem; top: 50%; margin-top: -1rem; border: 1rem solid transparent; border-left: 0; border-right: 1.2rem solid var(--brown); }
+  .tbub::after { content: ""; position: absolute; left: -.92rem; top: 50%; margin-top: -.82rem; border: .82rem solid transparent; border-left: 0; border-right: 1rem solid var(--paper); }
+  #tcap { margin: 0; font: 400 3.2rem/1.05 var(--display); color: var(--brown); }
+  .lessons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.2rem; width: 100%; }
+  .lesson { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .5rem; padding: 1.4rem 1rem 1.2rem; border-radius: 1.6rem; background: var(--paper);
+    box-shadow: 0 0 0 .14rem rgba(85, 41, 15, .25); }
+  .lic { width: 6.4rem; height: 6.4rem; display: grid; place-items: center; border-radius: 50%; background: var(--butter); }
+  .lic svg { width: 4.4rem; height: 4.4rem; }
+  .lesson b { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+  .lesson small { display: flex; align-items: flex-start; justify-content: center; gap: .3rem; font-size: 1.1rem; font-weight: 700; line-height: 1.2; color: var(--ink-soft); }
+  .lesson small svg { width: 1.1rem; height: 1.1rem; flex: none; margin-top: .05rem; }
+  .lesson.locked { background: rgba(255, 253, 248, .7); }
+  .lesson.locked .lic { background: #e6e1d8; filter: grayscale(.55); opacity: .85; }
+  .lesson.now { box-shadow: 0 0 0 .2rem var(--honey), 0 .8rem 1.6rem rgba(227, 168, 60, .25); }
+  .lesson.now small { color: var(--rust); }
+  .tfoot { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--ink-soft); text-align: center; }
+  #teacher .lesson { opacity: 0; transform: translateY(1rem); }
+  #teacher.on .lesson { animation: up .4s ease-out forwards; }
+  #teacher.on .lesson:nth-child(2) { animation-delay: .08s; } #teacher.on .lesson:nth-child(3) { animation-delay: .16s; }
+  #teacher.on .lesson:nth-child(4) { animation-delay: .24s; } #teacher.on .lesson:nth-child(5) { animation-delay: .32s; }
 
   /* ---------------------------------------------------------------- the found moment */
   #reveal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none; overflow: hidden; visibility: hidden; }
@@ -250,13 +315,16 @@ const SHOW = `<!doctype html>
       <div id="pin"><img id="pinimg" alt=""><span id="pinname"></span></div>
     </div>
     <div class="under">
-      <div class="seeing"><i></i>What the glasses see</div>
+      <button id="restart" class="quiet" type="button" title="Start the walk over: clears what was found">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4 3.5v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="restartt">Restart your journey</span></button>
       <div id="you" class="gone"><small>You said</small><span id="youq"></span></div>
     </div>
   </section>
   <aside class="bee">
+    <div id="ask" class="gone"><small>You asked</small><span id="askq"></span></div>
     <div class="beeswax"><img id="bxi" src="/scout/assets/beeswax-side.webp" alt=""><span>Beeswax</span></div>
     <div id="bubble" class="idle"><p id="cap">Look right at something on the table. I&rsquo;ll tell you why it matters to bees.</p></div>
+    <button id="more" type="button">Learn about something else</button>
   </aside>
 </main>
 <section id="attract">
@@ -268,6 +336,17 @@ const SHOW = `<!doctype html>
     <div class="hello"><img src="/scout/assets/beeswax-wave.webp" alt=""><div>Hi, I&rsquo;m Beeswax. I live in the glasses!</div></div>
   </div>
 </section>
+<div id="teacher" role="dialog" aria-modal="true" aria-labelledby="tcap">
+  <div class="wash"></div>
+  <div class="tbox">
+    <div class="tsay"><img src="/scout/assets/beeswax-front.webp" alt=""><div class="tbub"><p id="tcap">Ask your teacher for another assignment!</p></div></div>
+    <ul class="lessons">
+      <li class="lesson now"><span class="lic">${LESSON_ICONS.bees}</span><b>Bees</b><small>Lesson one: you&rsquo;re doing it now</small></li>
+      ${LESSONS}
+    </ul>
+    <p class="tfoot">Bees are lesson one. A teacher can assign any topic, and Beeswax helps you explore it.</p>
+  </div>
+</div>
 <div id="reveal" aria-live="polite">
   <div class="wash"></div><div class="rays"></div>
   <div class="rv">
@@ -384,7 +463,7 @@ const SHOW = `<!doctype html>
   function onFound(ev) {
     lastActivity = Date.now();
     bx.flash = { label: ev.label, until: Date.now() + 8000 };
-    bumpToday();
+    bumpToday(); hideTeacher();
     var rv = $("reveal");
     $("rvimg").src = ASSETS + (CFG.CARDS[ev.label] || "logo.webp");
     $("rvname").textContent = name(ev.label);
@@ -417,42 +496,110 @@ const SHOW = `<!doctype html>
   // ------------------------------------------------------------------ Beeswax says
   var speakTimer = null, idleTimer = null;
   var IDLE_LINE = "Look right at something on the table. I\\u2019ll tell you why it matters to bees.";
-  function onSay(ev) {
-    lastActivity = Date.now();
-    var text = String(ev.caption || "").trim();
-    if (!text) return; // a pure sound effect
-    var b = $("bubble"), c = $("cap");
-    b.classList.remove("idle");
-    c.className = text.length > 95 ? "long" : "";
+  var curLine = null, curText = "";
+  function wordList(t) { return t ? t.split(/\\s+/) : []; }
+  // Draws the caption word by word. keep = leading words already on screen (they stay put, no animation).
+  function render(c, text, keep) {
     c.textContent = "";
-    text.split(/(\\s+)/).forEach(function (w, i) {
+    var i = 0, k = 0;
+    text.split(/(\\s+)/).forEach(function (w) {
       if (!w) return;
       if (/^\\s+$/.test(w)) { c.appendChild(document.createTextNode(" ")); return; }
-      var s = el("span", "", w); s.style.animationDelay = Math.min(i * 0.035, 1.4) + "s"; c.appendChild(s);
+      var sp = el("span", i < keep ? "seen" : "", w);
+      if (i >= keep) sp.style.animationDelay = Math.min(k++ * 0.035, 1.4) + "s";
+      i++; c.appendChild(sp);
     });
+    c.className = text.length > 160 ? "xlong" : text.length > 95 ? "long" : "";
+  }
+  function onSay(ev) {
+    lastActivity = Date.now();
+    var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
+    if (id === "scout_teacher") { showTeacher(text); if (mirror) enqueue(ev); return; }
+    if (!text) return; // a pure sound effect
+    var b = $("bubble"), c = $("cap"), isAsk = id.indexOf("scout_ask_") === 0;
+    var update = isAsk && id === curLine; // an "Ask Beeswax" answer growing as it streams in
+    if (update && text === curText) return;
+    if (!isAsk) endAsk();
+    b.classList.remove("idle", "thinking");
+    var keep = 0;
+    if (update) { var a = wordList(curText), n = wordList(text); while (keep < a.length - 1 && a[keep] === n[keep]) keep++; }
+    render(c, text, keep);
+    b.scrollTop = b.scrollHeight; // a long answer: keep its newest words in view
+    if (!update && mirror) enqueue(ev);
+    curLine = id; curText = text;
     // Beeswax chatters for about as long as the line takes to say (~2.6 words a second)
-    var words = text.split(/\\s+/).length, ms = Math.max(1500, words * 380);
+    var words = wordList(text).length - (update ? keep : 0), ms = Math.max(1500, words * 380);
     document.body.classList.add("speaking"); $("bxi").src = ASSETS + "beeswax-front.webp";
     clearTimeout(speakTimer);
     speakTimer = setTimeout(stopSpeaking, ms);
     clearTimeout(idleTimer);
     idleTimer = setTimeout(goIdle, ms + 25000);
-    if (mirror) enqueue(ev);
+    if (isAsk) { asking = true; document.body.classList.add("asking"); clearTimeout(askTimer); askTimer = setTimeout(endAsk, ms + 20000); }
   }
   function stopSpeaking() { document.body.classList.remove("speaking"); $("bxi").src = ASSETS + "beeswax-side.webp"; }
-  function goIdle() { $("bubble").classList.add("idle"); var c = $("cap"); c.className = ""; c.textContent = IDLE_LINE; }
+  function goIdle() { endAsk(); var b = $("bubble"); b.classList.add("idle"); b.classList.remove("thinking"); var c = $("cap"); c.className = ""; c.textContent = IDLE_LINE; curLine = null; curText = ""; }
 
-  // ------------------------------------------------------------------ the wearer said
-  var youTimer = null;
+  // ------------------------------------------------------------------ the wearer said / asked
+  var youTimer = null, askTimer = null, asking = false;
+  var QSTART = /^(what|what's|whats|why|how|who|whose|where|when|which|can|could|do|does|did|is|are|was|were|will|would|should|have|has|tell me|explain)\\b/i;
+  function isQuestion(t) { return /\\?\\s*$/.test(t) || QSTART.test(t); }
+  function quote(t) { return "\\u201c" + t + "\\u201d"; }
   function onHeard(ev) {
     lastActivity = Date.now();
     var t = String(ev.text || "").trim();
     if (!t) return;
-    $("youq").textContent = "\\u201c" + t + "\\u201d";
+    // a question outside an offer goes to "Ask Beeswax": question bubble above him, his answer follows
+    if (isQuestion(t) && ev.answer !== "yes" && ev.answer !== "no" && S.phase !== "offering") { showAsk(t); return; }
+    $("youq").textContent = quote(t);
     var y = $("you"); y.classList.remove("gone"); restart(y, "fresh");
     clearTimeout(youTimer); youTimer = setTimeout(hideYou, 15000);
   }
   function hideYou() { $("you").classList.add("gone"); }
+  function showAsk(t) {
+    hideYou();
+    $("askq").textContent = quote(t);
+    var a = $("ask"); a.classList.remove("gone"); restart(a, "fresh");
+    asking = true; document.body.classList.add("asking");
+    var b = $("bubble"); b.classList.remove("idle"); b.classList.add("thinking");
+    var c = $("cap"); c.className = ""; c.textContent = "Hmm, let me think"; curLine = null; curText = "";
+    clearTimeout(askTimer); askTimer = setTimeout(function () { if ($("bubble").classList.contains("thinking")) goIdle(); else endAsk(); }, 9000);
+  }
+  function endAsk() {
+    clearTimeout(askTimer);
+    if (!asking) return;
+    asking = false; $("ask").classList.add("gone"); document.body.classList.remove("asking");
+  }
+
+  // ------------------------------------------------------------------ "Learn about something else": teachers can assign any topic
+  var teacherTimer = null;
+  var TEACHER_LINE = "Ask your teacher for another assignment!";
+  function showTeacher(text) {
+    lastActivity = Date.now();
+    $("tcap").textContent = text || TEACHER_LINE;
+    var t = $("teacher"); t.classList.remove("on"); void t.offsetWidth; t.classList.add("on");
+    clearTimeout(teacherTimer); teacherTimer = setTimeout(hideTeacher, 10000);
+  }
+  function hideTeacher() { clearTimeout(teacherTimer); $("teacher").classList.remove("on"); }
+  $("more").addEventListener("click", function () { showTeacher(""); });
+  $("teacher").addEventListener("click", hideTeacher);
+
+  // ------------------------------------------------------------------ restart: POST /scout/reset, a second tap confirms
+  var confirmTimer = null;
+  function unconfirm() { clearTimeout(confirmTimer); $("restart").classList.remove("confirm"); $("restartt").textContent = "Restart your journey"; }
+  $("restart").addEventListener("click", function () {
+    var btn = $("restart");
+    if (!btn.classList.contains("confirm")) {
+      btn.classList.add("confirm"); $("restartt").textContent = "Tap again to restart";
+      clearTimeout(confirmTimer); confirmTimer = setTimeout(unconfirm, 3500); return;
+    }
+    unconfirm();
+    fetch("/scout/reset?" + TQ, { method: "POST" }).catch(function () {});
+    memToday = 0; try { localStorage.setItem(dayKey(), "0"); } catch (e) {}
+    showToday(0);
+    clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
+    clearTimeout(pinTimer); clearPin(); bx.flash = null;
+    hideYou(); hideTeacher(); stopSpeaking(); goIdle();
+  });
 
   function onState(st) {
     S = st;
@@ -590,6 +737,7 @@ const SHOW = `<!doctype html>
   addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
+    else if (e.key === "Escape") hideTeacher();
     else if (e.key === "f" || e.key === "F") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); }
   });
   requestAnimationFrame(drawBoxes);

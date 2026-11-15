@@ -364,6 +364,11 @@ Bun.serve({
     const asset = p.match(/^\/scout\/assets\/([^/]+)$/);
     if (asset) return scoutAssetResponse(asset[1]!);
     if (p === "/fake-cam.mp4" && VIDEO) return new Response(Bun.file(VIDEO), { headers: { "Content-Type": "video/mp4" } });
+    if (p === "/scout/reset" && req.method === "POST") {
+      target = SCOUT_BACKGROUND;
+      pushState({ phase: "looking", found: [], skipped: [], offer: null, started_at: Date.now() });
+      return json(state);
+    }
     if (p === "/dev/target" && req.method === "POST") {
       const b = (await req.json()) as { label?: ScoutClass | null };
       target = b.label ?? SCOUT_BACKGROUND;
