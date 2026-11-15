@@ -74,7 +74,7 @@ namespace VirtualBeeSwarm.AR
                 _until[i] = Time.time + Rand(waitSeconds) + i * 0.4f;
                 _yaw[i] = (float)_rnd.NextDouble() * 360f;
             }
-            _mesh = GameMeshes.CreateBeeMesh();
+            _mesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_LandingBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh); // wings flap in the shader; _WingFlap 0 stills the landed ones

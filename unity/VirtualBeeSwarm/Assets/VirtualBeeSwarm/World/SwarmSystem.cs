@@ -51,6 +51,8 @@ namespace VirtualBeeSwarm
         public float BallHeat { get; set; }
         public int GuardCount { get; private set; } = 12;
         public int Count => _n;
+        /// <summary>The worker mesh supplied by the scene, before the animated VAT swap.</summary>
+        public Mesh WorkerBeeMesh => _workerBeeMesh != null ? _workerBeeMesh : beeMesh;
 
         const int MaxBees = 640; // meadow: swarm.count (tuning.json) up to 640, one instanced draw
         int _n;
@@ -59,6 +61,7 @@ namespace VirtualBeeSwarm
         Matrix4x4[] _matrices;
         Vector4[] _colors;
         Bloom.BeeLod _lod; // meadow
+        Mesh _workerBeeMesh;
         MaterialPropertyBlock _mpb;
         static readonly int ColorArrayId = Shader.PropertyToID("_Color");
         float _modeSince, _pourStart;
@@ -72,6 +75,7 @@ namespace VirtualBeeSwarm
             if (net == null) net = FindAnyObjectByType<GameNet>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
             if (beeMesh == null) beeMesh = GameMeshes.CreateBeeMesh();
+            _workerBeeMesh = beeMesh;
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_Bee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;

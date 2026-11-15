@@ -6,7 +6,7 @@ namespace VirtualBeeSwarm.Bloom
     /// <summary>
     /// A few gold bees (12, comfort 8) leave the hive door once the bloom is out and visit flowers: an arcing flight to a
     /// grown bloom head (it follows the head's sway), 2.5-5 s perched on the Walk clip (_WingFlap 0), then the next
-    /// flower. One instanced draw with the BeeVAT bee (BeeVat.Apply, else the placeholder bee + shader flap). Never
+    /// flower. One instanced draw with the animated bee or the static worker bee with shader flap. Never
     /// within 0.6 m of the player's face: targets closer than that are skipped and a flight is pushed out of the bubble.
     /// </summary>
     public sealed class BloomVisitors
@@ -37,7 +37,7 @@ namespace VirtualBeeSwarm.Bloom
 
         public BloomVisitors()
         {
-            _mesh = GameMeshes.CreateBeeMesh();
+            _mesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_BloomBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh);

@@ -8,7 +8,7 @@ namespace VirtualBeeSwarm.FlowerLife
     /// healthy bloom (it follows the head's sway and the bloom dips under the bee), 1.6-3.6 s perched with still wings,
     /// two to four blooms, then home. Only healthy blooms attract them, so the visits start with the first solved
     /// station and get busier as the garden heals. A fingertip within 14 cm sends a perched bee off. Never within
-    /// 0.5 m of the player's face. One instanced draw with the game's bee (BeeVat.Apply, else the placeholder bee).
+    /// 0.5 m of the player's face. One instanced draw with the animated or static worker bee.
     /// </summary>
     public sealed class FlowerBees
     {
@@ -39,7 +39,7 @@ namespace VirtualBeeSwarm.FlowerLife
 
         public FlowerBees()
         {
-            _mesh = GameMeshes.CreateBeeMesh();
+            _mesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_FlowerBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh);

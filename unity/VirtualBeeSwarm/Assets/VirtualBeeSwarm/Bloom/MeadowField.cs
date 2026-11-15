@@ -770,10 +770,11 @@ namespace VirtualBeeSwarm.Bloom
             _pos = new Vector3[_m.Length]; _from = new Vector3[_m.Length]; _to = new Vector3[_m.Length]; _rest = new Vector3[_m.Length];
             _t0 = new float[_m.Length]; _dur = new float[_m.Length]; _until = new float[_m.Length]; _arc = new float[_m.Length];
             _perched = new bool[_m.Length]; _live = new bool[_m.Length];
-            _mesh = GameMeshes.CreateBeeMesh();
+            _mesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_MeadowBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
-            WingClock.EnableOn(_mat, _mesh); // the low-poly bee: hundreds of them stay cheap (no VAT here)
+            WingClock.EnableOn(_mat, _mesh); // use the static worker with shader wings for the full room pool
+            Debug.Log("[VBS][Meadow] room bees use " + _mesh.name + " (" + _mesh.GetIndexCount(0) / 3 + " tris)");
             for (int i = 0; i < _m.Length; i++)
             {
                 float k = 0.88f + 0.24f * (float)_rnd.NextDouble();

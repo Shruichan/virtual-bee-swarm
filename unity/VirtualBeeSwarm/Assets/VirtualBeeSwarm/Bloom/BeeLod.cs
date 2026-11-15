@@ -5,8 +5,8 @@ namespace VirtualBeeSwarm.Bloom
 {
     /// <summary>
     /// Many bees on the Quest budget: in the meadow layout a bee pool draws only its nearest swarm.vatNear bees (within
-    /// VatRange of the eyes) with Daniel's VAT bee (~560 tris); every other bee is the low-poly placeholder bee
-    /// (GameMeshes, ~100 tris), which reads the same at a few metres. Same per-instance _Color, two instanced draws per
+    /// VatRange of the eyes) with Daniel's VAT bee (~560 tris). Farther bees use the pool's static worker model.
+    /// Same per-instance _Color, two instanced draws per
     /// pool at most, no garbage per frame. Make it from the pool's own mesh and material BEFORE BeeVat.Apply swaps them.
     /// </summary>
     public sealed class BeeLod

@@ -39,6 +39,13 @@ namespace VirtualBeeSwarm
         /// <summary>Re-read the switch next time (tests, tuning reload).</summary>
         public static void Reload() { _enabled = null; }
 
+        /// <summary>The static worker mesh wired into the scene by the art-slot pass.</summary>
+        internal static Mesh AuthoredWorkerMesh()
+        {
+            var swarm = UnityEngine.Object.FindAnyObjectByType<SwarmSystem>(FindObjectsInactive.Include);
+            return swarm != null ? swarm.WorkerBeeMesh : null;
+        }
+
         /// <summary>
         /// Swap a bee pool to the VAT bee when swarm.vat is on and the assets load. Returns true if it swapped.
         /// <paramref name="pool"/> only names the pool in the log.

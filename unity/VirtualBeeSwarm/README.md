@@ -150,7 +150,7 @@ The rules are in `PLAN.md` (FBX in meters, Y-up, ≤1024 px textures, tri budget
 | `TableAnchor/Hive/LiftRoot/Body, Roof, Stand` | `HiveBody.bodyRenderers` (tinted when sick), `liftRoot`, `Door` (scale.x = door width), `DoorPoint`, `SwarmCenter`, `HeatGlow` |
 | `.../Hexagons/Hex1-4` | `HexagonPanel.hexagons` (smoker, feed, wasps, heat) |
 | `Beeswax/Body/*` (faces +Z) | `BeeswaxController.mouth` (scaled on Y), `leftWing`/`rightWing` (rotated on Z), `dustyRenderers`. The AudioSource + BeeswaxRoomVoice stay on `Beeswax`. |
-| `Swarm` (procedural bee) | `SwarmSystem.beeMesh` (~3.5 cm, +Z forward) + an instanced material |
+| `Swarm` | The worker rig's VAT bake supplies the nearby animation and the static mesh shared by the meadow and swarms. |
 | `HONEYMOON-1/*` | `Seat`, `Perch`, `Flame`, `CountdownDisplay` |
 | `FutureWindow/Portal/Frame*`, `Glow` | `LivePane (Orbis)` + `FallbackPane` (same size), `Embers` (+Z out of the window) |
 | Station props (`Smoker`, `HoneyJar`, `SyrupBottle`, `Wasp0-3`, `DeepBowl`, `PebbleDish`, `Drinker0-4`) | the references on each station component |
