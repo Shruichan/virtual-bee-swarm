@@ -17,6 +17,8 @@ namespace VirtualBeeSwarm.HandsOn
         readonly OrderTicket[] _tickets = new OrderTicket[3];
         Transform _rail;
         int _count;
+        float _shownAt = -10f;
+        const float ShowGuardSeconds = 0.3f;
 
         public bool Visible => gameObject.activeSelf;
         public int Count => _count;
@@ -55,7 +57,7 @@ namespace VirtualBeeSwarm.HandsOn
                 t.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
                 t.Set(choices[i], labels[i], crossed(choices[i]), i + 1);
             }
-            if (!gameObject.activeSelf) gameObject.SetActive(true);
+            if (!gameObject.activeSelf) { _shownAt = Time.time; gameObject.SetActive(true); }
         }
 
         public void Hide()
@@ -80,6 +82,11 @@ namespace VirtualBeeSwarm.HandsOn
             }
         }
 
-        void HandlePoked(OrderTicket t) => Ordered?.Invoke(t.Choice);
+        // A fingertip already resting where a ticket appears fires OnTriggerEnter at once: ignore pokes for a moment.
+        void HandlePoked(OrderTicket t)
+        {
+            if (Time.time - _shownAt < ShowGuardSeconds) return;
+            Ordered?.Invoke(t.Choice);
+        }
     }
 }

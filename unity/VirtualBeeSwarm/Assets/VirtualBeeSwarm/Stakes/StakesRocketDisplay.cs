@@ -184,7 +184,8 @@ namespace VirtualBeeSwarm.Stakes
             float limit = _director.TimeLimitSeconds > 0f ? _director.TimeLimitSeconds : 240f;
             if (beat == GameBeat.Escape) { SetOnce(-2, "EVACUATION\nCANCELLED", cancelledColor); return; }
             if (beat >= GameBeat.Map) return; // the crashed rocket keeps whatever T-0 left on it
-            int remaining = _clockStart < 0f ? Mathf.CeilToInt(limit) : Mathf.CeilToInt(limit - ClockSeconds);
+            // The director's run clock, so BOARDING freezes at the 4th repair with the score (no ticking through the fire).
+            int remaining = _clockStart < 0f ? Mathf.CeilToInt(limit) : Mathf.CeilToInt(limit - _director.RunSeconds);
             if (remaining <= 0) { SetOnce(-1, "BOARDING DELAYED\n(UNION RULES)", delayedColor); return; }
             if (remaining == _lastSecond) return;
             _lastSecond = remaining;

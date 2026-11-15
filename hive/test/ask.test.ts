@@ -32,7 +32,7 @@ import {
   type AskClient,
 } from "../src/ask";
 import { LINES } from "../src/lines";
-import { OFF_LIST_ANSWER } from "../src/router";
+import { GREETING_REPLY, OFF_LIST_ANSWER } from "../src/router";
 
 type Call = { body: any; opts: any };
 const DEFAULTS = { ...askLimits };
@@ -401,6 +401,8 @@ describe("answer", () => {
     expect(await answer("thanks beeswax", ctx())).toMatchObject({ kind: "ack", path: "local" });
     expect(await answer("um", ctx())).toMatchObject({ kind: "not_heard", ask_id: "ask_not_heard" });
     expect(await answer("", ctx())).toMatchObject({ kind: "not_heard" });
+    // "Hey Beeswax" on its own: he answers and asks for the question, without Claude
+    expect(await answer("Hey Beeswax!", ctx())).toMatchObject({ kind: "ack", path: "local", text: GREETING_REPLY });
   });
 
   test("wants(): map and field only, never a what-if or put it out, and ASK_ON=0 turns it off", () => {

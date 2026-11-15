@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -90,6 +91,49 @@ namespace VirtualBeeSwarm.DeliveryEditor
             return Vector3.Angle(x, y);
         }
 
+        static void CheckCourierFlight(BeeDelivery d, Transform pane, Transform table)
+        {
+            var board = Cube("Clipboard", table, Vector3.zero, new Vector3(0.22f, 0.28f, 0.01f)).transform;
+            var item = board.gameObject.AddComponent<DeliveryItem>();
+            item.castShadow = false;
+            item.crewOverride = 1;
+            Vector3 restScale = board.localScale;
+            board.gameObject.SetActive(false);
+            var pose = new Pose(pane.position + new Vector3(0.45f, 0.35f, -0.35f), Quaternion.Euler(0f, 90f, 0f));
+            var matrices = (Matrix4x4[])typeof(BeeDelivery)
+                .GetField("_matrices", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(d);
+
+            d.Park(board, pose);
+            Check(board.localScale.x < restScale.x, "courier: a new clipboard still scales in from the pane");
+            Vector3 previousFacing = Vector3.zero;
+            float largestStep = 0f;
+            for (int i = 0; i < 145; i++)
+            {
+                d.Step(Dt);
+                Vector3 facing = matrices[0].MultiplyVector(Vector3.forward).normalized;
+                if (i > 0) largestStep = Mathf.Max(largestStep, Vector3.Angle(previousFacing, facing));
+                previousFacing = facing;
+            }
+            Check(item.parked && d.ActiveBees == 1, "courier: one worker settles with the clipboard");
+            Check(largestStep < 32f, "courier: no abrupt turn on arrival (saw " + largestStep.ToString("0.0") + "°)");
+            Check(Vector3.Angle(previousFacing, -(pose.rotation * Vector3.forward)) < 5f, "courier: faces the player once parked");
+
+            d.Park(board, new Pose(pose.position + Vector3.right * 0.2f, pose.rotation));
+            d.Step(Dt);
+            Check(Vector3.Distance(board.localScale, restScale) < 0.001f, "courier: repositioning a visible clipboard keeps its size");
+
+            d.Release(board, hide: true);
+            d.Park(board, pose);
+            d.Step(Dt);
+            Vector3 interruptedScale = board.localScale;
+            item.squashUntil = 0f; // a landing's scale restore must not override the new flight
+            d.Return(board);
+            d.Step(Dt);
+            Check(Vector3.Distance(board.localScale, interruptedScale) < 0.001f, "courier: reversing a flight keeps its current size");
+            Steps(d, 2f);
+            Check(!board.gameObject.activeSelf && d.ActiveBees == 0, "courier: clipboard and worker both return");
+        }
+
         // ------------------------------------------------------------ one mode
         static void RunMode(DeliveryMode mode)
         {
@@ -167,6 +211,7 @@ namespace VirtualBeeSwarm.DeliveryEditor
             Check(cut == 1, "ring: onCut once (got " + cut + ")");
             Steps(d, 1.6f);
             Check(d.ActiveBees == 0, "ring: no bees left (" + d.ActiveBees + ")");
+            if (on) CheckCourierFlight(d, pane, table);
 
             // ---- 2. hive on bee chains
             int hiveLanded = 0;

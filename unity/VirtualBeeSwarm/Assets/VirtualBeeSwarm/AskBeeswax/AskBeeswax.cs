@@ -245,10 +245,10 @@ namespace VirtualBeeSwarm.Ask
             if (On && info.id == AskLines.AskAnythingId) Open("operator line " + info.id);
             else if (On && Auto && info.id == AskLines.EndContractId) _autoPending = true;
             bool expecting = Flow.ExpectingReply;
-            // the reply is a live line (no id) or one of the ask / ack / refusal lines; any other scripted line that
-            // starts meanwhile is not the answer
+            // The dance and window request lines are replies. Other scripted Pals lines can play during a voice turn.
             string id = info.id ?? "";
             bool reply = id.Length == 0 || info.stream || id == AskLines.FillerId || id == AskLines.RefuseId ||
+                         id == GameLines.RoomPalDance.id || id == GameLines.RoomPalShowMe.id ||
                          id.StartsWith("ask_", StringComparison.Ordinal) || id.StartsWith("room_ack", StringComparison.Ordinal);
             bool counts = _lastIntent != "ack" && !id.StartsWith("room_ack", StringComparison.Ordinal) && !AskLines.IsNonAnswer(id, info.caption);
             Apply(Flow.LineStarted(id, Time.time, reply, counts));

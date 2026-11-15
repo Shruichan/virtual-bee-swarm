@@ -398,6 +398,8 @@ interface VoiceTurn {
   group: string;
   beat: BeatName;
   beatRevision: number;
+  groupRevision: number;
+  isLatestListen?: () => boolean;
 }
 
 interface Listen {
@@ -500,7 +502,7 @@ export function startHive(opts: HiveOptions): Hive {
   const directorTimeoutMs = opts.directorTimeoutMs ?? 6000;
   const photoTimeoutMs = opts.photoTimeoutMs ?? 8000;
   const scanStaleMs = opts.scanStaleMs ?? 25_000;
-  const sttTimeoutMs = opts.sttTimeoutMs ?? 6000;
+  const sttTimeoutMs = opts.sttTimeoutMs ?? 4000; // worst case (STT + guard + route + guard) stays near the Quest's 10 s reply wait
   const routeTimeoutMs = opts.routeTimeoutMs ?? 3500;
   const listenMaxBytes = Math.max(2, (opts.listenMaxBytes ?? 15 * 16000 * 2) & ~1);
   const listenWatchdogMs = opts.listenWatchdogMs ?? 20_000;
@@ -512,6 +514,7 @@ export function startHive(opts: HiveOptions): Hive {
   const askWindowGapMs = opts.askWindowGapMs ?? 4000;
   const state = createState();
   let beatRevision = 0;
+  let groupRevision = 0;
   const jobs = new Map<string, ScanJob>(); // by scan_id (current + recent, for idempotent retries)
   const audio = new AudioCache(50);
   let baseUrl = opts.publicBaseUrl?.replace(/\/+$/, "") || "";
@@ -1195,6 +1198,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   function groupReset(): void {
+    groupRevision++;
     questAskDialogues.clear();
     dropJobs();
     for (const [id, l] of listens) {
@@ -1219,18 +1223,20 @@ export function startHive(opts: HiveOptions): Hive {
   // ------------------------------------------------------------ voice in: listen.start, MIC_PCM16, listen.end
 
   const listens = new Map<string, Listen>(); // by client id
+  const latestListen = new WeakMap<Client, number>();
   const questAskDialogues = new Map<string, { expires: number; remaining: number }>();
   const ASK_DIALOGUE_MS = 20_000, ASK_DIALOGUE_QUESTIONS = 3;
   const wakePrefix = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu;
   const strayWarned = new Set<string>();
   let listenSeq = 0;
 
-  function captureVoiceTurn(): VoiceTurn {
-    return { group: state.group_id, beat: beatName(state), beatRevision };
+  function captureVoiceTurn(isLatestListen?: () => boolean): VoiceTurn {
+    return { group: state.group_id, beat: beatName(state), beatRevision, groupRevision, isLatestListen };
   }
 
   function voiceTurnIsCurrent(turn: VoiceTurn, operator = false): boolean {
-    return turn.group === state.group_id && (operator || turn.beatRevision === beatRevision);
+    return turn.groupRevision === groupRevision &&
+      (operator || turn.beatRevision === beatRevision) && turn.isLatestListen?.() !== false;
   }
 
   function listenStart(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean, askDialogue: boolean): void {
@@ -1241,6 +1247,7 @@ export function startHive(opts: HiveOptions): Hive {
       log(`listen ${id}#${old.n}: restarted, ${old.bytes} bytes dropped`);
     }
     const n = ++listenSeq;
+    latestListen.set(ws, n);
     const watchdog = setTimeout(() => {
       if (listens.get(id)?.n !== n) return;
       log(`listen ${id}#${n}: no listen.end after ${listenWatchdogMs} ms, finishing`);
@@ -1249,7 +1256,7 @@ export function startHive(opts: HiveOptions): Hive {
     listens.set(id, {
       n,
       source: ws.data.role === "glasses" ? "glasses" : "quest",
-      turn: captureVoiceTurn(),
+      turn: captureVoiceTurn(() => latestListen.get(ws) === n),
       wakePhrase,
       askDialogue,
       mode,
@@ -1285,6 +1292,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   function finishListen(ws: Client, why: "end" | "cancel" | "closed" | "watchdog"): void {
+    if (why === "closed" || why === "cancel") latestListen.delete(ws);
     const l = listens.get(ws.data.id);
     if (!l) {
       if (why === "end" || why === "cancel") log(`listen ${ws.data.id}: listen.end without listen.start`);
@@ -1690,7 +1698,7 @@ export function startHive(opts: HiveOptions): Hive {
     if (!isCurrent()) return null;
     const answered = a.kind === "answer" || a.kind === "canned";
     if (shown && !answered) {
-      if (shown.ask === askSeq) askSeq++; // its live prompt, if still on the way, is dropped
+      if (shown.ask === askSeq) askSeq++;
       if (shown.moment && shown.seq === momentSeq && momentActive) setScene(state.base_scene, `ask: ${a.kind}, nothing to show`);
     }
     latency("ask.route", a.ms);
@@ -2031,7 +2039,7 @@ if (import.meta.main) {
     publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
     directorTimeoutMs: Number(process.env.DIRECTOR_TIMEOUT_MS) || 6000,
     scanStaleMs: Number(process.env.SCAN_STALE_MS) || 25_000,
-    sttTimeoutMs: Number(process.env.STT_TIMEOUT_MS) || 6000,
+    sttTimeoutMs: Number(process.env.STT_TIMEOUT_MS) || 4000,
     routeTimeoutMs: Number(process.env.ROUTE_TIMEOUT_MS) || 3500,
     orbisRelayUrl: process.env.ORBIS_RELAY_URL || null,
     host: process.env.HIVE_HOST || undefined,

@@ -22,8 +22,9 @@ namespace VirtualBeeSwarm.Capture
     /// camera (standing eye height, the player's head for the game) and a wide 3/4 camera, inside a stand-in room
     /// (floor, table, wall, warm light) that also takes the stakes dim. Voice lines are held for their clip length in
     /// game time (the player has no audio) and logged to lines.tsv; every log line goes to events.tsv with its frame.
-    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS ("pov,wide"; also povup, top, corner), VBS_CAPTURE_MAX_SECONDS,
-    /// VBS_CAPTURE_EVERY (write every Nth frame only: stills; the clock still runs at fps);
+    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS (pov, wide, povup, top, corner, pal),
+    /// VBS_CAPTURE_MAX_SECONDS (stop early), VBS_CAPTURE_EVERY (write every Nth frame, with the same game clock),
+    /// VBS_CAPTURE_ROOM (one of the 20 desktop room fixtures, e.g. 01);
     /// while a file <out>/hold exists the capture waits (an encoder working through the frames).
     /// </summary>
     [DefaultExecutionOrder(10000)]
@@ -48,6 +49,7 @@ namespace VirtualBeeSwarm.Capture
         GameNet _net;
         GameAutopilot _autopilot;
         IntroSequence _intro;
+        RoomPlaytest _roomPlaytest;
         Component _voice;
         FieldInfo _fCurrent, _fLineHasAudio, _lStarted, _lStartedAt, _lClip, _lCaptionSecs, _lLineId;
         object _curLine;
@@ -72,6 +74,16 @@ namespace VirtualBeeSwarm.Capture
 
         void Awake()
         {
+            _roomPlaytest = GetComponent<RoomPlaytest>();
+            if (_roomPlaytest != null && _roomPlaytest.Config != null)
+            {
+                var fixture = _roomPlaytest.Config;
+                povPos = fixture.Eye;
+                povLook = fixture.Look;
+                size = new Vector2Int(640, 360);
+                supersample = 1;
+                maxSeconds = 300;
+            }
             Time.captureFramerate = fps;
             Application.targetFrameRate = -1;
             Application.runInBackground = true;
@@ -100,6 +112,12 @@ namespace VirtualBeeSwarm.Capture
 
         IEnumerator Start()
         {
+            if (_roomPlaytest != null && _roomPlaytest.Error != null)
+            {
+                Debug.LogError("[VBSRoomTest] " + _roomPlaytest.Error);
+                Application.Quit(1);
+                yield break;
+            }
             _director = FindAnyObjectByType<GameDirector>();
             _net = FindAnyObjectByType<GameNet>();
             _autopilot = FindAnyObjectByType<GameAutopilot>();
@@ -109,6 +127,19 @@ namespace VirtualBeeSwarm.Capture
             BuildRoom();
             PassthroughDim.Output = this;
             SetUpCameras();
+            if (_roomPlaytest != null && _roomPlaytest.Config != null)
+            {
+                // MeadowField installs at runtime; its Start may follow this scene component's Start.
+                for (int i = 0; i < 120 && !_roomPlaytest.ScanReady; i++) yield return null;
+                if (!_roomPlaytest.ScanReady)
+                {
+                    Debug.LogError("[VBSRoomTest] Fixture scan never reached MeadowField");
+                    Application.Quit(1);
+                    yield break;
+                }
+                PoseHead();
+                _roomPlaytest.PlaceAndDescribe();
+            }
             SetEndOfFrameHook(true);
             _capturing = true;
             Debug.Log("[VBSCapture] capturing " + string.Join(",", _views) + " at " + size.x + "x" + size.y + " (x" + supersample +
@@ -284,6 +315,8 @@ namespace VirtualBeeSwarm.Capture
         {
             HoldVoice();
             PoseHead();
+            if (_capturing && _roomPlaytest != null && _roomPlaytest.Config != null && _director != null)
+                _roomPlaytest.Sample(_pov, _director.Beat, _intro != null && _intro.SignHereReady);
             if (Time.time >= _nextVideoScan)
             {
                 _nextVideoScan = Time.time + 1f;
@@ -408,6 +441,8 @@ namespace VirtualBeeSwarm.Capture
             float wallZ = tc.z + th.y + 1.5f;
             var rig = AR.ArRig.Instance;
             if (rig != null && rig.Room.HasWall) wallZ = rig.Room.WindowWall.point.z;
+            var fixture = _roomPlaytest != null ? _roomPlaytest.Config : null;
+            if (fixture != null) wallZ = fixture.WallZ;
 
             var root = new GameObject("CaptureRoom").transform;
             var wood = Mat(new Color(0.78f, 0.6f, 0.42f), WoodTexture(false), 0.35f, new Vector2(1f, 1f));
@@ -417,14 +452,27 @@ namespace VirtualBeeSwarm.Capture
             var rug = Mat(new Color(0.42f, 0.5f, 0.52f), NoiseTexture(), 0f, new Vector2(4f, 4f));
             // The ceiling the game believes in (StakesDirector hands it to the dark swarm's band), so nothing real or
             // stand-in hides the band.
-            const float W = 6f, back = 6f;
-            float H = rig != null ? Mathf.Max(2.3f, rig.Room.CeilingOrDefault) : 2.4f;
+            float W = fixture != null ? fixture.Width : 6f;
+            float back = fixture != null ? fixture.Depth : 6f;
+            float H = fixture != null ? fixture.Ceiling : rig != null ? Mathf.Max(2.3f, rig.Room.CeilingOrDefault) : 2.4f;
             float midZ = wallZ - back * 0.5f;
             Box(root, "Floor", new Vector3(0f, -0.01f, midZ), new Vector3(W, 0.02f, back), floor);
             Box(root, "Ceiling", new Vector3(0f, H + 0.01f, midZ), new Vector3(W, 0.02f, back), trim);
             Box(root, "BackWall", new Vector3(0f, H * 0.5f, wallZ + 0.03f), new Vector3(W, H, 0.06f), wall);
-            Box(root, "LeftWall", new Vector3(-W * 0.5f, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
-            Box(root, "RightWall", new Vector3(W * 0.5f, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
+            float sideX = W * 0.5f + (fixture != null ? 0.03f : 0f);
+            Box(root, "LeftWall", new Vector3(-sideX, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
+            Box(root, "RightWall", new Vector3(sideX, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
+            if (fixture != null)
+            {
+                Box(root, "EntryWall", new Vector3(0f, H * 0.5f, wallZ - back - 0.03f), new Vector3(W, H, 0.06f), wall);
+                foreach (var item in fixture.Furniture)
+                {
+                    Color color = FurnitureColor(item.Name, item.Pillar);
+                    var box = Box(root, item.Name, item.Center, item.Size, Mat(color, null, 0.16f, Vector2.one), true);
+                    box.transform.localRotation = item.Rotation;
+                    _roomPlaytest.AddFurniture(box.GetComponent<BoxCollider>());
+                }
+            }
             Box(root, "Baseboard", new Vector3(0f, 0.05f, wallZ - 0.01f), new Vector3(W, 0.1f, 0.02f), trim);
             bool meadow = Bloom.MeadowLayout.FreeStanding; // meadow: the hive stands on its stump, no stand-in table or rug
             if (!meadow) Box(root, "Rug", new Vector3(tc.x, 0.003f, tc.z - 0.2f), new Vector3(2.4f, 0.006f, 1.9f), rug);
@@ -473,17 +521,30 @@ namespace VirtualBeeSwarm.Capture
             return m;
         }
 
-        static void Box(Transform root, string name, Vector3 pos, Vector3 scale, Material m)
+        static GameObject Box(Transform root, string name, Vector3 pos, Vector3 scale, Material m, bool physical = false)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = name;
-            Destroy(go.GetComponent<Collider>()); // no colliders: the game's raycasts must not see the stand-in room
+            if (!physical) Destroy(go.GetComponent<Collider>());
             go.transform.SetParent(root, false);
             go.transform.localPosition = pos;
             go.transform.localScale = scale;
             var r = go.GetComponent<Renderer>();
             r.sharedMaterial = m;
-            r.shadowCastingMode = name.StartsWith("Leg") || name.StartsWith("Table") || name == "Apron" ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            r.shadowCastingMode = physical || name.StartsWith("Leg") || name.StartsWith("Table") || name == "Apron"
+                ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            return go;
+        }
+
+        static Color FurnitureColor(string name, bool pillar)
+        {
+            if (pillar) return new Color(0.71f, 0.68f, 0.62f);
+            string lower = name.ToLowerInvariant();
+            if (lower.Contains("sofa") || lower.Contains("couch") || lower.Contains("bed")) return new Color(0.34f, 0.49f, 0.53f);
+            if (lower.Contains("plant")) return new Color(0.33f, 0.44f, 0.31f);
+            if (lower.Contains("shelf") || lower.Contains("desk") || lower.Contains("table")) return new Color(0.56f, 0.39f, 0.25f);
+            if (lower.Contains("counter") || lower.Contains("island")) return new Color(0.75f, 0.73f, 0.67f);
+            return new Color(0.58f, 0.44f, 0.37f);
         }
 
         static Texture2D WoodTexture(bool planks)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -312,7 +313,11 @@ namespace VirtualBeeSwarm
             if (Active)
             {
                 Attach();
-                for (int i = 0; i < _n; i++) Delivery.Release(_item[i], hide: true);
+                for (int i = 0; i < _n; i++)
+                {
+                    if (_collider[i] != null) _collider[i].enabled = true;
+                    Delivery.Release(_item[i], hide: true);
+                }
             }
             else Detach();
         }
@@ -337,13 +342,14 @@ namespace VirtualBeeSwarm
         }
 
         /// <summary>HandsOn: fly one ordered choice in, to its arc slot (or to `at`).</summary>
-        public void ParkOrdered(string choice, Pose? at = null) // HANDSON hook
+        public Pose? ParkOrdered(string choice, Pose? at = null) // HANDSON hook
         {
             int i = IndexOf(choice);
-            if (!Active || i < 0 || _gone[i]) return;
+            if (!Active || i < 0 || _gone[i]) return null;
             if (!_parked) ParkChoices();
             Pose slot = at.HasValue ? ClearHandoff(at.Value, i) : _slots[i];
-            Delivery.ParkStationChoice(_item[i], slot, _hiveEnvelope);
+            Delivery.ParkStationChoice(_item[i], slot, _hiveEnvelope, cueArrival: !at.HasValue);
+            return slot;
         }
 
         /// <summary>OfferChoices: make sure the choices are out (a subclass intro that never called ParkChoices). True = all parked.</summary>
@@ -427,7 +433,56 @@ namespace VirtualBeeSwarm
                 _gone[i] = true;
                 Delivery.HaulAway(_item[i], repo: true);
             }
-            else if (!_rightSent) LandRight(i);
+            else
+            {
+                if (!_rightSent) LandRight(i);
+                if (station != GameStation.Heat)
+                {
+                    StopToolExit();
+                    _toolExit = StartCoroutine(FadeSpentTool(i));
+                }
+            }
+        }
+
+        Coroutine _toolExit;
+        Transform _stowingTool;
+        Vector3 _stowingScale;
+
+        IEnumerator FadeSpentTool(int i)
+        {
+            var tool = _item[i];
+            while (tool != null && Delivery != null && Delivery.IsFlying(tool)) yield return null;
+            // Leave the contact beat visible before removing the finished tool.
+            yield return new WaitForSeconds(0.14f);
+            if (tool != null && tool.gameObject.activeInHierarchy && Delivery != null)
+            {
+                if (_collider[i] != null) _collider[i].enabled = false;
+                Delivery.Release(tool, hide: false);
+                HideStamp(i);
+                _stowingTool = tool;
+                _stowingScale = tool.localScale;
+                const float seconds = 0.32f;
+                for (float t = 0f; t < seconds && tool != null; t += Time.deltaTime)
+                {
+                    tool.localScale = _stowingScale * (1f - Mathf.SmoothStep(0f, 1f, t / seconds));
+                    yield return null;
+                }
+                if (tool != null)
+                {
+                    Delivery.Release(tool, hide: true);
+                    Debug.Log("[VBS][Delivery] stowed spent tool " + tool.name);
+                }
+            }
+            _toolExit = null;
+            _stowingTool = null;
+        }
+
+        void StopToolExit()
+        {
+            if (_toolExit != null) StopCoroutine(_toolExit);
+            if (_stowingTool != null) _stowingTool.localScale = _stowingScale;
+            _toolExit = null;
+            _stowingTool = null;
         }
 
         void LandRight(int i, bool alreadyPlaced = false)
@@ -437,10 +492,13 @@ namespace VirtualBeeSwarm
             string id = _choice[i];
             Transform landing = station == GameStation.Feed ? FeedLanding(i) : spot;
             Bounds? avoidHive = station == GameStation.Feed ? _hiveEnvelope : (Bounds?)null;
-            Delivery.Deliver(_item[i], landing, DeliveryStyle.Crown, 0,
-                () => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down"), avoidHive);
-            // Complete the placement and notify listeners without another visible flight.
-            if (alreadyPlaced) Delivery.Finish(_item[i]);
+            void LogSetDown() => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down");
+            if (alreadyPlaced)
+            {
+                Delivery.FinishManualPlacement(_item[i], new Pose(landing.position, landing.rotation));
+                LogSetDown();
+            }
+            else Delivery.Deliver(_item[i], landing, DeliveryStyle.Crown, 0, LogSetDown, avoidHive);
             for (int k = 0; k < _n; k++)
             {
                 if (k == i || _gone[k]) continue;
@@ -453,6 +511,7 @@ namespace VirtualBeeSwarm
         /// <summary>StationBase.OnExit (before props are hidden): the right one ends on its spot if solved, the rest are gone, no bees left.</summary>
         public void OnStationExit(bool solved)
         {
+            StopToolExit();
             Resolve();
             RestoreAll();
             ClearHint(false);
@@ -475,6 +534,7 @@ namespace VirtualBeeSwarm
         /// <summary>StationBase.OnResetState (before OnStationReset): everything back to the builder's layout.</summary>
         public void ResetItems()
         {
+            StopToolExit();
             Resolve();
             RestoreAll();
             ClearHint(false);
@@ -1000,6 +1060,10 @@ namespace VirtualBeeSwarm
             catch (Exception e) { Debug.LogException(e); }
         }
 
-        void OnDisable() => RestoreAll();
+        void OnDisable()
+        {
+            StopToolExit();
+            RestoreAll();
+        }
     }
 }

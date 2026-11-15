@@ -102,6 +102,11 @@ namespace VirtualBeeSwarm.Editor
         /// <summary>Batch: every check above. Exit code 0 = no errors (warnings allowed unless VBS_STRICT_CLIPS=1).</summary>
         public static void Check() => RunCheck(Application.isBatchMode);
 
+        // Git can check the input and generated LF files out with CRLF on Windows.
+        static string ReadTextWithLf(string path) => File.ReadAllText(path).Replace("\r\n", "\n");
+
+        static string ReadGeneratedGameLines() => File.Exists(GameLinesPath) ? ReadTextWithLf(GameLinesPath) : "";
+
         static int RunGenerate(bool exit)
         {
             var r = new Report();
@@ -111,7 +116,7 @@ namespace VirtualBeeSwarm.Editor
                 string code = src != null ? Emit(src, r) : null;
                 if (code != null && r.Errors.Count == 0)
                 {
-                    string old = File.Exists(GameLinesPath) ? File.ReadAllText(GameLinesPath) : "";
+                    string old = ReadGeneratedGameLines();
                     if (old == code) r.Info("GameLines.cs is already current (" + src.Lines.Count + " lines)");
                     else
                     {
@@ -173,7 +178,7 @@ namespace VirtualBeeSwarm.Editor
                     string code = Emit(src, r);
                     if (code != null)
                     {
-                        string disk = File.Exists(GameLinesPath) ? File.ReadAllText(GameLinesPath) : "";
+                        string disk = ReadGeneratedGameLines();
                         if (disk != code) r.Error("GameLines.cs is not what lines.json + stations.json generate now (stale or hand-edited): run Generate");
                         else r.Info("GameLines.cs = generator output for lines.json " + Short(src.LinesSha) + " + stations.json " + Short(src.StationsSha));
                     }
@@ -240,13 +245,13 @@ namespace VirtualBeeSwarm.Editor
                 r.Error("no lines.json / stations.json in " + LinesDir() + " (set VBS_LINES_DIR to the hive/lines folder)");
                 return null;
             }
-            byte[] linesBytes = File.ReadAllBytes(src.LinesPath), stationsBytes = File.ReadAllBytes(src.StationsPath);
-            src.LinesSha = Sha256(linesBytes);
-            src.StationsSha = Sha256(stationsBytes);
+            string linesJson = ReadTextWithLf(src.LinesPath), stationsJson = ReadTextWithLf(src.StationsPath);
+            src.LinesSha = Sha256(Encoding.UTF8.GetBytes(linesJson));
+            src.StationsSha = Sha256(Encoding.UTF8.GetBytes(stationsJson));
             r.Info("lines.json " + src.LinesPath + " sha256 " + Short(src.LinesSha) + "; stations.json sha256 " + Short(src.StationsSha));
 
             // lines.json: [{ id, channel, beat?, text, tags[] }]
-            if (!(MiniJson.Parse(Encoding.UTF8.GetString(linesBytes)) is List<object> arr)) { r.Error("lines.json is not an array"); return null; }
+            if (!(MiniJson.Parse(linesJson) is List<object> arr)) { r.Error("lines.json is not an array"); return null; }
             var idRx = new Regex("^[a-z][a-z0-9_]*$");
             var fields = new Dictionary<string, string>();
             foreach (var item in arr)
@@ -267,7 +272,7 @@ namespace VirtualBeeSwarm.Editor
             }
 
             // stations.json: { station: { intro_line, choices: { choice: { correct, line_id, scene, fx? } } } }
-            src.StationsJson = MiniJson.Parse(Encoding.UTF8.GetString(stationsBytes)) as MiniJson.Obj;
+            src.StationsJson = MiniJson.Parse(stationsJson) as MiniJson.Obj;
             if (src.StationsJson == null) { r.Error("stations.json is not an object"); return null; }
             var seenStations = new HashSet<GameStation>();
             foreach (var kv in src.StationsJson.Items)

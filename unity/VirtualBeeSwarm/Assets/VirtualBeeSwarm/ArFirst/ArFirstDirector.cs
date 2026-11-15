@@ -472,7 +472,10 @@ namespace VirtualBeeSwarm.ArFirst
             float refresh = UnityEngine.XR.XRDevice.refreshRate;
             if (refresh < 30f) refresh = 72f;
             _guardFrames = _guardSeconds = 0f;
-            _guardBad = fps < refresh * 0.8f ? _guardBad + 1 : 0;
+            // soft -> hard at 0.9 (a steady ~60-64 fps judders on Quest); hard -> off only at 0.8, so a heavy beat (stakes,
+            // fire) doesn't switch occlusion off for the rest of the ride
+            float bar = ArTuning.OcclusionMode == ArTuning.Occlusion.Soft ? 0.9f : 0.8f;
+            _guardBad = fps < refresh * bar ? _guardBad + 1 : 0;
             if (_guardBad < 2) return;
             _guardBad = 0;
             _guardFrom = now + 6f;

@@ -521,6 +521,39 @@ describe("window, beats and score", () => {
     expect(hive.deps.sttCalls).toHaveLength(1);
   });
 
+  test("Quest reset to the title starts a fresh score without replacing an explicit Board reset", async () => {
+    hive = makeHive();
+    const quest = await connect("quest");
+    const board = await connect("board");
+    const originalGroup = hive.state.group_id;
+
+    await setBeat(quest, board, "smoker", 3);
+    quest.send({ type: "choice.made", station: "smoker", choice: "swat", correct: false });
+    quest.send({ type: "choice.made", station: "smoker", choice: "smoker", correct: true });
+    await setBeat(quest, board, "escape", 9);
+    expect((await board.waitFor("score")).grievances).toBe(1);
+
+    quest.send({ type: "beat.set", n: 0, name: "pre" });
+    const localReset = await board.waitFor("group.reset");
+    expect(localReset.group_id).not.toBe(originalGroup);
+    await quest.waitFor("welcome", (m) => m.group_id === localReset.group_id && m.beat === 0);
+    expect(quest.of("group.reset")).toHaveLength(0);
+    const health = await (await fetch(`${hive.url}/health`)).json();
+    expect(health).toMatchObject({ beat_name: "pre", score: null, solved: [], grievances: 0 });
+    expect(health.orbis.scene).toBe("meadow");
+
+    // A reconnect or heartbeat can reaffirm the title without resetting the group again.
+    quest.send({ type: "beat.set", n: 0, name: "pre" });
+    await setBeat(quest, board, "feed", 4);
+    expect(board.of("group.reset")).toHaveLength(1);
+    board.send({ type: "group.reset", group_id: "operator-next" });
+    await quest.waitFor("group.reset", (m) => m.group_id === "operator-next");
+    quest.send({ type: "beat.set", n: 0, name: "pre" });
+    await setBeat(quest, board, "hook", 1);
+    expect(hive.state.group_id).toBe("operator-next");
+    expect(board.of("group.reset")).toHaveLength(2);
+  });
+
   test("/health reports voice in/out, the window and the score; /board and /monitor render the v3 pages", async () => {
     hive = makeHive();
     const h = await (await fetch(`${hive.url}/health`)).json();

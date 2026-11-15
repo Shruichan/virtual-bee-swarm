@@ -170,46 +170,58 @@ namespace VirtualBeeSwarm.Bloom
             float s = Active ? Scale : MeadowTuning.RigScale;
             float dist = RowOffset(s) * s + MeadowTuning.Distance;
             var scene = MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
+            Vector3 p = hp + fwd * dist;
             if (scene != null)
             {
-                // the room scan is in: turn toward the most open floor (no walls / furniture inside the rig)
                 Vector3 best = fwd;
-                float bestFit = -1f;
-                float[] turns = { 0f, 25f, -25f, 50f, -50f, 75f, -75f, 105f, -105f, 140f, -140f, 180f };
-                foreach (var a in turns)
+                (int hive, int yard) bestFit = (-1, -1);
+                foreach (float turn in PlacementTurns)
                 {
-                    Vector3 d = Quaternion.Euler(0f, a, 0f) * fwd;
-                    float fit = Fit(scene, hp + d * dist, d, s);
-                    if (fit > bestFit + 0.02f) { bestFit = fit; best = d; }
-                    if (fit >= 0.99f) break;
+                    Vector3 direction = Quaternion.Euler(0f, turn, 0f) * fwd;
+                    Vector3 right = Vector3.Cross(Vector3.up, direction);
+                    Vector3 centre = hp + direction * dist;
+                    foreach (float offset in PlacementOffsets)
+                    {
+                        Vector3 candidate = centre + right * offset;
+                        var fit = Fit(scene, candidate, right, direction, s);
+                        if (fit.hive < bestFit.hive || (fit.hive == bestFit.hive && fit.yard <= bestFit.yard)) continue;
+                        bestFit = fit;
+                        best = direction;
+                        p = candidate;
+                        if (bestFit == (9, 35)) break;
+                    }
+                    if (bestFit == (9, 35)) break;
                 }
-                LastFit = "open floor " + (bestFit * 100f).ToString("0", C) + "% at " + Vector3.SignedAngle(fwd, best, Vector3.up).ToString("0", C) + " deg from the view";
+                LastFit = "open floor " + (bestFit.yard * 100f / 35).ToString("0", C) + "% at " +
+                          Vector3.SignedAngle(fwd, best, Vector3.up).ToString("0", C) + " deg from the view";
                 fwd = best;
             }
             else LastFit = "no room scan yet: straight ahead";
-            Vector3 p = hp + fwd * dist;
             p.y = FloorY;
             return new Pose(p, Quaternion.LookRotation(fwd, Vector3.up));
         }
 
+        static readonly float[] PlacementTurns =
+            { 0f, 12f, -12f, 25f, -25f, 37f, -37f, 50f, -50f, 62f, -62f, 75f, -75f, 90f, -90f, 105f, -105f, 120f, -120f, 140f, -140f, 155f, -155f, 180f };
+        static readonly float[] PlacementOffsets = { 0f, 0.13f, -0.13f, 0.25f, -0.25f };
+
         public static string LastFit { get; private set; } = "";
 
-        /// <summary>Share of the rig's footprint (scaled local x -0.5..0.5, z -0.25..0.45) on open floor.</summary>
-        static float Fit(BloomScene scene, Vector3 anchor, Vector3 fwd, float s)
+        // Prioritize the hive and its stand. The outer samples include the meadow, which can leave gaps around furniture.
+        static (int hive, int yard) Fit(BloomScene scene, Vector3 anchor, Vector3 right, Vector3 forward, float scale)
         {
-            Vector3 right = Vector3.Cross(Vector3.up, fwd);
-            int ok = 0, all = 0;
-            for (int ix = 0; ix < 7; ix++)
-                for (int iz = 0; iz < 5; iz++)
-                {
-                    float x = (-0.5f + ix / 6f) * s, z = (-0.25f + 0.7f * iz / 4f) * s;
-                    Vector3 p = anchor + right * x + fwd * z;
-                    p.y = scene.FloorY + 0.1f;
-                    all++;
-                    if (scene.InFloor(p) && !scene.InVolume(p, 0.05f)) ok++;
-                }
-            return ok / (float)all;
+            anchor.y = scene.FloorY;
+            int hive = 0, yard = 0;
+            for (int x = -1; x <= 1; x++)
+                for (int z = -1; z <= 1; z++)
+                    if (OpenFloor(scene, anchor + scale * (right * (x * 0.16f) + forward * (0.15f + z * 0.14f)))) hive++;
+            for (int x = 0; x < 7; x++)
+                for (int z = 0; z < 5; z++)
+                    if (OpenFloor(scene, anchor + scale * (right * (-0.5f + x / 6f) + forward * (-0.25f + 0.7f * z / 4f)))) yard++;
+            return (hive, yard);
         }
+
+        static bool OpenFloor(BloomScene scene, Vector3 point) => scene.InFloor(point) && !scene.InVolume(point, 0.05f);
 
         /// <summary>HivePlacement's automatic / key placement.</summary>
         public static void NoteAuto(Pose pose, string why)

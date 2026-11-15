@@ -10,12 +10,12 @@ namespace VirtualBeeSwarm.Opening
 {
     /// <summary>
     /// The slow opening (tuning opening.on, default on; env VBS_OPENING=0 turns it off). With deliveries on, pre starts
-    /// calm: the title meadow grows in from the player's feet and the logo blooms open (Title/), then Beeswax buzzes out
+    /// calm: the title meadow grows in from the player's feet and the logo blooms open (Title/). In the development preview, Beeswax buzzes out
     /// of the window with the SIGN HERE clipboard dangling under him, hovers beside the logo, looks around the room,
     /// waves, and floats over to hand it to the player (room_pre). The clipboard is ready about 9.5 s into pre.
     /// After signing he zips back to the window and into the hive, which the crew then carries in slower (6.5 s) with
     /// a pendulum wobble, so it drifts in instead of rushing at the player.
-    /// Hooked into IntroSequence.BringClipboard; null (off, or no Beeswax) = one crew bee brings it as before.
+    /// The regular opening uses one worker bee. VBS_OPENING_BEESWAX=1 previews the alternate courier in development builds.
     /// While the autopilot runs (smoke) the same path plays compressed (~3 s), so the start stays inside its 5 s wait.
     /// Logs "[VBS][Opening] ...".
     /// </summary>
@@ -72,9 +72,14 @@ namespace VirtualBeeSwarm.Opening
             _hive = FindAnyObjectByType<HiveBody>();
             _autopilot = FindAnyObjectByType<GameAutopilot>(FindObjectsInactive.Include);
             _director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
-            if (_bw != null) IntroSequence.BringClipboard = Bring;
+            // The ride introduces Beeswax after the player signs. Retain the alternate opening for development previews.
+            bool previewBeeswaxCourier = false;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            previewBeeswaxCourier = _bw != null && Environment.GetEnvironmentVariable("VBS_OPENING_BEESWAX") == "1";
+            if (previewBeeswaxCourier) IntroSequence.BringClipboard = Bring;
+#endif
             SlowHive();
-            Debug.Log("[VBS][Opening] installed (" + (_bw != null ? "Beeswax brings SIGN HERE" : "no Beeswax: crew brings it") + ")");
+            Log(previewBeeswaxCourier ? "development preview: Beeswax brings SIGN HERE" : "worker bee brings SIGN HERE");
         }
 
         void OnEnable()

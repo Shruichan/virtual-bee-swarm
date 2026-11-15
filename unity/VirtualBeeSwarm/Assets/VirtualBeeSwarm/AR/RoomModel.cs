@@ -246,6 +246,9 @@ namespace VirtualBeeSwarm.AR
     public static class FakeRoomSource
     {
         public const float WallBehindTable = 1.5f;
+#if !UNITY_ANDROID || UNITY_EDITOR
+        public static System.Action<RoomModel> CaptureOverride { get; set; }
+#endif
 
         public static void Build(RoomModel room, Transform fakeTable, Transform tableAnchor)
         {
@@ -273,6 +276,9 @@ namespace VirtualBeeSwarm.AR
             room.SetWall(wallPoint, -fwd, 2.5f, half.y + WallBehindTable + 0.8f);
             room.FloorY = 0f;
             room.CeilingY = 2.4f;
+#if !UNITY_ANDROID || UNITY_EDITOR
+            CaptureOverride?.Invoke(room);
+#endif
             room.AddDefaultFootprints(tableAnchor);
             room.ComputeTableSpots();
         }

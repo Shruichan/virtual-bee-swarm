@@ -13,7 +13,7 @@ namespace VirtualBeeSwarm.Dressing
     /// flies a lazy figure-8 over the table, sits on the nest or a tuft for 3 s and leaves ("twenty thousand kinds of
     /// bee"); a tiny wasp that sniffs the syrup once it's set down (it sets up the raid); grass tufts around the hive's
     /// foot, two more sprouting per fix; an optional shallow water dish and cavity-nesting block as habitat prompts;
-    /// and the SEEDS MEADOW MIX packet that a crew of 3 clips onto the end card (the contract card when the build has
+    /// and the SEEDS MEADOW MIX packet that a crew of 3 delivers beside the end card (the contract card when the build has
     /// one, else the score card).
     ///
     /// No edits elsewhere: installs itself into any scene with a GameDirector (like StakesDirector), listens to
@@ -68,8 +68,9 @@ namespace VirtualBeeSwarm.Dressing
         string _visitWhy = "";
         Transform _syrup;
 
-        // seed packet on the end card
+        // seed packet beside the end card
         Transform _seedCard;
+        Bounds _seedBoundsMetres;
         Vector3 _seedLocal;
         Quaternion _seedRot;
         bool _seedSent, _seedFollow, _seedOnContractLine;
@@ -320,11 +321,20 @@ namespace VirtualBeeSwarm.Dressing
             // home: on the table, front right, leaning back toward the player (used when no card is out)
             _seed.localPosition = new Vector3(0.17f, 0f, -0.12f);
             _seed.localRotation = Quaternion.Euler(-12f, 180f - 15f, 0f);
+            // Keep the authored packet hand-sized even when the table anchor is scaled up for the meadow.
+            const float packetHeight = 0.11f;
+            var bounds = LocalBounds(_seed, _seed);
+            float height = bounds.size.y * Mathf.Abs(_seed.lossyScale.y);
+            if (height > 1e-4f) _seed.localScale *= packetHeight / height;
+            var scale = _seed.lossyScale;
+            _seedBoundsMetres = new Bounds(Vector3.Scale(bounds.center, scale), Vector3.Scale(bounds.size, scale));
+
             var di = go.AddComponent<DeliveryItem>();
             di.castShadow = false;
             di.crewOverride = 3;
             di.weight = 0.03f;
-            if (_delivery != null) _delivery.Register(_seed); // home recorded now, before any flight
+            di.RecordHome();
+            if (_delivery != null) _delivery.Register(_seed);
             go.SetActive(false);
             return "seed packet";
         }
@@ -685,7 +695,7 @@ namespace VirtualBeeSwarm.Dressing
             return t.name == "ScoreCard" && FindContractCard(false) == null;
         }
 
-        /// <summary>A card's renderers bounds: the packet clips to its lower right corner, on its front (-Z, like its text).</summary>
+        /// <summary>Deliver alongside the card's right edge, with the packet's label facing the player.</summary>
         void SendSeed(Transform card)
         {
             if (_seedSent && card == _seedCard) return; // already on it
@@ -694,22 +704,28 @@ namespace VirtualBeeSwarm.Dressing
                 if (_seedSent) return;
                 _seedSent = true;
                 _seedCard = null;
-                _seed.localScale = Vector3.one;
                 if (_delivery != null) _delivery.DeliverHome(_seed, DeliveryStyle.Crown, 3);
-                else _seed.gameObject.SetActive(true);
+                else
+                {
+                    var item = _seed.GetComponent<DeliveryItem>();
+                    _seed.SetPositionAndRotation(item.HomePosition, item.HomeRotation);
+                    _seed.gameObject.SetActive(true);
+                }
                 Debug.Log(Tag + "seed packet -> the table (no contract card out), crew of 3");
                 return;
             }
-            // tucked under the card's lower right corner, hanging below it: the card's text stays clear
             var b = LocalBounds(card, card);
-            float s = Mathf.Max(1e-3f, Mathf.Abs(card.lossyScale.y));
-            _seedLocal = new Vector3(b.max.x - 0.05f / s, b.min.y - 0.08f / s, b.min.z - 0.01f / s);
-            _seedRot = Quaternion.Euler(0f, 180f, -9f);
+            var scale = card.lossyScale;
+            // The half-turn flips the packet's X and Z bounds in card space. Leave a gap to the rim.
+            _seedLocal = new Vector3(
+                b.max.x + (0.018f + _seedBoundsMetres.max.x) / Mathf.Max(1e-3f, Mathf.Abs(scale.x)),
+                b.center.y - _seedBoundsMetres.center.y / Mathf.Max(1e-3f, Mathf.Abs(scale.y)),
+                b.min.z + (_seedBoundsMetres.min.z - 0.006f) / Mathf.Max(1e-3f, Mathf.Abs(scale.z)));
+            _seedRot = Quaternion.Euler(0f, 180f, 0f);
             _seedCard = card;
             _seedSent = true;
             _seedFollow = false;
             var to = new Pose(card.TransformPoint(_seedLocal), card.rotation * _seedRot);
-            _seed.localScale = Vector3.one;
             if (_delivery != null) _delivery.Deliver(_seed, to, DeliveryStyle.Crown, 3, () => _seedFollow = true);
             else { _seed.gameObject.SetActive(true); _seed.SetPositionAndRotation(to.position, to.rotation); _seedFollow = true; }
             Debug.Log(Tag + "seed packet -> " + card.name + " (crew of 3)");

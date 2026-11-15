@@ -92,14 +92,10 @@ namespace VirtualBeeSwarm
                     break;
                 case "reset":
                 case "hide":
-                    _fl = null;
-                    _player.CancelAll(_mt, true);
+                    ClearInterruptedMotion();
                     _entrancePending = false;
                     _perched = _hiding = _perchFace = false;
                     _lastGoalT = null;
-                    _parkedSince = Time.time;
-                    _teleportFrame = Time.frameCount;
-                    _onLanded.Clear();
                     if (what == "reset") { _pirouetteDone = false; _gen++; _sched.Clear(); }
                     break;
                 case "climb":
@@ -118,6 +114,27 @@ namespace VirtualBeeSwarm
             }
         }
 
+        void ClearInterruptedMotion()
+        {
+            _fl = null;
+            _player.CancelAll(_mt, true);
+            _onLanded.Clear();
+            _releaseOnLineEnd.Clear();
+            _cur = _ambient = default;
+            _hitstopUntil = _snapUntil = -1f;
+            _govOff = _clearOff = Vector3.zero;
+            _clearSig = -1;
+            _coverSince = -1f;
+            _lastDriveFrame = -10; // take the new turn from the controller's current pose
+            _bobAmp = _bobValue = 0f;
+            _perchYaw = _perchYawV = _perchLevel = 0f;
+            _perchSeen = false;
+            _parkedSince = Time.time;
+            _teleportFrame = Time.frameCount;
+            ShowMoment = false;
+            Neutral();
+        }
+
         // ------------------------------------------------------------ beats
         void OnBeatCore(GameBeat from, GameBeat to)
         {
@@ -128,12 +145,10 @@ namespace VirtualBeeSwarm
             {
                 // a Board jump / reset: straight to the new beat's rest pose
                 _jumpUntil = Time.time + 0.6f;
-                _player.CancelAll(_mt, true);
+                // EnterBeat may already have attached or snapped him. Let the current order finish from there.
+                ClearInterruptedMotion();
                 _gen++;
                 _sched.Clear();
-                _onLanded.Clear();
-                _releaseOnLineEnd.Clear();
-                if (_fl != null) { transform.position = _fl.end; _fl = null; _parkedSince = Time.time; _teleportFrame = Time.frameCount; }
                 Log("Snap", "beat jump " + GameIds.BeatName(from) + " -> " + GameIds.BeatName(to));
             }
             _attachedThisBeat = false;
