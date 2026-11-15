@@ -1741,8 +1741,22 @@ export function startHive(opts: HiveOptions): Hive {
     });
   }
 
-  /** Live text with ask.ts loaded: its cached audio, or TTS once the first chunk is in (1.2 s at most), else the caption
-   *  alone (Unity shows it and flaps his mouth), never a stream that ends silent. */
+  /** No live audio for this text (TTS slow, down or out of credit): Beeswax still says something out loud, a recorded
+   *  acknowledgement in his own voice, and the answer follows as a caption (the Quest has no second voice). dartiros */
+  const NEUTRAL_ACKS = ["room_ack_minutes", "room_ack_spreadsheet", "room_ack_allow", "room_ack_carried"]; // never "denied"/"tabled" before an answer
+  let lastNeutralAck = "";
+  function captionWithVoice(text: string): void {
+    const pool = NEUTRAL_ACKS.filter((id) => hasLine(id) && id !== lastNeutralAck);
+    const id = pool.length ? pool[Math.floor(Math.random() * pool.length)]! : null;
+    if (id) {
+      lastNeutralAck = id;
+      bus.say("room", id);
+    }
+    bus.say("room", null, { caption: text });
+  }
+
+  /** Live text with ask.ts loaded: its cached audio, or TTS once the first chunk is in (askLimits.firstChunkMs), else a
+   *  recorded ack + the caption (captionWithVoice), never a stream that ends silent. */
   async function speakPrimed(text: string, isCurrent?: () => boolean): Promise<void> {
     const group = state.group_id;
     const audio = await deps.ask!.prepareSpeech(text, (t) => deps.ttsPcm(t)).catch(() => null);
@@ -1751,8 +1765,8 @@ export function startHive(opts: HiveOptions): Hive {
       return;
     }
     if (!audio) {
-      observe(`tts: no audio in ${deps.ask!.askLimits.firstChunkMs} ms, caption only: "${text.slice(0, 60)}"`);
-      return bus.say("room", null, { caption: text });
+      observe(`tts: no audio in ${deps.ask!.askLimits.firstChunkMs} ms, recorded ack + caption: "${text.slice(0, 60)}"`);
+      return captionWithVoice(text);
     }
     queueRoomReply(text, () => audio, isCurrent, () => discardPrimedSpeech(audio));
   }
@@ -1761,7 +1775,7 @@ export function startHive(opts: HiveOptions): Hive {
   function sayReply(reply: Reply, channel: "room", isCurrent?: () => boolean): void {
     if (reply.line_id) return bus.say(channel, reply.line_id);
     if (!reply.text) return;
-    if (!ttsAvailable()) return bus.say(channel, null, { caption: reply.text });
+    if (!ttsAvailable()) return captionWithVoice(reply.text);
     if (deps.ask) return void speakPrimed(reply.text, isCurrent);
     queueRoomReply(reply.text, () => deps.ttsPcm(reply.text), isCurrent);
   }

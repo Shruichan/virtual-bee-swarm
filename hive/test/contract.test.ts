@@ -105,7 +105,7 @@ describe("data files", () => {
 
   test("every line id written in code exists in hive/lines/lines.json", () => {
     // Optional ids the code checks for before using them (v1 leftovers that are fine to be missing).
-    const OPTIONAL = new Set(["ear_swarm_arrived"]);
+    const OPTIONAL = new Set(["ear_swarm_arrived", "room_feed_lift_hint", "room_feed_rock_retry", "room_ask_anything"]); // Unity-only lines (scripts/render-harry.ts)
     const skip = new Set(["node_modules", "dist", "out", "__pycache__", "clips", ".venv"]);
     const files: string[] = [];
     const walk = (dir: string) => {

@@ -1,5 +1,8 @@
 // Beeswax's live voice: ElevenLabs Flash v2.5 with the Voice-Designed voice (ELEVENLABS_VOICE_ID).
 // ttsPcm streams PCM16 for room lines on the Quest; ttsMp3 renders a whole mp3 for the glasses.
+// One voice everywhere (dartiros): the recorded lines and every live line are this ElevenLabs voice. The local
+// "younger" rehearsal voice (tts-qwen/, VBS_LOCAL_TTS_URL, 60e20f2) is no longer used: it sounded different from the
+// recorded lines and went silent, with no fallback, whenever that server was down.
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -15,12 +18,8 @@ export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, max
 
 type ConvertFormat = "mp3_44100_64" | "mp3_44100_128" | "pcm_16000";
 
-function localVoiceUrl(): string {
-  return process.env.VBS_LOCAL_TTS_URL?.trim() ?? "";
-}
-
 export function ttsAvailable(): boolean {
-  return Boolean(localVoiceUrl()) || elevenLabsAvailable();
+  return elevenLabsAvailable();
 }
 
 export function elevenLabsAvailable(): boolean {
@@ -95,18 +94,6 @@ async function* readChunks(stream: ReadableStream<Uint8Array>): AsyncGenerator<U
   }
 }
 
-async function requestLocalVoice(url: string, text: string, format: "pcm" | "mp3"): Promise<Response> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, format }),
-    signal: AbortSignal.timeout(ttsLimits.totalMs),
-    redirect: "error",
-  });
-  if (!response.ok || !response.body) throw new Error(`Local voice unavailable (HTTP ${response.status})`);
-  return response;
-}
-
 function concat(parts: Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
@@ -125,19 +112,6 @@ function concat(parts: Uint8Array[]): Uint8Array {
 export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
   const t = clean(text);
   if (!t) return;
-  const local = localVoiceUrl();
-  if (local) {
-    try {
-      const response = await requestLocalVoice(local, t, "pcm");
-      const pcm = new Uint8Array(await response.arrayBuffer());
-      if (!pcm.length || pcm.length % 2 !== 0) throw new Error("Local voice returned invalid PCM");
-      // Stay below the Quest bus frame cap.
-      for (let offset = 0; offset < pcm.length; offset += 3200) yield pcm.subarray(offset, offset + 3200);
-    } catch (e) {
-      console.warn(`[tts] local voice failed: ${errText(e)}`);
-    }
-    return;
-  }
   if (!elevenLabsAvailable()) {
     console.warn("[tts] unavailable (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID unset)");
     noteFailure("elevenlabs_tts", new Error("not configured"));
@@ -220,14 +194,5 @@ export async function ttsBytes(
 
 /** A whole mp3 of the line (for the glasses' audio_url). Rejects when TTS is unavailable or fails. */
 export async function ttsMp3(text: string): Promise<Uint8Array> {
-  const local = localVoiceUrl();
-  if (local) {
-    const t = clean(text);
-    if (!t) throw new Error("TTS: empty text");
-    const response = await requestLocalVoice(local, t, "mp3");
-    const audio = new Uint8Array(await response.arrayBuffer());
-    if (!audio.length) throw new Error("Local voice returned no audio");
-    return audio;
-  }
   return ttsBytes(text, { format: "mp3_44100_64", speed: LIVE_VOICE_SPEED });
 }

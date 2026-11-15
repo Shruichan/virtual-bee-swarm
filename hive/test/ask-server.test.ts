@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as askModule from "../src/ask";
 import { cannedText, clearCaches, forget, setAskClient, type AskClient } from "../src/ask";
+import { ACK_LINES } from "../src/lines";
 import type { Hive } from "../src/server";
 import { TestClient, makeHive, mockRoute, mockTranscribe, setBeat, type MockDeps } from "./helpers";
 
@@ -481,6 +482,22 @@ describe("ASK BEESWAX in the Hive", () => {
     expect(say.tts_id).toBeNull();
     await Bun.sleep(100);
     expect(quest.of("tts.start")).toHaveLength(0);
+  });
+
+  test("TTS that never produces audio: he still says a recorded ack out loud, then the caption", async () => {
+    mockAsk(() => answerReply("A summer worker lasts a few weeks."));
+    hive = makeHive({ ask: askModule, ttsAvailable: () => true, ttsPcm: async function* () {} }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+    quest.say("how long do bees live?");
+    const caption = await quest.waitFor("say", (m) => m.caption === "A summer worker lasts a few weeks.");
+    expect(caption.line_id).toBeNull();
+    const says = quest.of("say");
+    const ack = says.findIndex((m) => typeof m.line_id === "string" && ACK_LINES.includes(m.line_id));
+    expect(["room_ack_minutes", "room_ack_spreadsheet", "room_ack_allow", "room_ack_carried"]).toContain(says[ack]!.line_id);
+    expect(ack).toBeGreaterThanOrEqual(0);
+    expect(ack).toBeLessThan(says.indexOf(caption));
   });
 
   test("other beats: the router's ask answer gets the canned answer for a card question", async () => {

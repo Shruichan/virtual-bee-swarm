@@ -45,9 +45,11 @@ namespace Beeswax
         [SerializeField] float streamStallSeconds = 4f;
 
         [Header("Queue")]
-        [SerializeField] int maxQueued = 4;
+        [SerializeField] int maxQueued = 8; // dartiros: was 4, lines behind a long one got dropped without a sound
         [Tooltip("Lines that waited longer than this are skipped (stale).")]
-        [SerializeField] float maxQueueWaitSeconds = 15f;
+        [SerializeField] float maxQueueWaitSeconds = 30f; // was 15
+        [Tooltip("A clip that is still loading may wait this long before it plays (it used to count as finished at once).")]
+        [SerializeField] float clipLoadWaitSeconds = 1.5f;
         [Tooltip("The same line_id from the bus within this window plays once (say + scan.verdict).")]
         [SerializeField] float dedupSeconds = 3f;
 
@@ -69,8 +71,17 @@ namespace Beeswax
         public string CurrentLineId => _current?.lineId ?? "";
         public string CurrentTtsId => _current?.ttsId ?? "";
         public int QueuedCount => _queue.Count;
-        /// <summary>Skip unsolicited Ask replies from an older Hive that ignored the wake-phrase flag.</summary>
-        public bool SuppressAskReplies { get; set; }
+        /// <summary>Skip unsolicited Ask replies from an older Hive that ignored the wake-phrase flag. dartiros: it lapses
+        /// on its own after SuppressAskSeconds (it used to stay on until the next talk press and mute every live line and
+        /// what-if line in between, so a generated scene played with no voice).</summary>
+        public bool SuppressAskReplies
+        {
+            get => _suppressAsk && Time.realtimeSinceStartup - _suppressAskAt < SuppressAskSeconds;
+            set { _suppressAsk = value; _suppressAskAt = Time.realtimeSinceStartup; }
+        }
+        bool _suppressAsk;
+        float _suppressAskAt = -100f;
+        const float SuppressAskSeconds = 10f;
 
         const int EnvelopeRate = 60; // amplitude frames per second for pre-rendered clips
 
@@ -80,7 +91,7 @@ namespace Beeswax
             public AudioClip clip;
             public float[] envelope;
             public float queuedAt, startedAt, captionOnlySeconds;
-            public bool started;
+            public bool started, waitingForLoad;
             public bool deviceSpeech, allowDeviceSpeech;
             // live line
             public PcmRing pcm;
@@ -382,9 +393,18 @@ namespace Beeswax
             }
             if (line.clip != null)
             {
-                line.envelope = EnvelopeOf(line.clip);
                 source.clip = line.clip;
-                source.Play();
+                if (line.clip.loadState == AudioDataLoadState.Loaded)
+                {
+                    line.envelope = EnvelopeOf(line.clip);
+                    source.Play();
+                }
+                else
+                {
+                    // not decoded yet (preload still running): load it and play the moment it's ready (see IsFinished)
+                    line.waitingForLoad = true;
+                    if (line.clip.loadState == AudioDataLoadState.Unloaded) line.clip.LoadAudioData();
+                }
             }
             else
             {
@@ -458,6 +478,25 @@ namespace Beeswax
             {
                 float elapsed = now - l.startedAt;
                 return elapsed >= l.captionOnlySeconds && (!l.deviceSpeech || elapsed >= 12f || !_deviceSpeech.Speaking);
+            }
+            if (l.waitingForLoad)
+            {
+                var state = l.clip.loadState;
+                if (state == AudioDataLoadState.Loaded)
+                {
+                    l.waitingForLoad = false;
+                    l.startedAt = now;
+                    l.envelope = EnvelopeOf(l.clip);
+                    if (source.clip != l.clip) source.clip = l.clip;
+                    source.Play();
+                    return false;
+                }
+                if (state == AudioDataLoadState.Failed || !source.isActiveAndEnabled || now - l.startedAt > clipLoadWaitSeconds)
+                {
+                    Debug.LogWarning($"[Beeswax] clip '{Describe(l)}' didn't load ({state}); skipped.");
+                    return true;
+                }
+                return false;
             }
             return (!source.isPlaying && now - l.startedAt > 0.1f) || now - l.startedAt > l.clip.length + 1f;
         }

@@ -133,15 +133,11 @@ export function noteConfig(service: ServiceName, problem: string, fix: string, n
 }
 
 /**
- * Beeswax must sound like one voice: the live voice (ElevenLabs voice id, or the local rehearsal voice) should be the
+ * Beeswax must sound like one voice: the live voice (the ElevenLabs voice id) should be the
  * one the recorded lines were made with (the Unity line manifest's voice_id). Returns what was found; warns on a mismatch.
  */
 export function checkVoiceConsistency(env: Record<string, string | undefined>, manifestVoiceId: string | null): string {
-  if (env.VBS_LOCAL_TTS_URL?.trim()) {
-    noteConfig("elevenlabs_tts", "Live answers use the local rehearsal voice (VBS_LOCAL_TTS_URL), not Beeswax's recorded voice",
-      "For the demo, remove VBS_LOCAL_TTS_URL from hive/.env and restart, so live answers match the recorded lines.");
-    return "local";
-  }
+  // VBS_LOCAL_TTS_URL (the old local rehearsal voice) is ignored now: tts.ts always speaks with ELEVENLABS_VOICE_ID
   const live = env.ELEVENLABS_VOICE_ID?.trim() || "";
   if (live && manifestVoiceId && live !== manifestVoiceId) {
     noteConfig("elevenlabs_tts", `Live voice ${live} isn't the recorded lines' voice ${manifestVoiceId}`,

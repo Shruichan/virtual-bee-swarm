@@ -426,7 +426,8 @@ namespace VirtualBeeSwarm
             var line = GameLines.RoomPalShowMe;
             if (voice != null)
             {
-                // The preview answered this turn. Drop the legacy server's union-break line or duplicate pointer.
+                // The preview answered this turn: drop the Hive's own reply to it (a show-me line or an answer). This lapses
+                // after 10 s now (BeeswaxRoomVoice), so it can't mute the what-if lines that follow. dartiros
                 voice.SuppressAskReplies = true;
                 voice.SuppressNextFromBus(line.id);
                 _deviceAskReplyPending = true;

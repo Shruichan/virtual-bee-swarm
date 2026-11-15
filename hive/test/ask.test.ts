@@ -496,6 +496,10 @@ describe("fixRouted (the router's answers in the other beats)", () => {
     const r4 = { intent: "ask", answer: "Smoke masks our alarm smell. Calm bees." };
     fixRouted("why did the smoke work", r4);
     expect(r4.answer).toBe("Smoke masks our alarm smell. Calm bees.");
+    // more open (dartiros): common bee knowledge with no invented figures is spoken as is
+    const rOpen = { intent: "ask", answer: "A summer worker lasts a few weeks. The queen can go for years." };
+    fixRouted("how long do bees live", rOpen);
+    expect(rOpen.answer).toBe("A summer worker lasts a few weeks. The queen can go for years.");
     const r7 = { intent: "ask", answer: "Union rules, no spoilers. Pick one." };
     fixRouted("do they need help", r7); // a station beat: about this hive, not the help_most card answer
     expect(r7.answer).toBe("Union rules, no spoilers. Pick one.");
@@ -535,11 +539,11 @@ describe("prepareSpeech (first-chunk deadline + audio cache)", () => {
     expect(await prepareSpeech("Nothing here.", async function* () {})).toBeNull();
   });
 
-  test("first chunk later than 1.2 s -> null, and the stream is released", async () => {
+  test("first chunk later than 2.5 s -> null, and the stream is released", async () => {
     let released = false;
     const tts = async function* () {
       try {
-        await Bun.sleep(1300);
+        await Bun.sleep(2600);
         yield new Uint8Array([1, 2]);
       } finally {
         released = true;
@@ -548,8 +552,8 @@ describe("prepareSpeech (first-chunk deadline + audio cache)", () => {
     const t0 = performance.now();
     expect(await prepareSpeech("Too slow.", tts)).toBeNull();
     const took = performance.now() - t0;
-    expect(took).toBeGreaterThanOrEqual(1150);
-    expect(took).toBeLessThan(1300);
+    expect(took).toBeGreaterThanOrEqual(2450);
+    expect(took).toBeLessThan(2600);
     await Bun.sleep(200);
     expect(released).toBe(true);
   }, 4000);
