@@ -2,6 +2,7 @@
 import type {TypedMiniappSession} from "@mentra/miniapp/background"
 import type {Channels, GlassesStatus} from "../shared/channels"
 import {CONFIG, type Config} from "./config"
+import {APP_VERSION, BUILD_TAG} from "./build"
 import {Ear, lineLimitMs} from "./ear"
 import {Bus, Hive} from "./hive"
 import {Led} from "./led"
@@ -51,6 +52,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
       if (!line.startsWith("hive") && !line.startsWith("bus")) void hive.send("/glasses/event", {kind: "log", line})
     }
   // Scout: queued sequences (intro, chime + facts + any-questions) must all play; the Hive's scout_stop drops them.
+  log(`beeswax glasses v${APP_VERSION} build ${BUILD_TAG}`)
   const ear = new Ear(session.speaker, log, undefined, config.scoutMode ? {maxQueueWaitMs: 120_000} : {})
   const led = new Led(session.led, log)
   const transcript = new Transcript()
@@ -113,7 +115,10 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     voice.noteSaid(caption)
     scout?.noteSaid(caption)
   }
-  ear.onSpeakEnd = (caption) => voice.noteDone(caption)
+  ear.onSpeakEnd = (caption) => {
+    voice.noteDone(caption)
+    scout?.noteDone(caption)
+  }
 
   const setBeat = (n: unknown) => {
     const name = typeof n === "number" ? BEATS[n] : undefined

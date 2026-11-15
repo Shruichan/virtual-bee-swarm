@@ -3,7 +3,7 @@
 // then Mentra TTS of the caption (a different voice, so it's the last resort).
 import type {SpeakerModule} from "@mentra/miniapp/background"
 import {CAPTIONS, LINES, SAMPLE_RATE, type Lines} from "./lines"
-import {deferred, describe, withTimeout, type Deferred, type Log} from "./util"
+import {deferred, describe, TimeoutError, withTimeout, type Deferred, type Log} from "./util"
 
 export interface LineRef {
   line_id: string | null
@@ -189,7 +189,11 @@ export class Ear {
         await withTimeout(this.renderSource(job, src), limit, `ear ${job.label} (${src.kind})`)
         return
       } catch (err) {
-        this.log(`ear: ${job.label} via ${src.kind} failed: ${describe(err)}`)
+        const timedOut = err instanceof TimeoutError
+        this.log(`ear: ${job.label} via ${src.kind} ${timedOut ? "took too long, moving on" : `failed: ${describe(err)}`}`)
+        // A url/speak that ran out of time most likely played (the host just never said it was done): never play it
+        // again from the next source (that was a double play in the phone's voice), and don't cut it either.
+        if (timedOut && src.kind !== "clip") return
         if (job.startedAt !== null) {
           if (this.current === job) job.stop?.()
           return
