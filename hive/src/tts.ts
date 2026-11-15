@@ -12,7 +12,7 @@ import { speakable } from "./speakable";
 
 export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
-const LIVE_VOICE_SPEED = 0.95;
+const LIVE_VOICE_SPEED = 1.0;
 /** Calmer delivery (Rome, 04:00): steadier, not over-acted. Live speech and rendered clips use the same settings. */
 const CALM_VOICE = { stability: 0.6, similarityBoost: 0.75, style: 0, useSpeakerBoost: true };
 
