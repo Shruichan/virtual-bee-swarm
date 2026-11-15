@@ -12,6 +12,7 @@ export interface ScoutSayLike {
   line_id?: string | null
   tts_id?: string | null
   audio_url?: string | null
+  caption?: string | null
 }
 
 /** The scout line id of a bus `say`, or null when it isn't a scout line. */
@@ -66,7 +67,8 @@ export function isEchoOf(text: string, captions: readonly string[]): boolean {
   return captions.some((c) => ` ${norm(c)} `.includes(` ${t} `))
 }
 
-/** After "Got any questions?" (scout_any_q_*), the Hive treats the next utterance as a question for ~8 s after the line. */
+/** After "Got any questions?" (scout_any_q_*) starts playing, the next utterance counts as a question for this long
+ *  (the Hive uses ~8 s after the line ends). */
 const ANY_Q_WINDOW_MS = 11_000
 const ECHO_WINDOW_MS = 25_000
 
@@ -85,6 +87,7 @@ export class Scout {
   private ledFailures = 0
   private spoken: {text: string; at: number}[] = []
   private anyQUntil = 0
+  private anyQCaption: string | null = null
   /** Already stopped the ear for this utterance (partials repeat). */
   private stoppedThisTurn = false
 
@@ -109,6 +112,7 @@ export class Scout {
     if (!caption) return
     this.spoken.push({text: caption, at: Date.now()})
     if (this.spoken.length > 12) this.spoken.shift()
+    if (caption === this.anyQCaption) this.anyQUntil = Date.now() + ANY_Q_WINDOW_MS // it started playing now
   }
 
   /** Would the Hive answer this as a question? (not Beeswax's own voice) */
@@ -152,7 +156,11 @@ export class Scout {
   /** A `say` arrived on the bus: light the LED for the chime and the facts. */
   said(msg: ScoutSayLike): void {
     const id = scoutLineId(msg)
-    if (id?.startsWith("scout_any_q")) this.anyQUntil = Date.now() + ANY_Q_WINDOW_MS
+    if (id?.startsWith("scout_any_q")) {
+      // queued behind the fact: the window opens when it starts playing (noteSaid); without a caption, from now
+      this.anyQCaption = typeof msg.caption === "string" && msg.caption ? msg.caption : null
+      if (!this.anyQCaption) this.anyQUntil = Date.now() + ANY_Q_WINDOW_MS
+    }
     if (id === "scout_chime") this.light({color: "orange", ontime: 300, offtime: 200, count: 4})
     else if (id?.startsWith("scout_fact_")) this.light({color: "green", ontime: 3000, offtime: 0, count: 1})
   }

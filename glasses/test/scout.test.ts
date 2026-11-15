@@ -229,11 +229,12 @@ describe("Scout unit", () => {
 
     const s = new Scout({hive: {send: async () => true}, led: {turnOn: async () => ({}) as any}, log: () => {}})
     expect(s.isQuestion("the honey")).toBe(false)
-    s.said({tts_id: "scout_any_q_1"})
+    s.said({tts_id: "scout_any_q_1", caption: "Got any questions? Bee my guest!"})
+    expect(s.isQuestion("the honey")).toBe(false) // still queued behind the fact
+    s.noteSaid("Got any questions? Bee my guest!") // starts playing
     expect(s.isQuestion("the honey")).toBe(true)
     expect(s.isQuestion("no thanks")).toBe(false)
     expect(s.isQuestion("thank you beeswax")).toBe(false)
-    s.noteSaid("Got any questions? Bee my guest!")
     expect(s.isQuestion("got any questions")).toBe(false) // echo
   })
 
