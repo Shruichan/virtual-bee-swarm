@@ -369,6 +369,56 @@
       "mp3": "unity/room_wasps_arrive.mp3",
       "pcm": null
     },
+    "room_wasps_batoff": {
+      "channel": "room",
+      "caption": "Guard duty! Bounce 'em, don't squish 'em. A squished wasp's alarm scent calls in her nestmates.",
+      "beat": "wasps",
+      "tags": [
+        "station:wasps",
+        "batoff",
+        "fact:alarm_pheromone"
+      ],
+      "duration_s": 7.08,
+      "mp3": "unity/room_wasps_batoff.mp3",
+      "pcm": null
+    },
+    "room_wasps_batoff_nice": {
+      "channel": "room",
+      "caption": "Look at you, bouncing. Real guard bees check everyone at the door and shove intruders out.",
+      "beat": "wasps",
+      "tags": [
+        "station:wasps",
+        "batoff",
+        "fact:guard_bees"
+      ],
+      "duration_s": 5.91,
+      "mp3": "unity/room_wasps_batoff_nice.mp3",
+      "pcm": null
+    },
+    "room_wasps_batoff_door": {
+      "channel": "room",
+      "caption": "One made it to the door! Guards are on her. Shoving's in the job description.",
+      "beat": "wasps",
+      "tags": [
+        "station:wasps",
+        "batoff"
+      ],
+      "duration_s": 5.41,
+      "mp3": "unity/room_wasps_batoff_door.mp3",
+      "pcm": null
+    },
+    "room_wasps_batoff_done": {
+      "channel": "room",
+      "caption": "Shift's over. Zero squished, zero alarm smell. Overtime's bee-yond my pay grade.",
+      "beat": "wasps",
+      "tags": [
+        "station:wasps",
+        "batoff"
+      ],
+      "duration_s": 6.12,
+      "mp3": "unity/room_wasps_batoff_done.mp3",
+      "pcm": null
+    },
     "room_wasps_intro": {
       "channel": "room",
       "caption": "Nobody ordered wasps. We're short on guards. Make the door bigger, or smaller?",
