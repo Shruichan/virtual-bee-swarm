@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@mentra/miniapp-cli/schema/miniapp.schema.json",
+  "packageName": "dev.drori.beeswax",
+  "version": "1.2.1",
+  "name": "Bee Scout",
+  "description": "Point at a plant or pollinator. Hear a cautious ID and a bee-friendly action from Beeswax.",
+  "icon": "icon.png",
+  "type": "standard",
+  "sdkVersion": "0.3.0",
+  "minHostVersion": "3.3.0",
+  "entry": {
+    "background": "background/index.js",
+    "ui": "ui/index.html"
+  },
+  "permissions": [
+    {
+      "type": "CAMERA",
+      "description": "Takes one photo when you press the glasses button, so Beeswax can judge the prop you're looking at. Photos are never saved."
+    },
+    {
+      "type": "MICROPHONE",
+      "description": "Hears your questions for Beeswax (\"what if a fire starts?\") and what you say about a prop you scan."
+    }
+  ],
+  "hardwareRequirements": [
+    {"type": "CAMERA", "level": "REQUIRED", "description": "Scans real props."},
+    {"type": "MICROPHONE", "level": "REQUIRED", "description": "A second mic for the what-if questions."},
+    {"type": "SPEAKER", "level": "REQUIRED", "description": "Beeswax talks in your ear."},
+    {"type": "BUTTON", "level": "OPTIONAL", "description": "Short press scans, long press replays the last line."},
+    {"type": "LIGHT", "level": "OPTIONAL", "description": "Amber while scanning, green or red for the verdict."}
+  ]
+}

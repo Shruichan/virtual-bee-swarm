@@ -1,0 +1,102 @@
+{
+  "meadow": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, surrounded by tall green grass, white clover and purple wildflowers, with oak trees in the background under a soft blue sky. A few honeybees drift in and out of the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "meadow.mp4"
+  },
+  "smoker_settle": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, surrounded by green grass, white clover and purple wildflowers, with oak trees under a soft blue sky. Thin wisps of pale smoke drift past the hive as calm honeybees fly out in steady lines toward the flowers. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "smoker_settle.mp4"
+  },
+  "smoker_angry": {
+    "prompt": "A wildflower meadow with a white wooden beehive on a low stand in the center, surrounded by green grass and purple wildflowers, with oak trees under a darkening sky. A dense, buzzing cloud of agitated honeybees swirls around the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "smoker_angry.mp4"
+  },
+  "feed_sick": {
+    "prompt": "A faded meadow with a weathered white wooden beehive on a low stand in the center, the grass dry and grey-brown and the wildflowers drooping, with bare oak trees under an overcast grey sky. A few slow honeybees crawl at the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "feed_sick.mp4"
+  },
+  "feed_recover": {
+    "prompt": "A meadow turning green again around a white wooden beehive on a low stand in the center, with fresh white clover and purple wildflowers opening and oak trees under a clearing blue sky. Honeybees return to the hive in steady streams. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "feed_recover.mp4"
+  },
+  "wasps_raid": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft blue sky. A crowd of yellow-and-black wasps hovers at the hive's wide open entrance while honeybees scatter around it. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "wasps_raid.mp4"
+  },
+  "wasps_leave": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft blue sky. A row of guard honeybees stands shoulder to shoulder at the hive's narrow entrance, and a few yellow wasps fly away over the flowers. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "wasps_leave.mp4"
+  },
+  "heat_stress": {
+    "prompt": "A wildflower meadow in a heat wave under a blazing white sun, with dry golden grass and heat shimmer rising around a white wooden beehive on a low stand in the center, and oak trees hazy in the background. Honeybees cluster in a thick beard on the front of the hive. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "heat_stress.mp4"
+  },
+  "heat_drink": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft blue sky. A shallow dish of water filled with pebbles sits beside the hive, honeybees land on the pebbles to drink, and others fan their wings at the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "heat_drink.mp4"
+  },
+  "whatif_fire": {
+    "prompt": "A meadow wildfire at dusk, with low orange flames and glowing embers spreading through the dry grass behind a white wooden beehive on a low stand in the center, and oak trees silhouetted against an orange sky. Thick grey smoke rises and bright embers drift through the air. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_fire.mp4"
+  },
+  "fire_out": {
+    "prompt": "A meadow after a gentle rain, with patches of dark wet ash, thin white steam rising and fresh green shoots around a white wooden beehive on a low stand in the center, and oak trees under a clearing blue sky. Honeybees fly back to the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "fire_out.mp4"
+  },
+  "whatif_rain": {
+    "prompt": "Steady rain falls on a green wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft grey sky. Puddles shine in the grass and raindrops bead on the hive roof while honeybees rest inside the entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_rain.mp4"
+  },
+  "whatif_flowers": {
+    "prompt": "A wildflower meadow bursting with thick drifts of white clover and purple wildflowers around a white wooden beehive on a low stand in the center, with oak trees under a bright blue sky. Dozens of honeybees move from blossom to blossom in warm sunlight. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_flowers.mp4"
+  },
+  "whatif_spray": {
+    "prompt": "A wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a hazy yellow sky. A fine white mist of pesticide spray drifts across the meadow from a tractor at the far edge and settles on the flowers. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_spray.mp4"
+  },
+  "whatif_winter": {
+    "prompt": "Fresh snow covers a quiet meadow and the roof of a white wooden beehive on a low stand in the center, with frosted oak trees under a pale winter sky. A faint warm glow shows at the hive entrance. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_winter.mp4"
+  },
+  "whatif_custom": {
+    "prompt": "A sunny wildflower meadow with a white wooden beehive on a low stand in the center, with oak trees under a soft blue sky. A soft golden shimmer ripples through the grass and the air around the hive as the meadow begins to change. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "whatif_custom.mp4"
+  },
+  "full_bloom": {
+    "prompt": "A meadow in full bloom, with clover, purple salvia, lavender and sunflowers filling every inch around a white wooden beehive on a low stand in the center, and oak trees glowing in golden afternoon light. Hundreds of honeybees stream out of the hive and across the flowers. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "full_bloom.mp4"
+  },
+  "moon": {
+    "prompt": "The meadow has turned into the grey cratered surface of the Moon, with a lone white wooden beehive on a low stand in the center of the fine grey dust. The blue and white Earth rises over the horizon into a black sky full of stars. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "moon.mp4"
+  },
+  "forecast_peaceful": {
+    "prompt": "A sunny Paris park in spring with a white wooden beehive on a low stand in the foreground, lawns and flower beds of lavender and clover, families picnicking on checkered blankets, and the Eiffel Tower rising behind them under a soft blue sky. Honeybees drift calmly from flower to flower and over the picnic fruit. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "forecast_peaceful.mp4"
+  },
+  "forecast_ravaged": {
+    "prompt": "The same Paris park under a deep red sky, with orange flames across the scorched lawns, a white wooden beehive on a low stand in the foreground, and dark clouds of angry bees swirling over the rooftops. A giant cartoon bee with glowing red laser eyes hovers beside the Eiffel Tower, which has toppled across the park in a shower of sparks and smoke. Wide shot, eye-level, static camera, deep depth of field.",
+    "seed": 20000,
+    "clip": "forecast_ravaged.mp4"
+  }
+}

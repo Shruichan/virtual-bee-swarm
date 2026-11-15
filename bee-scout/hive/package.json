@@ -1,0 +1,21 @@
+{
+  "name": "beeswax-hive",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts",
+    "test": "bun --no-env-file test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@elevenlabs/elevenlabs-js": "^2.78.0",
+    "hono": "^4.13.18",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}
