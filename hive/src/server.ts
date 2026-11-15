@@ -1751,7 +1751,7 @@ export function startHive(opts: HiveOptions): Hive {
   if (opts.prewarmOnStart === false) scheduleWarm();
   else void warmUp("start");
   // ASK BEESWAX's canned answers are spoken from memory: render them once (about 750 characters, no new clips).
-  if (deps.ask && ttsAvailable() && process.env.ASK_WARM_AUDIO !== "0") void deps.ask.warmAudio((t) => deps.ttsPcm(t));
+  if (deps.ask && ttsAvailable() && process.env.ASK_WARM_AUDIO === "1") void deps.ask.warmAudio((t) => deps.ttsPcm(t));
   // The relay changes state on its own too (first frame, failure, idle stop), so poll it.
   const orbisPoll = relayUrl ? setInterval(() => void relay("/orbis/status"), opts.orbisPollMs ?? 3000) : null;
 
