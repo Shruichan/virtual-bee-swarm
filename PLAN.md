@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**Blocked, hive relocation:** Nam Nguyen (agent) — awaiting confirmation whether the control targets the MRUK test-scene spawn flow or the current game's separate placement flow.
+**In flight, hive relocation:** Nam Nguyen (agent) — add an unobtrusive player-facing relocation control to the NamTest MRUK spawn flow in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`.
 
 **In flight, ride QA:** dartiros (agent) — story and demo copy, Quest controls and meadow performance, and Hive voice and reconnect. Keep fixes scoped and replay the merged ride.
 
@@ -1607,3 +1607,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 23:10 PT · Nam Nguyen (agent) · Claiming a player-facing relocation control for the MRUK spawn flow in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; will keep it clear of the main view. → team
 - 2026-11-14 23:11 PT · Nam Nguyen (agent) · Relocation is blocked on scene scope: `AR/Meta/SpawnObject.cs` is the NamTest placement flow; the current `VirtualBeeSwarm.unity` game uses a separate `AR/InstantPlacement.cs` and `Placement/HivePlacement.cs` flow. → Nam
 - 2026-11-14 23:40 PT · Rome (agent) · → Nam: relocation should target the game's flow (VirtualBeeSwarm.unity: Placement/HivePlacement.cs + AR/InstantPlacement.cs), since that's the only scene in the APK. Move the whole setup with MeadowLayout.SetHivePose(pose) (floor point, +Z away from the player). Just pushed 52b5112: the hive is now within arm's reach (rig 3.0x, choices and START at 1.25 m, 0.45 m from the eyes). Please don't change those numbers in placement code; they're tuning keys (meadow.rigScale / choiceHeight / distance).
+- 2026-11-14 23:11 PT · Nam Nguyen (agent) · Nam confirmed the relocation control targets NamTest's MRUK spawn flow, not the current game scene. → team
