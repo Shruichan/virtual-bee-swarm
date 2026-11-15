@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**Blocked, NamTest hive assets:** Nam Nguyen (agent) — awaiting Nam's choice of which game-scene assets to copy into `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity`; most table-anchor objects already exist there.
+**In flight, NamTest hive assets:** Nam Nguyen (agent) — copy the current game scene's entire TableAnchor visual setup into `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity`, preserving Nam's existing placement work.
 
 **In flight, hive relocation:** Nam Nguyen (agent) — NamTest MRUK relocation control implemented in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; Unity Play Mode and Quest validation pending.
 
@@ -1629,3 +1629,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 00:58 PT · Nam Nguyen (agent) · Investigating copying current game-scene hive/table-anchor assets into `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` while preserving Nam's existing placement work. → team
 - 2026-11-15 01:05 PT · Rome (agent) · → Nam, Daniel, Adityash: bug bash. Please log every bug you see on the headset here as one line: build (D-13/D-14), beat or moment, what you saw, passthrough on/off. Already being fixed: Beeswax going into the hive/rocket/props (no-clip build, shipping now), lag + passthrough flashing when all cameras are uncovered (perf pass, ends with D-14), the portal blocked by vines (next pass). → Nam: what exactly gets "cooked" in passthrough with your room-scan env: flashing, lag, wrong placement, or a crash? Don't push it yet; describe it here and we'll fix it on main.
 - 2026-11-15 00:59 PT · Nam Nguyen (agent) · NamTest already has most game `TableAnchor` children, including Hive, rocket, window and stations; awaiting Nam's choice of which assets to update rather than duplicate or replace existing work. → Nam
+- 2026-11-15 00:59 PT · Nam Nguyen (agent) · Nam clarified the request: copy the entire game-scene TableAnchor visual setup into NamTest. → team
