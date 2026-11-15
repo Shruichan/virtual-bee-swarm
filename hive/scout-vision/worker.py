@@ -26,11 +26,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+import numpy as np
 import requests
 from PIL import Image
 
 from scout_vision.backbones import load_backbone
-from scout_vision.recognizer import CLASSES, DEFAULT_BG_FLOOR, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, REFS, ROOT, Recognizer, center_crop
+from scout_vision.recognizer import (BACKGROUND, CLASSES, DEFAULT_BG_FLOOR, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, REFS, ROOT, Recognizer,
+                                     center_crop, crop_boxes, square_box)
 from scout_vision.sources import Source
 
 TEST = ROOT / "data" / "test"
@@ -91,6 +93,9 @@ class Worker:
         self.times: deque[float] = deque(maxlen=20)
         self.fps = 0.0
         self.last: dict | None = None
+        self.ema: dict[str, float] | None = None
+        self.ema_at = 0.0
+        self.detector = load_detector(args.detector) if args.detector else None
 
     def frame_image(self, rgb) -> Image.Image:
         return center_crop(Image.fromarray(rgb), self.args.crop)
@@ -113,12 +118,14 @@ class Worker:
             idle_since = time.time()
             seq = f.seq
             t0 = time.perf_counter()
-            top, scores = self.rec.score([self.frame_image(f.rgb)])[0]
+            top, scores, boxes = self.recognize(f.rgb, f.at)
             frame_ms = (time.perf_counter() - t0) * 1000
             self.times.append(time.time())
             if len(self.times) >= 2:
                 self.fps = (len(self.times) - 1) / max(1e-6, self.times[-1] - self.times[0])
             out = {"at": int(f.at), "frame_ms": round(frame_ms, 1), "fps": round(self.fps, 2), "top": top, "scores": scores, "source": self.source.label}
+            if boxes:
+                out["boxes"] = boxes
             if f.pos_ms is not None:
                 out["pos_ms"] = round(f.pos_ms, 1)  # extra, file sources only (replay_check.py)
             self.last = out
@@ -130,6 +137,37 @@ class Worker:
             if spare > 0:
                 time.sleep(spare)
 
+    def recognize(self, rgb, at: float) -> tuple[list[dict], dict[str, float], list[dict]]:
+        """Multi-crop scoring (+ detector proposals as extra crops), then EMA smoothing over frames."""
+        h, w = rgb.shape[:2]
+        det = []
+        if self.detector is not None:
+            try:
+                det = list(self.detector(rgb) or [])
+            except Exception as e:  # noqa: BLE001 - a detector bug must not stop the worker
+                print(f"[detector] {e}", file=sys.stderr, flush=True)
+        extra = [square_box(d["x"], d["y"], d["w"], d["h"], w, h) for d in det]
+        if self.args.crop < 1.0 and self.args.crops == "center":
+            rgb_c = np.asarray(self.frame_image(rgb))
+            top, scores, box = self.rec.score_frame(rgb_c, "center")
+            box = None
+        else:
+            top, scores, box = self.rec.score_frame(rgb, self.args.crops, extra)
+        # EMA over the per-class scores: one odd frame no longer breaks a steady look. Reset after a gap.
+        a = self.args.ema
+        if a > 0 and self.ema is not None and at - self.ema_at < 1500:
+            scores = {c: round(a * self.ema.get(c, 0.0) + (1 - a) * v, 4) for c, v in scores.items()}
+            order = sorted(scores, key=lambda c: -scores[c])[:3]
+            top = [{"label": c, "score": scores[c]} for c in order]
+        self.ema, self.ema_at = scores, at
+        out_boxes = [{"label": d.get("label", "background"), "score": round(float(d.get("score", 0)), 3), "x": d["x"], "y": d["y"],
+                      "w": d["w"], "h": d["h"], "via": d.get("via", "detector")} for d in det]
+        if box is not None and top[0]["label"] != BACKGROUND and top[0]["score"] >= 0.3:
+            x0, y0, x1, y1 = box
+            out_boxes.append({"label": top[0]["label"], "score": top[0]["score"], "x": round(x0 / w, 4), "y": round(y0 / h, 4),
+                              "w": round((x1 - x0) / w, 4), "h": round((y1 - y0) / h, 4), "via": "refs"})
+        return top, scores, out_boxes
+
     # ------------------------------------------------------------------ API actions
 
     def enrol(self, label: str, seconds: float) -> dict:
@@ -140,10 +178,24 @@ class Worker:
             f = self.source.latest(after_seq=seq, timeout=1.0)
             if f is not None:
                 seq = f.seq
-                im = self.frame_image(f.rgb)
-                im.thumbnail((640, 640))
-                im.save(out_dir / f"live_{int(f.at)}.jpg", quality=90)
-                saved += 1
+                full = Image.fromarray(f.rgb)
+                boxes = crop_boxes(full.width, full.height, self.args.crops)
+                if label == BACKGROUND:
+                    picks = range(len(boxes))  # every crop of the booth is background
+                elif label in self.rec.refs:  # the crop that already looks most like this object
+                    if hasattr(self.rec.backbone, "embed_crops"):
+                        with self.rec.lock:
+                            e = self.rec.backbone.embed_crops(f.rgb, boxes)
+                    else:
+                        e = self.rec.embed([full.crop(b) for b in boxes])
+                    picks = [int(np.argmax((e @ self.rec.refs[label].T).max(axis=1)))]
+                else:
+                    picks = [0]
+                for k in picks:
+                    im = full.crop(boxes[k])
+                    im.thumbnail((448, 448))
+                    im.save(out_dir / f"live_{int(f.at)}_c{k}.jpg", quality=90)
+                    saved += 1
             time.sleep(1 / 3)
         counts = self.rec.reload()
         return {"label": label, "saved": saved, "total": counts.get(label, 0)}
@@ -159,6 +211,15 @@ class Worker:
     def health(self) -> dict:
         return {"ok": True, "model": self.rec.backbone.name, "source": self.source.label, "fps": round(self.fps, 2),
                 "refs": self.rec.counts(), "connected": self.source.connected, "last": self.last}
+
+
+def load_detector(spec: str):
+    """--detector module:function -> callable(rgb HxWx3 uint8) -> [{x, y, w, h (0..1), score, label?, via?}].
+    Each box is also scored by the refs as an extra crop; the detector module lives in its own lane."""
+    import importlib
+
+    mod, _, fn = spec.partition(":")
+    return getattr(importlib.import_module(mod), fn or "detect")
 
 
 def credits() -> dict[str, str]:
@@ -257,6 +318,9 @@ def main() -> None:
     ap.add_argument("--temp", type=float, default=DEFAULT_TEMP)
     ap.add_argument("--topk", type=int, default=DEFAULT_TOPK)
     ap.add_argument("--bg-floor", type=float, default=DEFAULT_BG_FLOOR)
+    ap.add_argument("--crops", default=os.environ.get("SCOUT_CROPS", "grid15"), choices=["center", "grid7", "grid15"])
+    ap.add_argument("--ema", type=float, default=float(os.environ.get("SCOUT_EMA", 0.3)), help="score smoothing, 0 = off")
+    ap.add_argument("--detector", default=os.environ.get("SCOUT_DETECTOR"), help="module:function returning boxes")
     ap.add_argument("--loop", action="store_true", help="loop a file/folder source")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds per image (folder source)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SCOUT_VISION_PORT", 8242)))
