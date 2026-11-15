@@ -33,6 +33,21 @@ namespace VirtualBeeSwarm.Sound
         public static SoundDirector Instance { get; private set; }
         public const string TakesFolder = "SatieTakes";
 
+        // Gameplay interactions reuse baked takes. Keep the additions separate from the generated Satie scene.
+        static readonly SoundVoice[] Voices = new List<SoundVoice>(SatieScene.Voices)
+        {
+            InteractionCue("beeswax_boop", "window_open_click", spl: 55f, cooldown: 0.22f),
+            InteractionCue("high_five", "swatter_whack", spl: 61f, cooldown: 0.45f),
+            InteractionCue("palm_bees_land", "touchdown_light_2", spl: 51f, cooldown: 0.35f),
+            InteractionCue("palm_bees_leave", "delivery_depart_2", spl: 49f, cooldown: 0.35f),
+            InteractionCue("honey_jar_full", "bowl_plop", spl: 57f, cooldown: 0.65f),
+            InteractionCue("lever_tick", "evacuation_cancelled_click", spl: 52f, cooldown: 0.1f),
+        }.ToArray();
+
+        static SoundVoice InteractionCue(string cue, string take, float spl, float cooldown) =>
+            new SoundVoice(cue, false, cue, new[] { take }, null, spl, radius: 0f, zones: null,
+                duration: 0f, cooldown: cooldown, fadeIn: 0f, fadeOut: 0f, volume: null, pitch: null, splFollow: null, priority: 1);
+
         [Header("Mix")]
         [Tooltip("A source received at this level (dB SPL) plays as loud as Beeswax's lines (the takes are baked to their loudness).")]
         [SerializeField] float levelReferenceDb = 66f;
@@ -137,7 +152,7 @@ namespace VirtualBeeSwarm.Sound
             }
             Instance = this;
             ReadTuning();
-            foreach (var v in SatieScene.Voices)
+            foreach (var v in Voices)
             {
                 if (v.loop || string.IsNullOrEmpty(v.evt)) continue;
                 if (!_byEvent.TryGetValue(v.evt, out var list)) _byEvent[v.evt] = list = new List<SoundVoice>();
@@ -209,7 +224,7 @@ namespace VirtualBeeSwarm.Sound
             if (_subscribed) Subscribe2();
 
             // the voices: one source per loop, a pool for the rest
-            foreach (var v in SatieScene.Voices)
+            foreach (var v in Voices)
             {
                 if (!v.loop || v.muted) continue;
                 var l = new Loop { v = v, src = NewSource("[VBS] Loop " + v.id) };
@@ -232,7 +247,7 @@ namespace VirtualBeeSwarm.Sound
             UpdateState();
             if (credit) AddCredit();
             StartCoroutine(LoadClips());
-            Log("on: " + SatieScene.Voices.Length + " voices (" + _loops.Count + " loops, " + _byEvent.Count + " events), volume " +
+            Log("on: " + Voices.Length + " voices (" + _loops.Count + " loops, " + _byEvent.Count + " events), volume " +
                 Volume.ToString("0.00", CultureInfo.InvariantCulture) + ", reference " + levelReferenceDb.ToString("0", CultureInfo.InvariantCulture) +
                 " dB, spatializer " + (string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName()) ? "none" : AudioSettings.GetSpatializerPluginName()) +
                 (_hive == null ? ", no hive" : "") + (_window == null ? ", no window" : "") + (_countdown == null ? ", no CountdownDisplay" : ""));
@@ -263,7 +278,7 @@ namespace VirtualBeeSwarm.Sound
         {
             float t0 = Time.realtimeSinceStartup;
             var names = new List<string>();
-            foreach (var v in SatieScene.Voices)
+            foreach (var v in Voices)
                 foreach (var c in v.clips)
                     if (!names.Contains(c)) names.Add(c);
             var reqs = new ResourceRequest[names.Count];

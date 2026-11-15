@@ -227,29 +227,64 @@ namespace VirtualBeeSwarm.AR
                 else { bounds = renderer.bounds; any = true; }
             }
 
-            var centre = new Vector3(bounds.center.x, bounds.min.y + 0.018f, bounds.center.z);
+            float spread = Mathf.Max(bounds.extents.x, bounds.extents.z);
+            float heft = Mathf.Max(Mathf.InverseLerp(1.6f, 2.5f, weight), Mathf.InverseLerp(0.16f, 0.50f, spread));
+            var centre = new Vector3(bounds.center.x, bounds.min.y + Mathf.Lerp(0.025f, 0.065f, heft), bounds.center.z);
             if (!any || dust == null || count <= 0) return centre;
 
-            float spread = Mathf.Max(bounds.extents.x, bounds.extents.z);
-            float heft = Mathf.Max(Mathf.InverseLerp(0.2f, 3f, weight), Mathf.InverseLerp(0.15f, 0.54f, spread));
-            float size = Mathf.Lerp(0.045f, 0.10f, heft);
-            float radiusX = Mathf.Clamp(bounds.extents.x, 0.025f, 0.65f);
-            float radiusZ = Mathf.Clamp(bounds.extents.z, 0.025f, 0.65f);
-            int puffs = QuestPerf.Particles(count + Mathf.RoundToInt(8f * heft));
+            float halfWidth = Mathf.Max(0.025f, bounds.extents.x);
+            float halfDepth = Mathf.Max(0.025f, bounds.extents.z);
+            int puffs = QuestPerf.Particles(count + Mathf.RoundToInt(18f * heft));
             var particle = new ParticleSystem.EmitParams { applyShapeToPosition = false };
+            if (!dust.isPlaying) dust.Play(false);
             for (int i = 0; i < puffs; i++)
             {
-                float angle = Mathf.PI * 2f * i / puffs;
+                float angle = 2f * Mathf.PI * i / puffs;
                 var outward = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                float variation = 0.75f + (i % 4) * 0.11f;
-                particle.position = centre + new Vector3(outward.x * radiusX, 0f, outward.z * radiusZ) * 0.88f;
-                particle.velocity = outward * Mathf.Lerp(0.09f, 0.22f, heft) * variation + Vector3.up * Mathf.Lerp(0.12f, 0.24f, heft) * variation;
-                particle.startSize = size * variation;
-                particle.startLifetime = 0.35f + variation * 0.17f;
+                float edge = 1f / Mathf.Max(Mathf.Abs(outward.x) / halfWidth, Mathf.Abs(outward.z) / halfDepth);
+                float variation = 0.78f + (i % 5) * 0.11f;
+                bool fleck = i % 3 == 1;
+                // Start beyond the shell. A puff inside the hive or right on the grass disappears behind opaque geometry.
+                particle.position = centre + outward * (edge + Mathf.Lerp(0.015f, 0.045f, heft));
+                float speed = Mathf.Lerp(0.20f, fleck ? 1.65f : 1.07f, heft);
+                float lift = Mathf.Lerp(0.35f, fleck ? 1.85f : 1.45f, heft);
+                particle.velocity = (outward * speed + Vector3.up * lift) * variation;
+                particle.startSize = Mathf.Lerp(fleck ? 0.025f : 0.072f, fleck ? 0.072f : 0.33f, heft) * variation;
+                particle.startLifetime = (fleck ? 0.30f : 0.45f) + heft * (fleck ? 0.15f : 0.27f);
+                particle.startColor = fleck ? Dirt : Dust;
                 dust.Emit(particle, 1);
             }
-            Debug.Log("[VBS][Touchdown] cloud " + item.name + " at " + centre.ToString("F2") + ", puffs=" + puffs);
+            Debug.Log("[VBS][Touchdown] cloud " + item.name + " at " + centre.ToString("F2") +
+                      ", puffs=" + puffs + ", live=" + dust.particleCount);
             return centre;
+        }
+
+        static readonly Color32 Dirt = new Color32(143, 95, 49, 255);
+        static readonly Color32 Dust = new Color32(227, 186, 130, 246);
+
+        internal static void ConfigureCloud(ParticleSystem dust, Material material)
+        {
+            ArMaterials.MarkNeverOccluded(material);
+            EmbersFx.ConfigurePuff(dust, material, Color.white, 0.27f, 0.08f, 0.68f, 0.25f);
+            var main = dust.main;
+            main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
+            main.scalingMode = ParticleSystemScalingMode.Local;
+            main.maxParticles = QuestPerf.Particles(80);
+            var colour = dust.colorOverLifetime;
+            var fade = new Gradient();
+            fade.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0.92f, 0f), new GradientAlphaKey(0.85f, 0.28f), new GradientAlphaKey(0f, 1f) });
+            colour.color = new ParticleSystem.MinMaxGradient(fade);
+            var size = dust.sizeOverLifetime;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.8f, 1f, 1.45f));
+        }
+
+        // The rocket's crash has its own bounce, so it only needs the cloud.
+        internal static void Burst(Transform item, float weight)
+        {
+            if (item == null) return;
+            EnsureRunner();
+            _runner.Burst(item, weight);
         }
 
         static bool IsDeliveryUi(Transform node, Transform item)
@@ -283,10 +318,7 @@ namespace VirtualBeeSwarm.AR
                 var dot = GameMeshes.CreateDotTexture(32);
                 if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", dot);
                 if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", dot);
-                ArMaterials.MarkNeverOccluded(mat);
-                EmbersFx.ConfigurePuff(_dust, mat, new Color(0.75f, 0.7f, 0.58f, 0.72f), 0.2f, 0.08f, 0.6f, 0f);
-                var main = _dust.main;
-                main.maxParticles = QuestPerf.Particles(72);
+                ConfigureCloud(_dust, mat);
                 _audio = gameObject.AddComponent<AudioSource>();
                 _audio.playOnAwake = false;
                 _audio.spatialBlend = 1f;
@@ -302,7 +334,7 @@ namespace VirtualBeeSwarm.AR
                     var hive = item.GetComponentInParent<HiveBody>();
                     if (hive != null) visual = hive.transform;
                 }
-                Vector3 baseAt = EmitCloud(_dust, visual, weight, 8);
+                Vector3 baseAt = Burst(visual, weight);
                 if (Thunk != null)
                 {
                     _audio.transform.position = baseAt;
@@ -311,6 +343,8 @@ namespace VirtualBeeSwarm.AR
                 }
                 StartCoroutine(SquashRoutine(visual));
             }
+
+            public Vector3 Burst(Transform item, float weight) => EmitCloud(_dust, item, weight, 10);
 
             public void ClearDust() => _dust.Clear();
 

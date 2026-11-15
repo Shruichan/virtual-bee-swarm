@@ -215,7 +215,6 @@ namespace VirtualBeeSwarm.Editor
             Set(director, "countdownText", rocketSign);
             var crashSpot = Child("CrashSpot", anchor, new Vector3(0.24f, 0f, -0.04f));
             crashSpot.localRotation = Quaternion.Euler(0f, 35f, 0f);
-            var dust = Puff("DustPuff", anchor, new Vector3(0.24f, 0.01f, -0.04f), Quaternion.Euler(-90f, 0f, 0f), new Color(0.65f, 0.6f, 0.55f, 0.8f), 0.4f, 0.05f, 1.2f, 0.05f);
 
             // future window ----------------------------------------------
             var windowT = Child("FutureWindow", anchor, new Vector3(-0.44f, 0.25f, 0.2f));
@@ -549,7 +548,6 @@ namespace VirtualBeeSwarm.Editor
             Set(t0, "flame", flame);
             Set(t0, "rocketDisplay", rocketSign);
             Set(t0, "crashSpot", crashSpot);
-            Set(t0, "dustPuff", dust);
             Set(t0, "moon", moonRoot.gameObject);
             Set(t0, "earth", earth.transform);
             Set(t0, "beeswax", beeswax);

@@ -466,6 +466,10 @@ namespace VirtualBeeSwarm.AR
             var cam = Camera.main;
             Vector3 eye = cam != null ? cam.transform.position : hivePos - fwd * 1.05f + Vector3.up * 1.6f;
             eye.y = Mathf.Clamp(eye.y, Room.FloorY + 1.1f, Room.FloorY + 1.9f);
+            var scannedRoom = Bloom.MeadowLayout.ScannedRoom();
+            var rocket = _anchor.Find("HONEYMOON-1");
+            if ((director == null || director.Beat == GameBeat.Pre) && (placement == null || !placement.Holding))
+                Bloom.MeadowLayout.FitRocketHome(scannedRoom, rocket, eye);
             float behind = behindHive;
             string wallNote = "no wall known";
             var wall = _foundWall.valid ? _foundWall : Room.HasWall ? Room.WindowWall : default;
@@ -506,19 +510,64 @@ namespace VirtualBeeSwarm.AR
             // the rocket: if it would stand in front of the portal from the player's spot, slide the portal away from it
             Vector3 right = Vector3.Cross(Vector3.up, fwd).normalized;
             float shift = 0f;
-            var rocket = _anchor.Find("HONEYMOON-1");
-            if (rocket != null && rocket.gameObject.activeInHierarchy)
+            if (rocket != null && (scannedRoom != null || rocket.gameObject.activeInHierarchy))
             {
                 float dP = Vector3.Dot(pos - eye, fwd), dR = Vector3.Dot(rocket.position - eye, fwd);
                 if (dR > 0.2f && dP > dR)
                 {
-                    float lat = Vector3.Dot(rocket.position - eye, right) * (dP / dR) - Vector3.Dot(pos - eye, right);
-                    float rocketHalf = 0.3f * (dP / dR);
-                    float need = width * 0.5f + 0.15f + rocketHalf - Mathf.Abs(lat);
-                    if (need > 0f) shift = -Mathf.Sign(lat == 0f ? 1f : lat) * need;
+                    float projection = dP / dR;
+                    bool measured = rocket.TryGetComponent(out DeliveryItem body) && body.measured;
+                    float projectedTop = measured ? eye.y + (rocket.position.y + body.Top - eye.y) * projection : float.PositiveInfinity;
+                    if (projectedTop >= cy - halfH)
+                    {
+                        float lat = Vector3.Dot(rocket.position - eye, right) * projection - Vector3.Dot(pos - eye, right);
+                        float rocketHalf = (measured ? body.Radius : 0.3f) * projection;
+                        float need = width * 0.5f + 0.15f + rocketHalf - Mathf.Abs(lat);
+                        if (need > 0f) shift = -Mathf.Sign(lat == 0f ? 1f : lat) * need;
+                    }
                 }
             }
             pos += right * shift;
+            const int fullPortalView = 8;
+            bool scanFit = scannedRoom != null && PortalClearsRoom(pos, k) && PortalViewScore(pos, k) == fullPortalView;
+            if (scannedRoom != null && !scanFit)
+            {
+                float bestCost = float.PositiveInfinity;
+                Vector3 preferred = pos;
+                float preferredSize = k;
+                foreach (float factor in PortalScaleFactors)
+                    foreach (float depth in PortalDepthOffsets)
+                        foreach (float lateral in PortalSideOffsets)
+                        {
+                            float size = preferredSize * factor;
+                            float candidateHalf = outer.y * s0 * size * 0.5f;
+                            Vector3 candidate = preferred + fwd * depth + right * lateral;
+                            float candidateBottom = Bloom.MeadowLayout.WindowBottomY(candidate) - 0.06f;
+                            float minCentre = Mathf.Max(candidateBottom, Room.FloorY + 0.3f) + candidateHalf;
+                            if (minCentre + candidateHalf > ceil - 0.04f) continue;
+                            candidate.y = Mathf.Clamp(cy, minCentre, ceil - 0.04f - candidateHalf) - outerC.y * s0 * size;
+                            float cost = Mathf.Abs(depth) + Mathf.Abs(lateral) + (1f - factor) * 1.8f;
+                            if (cost >= bestCost || !PortalClearsRoom(candidate, size)) continue;
+                            cost += (fullPortalView - PortalViewScore(candidate, size)) * 3f;
+                            if (cost >= bestCost) continue;
+                            bestCost = cost;
+                            pos = candidate;
+                            k = size;
+                        }
+                scanFit = !float.IsPositiveInfinity(bestCost);
+                if (scanFit)
+                {
+                    cy = pos.y + outerC.y * s0 * k;
+                    halfH = outer.y * s0 * k * 0.5f;
+                    width = outer.x * s0 * k;
+                    bottom = Bloom.MeadowLayout.WindowBottomY(pos) - 0.06f;
+                    behind = Vector3.Dot(pos - hivePos, fwd);
+                    shift = Vector3.Dot(pos - hivePos, right);
+                    fit += " (moved to clear the room scan)";
+                }
+                else if (PlaceBesideHive(wt, fwd, hivePos, eye, outer, outerC, s0, ceil, why)) return;
+                else fit += " (no clear scanned portal position)";
+            }
             Vector3 face = Flat(pos - eye);
             if (face.sqrMagnitude < 1e-4f) face = fwd;
             if (wt.parent != _wallAnchor) wt.SetParent(_wallAnchor, false);
@@ -527,12 +576,45 @@ namespace VirtualBeeSwarm.AR
             // swelling (escape grow, T-0 moon) stays under the ceiling and over the roof line: grows about its centre
             float room = Mathf.Min(ceil - 0.03f - cy, cy - (bottom - 0.1f));
             window.MaxSize = Mathf.Max(1f, room / Mathf.Max(0.05f, halfH));
+            if (scannedRoom != null &&
+                (!PortalClearsRoom(pos, k * window.MaxSize) || PortalViewScore(pos, k * window.MaxSize) < PortalViewScore(pos, k)))
+                window.MaxSize = 1f;
             WindowState = "free-floating portal " + behind.ToString("0.00", C) + " m behind the hive (" + wallNote + "; " + why + "), width " +
                           width.ToString("0.00", C) + " m rim to rim" + fit + ", centre " + (cy - Room.FloorY).ToString("0.00", C) + " m up, bottom " +
                           (cy - halfH - Room.FloorY).ToString("0.00", C) + " m, slid " + shift.ToString("0.00", C) + " m, max swell x" +
                           window.MaxSize.ToString("0.00", C);
             LogLine("window " + WindowState);
+
+            bool PortalClearsRoom(Vector3 pivot, float size)
+            {
+                PortalShape(pivot, size, out var centre, out var facing, out var half);
+                return Bloom.MeadowLayout.RoomBoxFits(scannedRoom, centre, facing, half);
+            }
+
+            int PortalViewScore(Vector3 pivot, float size)
+            {
+                PortalShape(pivot, size, out var centre, out var facing, out var half);
+                Vector3 step = facing * Vector3.right * (half.x * 0.425f);
+                int score = 0;
+                // Also sample inside both edges. A narrow pillar can block a section while all three outer rays pass.
+                for (int i = -2; i <= 2; i++)
+                    if (Bloom.MeadowLayout.VisibleInRoom(scannedRoom, eye, centre + i * step))
+                        score += Mathf.Abs(i) == 2 ? 1 : 2;
+                return score;
+            }
+
+            void PortalShape(Vector3 pivot, float size, out Vector3 centre, out Quaternion facing, out Vector3 half)
+            {
+                Vector3 direction = Flat(pivot - eye);
+                facing = Quaternion.LookRotation(direction.sqrMagnitude < 1e-4f ? fwd : direction.normalized, Vector3.up);
+                centre = pivot + facing * (outerC * (s0 * size));
+                half = new Vector3(outer.x * s0 * size * 0.5f, outer.y * s0 * size * 0.5f, 0.09f);
+            }
         }
+
+        static readonly float[] PortalScaleFactors = { 1f, 0.82f, 0.68f, 0.54f, 0.43f };
+        static readonly float[] PortalDepthOffsets = { 0f, -0.25f, 0.25f, -0.5f, 0.5f, -0.75f };
+        static readonly float[] PortalSideOffsets = { 0f, -0.25f, 0.25f, -0.5f, 0.5f, -0.75f, 0.75f, -1f, 1f, -1.25f, 1.25f };
 
         /// <summary>A room too low for the portal over the roof: free-standing beside the hive, 1.2 m wide, at eye height,
         /// on the side away from the rocket where the room scan has floor and no furniture (MeadowLayout.TryWindowBesideHive).</summary>
