@@ -161,6 +161,7 @@ export class ScoutGame {
       mode: this.mode,
       order: [...this.order],
       next: this.next(),
+      glasses_muted: this.glassesMuted,
     };
   }
 
@@ -365,6 +366,23 @@ export class ScoutGame {
     }
     this.emit({ type: "stop", at: now });
     this.tick();
+  }
+
+  /** POST /scout/teacher: "Ask your teacher for another assignment!" (queued after whatever is playing). */
+  /** Glasses mute: the routes stop broadcasting `say` to the glasses while this is true (say events, timing and
+   *  busy-until are unchanged). Muting sends the glasses stop so the ear goes quiet now. */
+  glassesMuted = false;
+  setGlassesMuted(muted: boolean): void {
+    const was = this.glassesMuted;
+    this.glassesMuted = muted;
+    if (muted && !was) {
+      try {
+        this.d.stop?.();
+      } catch (err) {
+        log("scout: stop failed:", err);
+      }
+    }
+    this.changed();
   }
 
   /** POST /scout/teacher: "Ask your teacher for another assignment!" (queued after whatever is playing). */
@@ -681,7 +699,7 @@ export class ScoutGame {
   }
 
   private sig(): string {
-    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt, this.mode, this.order, this.station]);
+    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt, this.mode, this.order, this.station, this.glassesMuted]);
   }
 
   private changed(): void {
@@ -780,7 +798,12 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     for (const l of listeners) l(e);
   };
 
-  const game = new ScoutGame({
+  /** One line to the glasses' ear, unless the glasses are muted (POST /scout/glasses-mute). */
+  const toGlasses = (s: { line_id: string; caption: string; audio_url: string | null }) => {
+    if (game.glassesMuted) return;
+    ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]);
+  };
+  const game: ScoutGame = new ScoutGame({
     lines: loadScoutLines(),
     now: ctx.now,
     event: fanout,
@@ -790,8 +813,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     // light the LED per line even when audio_url is null. Ear lines never use tts_id otherwise.
     stop: () =>
       ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: SCOUT_STOP_ID, audio_url: null, caption: "" }, ["glasses"]),
-    say: (s) =>
-      ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
+    say: (s) => toGlasses(s),
   });
 
   // Ask Beeswax: questions in /scout/utterance are answered live in Beeswax's voice (scout-ask.ts).
@@ -805,7 +827,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
         for (const l of listeners) l(e);
         if (e.type === "say") log(`scout: say ${JSON.stringify(e).slice(0, 160)}`);
       },
-      say: (s) => ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
+      say: (s) => toGlasses(s), // muted -> not sent (its say event still reaches the dashboards)
       // the wake ack (scout_wake_ack) comes from the scout lines files like any other line
       line: (id) => {
         const l = loadScoutLines().find((x) => x.id === id);
@@ -831,6 +853,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
   // SCOUT_ORDER=native_flower,honey_jar,... the booth order. POST /scout/mode and /scout/practice still switch.
   const envOrder = parseOrder(process.env.SCOUT_ORDER?.split(","));
   const envMode = process.env.SCOUT_MODE;
+  if (process.env.SCOUT_GLASSES_MUTED === "1") game.setGlassesMuted(true);
   if (envMode === "demo" || envMode === "practice" || envMode === "booth") game.setMode(envMode, envOrder ?? undefined);
   else if (process.env.SCOUT_PRACTICE === "1") game.setPractice(true);
   else if (envOrder) game.setMode("demo", envOrder);
@@ -993,6 +1016,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     game.interrupt(); // cut whatever is playing, then start over (practice state included)
     game.start();
     return c.json({ ok: true, ...game.state() });
+  });
+
+  app.post("/scout/glasses-mute", async (c) => {
+    const body = await readJson(c);
+    if (typeof body?.muted !== "boolean") return c.json({ error: "muted (boolean) required" }, 400);
+    game.setGlassesMuted(body.muted);
+    return c.json(game.state());
   });
 
   app.post("/scout/teacher", (c) => {

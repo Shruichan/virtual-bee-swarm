@@ -540,6 +540,54 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     }
   });
 
+  test("glasses mute: no say reaches the glasses (game lines and Ask answers), the dashboards still get them", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const bus = { broadcast: (m: Record<string, unknown>) => void sent.push(m) } as never;
+    const app = new Hono();
+    let stopped = false;
+    registerScoutRoutes(app, {
+      bus,
+      authed: (c) => c.req.query("token") === "t",
+      base: () => "http://hive",
+      stopped: () => stopped,
+      ask: { llm: fakeLlm(["Bees can't swim."]), tts: fakeTts(), mode: "progressive" },
+    });
+    const post = (path: string, body: unknown) =>
+      app.request(`${path}?token=t`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    let feed = "";
+    const sse = (await app.request("/scout/events?token=t")).body!.getReader();
+    void (async () => {
+      for (let r = await sse.read(); !r.done; r = await sse.read()) feed += new TextDecoder().decode(r.value);
+    })().catch(() => {});
+    const sayEvents = () =>
+      feed
+        .split("\n")
+        .filter((l) => l.startsWith("data: ") && l.includes('"type":"say"'))
+        .map((l) => JSON.parse(l.slice(6)));
+    const lineSays = () => sent.filter((m) => m.type === "say" && m.tts_id !== SCOUT_STOP_ID);
+    try {
+      expect((await app.request("/scout/glasses-mute", { method: "POST", body: "{}" })).status).toBe(401);
+      expect((await post("/scout/glasses-mute", { muted: "yes" })).status).toBe(400);
+      expect(await (await post("/scout/glasses-mute", { muted: true })).json()).toMatchObject({ glasses_muted: true });
+      expect(sent.filter((m) => m.tts_id === SCOUT_STOP_ID).length).toBe(1); // the ear goes quiet at once
+
+      await post("/scout/teacher", {});
+      await post("/scout/utterance", { text: "Hey Beeswax, why do bees need pebbles?", at: Date.now() });
+      for (let i = 0; i < 100 && !sayEvents().some((e) => String(e.line_id).startsWith("scout_ask_")); i++) await sleep(5);
+      expect(sayEvents().some((e) => e.line_id === "scout_teacher")).toBe(true);
+      expect(sayEvents().some((e) => String(e.line_id).startsWith("scout_ask_"))).toBe(true);
+      await sleep(30);
+      expect(lineSays()).toEqual([]); // nothing to the glasses
+
+      expect(await (await post("/scout/glasses-mute", { muted: false })).json()).toMatchObject({ glasses_muted: false });
+      await post("/scout/teacher", {});
+      expect(lineSays().map((m) => m.tts_id)).toEqual(["scout_teacher"]);
+      void sse.cancel();
+    } finally {
+      stopped = true;
+    }
+  });
+
   test("off without ElevenLabs (tests strip the key) unless forced", async () => {
     const app = new Hono();
     let stopped = false;

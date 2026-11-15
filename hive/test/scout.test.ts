@@ -1294,3 +1294,48 @@ describe("any-questions line and multi-line intro / finale", () => {
     expect(s.ids()).toEqual(["scout_chime", "scout_hook_bee_hotel", "scout_fact_bee_hotel", "scout_done", "scout_done_2", "scout_done_3"]);
   });
 });
+
+// ---------------------------------------------------------------- glasses mute
+
+describe("glasses mute", () => {
+  test("setGlassesMuted: state field, the stop on mute (once), game lines and timing unchanged", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    expect(s.game.state().glasses_muted).toBe(false);
+    s.look("beehive", T.steadyMs);
+    s.game.setGlassesMuted(true);
+    expect(s.game.state().glasses_muted).toBe(true);
+    expect(s.stops.length).toBe(1);
+    s.game.setGlassesMuted(true);
+    expect(s.stops.length).toBe(1);
+    expect(s.events.filter((e) => e.type === "state").at(-1)).toMatchObject({ state: { glasses_muted: true } });
+    // the game still says (the routes drop it before the bus) and still waits for the lines
+    expect(s.game.state().phase).toBe("telling");
+    s.advance(2000);
+    expect(s.game.state().phase).toBe("looking");
+    s.game.setGlassesMuted(false);
+    expect(s.stops.length).toBe(1);
+  });
+
+  test("SCOUT_GLASSES_MUTED=1 starts muted; a real Hive sends the glasses nothing while muted", async () => {
+    const prev = process.env.SCOUT_GLASSES_MUTED;
+    process.env.SCOUT_GLASSES_MUTED = "1";
+    const hive = makeHive({}, { prewarmOnStart: false });
+    const glasses = await TestClient.connect(hive, "glasses");
+    try {
+      const post = (path: string, body: unknown = {}) => fetch(`${hive.url}${path}?token=${TOKEN}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      expect((await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json()).glasses_muted).toBe(true);
+      await post("/scout/teacher");
+      await Bun.sleep(100);
+      expect(glasses.events.some((e) => e.kind === "json" && e.msg.type === "say")).toBe(false);
+      await post("/scout/glasses-mute", { muted: false });
+      await post("/scout/teacher");
+      await glasses.waitFor("say", (m) => m.tts_id === SCOUT_TEACHER_LINE);
+    } finally {
+      glasses.close();
+      await hive.stop();
+      if (prev === undefined) delete process.env.SCOUT_GLASSES_MUTED;
+      else process.env.SCOUT_GLASSES_MUTED = prev;
+    }
+  });
+});

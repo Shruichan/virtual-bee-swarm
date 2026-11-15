@@ -102,6 +102,9 @@ export interface ScoutState {
   mode?: ScoutMode;
   order?: ScoutLabel[];
   next?: ScoutLabel | null;
+  /** Glasses mute (POST /scout/glasses-mute): no `say` goes to the glasses on the bus; the dashboards still get every
+   *  `say` ScoutEvent and the game's timing is unchanged. Default false; env SCOUT_GLASSES_MUTED=1 starts muted. */
+  glasses_muted?: boolean;
 }
 
 /** Why a steadily seen object did NOT trigger "Bee fact found". */
@@ -119,6 +122,11 @@ export const SCOUT_STOP_ID = "scout_stop";
 
 /** POST /scout/teacher (token): Beeswax says SCOUT_TEACHER_LINE (the judge screen's button). Returns ScoutState. */
 export const SCOUT_TEACHER_LINE = "scout_teacher";
+
+/** POST /scout/glasses-mute (token) {muted}: mute or unmute the glasses' ear (ScoutState.glasses_muted). Muting also
+ *  sends the SCOUT_STOP_ID say so the ear goes quiet at once. Covers the game's lines and Ask Beeswax answers.
+ *  Returns ScoutState. */
+export interface ScoutGlassesMute { muted: boolean }
 
 // ------------------------------------------------------------------ booth mode (pitch/scout-booth.md)
 
