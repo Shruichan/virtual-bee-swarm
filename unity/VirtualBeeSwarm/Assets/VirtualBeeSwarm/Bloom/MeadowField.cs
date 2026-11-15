@@ -40,6 +40,8 @@ namespace VirtualBeeSwarm.Bloom
         /// <summary>Wall to wall: the nearest tiles (up to NearTris) get the full tile, the rest of the floor (up to FarTris)
         /// a lighter tile (40% of the grass, every flower): two instanced draws, ~300k tris for a 6 x 6 m room.</summary>
         public const int NearTris = 165000, FarTris = 150000;
+        /// <summary>The headset caps (QuestPerf): the near floor stays full, the far floor gets the coarser stretched grid sooner.</summary>
+        public const int QuestNearTris = 80000, QuestFarTris = 60000;
 
         public bool HasFloor { get; private set; }
         public float FloorY { get; private set; }
@@ -262,7 +264,8 @@ namespace VirtualBeeSwarm.Bloom
                     cand.Add(((Flat(p) - Flat(player)).sqrMagnitude, p));
                 }
             cand.Sort((a, b) => a.d.CompareTo(b.d));
-            int nearCap = Mathf.Min(1023, NearTris / Mathf.Max(1, TrisPerTile)), farCap = Mathf.Min(1023, FarTris / Mathf.Max(1, _trisFar));
+            int nearBudget = QuestPerf.On ? QuestNearTris : NearTris, farBudget = QuestPerf.On ? QuestFarTris : FarTris;
+            int nearCap = Mathf.Min(1023, nearBudget / Mathf.Max(1, TrisPerTile)), farCap = Mathf.Min(1023, farBudget / Mathf.Max(1, _trisFar));
             _nNear = Mathf.Min(cand.Count, nearCap);
             _nFar = Mathf.Min(cand.Count - _nNear, farCap);
             // a big room (venue hall): rather than dropping the far floor, the far tiles go on a coarser grid, stretched to
@@ -770,7 +773,7 @@ namespace VirtualBeeSwarm.Bloom
             _pos = new Vector3[_m.Length]; _from = new Vector3[_m.Length]; _to = new Vector3[_m.Length]; _rest = new Vector3[_m.Length];
             _t0 = new float[_m.Length]; _dur = new float[_m.Length]; _until = new float[_m.Length]; _arc = new float[_m.Length];
             _perched = new bool[_m.Length]; _live = new bool[_m.Length];
-            _mesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
+            _mesh = QuestPerf.On ? GameMeshes.CreateBeeMesh() : BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh(); // headset: the low-poly bee
             _mat = GameMaterials.Create("VBS_MeadowBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh); // use the static worker with shader wings for the full room pool

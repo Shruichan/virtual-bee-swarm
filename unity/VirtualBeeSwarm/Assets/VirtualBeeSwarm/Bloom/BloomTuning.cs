@@ -60,7 +60,7 @@ namespace VirtualBeeSwarm.Bloom
         static void Defaults()
         {
             On = true;
-            Density = 1f;
+            Density = QuestPerf.On ? 0.6f : 1f; // the headset: 60% of the escape bloom's flower budget
             Vines = true;
             Bees = true;
             Mruk = false;

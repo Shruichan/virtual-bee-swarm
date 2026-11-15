@@ -14,7 +14,7 @@ namespace VirtualBeeSwarm.Bloom
     /// </summary>
     public sealed class MeadowWalls
     {
-        public const float Spacing = 0.17f; // meadow: walls covered wall to wall
+        public static float Spacing => QuestPerf.On ? 0.24f : 0.17f; // meadow: walls covered wall to wall (headset: a bit sparser)
         const int MaxPerMesh = 40, MaxMeshes = 3;
         static readonly int BloomTId = Shader.PropertyToID("_BloomT");
         static readonly int ClockId = Shader.PropertyToID("_BloomClock");

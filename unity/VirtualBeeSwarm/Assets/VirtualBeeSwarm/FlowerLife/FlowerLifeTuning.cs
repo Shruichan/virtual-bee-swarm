@@ -43,11 +43,7 @@ namespace VirtualBeeSwarm.FlowerLife
         static void Defaults()
         {
             On = true;
-#if UNITY_ANDROID && !UNITY_EDITOR
-            Density = 0.75f; // the headset: about 3/4 of the desktop garden
-#else
-            Density = 1f;
-#endif
+            Density = QuestPerf.On ? 0.5f : 1f; // the headset: half the desktop garden (the meadow carries the floor)
             Floor = true;
             Sill = true;
             Bees = 10;
