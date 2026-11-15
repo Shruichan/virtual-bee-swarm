@@ -3,6 +3,7 @@
     from detect import ScoutTracker, scores_from_boxes
     tracker = ScoutTracker()                       # one per video stream
     boxes = tracker.update(frame_bgr, now_ms)      # list[ScoutBox], stabilized (2-frame confirm, 500 ms hold)
+                                                   # (rgb=True for RGB frames, as the vision worker has)
     top, scores = scores_from_boxes(boxes)         # -> ScoutFrame.top / .scores; boxes -> ScoutFrame.boxes
     payload_boxes = [b.to_json() for b in boxes]
 
@@ -72,8 +73,9 @@ class ScoutTracker:
         self.hist: list[set[str]] = []
         self.last: dict[str, tuple[float, ScoutBox]] = {}
 
-    def update(self, frame_bgr: np.ndarray, now_ms: float) -> list[ScoutBox]:
-        seen = self.markers.detect(frame_bgr)
+    def update(self, frame: np.ndarray, now_ms: float, rgb: bool = False) -> list[ScoutBox]:
+        """frame: full-resolution BGR (or RGB with rgb=True); now_ms: the frame's timestamp."""
+        seen = self.markers.detect(frame, rgb=rgb)
         self.hist = (self.hist + [{b.label for b in seen}])[-self.window:]
         for b in seen:
             if b.label in self.last or sum(b.label in h for h in self.hist) >= self.confirm:

@@ -66,8 +66,9 @@ class MarkerDetector:
             return []
         return [(int(i), c.reshape(4, 2)) for i, c in zip(ids.ravel(), corners)]
 
-    def detect(self, frame_bgr: np.ndarray) -> list[ScoutBox]:
-        gray = frame_bgr if frame_bgr.ndim == 2 else cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    def detect(self, frame: np.ndarray, rgb: bool = False) -> list[ScoutBox]:
+        """frame: BGR (OpenCV) or RGB (rgb=True) or grayscale, full resolution."""
+        gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY if rgb else cv2.COLOR_BGR2GRAY)
         h, w = gray.shape[:2]
         out: list[ScoutBox] = []
         for tid, c in self.raw(gray):
