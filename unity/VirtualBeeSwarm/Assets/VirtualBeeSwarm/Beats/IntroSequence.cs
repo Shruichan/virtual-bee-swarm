@@ -308,7 +308,8 @@ namespace VirtualBeeSwarm
         {
             yield return Wait(clipboardDelay); // also lets a group reset's CancelAll pass first
             _presence = ReadPresence();
-            PlaceClipboard("pre");
+            if (BringClipboard != null) yield return BringClipboard(this, signHere); // [Opening hook] Beeswax brings it himself
+            if (BringClipboard == null || !signHere.gameObject.activeInHierarchy) PlaceClipboard("pre");
             while (true)
             {
                 var t = signHere.transform;
@@ -333,6 +334,25 @@ namespace VirtualBeeSwarm
                 }
                 yield return null;
             }
+        }
+
+        // [Opening hook] Opening/OpeningDirector: Beeswax flies in and hands SIGN HERE over himself (null: one crew bee parks it).
+        public static System.Func<IntroSequence, SignHereClipboard, IEnumerator> BringClipboard;
+
+        /// <summary>[Opening hook] Where SIGN HERE parks in front of the player now (pivot = its bottom edge).</summary>
+        public Pose ClipboardParkPose()
+        {
+            if (signHere == null) return new Pose(transform.position, transform.rotation);
+            Transform head = delivery != null ? delivery.Head : null;
+            Vector3 eye = head != null ? head.position : transform.position + Vector3.up * 1.3f;
+            Vector3 fwd = head != null ? head.forward : Vector3.forward;
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
+            fwd = Quaternion.Euler(0f, clipboardYaw, 0f) * fwd.normalized;
+            float h = SignHereClipboard.Height * Mathf.Abs(signHere.transform.lossyScale.y);
+            Vector3 centre = eye + fwd * clipboardAhead - Vector3.up * clipboardBelowEye;
+            Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(clipboardTilt, 0f, 0f);
+            return new Pose(centre - rot * Vector3.up * (h * 0.5f), rot);
         }
 
         void PlaceClipboard(string why)
