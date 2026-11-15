@@ -121,5 +121,8 @@
   {"id": "room_pal_honey_winter", "channel": "room", "text": "That's plenty. The rest stays. They eat it all winter.", "tags": ["pals", "honey", "fact:winter_honey"]},
   {"id": "room_pal_dance", "channel": "room", "text": "I don't forage, but I took the seminar. The waggle points to food from the sun. Longer waggle, farther flowers.", "tags": ["pals", "dance", "fact:waggle"]},
   {"id": "room_pal_show_me", "channel": "room", "text": "Motion carried. Eyes on the window.", "tags": ["pals", "show_me", "window"]},
-  {"id": "room_pal_pet", "channel": "room", "text": "Gentle. They like you. Don't tell them I said that.", "tags": ["pals", "pet", "swarm"]}
+  {"id": "room_pal_pet", "channel": "room", "text": "Gentle. They like you. Don't tell them I said that.", "tags": ["pals", "pet", "swarm"]},
+  {"id": "room_throw_syrup", "channel": "room", "text": "Careful! That's the GOOD syrup.", "tags": ["throwables", "throw", "syrup"]},
+  {"id": "room_throw_property", "channel": "room", "text": "Hey! That's union property!", "tags": ["throwables", "throw"]},
+  {"id": "room_throw_writeup", "channel": "room", "text": "Who threw that? I'm writing it up.", "tags": ["throwables", "throw"]}
 ]
