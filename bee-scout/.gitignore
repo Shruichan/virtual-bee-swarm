@@ -1,0 +1,34 @@
+# Live Bee Scout: keep secrets, installs, generated data and runtime files out of git (this repo is public).
+.env
+.env.*
+!.env.example
+config.local.ts
+config.local.ts.bak
+node_modules/
+.venv/
+__pycache__/
+dist/
+out/
+
+# vision worker data (downloaded or generated on the laptop)
+hive/scout-vision/data/
+hive/scout-vision/refs/
+hive/scout-vision/cache/
+hive/scout-vision/debug/
+data/
+refs/
+cache/
+debug/
+
+# launcher runtime
+ops/logs/
+ops/run/
+
+# model weights
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.mlmodel
+*.mlpackage/
+.DS_Store
