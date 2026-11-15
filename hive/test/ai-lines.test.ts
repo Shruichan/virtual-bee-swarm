@@ -37,9 +37,9 @@ describe("lines.json", () => {
     expect(Object.keys(LINES).length).toBe(entries.length);
   });
 
-  test("has 55-110 lines", () => {
+  test("has 55-125 lines", () => {
     expect(entries.length).toBeGreaterThanOrEqual(55);
-    expect(entries.length).toBeLessThanOrEqual(110);
+    expect(entries.length).toBeLessThanOrEqual(125); // 110 + the hand-play/voice-action lines (room_pal_*, 2026-11-15)
   });
 
   test("load-bearing lines are at most 15 words, ear lines at most 10, and nothing runs past 30", () => {
