@@ -4,22 +4,11 @@
   {"id": "scout_chime", "kind": "chime", "text": "Bee fact found!"},
 
   {"id": "scout_hook_beehive", "kind": "hook", "label": "beehive", "text": "A beehive! Home sweet home. Would you like to learn more?"},
-  {"id": "scout_fact_beehive", "kind": "fact", "label": "beehive", "text": "The queen lays the eggs. The girls do the work. Boy bees like me get kicked out every fall. Rude.", "source": "https://canr.udel.edu/maarec/honey-bee-biology/the-colony-and-its-organization/"},
-
   {"id": "scout_hook_native_flower", "kind": "hook", "label": "native_flower", "text": "A flower. Finally, lunch. Would you like to learn more?"},
-  {"id": "scout_fact_native_flower", "kind": "fact", "label": "native_flower", "text": "Plant flowers that grow wild around here and bloom spring to fall. Even a balcony pot counts.", "source": "https://xerces.org/bring-back-the-pollinators"},
-
   {"id": "scout_hook_honey_jar", "kind": "hook", "label": "honey_jar", "text": "Store honey. Yummy for you, trouble for us. Would you like to learn more?"},
-  {"id": "scout_fact_honey_jar", "kind": "fact", "label": "honey_jar", "text": "Store honey can hide a bee germ called foulbrood for years. Fine on toast. Never feed it to bees.", "source": "https://www.ontario.ca/page/american-foulbrood"},
-
   {"id": "scout_hook_pebble_dish", "kind": "hook", "label": "pebble_dish", "text": "A water dish with pebbles! Somebody gets bees. Would you like to learn more?"},
-  {"id": "scout_fact_pebble_dish", "kind": "fact", "label": "pebble_dish", "text": "Bees can't swim! Pebbles give us a place to stand and drink. Back home, we fan it. Bee air conditioning!", "source": "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx"},
-
   {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Bug spray. Ugh. Don't get me started. Would you like to learn more?"},
-  {"id": "scout_fact_bug_spray", "kind": "fact", "label": "bug_spray", "text": "Bug spray drifts onto flowers. We carry it home to the babies. Please skip it. I said please. That's rare.", "source": "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning"},
-
   {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "A home for my wild cousins! Would you like to learn more?"},
-  {"id": "scout_fact_bee_hotel", "kind": "fact", "label": "bee_hotel", "text": "Seven in ten wild bees nest underground. Leave some bare dirt and old stems, and my cousins move right in.", "source": "https://xerces.org/pollinator-conservation/nesting"},
 
   {"id": "scout_no_1", "kind": "no", "text": "Fine. Saving it for later."},
   {"id": "scout_no_2", "kind": "no", "text": "Your call. I'll be right here. Grumbling."},
