@@ -500,16 +500,26 @@ const SHOW = `<!doctype html>
       case "heard": onHeard(ev); break;
     }
   }
-  var es = null;
+  // Chrome keeps at most 6 HTTP/1.1 connections per host, and every open SSE stream holds one for good.
+  // With a few /scout and /scout/show tabs open, a new tab to the same Hive never loads. So a hidden tab
+  // hands its stream back after 10 s and reconnects the moment it is shown again.
+  var es = null, retryEs = null, hideTimer = null;
+  function disconnect() { clearTimeout(retryEs); if (es) { try { es.close(); } catch (e) {} es = null; } }
   function connect() {
-    if (es) { try { es.close(); } catch (e) {} }
-    es = new EventSource("/scout/events?" + TQ);
-    es.onerror = function () { if (es.readyState === 2) setTimeout(connect, 3000); }; // closed for good: retry ourselves
+    disconnect();
+    var me = es = new EventSource("/scout/events?" + TQ);
+    me.onerror = function () { if (me === es && me.readyState === 2) retryEs = setTimeout(connect, 3000); }; // closed for good: retry ourselves
     var parse = function (e) { try { handle(JSON.parse(e.data)); } catch (err) {} };
-    es.onmessage = parse;
-    ["frame", "found", "say", "heard", "state"].forEach(function (t) { es.addEventListener(t, parse); });
+    me.onmessage = parse;
+    ["frame", "found", "say", "heard", "state"].forEach(function (t) { me.addEventListener(t, parse); });
   }
-  connect();
+  document.addEventListener("visibilitychange", function () {
+    clearTimeout(hideTimer);
+    if (document.hidden) hideTimer = setTimeout(disconnect, 10000);
+    else if (!es) connect();
+  });
+  window.__esState = function () { return es ? es.readyState : "closed"; }; // for the dev harness checks
+  if (!document.hidden) connect(); // opened in a background tab: connects when first shown
 
   // ------------------------------------------------------------------ video: WHEP straight from MediaMTX (same as /scout)
   var video = $("video"), pc = null, retryTimer = null, lastT = -1, lastMove = 0, playing = false, netFails = 0;
