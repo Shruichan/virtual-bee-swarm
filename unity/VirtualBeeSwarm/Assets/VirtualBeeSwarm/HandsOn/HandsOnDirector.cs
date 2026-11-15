@@ -48,6 +48,8 @@ namespace VirtualBeeSwarm.HandsOn
         Vector3[] _puffFrom, _puffTo;
         Color _puffColor;
         Renderer _stream, _water;
+        Renderer _dishWater; // the pebble dish's own authored Water: hidden at set-down, shown by the pump
+        bool _pouring;       // the hand pour's jar_tip plays once as the pour starts
 
         Step _step;
         StationBase _cur;
@@ -158,19 +160,28 @@ namespace VirtualBeeSwarm.HandsOn
                 AddControlStake(_lever.transform);
                 AddControlStake(_board.transform);
             }
-            _socket = SetupSocket.Build(_table);
-            _prompt = HandsOnPrompt.Build(_table, "[VBS] HandsOnPrompt");
-            _leverNote = HandsOnPrompt.Build(_table, "[VBS] LeverNote", 0.002f);
+            // The socket ring, labels and effects place themselves in world space but size themselves locally: give them
+            // a parent that undoes the meadow rig's scale, like the lever and board (else ~3x on the floor layout, and the
+            // ring looks far bigger than the 7-10 cm that actually counts as "in").
+            var handScale = new GameObject("[VBS] HandsOnHandScale").transform;
+            handScale.SetParent(_table, false);
+            handScale.localScale = Vector3.one * controlScale;
+            _socket = SetupSocket.Build(handScale);
+            _prompt = HandsOnPrompt.Build(handScale, "[VBS] HandsOnPrompt");
+            _leverNote = HandsOnPrompt.Build(handScale, "[VBS] LeverNote", 0.002f);
 
             var fx = new GameObject("[VBS] HandsOnFx").transform;
-            fx.SetParent(_table, false);
+            fx.SetParent(handScale, false); // the pour stream and fallback water: sized in metres
+            // Smoke puffs stay at the props' scale, so they read against the (rig-scaled) smoker and hive.
+            var puffRoot = new GameObject("[VBS] HandsOnPuffs").transform;
+            puffRoot.SetParent(_table, false);
             _puffs = new Renderer[9];
             _puffAt = new float[_puffs.Length];
             _puffFrom = new Vector3[_puffs.Length];
             _puffTo = new Vector3[_puffs.Length];
             for (int i = 0; i < _puffs.Length; i++)
             {
-                _puffs[i] = HandsOnKit.Glow(PrimitiveType.Sphere, "Puff" + i, fx, Vector3.zero, Vector3.one * 0.03f, Color.clear);
+                _puffs[i] = HandsOnKit.Glow(PrimitiveType.Sphere, "Puff" + i, puffRoot, Vector3.zero, Vector3.one * 0.03f, Color.clear);
                 _puffs[i].gameObject.SetActive(false);
                 _puffAt[i] = -1f;
             }
@@ -255,6 +266,8 @@ namespace VirtualBeeSwarm.HandsOn
         {
             if (_auto != null) { StopCoroutine(_auto); _auto = null; }
             _autoCarrying = false;
+            if (_dishWater != null) { _dishWater.enabled = true; _dishWater = null; }
+            _pouring = false;
             if (_carry != null) _carry.Disarm();
             _carry = null;
             _item = null;
@@ -413,6 +426,8 @@ namespace VirtualBeeSwarm.HandsOn
                     float flat = new Vector2(d.x, d.z).magnitude;
                     bool over = _carry.Held && flat <= 0.1f && d.y >= 0.04f && d.y <= 0.25f;
                     _carry.Tip = over ? 110f : 0f;
+                    if (over && !_pouring) GameSound.Cue("jar_tip", _item); // the station skips its own pour sound for a hand pour
+                    _pouring = over;
                     if (over)
                     {
                         _fill += Time.deltaTime / PourSeconds;
@@ -443,6 +458,9 @@ namespace VirtualBeeSwarm.HandsOn
                             Log("dish set down");
                             BeeDelivery.Instance?.PlayManualTouchdown(_item);
                             if (!HandsOnTuning.HeatPump) { Succeed("POOL'S OPEN.\nNO DIVING."); return; }
+                            // the dish arrives dry; the pump fills it (LeaveStation puts the water back if it never runs)
+                            _dishWater = FindRenderer(_item, "Water");
+                            if (_dishWater != null) _dishWater.enabled = false;
                             _sub = 1;
                             _lever.Live = true;
                             _hintAt = now + HandsOnTuning.HintSeconds;
@@ -466,7 +484,9 @@ namespace VirtualBeeSwarm.HandsOn
             if (_cur.Station == GameStation.Smoker)
             {
                 _pumps++;
-                Vector3 from = _item != null && _item.gameObject.activeInHierarchy ? _item.position + Vector3.up * 0.12f : _lever.HeadPosition;
+                Transform nozzle = _item != null ? FindChild(_item, "SmokePoint") : null; // the authored spout
+                Vector3 from = _item != null && _item.gameObject.activeInHierarchy
+                    ? (nozzle != null ? nozzle.position : _item.position + Vector3.up * 0.12f) : _lever.HeadPosition;
                 if (_item != null) _item.GetComponentInChildren<ArtAnimProp>()?.PlayActuation();
                 Puff(from, _hive.SwarmCenter.position, new Color(0.92f, 0.92f, 0.95f), 3);
                 GameSound.Cue("smoker_puff", _item != null ? _item : _lever.transform);
@@ -479,10 +499,14 @@ namespace VirtualBeeSwarm.HandsOn
             {
                 Transform spot = _sd.Spot;
                 Puff(_lever.transform.position + Vector3.up * 0.05f, spot.position + Vector3.up * 0.03f, HandsOnKit.Water, 3);
-                GameSound.Cue("water_pump", spot);
-                _water.transform.SetPositionAndRotation(spot.position + Vector3.up * 0.022f, _table.rotation);
-                _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f);
-                _water.gameObject.SetActive(true);
+                GameSound.Cue("bowl_splash", spot); // "water_pump" has no voice in the sound scene (silent); a plop at the dish
+                if (_dishWater != null) { _dishWater.enabled = true; _dishWater = null; }
+                else
+                {
+                    _water.transform.SetPositionAndRotation(spot.position + Vector3.up * 0.022f, _table.rotation);
+                    _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f);
+                    _water.gameObject.SetActive(true);
+                }
                 Succeed("POOL'S OPEN.\nNO DIVING.");
             }
         }
@@ -520,6 +544,7 @@ namespace VirtualBeeSwarm.HandsOn
         {
             var st = _cur;
             Log("crew assist at " + GameIds.StationName(st.Station) + " after " + (Time.time - _stepAt).ToString("0.0") + " s");
+            if (_dishWater != null) { _dishWater.enabled = true; _dishWater = null; } // the crew fills it: drinkers land on water
             if (_carry != null) _carry.Disarm();
             _lever.Live = false;
             _socket.Hide();
@@ -729,6 +754,21 @@ namespace VirtualBeeSwarm.HandsOn
                 c.a = 0.85f * (1f - k * k);
                 GameMaterials.Tint(_puffs[i], c);
             }
+        }
+
+        static Transform FindChild(Transform root, string name)
+        {
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == name) return t;
+            return null;
+        }
+
+        static Renderer FindRenderer(Transform root, string name)
+        {
+            if (root == null) return null;
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+                if (r.name == name) return r;
+            return null;
         }
 
         void Pour(bool on, Vector3 from, Vector3 to)

@@ -388,6 +388,8 @@ namespace VirtualBeeSwarm
             bool flyHive = delivering && !IsDelivered(hive.transform);
             Log("start (delivery " + BeeDelivery.ModeName(BeeDelivery.Mode) + (Forecasting ? ", forecast in meet" : "") + ")");
             if (UseClipboard && signHere.gameObject.activeSelf) StartCoroutine(ClipboardAway());
+            // From inside the box, as the crew starts the ring: "Signed. Crew, cut the window!" (room_hook_carry queues behind it)
+            if (UseClipboard && flyHive && net != null) net.Say(GameLines.RoomPreSigned);
             var carry = RideLines.HookCarry;
 
             if (flyHive)
