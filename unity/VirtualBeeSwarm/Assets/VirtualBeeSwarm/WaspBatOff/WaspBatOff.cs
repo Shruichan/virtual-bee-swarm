@@ -3,6 +3,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.XR;
 using VirtualBeeSwarm.Juice;
+using VirtualBeeSwarm.Pals;
 using VirtualBeeSwarm.Stakes;
 
 namespace VirtualBeeSwarm.BatOff
@@ -234,7 +235,7 @@ namespace VirtualBeeSwarm.BatOff
                 ref var w = ref _w[i];
                 w = default;
                 w.state = S.Wait;
-                w.spawnAt = _startedAt + Mathf.Lerp(0.35f, BatOffTuning.Seconds - 2.2f, i / (float)(_n - 1));
+                w.spawnAt = _startedAt + Mathf.Lerp(0.35f, BatOffTuning.Seconds - 2.6f, i / (float)(_n - 1));
                 w.autoBat = i % 4 != 3; // exercise the missed-wasp payoff on desktop
                 w.phase = Random.Range(0f, 10f);
             }
@@ -324,7 +325,7 @@ namespace VirtualBeeSwarm.BatOff
                     case S.Hover:
                     {
                         anyLive = true;
-                        Vector3 p = KeepOffHead(w.to + Buzz(now * 1.7f, w.phase, 0.025f), headPos);
+                        Vector3 p = KeepOffHead(w.to + Buzz(now * 1.35f, w.phase, 0.025f), headPos);
                         Fly(i, p, now);
                         if (_auto && w.autoBat) { GhostBat(i, headPos); break; }
                         if (age >= BatOffTuning.Seconds)
@@ -444,7 +445,7 @@ namespace VirtualBeeSwarm.BatOff
             }
             w.from = from;
             w.to = HoverPoint(i, headPos);
-            Path(ref w, Random.Range(0.22f, 0.45f), Random.Range(1.5f, 2.1f));
+            Path(ref w, Random.Range(0.22f, 0.45f), Random.Range(1.25f, 1.80f));
             if (Vector3.Dot(from - _hiveC, _toPlayer) < _frontD + 0.1f) OverRoof(ref w); // spawned behind the hive: never through it
             w.state = S.Dive;
             w.at = Time.time;
@@ -460,7 +461,7 @@ namespace VirtualBeeSwarm.BatOff
             Vector3 d = w.to - w.from;
             Vector3 side = Vector3.Cross(Vector3.up, d.sqrMagnitude > 1e-4f ? d.normalized : Vector3.forward);
             w.ctrl = Vector3.Lerp(w.from, w.to, 0.5f) + Vector3.up * arc + side * Random.Range(-0.45f, 0.45f);
-            w.dur = Mathf.Clamp(d.magnitude / speed, 1.05f, 2.1f);
+            w.dur = Mathf.Clamp(d.magnitude / speed, 1.25f, 2.5f);
         }
 
         /// <summary>Behind the hive: start above the roof and bend in over the front edge, so the dive drops onto the door
@@ -499,7 +500,7 @@ namespace VirtualBeeSwarm.BatOff
 
         Vector3 RaidPoint(int i, float now)
         {
-            float a = now * 8f + i * 2.39996f;
+            float a = now * 6.4f + i * 2.39996f;
             Vector3 side = Vector3.Cross(Vector3.up, _toPlayer);
             Vector3 p = _hiveC + _toPlayer * (_frontD + 0.10f + 0.10f * Mathf.Cos(a)) + side * (0.21f * Mathf.Sin(a));
             p.y = _roofY + 0.12f + 0.08f * Mathf.Sin(a * 1.4f);
@@ -703,27 +704,34 @@ namespace VirtualBeeSwarm.BatOff
                     continue;
                 }
                 var src = GameHands.For(hand);
-                _handCtl[h] = src is IControllerPoseSource c && c.IsController(hand);
+                bool controller = src is IControllerPoseSource c && c.IsController(hand);
+                bool hadPose = _handOk[h] && controller == _handCtl[h];
+                _handCtl[h] = controller;
                 Vector3 back;
-                if (GameHands.TryGetPointerRay(hand, out var ray))
+                bool hasRay = GameHands.TryGetPointerRay(hand, out var ray);
+                if (hasRay)
                 {
                     Vector3 d = tip - ray.origin;
                     float m = d.magnitude;
                     back = m > 0.03f && m < 0.3f ? tip - d / m * 0.09f : tip - ray.direction * 0.09f;
                 }
                 else back = tip;
-                Vector3 mid = (tip + back) * 0.5f;
-                if (_handOk[h])
+                bool hadSwatter = _swatters[h] != null && _swatters[h].gameObject.activeSelf;
+                bool hasSwatter = PoseSwatter(h, tip, back, src, hasRay, ray);
+                Vector3 strike = hasSwatter ? _swatterHead[h] : (tip + back) * 0.5f;
+                if (hadPose && hadSwatter == hasSwatter)
                 {
-                    Vector3 v = (mid - _handPrev[h]) / dt;
+                    Vector3 v = (strike - _handPrev[h]) / dt;
+                    // Reacquired tracking or changed pose source can move the blade discontinuously.
+                    if (v.sqrMagnitude > 12f * 12f) v = Vector3.zero;
                     _handVel[h] = Vector3.Lerp(_handVel[h], v, 0.6f);
                 }
                 else _handVel[h] = Vector3.zero;
-                _handPrev[h] = mid;
+                _handPrev[h] = strike;
                 _handTip[h] = tip;
                 _handBack[h] = back;
                 _handOk[h] = true;
-                PoseSwatter(h, tip, back);
+                if (hasSwatter) StepSwingCue(h);
             }
         }
 
@@ -747,25 +755,38 @@ namespace VirtualBeeSwarm.BatOff
             }
         }
 
-        void PoseSwatter(int h, Vector3 tip, Vector3 back)
+        bool PoseSwatter(int h, Vector3 tip, Vector3 back, IHandPoseSource source, bool hasRay, Ray ray)
         {
             Transform swatter = _swatters[h];
-            if (swatter == null) return;
+            if (swatter == null) return false;
             if (_burstDone)
             {
                 swatter.gameObject.SetActive(false);
                 _swinging[h] = false;
-                return;
+                return false;
             }
-            Vector3 aim = GameHands.TryGetPointerRay((GameHand)h, out var ray) ? ray.direction.normalized : (tip - back).normalized;
+            Vector3 aim = hasRay ? ray.direction.normalized : (tip - back).normalized;
+            Vector3 up = Vector3.up;
+            Vector3 grip = Vector3.Lerp(back, tip, 0.4f);
+            var hand = (GameHand)h;
+            if (!_handCtl[h] && source is IHandPalmSource palm &&
+                palm.TryGetPalm(hand, out var centre, out var normal, out var fingers, out _))
+            {
+                grip = centre;
+                aim = fingers.normalized;
+                up = normal;
+            }
+            else if (_handCtl[h] && TryGetControllerUp(hand, out var controllerUp))
+                up = controllerUp;
             if (aim.sqrMagnitude < 0.5f)
             {
                 var head = Head();
                 aim = head != null ? (tip - head.position).normalized : transform.forward;
             }
-            if (aim.sqrMagnitude < 0.5f) return;
-            Vector3 up = Mathf.Abs(Vector3.Dot(aim, Vector3.up)) > 0.98f ? transform.forward : Vector3.up;
-            Vector3 grip = Vector3.Lerp(back, tip, 0.4f);
+            if (aim.sqrMagnitude < 0.5f) { swatter.gameObject.SetActive(false); return false; }
+            up = Vector3.ProjectOnPlane(up, aim);
+            if (up.sqrMagnitude < 0.01f)
+                up = Mathf.Abs(Vector3.Dot(aim, Vector3.up)) > 0.98f ? transform.forward : Vector3.up;
             swatter.SetPositionAndRotation(grip, Quaternion.LookRotation(aim, up) * Quaternion.Euler(90f, 0f, 0f));
             _swatterHead[h] = grip + aim * (SwatterLength * 0.85f);
             if (!swatter.gameObject.activeSelf)
@@ -774,6 +795,22 @@ namespace VirtualBeeSwarm.BatOff
                 GameSound.Cue("swatter_swoosh", grip);
                 swatter.gameObject.SetActive(true);
             }
+            return true;
+        }
+
+        static bool TryGetControllerUp(GameHand hand, out Vector3 up)
+        {
+            var device = InputDevices.GetDeviceAtXRNode(hand == GameHand.Left ? XRNode.LeftHand : XRNode.RightHand);
+            up = Vector3.up;
+            if (!device.isValid || !device.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion rotation)) return false;
+            var head = Head();
+            Transform trackingSpace = head != null ? head.parent : null;
+            up = (trackingSpace != null ? trackingSpace.rotation * rotation : rotation) * Vector3.up;
+            return true;
+        }
+
+        void StepSwingCue(int h)
+        {
             float speed = _handVel[h].sqrMagnitude;
             if (!_swinging[h] && speed > SwingSpeed * SwingSpeed)
             {
