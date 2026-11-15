@@ -414,7 +414,9 @@ namespace VirtualBeeSwarm.Theme
                 if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
                 Vector3 eye = view.position;
                 if (camera == null) eye.y = Mathf.Max(eye.y, Bloom.MeadowLayout.FloorY + 1.5f);
-                Vector3 p = eye + forward.normalized * 0.85f - Vector3.up * 0.43f;
+                // 20 deg left of straight ahead: Beeswax presents from the right and his caption ("the Moon was fake")
+                // covered the card's text when both sat dead centre (room playtest)
+                Vector3 p = eye + Quaternion.Euler(0f, -20f, 0f) * forward.normalized * 0.85f - Vector3.up * 0.43f;
                 p.y = Mathf.Max(p.y, Bloom.MeadowLayout.FloorY + 0.65f);
                 _moonAward.SetPositionAndRotation(p, Quaternion.LookRotation(p - eye, Vector3.up));
                 _moonAwardAt = Time.time;
