@@ -162,6 +162,23 @@ namespace VirtualBeeSwarm
             Vector3 pos = home;
             bool show = true;
             var ar = VirtualBeeSwarm.AR.ArRig.Instance;
+            if (RoomAware.RoomAwareTuning.On)
+            {
+                // [RoomAware] hook (Rome): never hide a prop for not fitting. The floor rig has no real table under it, so the
+                // table clamp doesn't apply; on a real table it slides fully in. Then it moves out of real furniture.
+                if (!Bloom.MeadowLayout.Active && ar != null && ar.Room.HasTable)
+                {
+                    var table = ar.Room.Table;
+                    Vector3 l = table.toLocal.MultiplyPoint3x4(Hub.Table.TransformPoint(home));
+                    float hx = Mathf.Max(0f, table.half.x - radius - tableMargin), hz = Mathf.Max(0f, table.half.y - radius - tableMargin);
+                    var c = new Vector3(Mathf.Clamp(l.x, -hx, hx), l.y, Mathf.Clamp(l.z, -hz, hz));
+                    if ((c - l).sqrMagnitude > 4e-6f) { pos = Hub.Table.InverseTransformPoint(table.toLocal.inverse.MultiplyPoint3x4(c)); pos.y = home.y; }
+                }
+                pos = RoomAware.RoomKeepOut.KeepClear(t, pos, Hub.Table, 0.8f);
+                if (!t.gameObject.activeSelf) { t.gameObject.SetActive(true); OnReset(); }
+                if ((t.localPosition - pos).sqrMagnitude > 1e-6f) t.localPosition = pos;
+                return;
+            }
             if (ar != null && ar.Room.HasTable)
             {
                 var table = ar.Room.Table;

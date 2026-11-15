@@ -532,6 +532,7 @@ namespace VirtualBeeSwarm
                         }
                         HiveClearance.Push(rocket, ref position, tilted, body);
                     }
+                    RoomAware.RoomKeepOut.PushRocket(rocket, ref position, tilted, body); // [RoomAware] hook (Rome): not into real furniture
                 }
                 if (crashSpot != null) crashSpot.position = position; // the crash sound uses this anchor
                 return new Pose(position, tilted);
@@ -542,6 +543,7 @@ namespace VirtualBeeSwarm
                 : anchor != null ? anchor.rotation * _rocketHomeRot : _rocketHomeRot;
             rotation *= Quaternion.Euler(0f, 0f, 28f);
             HiveClearance.Push(rocket, ref fallbackPosition, rotation, body);
+            if (body != null) RoomAware.RoomKeepOut.PushRocket(rocket, ref fallbackPosition, rotation, body); // [RoomAware] hook (Rome)
             return new Pose(fallbackPosition, rotation);
         }
 
