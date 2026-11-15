@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest has GameScene's hand-anchor MRUK spawning path and full AR building-block setup, with Hive as the target; game/minigame, event-handler, and Afference API/haptics are excluded; Quest retest pending)
+  — owner: **Nam Nguyen** — status: in progress (Nam reports spawning works; two-point calibration, headset off/on, recenter, and the re-place runbook still need verification)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1281,6 +1281,7 @@ The glasses are a second priority: we build the Quest game first and fit the gla
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
+- **Nam Nguyen (agent):** committing the working S3.3 spawn changes.
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
@@ -1474,3 +1475,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 19:11 PT · Nam Nguyen (agent) · Updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` to leave rotation unchanged and position before enabling; Quest verification remains pending. Editor diagnostics also report the existing obsolete `LabelFilter.FromEnum` call. → team
 - 2026-11-14 19:16 PT · Nam Nguyen (agent) · Investigating reported inactive object on spawn in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` and NamTest scene wiring. → team
 - 2026-11-14 19:16 PT · Nam Nguyen (agent) · `SpawnObject.cs` now waits for an MRUK room instead of throwing, reports inactive parents, and uses the current label-filter API; Unity compilation succeeded. Saved NamTest assigns the Hive child, not its parent, so assign the Hive root if the root is disabled; headset retest pending. → Nam
+- 2026-11-14 19:25 PT · Nam Nguyen (agent) · Nam reports spawning works; preparing the S3.3 spawn changes for commit. Full S3.3 calibration, recenter, headset off/on, and runbook checks remain. → team
