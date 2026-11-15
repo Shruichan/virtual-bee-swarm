@@ -127,10 +127,13 @@ namespace VirtualBeeSwarm.Tests
             {
                 Assert.IsTrue(intro.SignHereShown, "clipboard is the start prompt");
                 yield return WaitUntil(() => intro.SignHereReady, 10f, "clipboard parked and ready");
-                Assert.IsFalse(beeswax.Visible, "the courier brings the clipboard before Beeswax appears");
-                Assert.IsFalse(net.IsSpeaking, "the clipboard delivery is wordless");
+                bool beeswaxBringsClipboard = IntroSequence.BringClipboard != null;
+                Assert.AreEqual(beeswaxBringsClipboard, beeswax.Visible, "the selected messenger brings the clipboard");
+                if (!beeswaxBringsClipboard)
+                    Assert.IsFalse(net.IsSpeaking, "the crew's clipboard delivery is wordless");
                 Assert.IsTrue(intro.SignHereNow("smoke test"), "signature starts the show");
-                Assert.IsFalse(beeswax.Visible, "Beeswax stays in the hive during the opening delivery");
+                if (!beeswaxBringsClipboard)
+                    Assert.IsFalse(beeswax.Visible, "Beeswax stays in the hive during the crew delivery");
             }
             Assert.AreEqual(GameBeat.Hook, director.Beat);
             yield return WaitForBeat(director, GameBeat.Meet, 30f);
