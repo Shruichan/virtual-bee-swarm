@@ -835,7 +835,10 @@ export function startHive(opts: HiveOptions): Hive {
 
   const relayUrl = opts.orbisRelayUrl?.replace(/\/+$/, "") || null;
   const ORBIS_STATES: readonly OrbisState[] = ["off", "priming", "ready", "failed", "ended"];
-  let orbisWant: NonNullable<OrbisRequest["want"]> = "clips";
+  // ORBIS_WANT=live in the host's .env makes live Orbis the default (needs REACTOR_API_KEY); the Board can still switch.
+  const envWant = process.env.ORBIS_WANT;
+  let orbisWant: NonNullable<OrbisRequest["want"]> =
+    envWant === "live" || envWant === "off" || envWant === "clips" ? envWant : "clips";
   let relayState: OrbisState = "off";
   let relaySince = 0; // the relay's `since`, so an older reply never overwrites a newer one
   let relayScene: Scene | null = null; // the scene whose prompt the relay was last given
