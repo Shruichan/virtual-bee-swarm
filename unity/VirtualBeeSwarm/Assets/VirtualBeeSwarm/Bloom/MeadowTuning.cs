@@ -18,7 +18,7 @@ namespace VirtualBeeSwarm.Bloom
     ///   meadow.walls        true   vines, climbing flowers and leaves on the walls all ride long (short while sick)
     ///   meadow.rig          true   no table: the whole hive rig (TableAnchor) is scaled up and stands on the floor
     ///                              (off: the old table layout, untouched). Alias: meadow.stand
-    ///   meadow.rigScale     3.0    how much bigger the rig is (the hive body is then ~0.3-1.2 m above the floor)
+    ///   meadow.rigScale     1.6    how much bigger the floor rig is
     ///   meadow.hiveStand    0.3    m, the hive stand (legs) under the hive box
     ///   meadow.choiceHeight 1.25   m above the floor of the price-tag choices (on garden stakes) and START
     ///   meadow.distance     0.45   m from the player's eyes to the choice row at the automatic start placement
@@ -46,7 +46,8 @@ namespace VirtualBeeSwarm.Bloom
         public static bool Bees = true;
         public static bool Walls = true;
         public static bool Rig = true;
-        public static float RigScale = 3.0f;
+        const float DefaultRigScale = 1.6f;
+        public static float RigScale = DefaultRigScale;
         public static float HiveStand = 0.3f;
         public static float ChoiceHeight = 1.25f;
         public static float Distance = 0.45f;
@@ -79,7 +80,7 @@ namespace VirtualBeeSwarm.Bloom
             Bees = true;
             Walls = true;
             Rig = true;
-            RigScale = 3.0f;
+            RigScale = DefaultRigScale;
             HiveStand = 0.3f;
             ChoiceHeight = 1.25f;
             Distance = 0.45f;
