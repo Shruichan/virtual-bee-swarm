@@ -106,6 +106,20 @@
       "mp3": "unity/room_meet_role.mp3",
       "pcm": null
     },
+    "room_meet_hey_beeswax": {
+      "channel": "room",
+      "caption": "When you see Ask Beeswax, hold the mic and say, “Hey Beeswax,” then ask your question.",
+      "beat": "meet",
+      "tags": [
+        "meet",
+        "ask",
+        "voice"
+      ],
+      "duration_s": 4.94,
+      "mp3": "unity/room_meet_hey_beeswax.mp3",
+      "pcm": null,
+      "provider": "local Qwen"
+    },
     "room_forecast": {
       "channel": "room",
       "caption": "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful.",
