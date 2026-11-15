@@ -687,8 +687,8 @@
 
 #### S18 Bee Scout bonus art
 
-- **S18.1 Bonus prop meshes** (P2 · 0.5 h · needs –) — create small, Unity-importable bee and campfire meshes under `art/generated-props/`, without touching dartiros's claimed Unity art slots — owner: **Rome** — status: in progress.
-- **S18.2 Bee sticker sheets** (P2 · 0.5 h · needs reference image) — create a small set of printable, transparent-background sticker sheets matching the Penguinbook bee reference — owner: **Rome** — status: waiting for reference image.
+- **S18.1 Bonus prop meshes** (P2 · 0.5 h · needs –) — create small, Unity-importable bee and campfire meshes under `art/generated-props/`, without touching dartiros's claimed Unity art slots — owner: **Rome** — status: done.
+- **S18.2 Bee sticker sheets** (P2 · 0.5 h · needs reference image) — create a small set of printable, transparent-background sticker sheets matching the Penguinbook bee reference — owner: **Rome** — status: done (reference received; two transparent sheets created).
 
 ### Schedule
 
@@ -1457,3 +1457,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:35 PT · Rome (agent) · Bee Scout teaching pass: simulated flower, pollinator, and unclear scans through the glasses audio flow; added a visible-clue mini-quest prompt with safety and fact limits. → team
 
 - 2026-11-14 16:40 PT · Rome (agent) · Started S18 bonus art in `art/generated-props/`; keeping the new meshes outside dartiros's claimed `Art/<Slot>/` Unity files. S18.2 awaits the Penguinbook bee image/link. → team
+
+- 2026-11-14 16:55 PT · Rome (agent) · S18 done: added `art/generated-props/` low-poly bee and Ember Buddy OBJ/MTL meshes plus preview, and two transparent six-sticker PNG sheets in `art/stickers/` using the supplied Penguinbook bee. No files in dartiros's claimed Unity art slots were changed. → team
