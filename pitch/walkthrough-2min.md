@@ -10,8 +10,8 @@
 
 | Time | Picture | Narrator (VO) | Game audio |
 |---|---|---|---|
-| 0:00–0:08 | The logo floats above the meadow. Beeswax holds out the sign-in clipboard. The player signs it. | (none, let him talk) | Beeswax: "Signed. Crew, cut the window!" |
-| 0:08–0:24 | Player in a Quest, then passthrough footage of the floor-standing hive with grass, flowers and wall vines. | "This is Virtual Bee Swarm, a mixed reality game on Meta Quest. You signed the union clipboard. You're the new beekeeper." | Bees under the VO. |
+| 0:00–0:08 | The logo floats above the meadow. A worker bee delivers the SIGN HERE clipboard. The player pokes it to sign. | (none, let him talk) | Beeswax: "Signed. Crew, cut the window!" |
+| 0:08–0:24 | The crew flies the hive through the window. Beeswax talks from inside, then emerges after it lands in the floor meadow. | "This is Virtual Bee Swarm, a mixed reality game on Meta Quest. You signed the union clipboard. You're the new beekeeper." | Bees under the VO. |
 | 0:24–0:32 | The meadow window flashes from peaceful Paris to a swarm, and the rocket flies in. | (none) | Beeswax: "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon." |
 | 0:32–0:56 | Poke an order ticket, then show the four actions: pump the smoker, lift the hive and recover from the store honey mistake by pouring syrup, fit the smaller door, and place and fill the pebble dish. Hexagons light and stickers appear. | "Smoke calms the bees. Lift the hive to check its food. Store honey can carry disease, so use syrup. A smaller door needs fewer guards. Pebbles give bees a place to land while they drink." | Beeswax over the honey shot: "…Honey. From a STORE." |
 | 0:56–1:14 | Connected Quest: hold push-to-talk, ask "What if a fire starts?", release, and watch the embers. Repeat with "Put it out." Offline capture: show the fire and recovery without presenting the player's speech as the trigger. | (none. Let the fire play.) | Beeswax: "Don't. Say. That." / "Fire brigade! …It's out." |
@@ -32,7 +32,7 @@ Same order, said by the mediator while a judge plays or right after:
 
 1. Before the headset: "Sign the clipboard to become the beekeeper. The union booked an evacuation rocket, and you have four minutes to fix its hive."
 2. After the stations: "Did you pick the honey? It sounds like the nice option. Store honey can carry a disease that kills hives." (TODO: real count from the Sat 6 PM run, if we kept one.)
-3. After the fire: [LIVE] "That window is Visko Orbis, a world model making the meadow right now. When you spoke, we changed its prompt, and it morphed from the frame it was showing." **[CLIPS]** "That window is footage we made with Visko Orbis for each scene. The live stream is off today because TODO."
+3. After the fire: [LIVE] "That window is Visko Orbis, a world model making the meadow right now. When you spoke, we changed its prompt, and it morphed from the frame it was showing." **[CLIPS]** "That window plays footage we made with Visko Orbis for each scene."
 4. After the Moon: "The ride can finish offline using recorded dialogue and window clips." If the connected Q&A passed rehearsal, invite the judge to ask Beeswax a bee question.
 
 TODO: time this with a real judge-sized group during the Sat 6 PM run.

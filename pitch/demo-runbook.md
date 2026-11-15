@@ -49,7 +49,7 @@
 - [ ] Quest volume high enough to hear Beeswax over the hall.
 
 **Play area**
-- [ ] Clear the floor around the player. Confirm the hive stands on the floor, outside walls and furniture, with the window visible. Recheck after recentering.
+- [ ] Clear the floor around the player. In rehearsal, sign the clipboard and confirm the hive lands on the floor clear of walls and furniture, with the window visible. Recheck after recentering.
 - [ ] Confirm the clipboard, order tickets, lever and setup sockets are reachable. Check hand tracking and controller input in the same rehearsal.
 - [ ] Keep the play area evenly lit for tracking and passthrough.
 - [ ] Face-cover wipes, tissues. Cables taped down.
@@ -72,15 +72,15 @@
 
 On the what-if beat, hold a pinch or controller trigger, or use the controller talk button. For desktop rehearsal, hold T.
 
-Fit the headset. **Spotter:** "Can you see the hive on the floor? Hold up your hands."
+Fit the headset. **Spotter:** "Can you see the meadow and the clipboard? Hold up your hands."
 **Operator:** Confirm the Quest is connected. Set the Board to SOLO, or DUO when using glasses. Use LIVE if the relay passed rehearsal and shows `ready`, or select CLIPS.
 
 ### On the clock
 
 | Time | Beat | Player does | Beeswax (in game) | Mediator (only if needed) | Operator |
 |---|---|---|---|---|---|
-| 0:00–0:15 | Title + hook | Signs the clipboard. The crew flies the title out and opens the window. | "Signed. Crew, cut the window!" | Nothing. | Watch the beat change on the Board. |
-| 0:15–0:35 | Meet + forecast | Watches the Paris forecast and sees the evacuation rocket arrive. | "You humans get the Moon." | If explaining the window to another judge, match the explanation to the selected mode. | Verify the window is playing. |
+| 0:00–0:15 | Title + hook | A worker bee delivers SIGN HERE. The player pokes it, the title fades, and the crew brings in the hive with Beeswax inside. | "Signed. Crew, cut the window!" | Nothing. | Watch the beat change on the Board. |
+| 0:15–0:35 | Meet + forecast | Sees Beeswax emerge, then watches the Paris forecast and the evacuation rocket arrive. | "You humans get the Moon." | If explaining the window to another judge, match the explanation to the selected mode. | Verify the window is playing. |
 | 0:35–1:05 | 1. Smoker | Orders the smoker and pulls the lever for three puffs. | Explains the alarm scent. | If needed: "Try the honey-dipper lever." | |
 | 1:05–1:45 | 2. Lift + feed | Lifts the hive. Orders store honey for the scripted mistake, then carries syrup over the roof feeder. | "We're starving." / "…Honey. From a STORE." | If needed: "Lift the hive, then try the syrup in the feeder." | Watch the sick and recovery scenes. |
 | 1:45–2:20 | 3. Wasps | Orders the smaller entrance reducer and slots it into the hive door. | "Smaller door, fewer guards needed to hold it." | | |
@@ -142,7 +142,7 @@ TODO: run this cut once on Saturday with a stopwatch.
 
 1. [ ] Board → **RESET GROUP**. Headset goes back to the start. TODO U1: confirm reset puts Unity back to the `pre` beat with all four hexagons off.
 2. [ ] Window: still `ready`? Session time under ~10 min? Otherwise OFF → LIVE. Long gap expected: OFF.
-3. [ ] Check the hive and play area are clear, and the clipboard is reachable from the start position.
+3. [ ] Check the play area is clear and the clipboard is reachable from the start position.
 4. [ ] Headset: wipe the face cover, check battery, plug in if under 40%.
 5. [ ] Board mode SOLO or DUO for the next group.
 6. [ ] Write one line in the notes: time, what broke, what they laughed at, anything a judge asked that we couldn't answer. (This is how `judge-qa.md` gets better during the morning.)
