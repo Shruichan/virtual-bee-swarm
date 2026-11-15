@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest is wired for MRUK hand-ray hive placement; Meta Interaction SDK Canvas Poke and Hand Grab are configured; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest uses Meta Canvas Poke and tracked OVR hand-pointer rays for MRUK TABLE placement; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1455,3 +1455,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:09 PT · Nam Nguyen (agent) · Using Meta's Canvas-specific Poke setup for the UGUI start button and its Hand Grab setup for the spawned Hive; generic Poke Interaction is for 3D surfaces. → team
 - 2026-11-14 17:23 PT · Nam Nguyen (agent) · Added the official Canvas Poke interaction to HiveSpawnCanvas and Hand Grab interaction to the Hive in NamTest; scene saved, Unity has no C# compile errors; headset poke/grab and recenter verification remain pending. → team
 - 2026-11-14 17:30 PT · Nam Nguyen (agent) · Debugging the reported no-op after poking Start: its Unity Button callback targets SpawnObject.SetSpawningStatus(true), so tracing the spawner's MRUK hand-ray path and adding clear runtime feedback for placement misses. → team
+- 2026-11-14 17:36 PT · Nam Nguyen (agent) · Fixed the NamTest placement handoff: wired OvrHandPoseSource, used tracked pointer rays for MRUK TABLE hits, extended range to 2 m, and added logs for the button callback and placement waits/success. Editor diagnostics report no C# errors; headset/recenter retest pending. → team
