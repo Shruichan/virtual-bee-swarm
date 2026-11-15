@@ -11,6 +11,8 @@ export interface FakeOptions {
   photoFails?: boolean
   photoUrl?: string
   clipPlayMs?: number
+  /** How long a TTS speak or URL play "plays" before resolving (default 0). */
+  speakMs?: number
   /** Names clip writes by matching their PCM against this map (default: the shipped lines). */
   lines?: Record<string, {pcm: string}>
 }
@@ -59,9 +61,11 @@ export function fakeSession(opts: FakeOptions = {}) {
       },
       async play(o: {audioUrl: string}) {
         audio.push({kind: "url", url: o.audioUrl, at: Date.now()})
+        if (opts.speakMs) await new Promise((r) => setTimeout(r, opts.speakMs))
       },
       async speak(text: string) {
         audio.push({kind: "speak", text, at: Date.now()})
+        if (opts.speakMs) await new Promise((r) => setTimeout(r, opts.speakMs))
         return {completed: true}
       },
       stop() {},
