@@ -25,6 +25,7 @@ namespace VirtualBeeSwarm
         protected override GameLine Hint => RideLines.HintFeed;
 
         bool _lifted, _triedHoney;
+        Transform _emptyCard;
         Vector3 _honeyHome, _syrupHome;
         Quaternion _honeyRot, _syrupRot;
 
@@ -84,9 +85,14 @@ namespace VirtualBeeSwarm
             }
             if (hive != null) hive.LiftEnabled = false; // set it down before choosing and pouring
             if (beeswax != null) { beeswax.WhipAround(); beeswax.GoPresent(); } // he tumbles off the roof
-            if (_lifted) yield return SayLine(RideLines.LiftLight, 1f);
+            if (_lifted)
+            {
+                ShowEmptyHive();
+                yield return SayLine(RideLines.LiftLight, 1f);
+            }
             else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
+            HideEmptyHive();
             yield return SayLine(GameLines.RoomFeedRocketFuel);
             if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
             yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
@@ -137,8 +143,48 @@ namespace VirtualBeeSwarm
             else if (hive != null) hive.SetSick(honey);
         }
 
+        void ShowEmptyHive()
+        {
+            var camera = Camera.main;
+            if (hive == null || camera == null) return;
+            if (_emptyCard == null)
+            {
+                _emptyCard = new GameObject("Empty hive label").transform;
+                _emptyCard.SetParent(transform, false);
+                var plate = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                plate.transform.SetParent(_emptyCard, false);
+                plate.transform.localScale = new Vector3(0.28f, 0.09f, 1f);
+                Destroy(plate.GetComponent<Collider>());
+                plate.GetComponent<MeshRenderer>().sharedMaterial = GameMaterials.Create(
+                    "Empty hive label", new Color(0.15f, 0.08f, 0.03f), doubleSided: true);
+                var label = new GameObject("Empty").AddComponent<TextMesh>();
+                label.transform.SetParent(_emptyCard, false);
+                label.transform.localPosition = new Vector3(0f, 0f, -0.003f);
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.GetComponent<MeshRenderer>().sharedMaterial = label.font.material;
+                label.text = "EMPTY HIVE";
+                label.anchor = TextAnchor.MiddleCenter;
+                label.fontSize = 48;
+                label.characterSize = 0.01f;
+                label.color = new Color(1f, 0.94f, 0.76f);
+            }
+            var eyes = camera.transform;
+            var front = Vector3.ProjectOnPlane(hive.transform.position - eyes.position, Vector3.up).normalized;
+            if (front.sqrMagnitude < 0.5f) front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
+            if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
+            var pos = eyes.position + front * 0.8f + Vector3.Cross(Vector3.up, front) * 0.2f - Vector3.up * 0.23f;
+            _emptyCard.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
+            _emptyCard.gameObject.SetActive(true);
+        }
+
+        void HideEmptyHive()
+        {
+            if (_emptyCard != null) _emptyCard.gameObject.SetActive(false);
+        }
+
         protected override void OnStationExit()
         {
+            HideEmptyHive();
             if (hive != null)
             {
                 hive.LiftEnabled = false;
@@ -149,6 +195,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnStationReset()
         {
+            HideEmptyHive();
             _lifted = false;
             _triedHoney = false;
             if (hive != null)

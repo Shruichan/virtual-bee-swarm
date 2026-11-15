@@ -36,7 +36,8 @@ namespace VirtualBeeSwarm.Ask
     /// </summary>
     public sealed class AskFlow
     {
-        public const string StatusIdle = "Hold to talk. Say “Hey Beeswax,” then ask.";
+        public const string StatusIdle = "Hold pinch or B/Y. Say “Hey Beeswax,” then release.";
+        public const string StatusFollowUp = "Hold to ask a follow-up. Release to send.";
         public const string StatusListening = "Listening. Release to send.";
         public const string StatusShort = "Hold while you talk, then release.";
         public const string StatusNotHeard = "Didn't catch that. Try again or pick a question.";
@@ -67,6 +68,8 @@ namespace VirtualBeeSwarm.Ask
         float _releasedAt = -1f, _thinkingSince = -1f, _nextTilt = -1f, _dotsAt = -1f, _answerAt = -1f, _emptyAt = -1f, _awaitEndedAt = -1f;
         int _dots;
         bool _expectReply, _sawAwaiting, _noCount, _refusal, _silentOk, _wasAwaiting;
+        bool _dialogueOpen;
+        string IdleStatus => _dialogueOpen ? StatusFollowUp : StatusIdle;
         static readonly Regex WakePrefix = new Regex(
             @"^\s*[""“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—""'”]*(.*)$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
@@ -76,7 +79,7 @@ namespace VirtualBeeSwarm.Ask
         {
             if (IsOpen) return AskCue.None;
             State = AskState.Idle;
-            return SetStatus(StatusIdle);
+            return SetStatus(IdleStatus);
         }
 
         public AskCue Close(bool resetMinutes = false)
@@ -84,6 +87,7 @@ namespace VirtualBeeSwarm.Ask
             var cue = StopThinking();
             State = AskState.Closed;
             _expectReply = false;
+            _dialogueOpen = false;
             if (resetMinutes && Minutes != 0) { Minutes = 0; cue |= AskCue.Minutes; }
             return cue;
         }
@@ -130,14 +134,35 @@ namespace VirtualBeeSwarm.Ask
             return StopThinking() | SetStatus(heardWords ? StatusWakeMissing : StatusNotHeard);
         }
 
-        public static string WakeQuestion(string text)
+        public AskCue DialogueOpened()
         {
-            var match = WakePrefix.Match(text ?? "");
-            if (!match.Success) return "";
-            string question = match.Groups[1].Value.Trim();
-            foreach (char c in question) if (char.IsLetterOrDigit(c)) return question;
-            return "";
+            _dialogueOpen = true;
+            if (!IsOpen) return AskCue.None;
+            _expectReply = false;
+            State = AskState.Idle;
+            return StopThinking() | SetStatus(StatusFollowUp);
         }
+
+        public AskCue SetDialogueOpen(bool open)
+        {
+            if (_dialogueOpen == open) return AskCue.None;
+            bool showIdle = State == AskState.Idle && Status == IdleStatus;
+            _dialogueOpen = open;
+            return showIdle ? SetStatus(IdleStatus) : AskCue.None;
+        }
+
+        public static bool TryWakePhrase(string text, out string question)
+        {
+            question = "";
+            var match = WakePrefix.Match(text ?? "");
+            if (!match.Success) return false;
+            string suffix = match.Groups[1].Value.Trim();
+            foreach (char c in suffix)
+                if (char.IsLetterOrDigit(c)) { question = suffix; break; }
+            return true;
+        }
+
+        public static string WakeQuestion(string text) => TryWakePhrase(text, out var question) ? question : "";
 
         /// <summary>A press while the Hive is unreachable: Beeswax says so (the card's chips still work).</summary>
         public AskCue OfflinePress(float now)
@@ -219,6 +244,10 @@ namespace VirtualBeeSwarm.Ask
                 if (awaiting && !speaking && !Thinking) cue |= StartThinking(now);
                 else if (Thinking && !awaiting && _awaitEndedAt >= 0f && now - _awaitEndedAt > ClosedGraceSeconds) cue |= StopThinking();
             }
+            else if (State == AskState.Idle && Status == StatusWakeWaiting && !speaking && !awaiting)
+            {
+                cue |= SetStatus(IdleStatus);
+            }
             else if (State == AskState.Thinking && _expectReply)
             {
                 if (!_sawAwaiting && !_noCount && now - _releasedAt > ShortPressSeconds)
@@ -242,7 +271,7 @@ namespace VirtualBeeSwarm.Ask
                 {
                     _expectReply = false;
                     State = AskState.Idle;
-                    return cue | StopThinking() | SetStatus(StatusIdle);
+                    return cue | StopThinking() | SetStatus(IdleStatus);
                 }
             }
             else if (State == AskState.Answering && !speaking && now - _answerAt > 0.3f)
@@ -250,7 +279,7 @@ namespace VirtualBeeSwarm.Ask
                 State = AskState.Idle;
                 bool counts = !_noCount && !_refusal;
                 if (counts) { Minutes++; cue |= AskCue.StampApproved | AskCue.Minutes; }
-                cue |= SetStatus(StatusIdle);
+                cue |= SetStatus(IdleStatus);
             }
 
             if (Thinking)

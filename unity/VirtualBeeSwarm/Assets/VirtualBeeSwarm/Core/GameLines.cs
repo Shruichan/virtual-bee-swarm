@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 192d36cad07727db2c4ba8c165b6eacf906d1a31f494308fb0194e2278451aa9
+// lines.json sha256 27f3fe344b3ce9cd2aa84942a9a2147c4f35d5fa51f8c7bd5cc81dc09dd30385
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,7 +44,7 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "192d36cad07727db2c4ba8c165b6eacf906d1a31f494308fb0194e2278451aa9";
+        public const string LinesSha256 = "27f3fe344b3ce9cd2aa84942a9a2147c4f35d5fa51f8c7bd5cc81dc09dd30385";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
@@ -125,6 +125,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomT0Earth = new GameLine("room_t0_earth", "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know."); // room | t0 | t0, optional, fact:earth
         public static readonly GameLine RoomT03 = new GameLine("room_t0_3", "...Not one flower. We've only found them on Earth."); // room | t0 | t0, fact:flowers
         public static readonly GameLine RoomT04 = new GameLine("room_t0_4", "I'm back. Nobody saw that. Mind your own beeswax."); // room | t0 | t0
+        public static readonly GameLine RoomT0FakeMoon = new GameLine("room_t0_fake_moon", "Turns out the Moon was fake. Union rules say you get it anyway."); // room | t0 | t0
         public static readonly GameLine RoomTruth = new GameLine("room_truth", "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison."); // room | map | map, load-bearing, fact:varroa
         public static readonly GameLine RoomMap = new GameLine("room_map", "Same time tomorrow? Other hives have it worse. Wild bees don't even get a beekeeper."); // room | map | map, load-bearing, fact:wild
         public static readonly GameLine RoomEndContract = new GameLine("room_end_contract", "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five."); // room | map | map, load-bearing, contract
@@ -236,15 +237,15 @@ namespace VirtualBeeSwarm
             RoomWhatifOut2, RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray, RoomWhatifWinter,
             RoomWhatifCustom, RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse, RoomWhatifBack,
             RoomWhatifNothing, RoomAdjourn, RoomLiveFiller, RoomEscape, RoomEscapeMinutes, RoomEscapeCredit,
-            RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomTruth,
-            RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance, RoomAckCarried,
-            RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy, RoomFactFestoon,
-            RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson, EarPractice,
-            EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2, EarCannedUnclear,
-            EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif, EarAsideWindow,
-            EarAsideHornet, RoomPalBoopGiggle, RoomPalBoopFile, RoomPalBoopBlush, RoomPalWave, RoomPalHighfive,
-            RoomPalPalm, RoomPalHoneyOffer, RoomPalHoneyCaps, RoomPalHoneyHelp, RoomPalHoneyWinter, RoomPalDance,
-            RoomPalShowMe,
+            RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomT0FakeMoon,
+            RoomTruth, RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance,
+            RoomAckCarried, RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy,
+            RoomFactFestoon, RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson,
+            EarPractice, EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2,
+            EarCannedUnclear, EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif,
+            EarAsideWindow, EarAsideHornet, RoomPalBoopGiggle, RoomPalBoopFile, RoomPalBoopBlush, RoomPalWave,
+            RoomPalHighfive, RoomPalPalm, RoomPalHoneyOffer, RoomPalHoneyCaps, RoomPalHoneyHelp, RoomPalHoneyWinter,
+            RoomPalDance, RoomPalShowMe,
         };
 
         static readonly GameLine[] LocalLines = { RoomFeedLiftHint };
