@@ -1557,7 +1557,7 @@ namespace VirtualBeeSwarm
                     float kd = Mathf.Clamp01((now - j.start - _bDelay[b]) / j.duration);
                     scale *= 1f - Mathf.Clamp01((kd - 0.85f) / 0.15f) * 0.8f;
                 }
-                _matrices[n] = Matrix4x4.TRS(p, rot, new Vector3(scale, scale, scale)); // wings flap in the shader
+                _matrices[n] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(now, ph, 0.55f), new Vector3(scale, scale, scale)); // wings flap in the shader
                 float shade = 0.85f + 0.3f * (ph / 6.2832f);
                 Vector4 c4 = j.repo ? repo : courier;
                 _colors[n] = new Vector4(c4.x * shade, c4.y * shade, c4.z * shade, 1f);

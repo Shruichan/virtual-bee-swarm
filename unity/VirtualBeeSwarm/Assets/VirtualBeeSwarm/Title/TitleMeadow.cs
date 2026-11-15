@@ -304,7 +304,7 @@ namespace VirtualBeeSwarm.Title
                 Vector3 fwd = vm > 0.02f ? v / vm : target - p;
                 Quaternion rot = fwd.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
                 float size = 0.035f * Mathf.Clamp01((since - 0.2f - 0.6f * _rad[i]) / 0.4f) * thin;
-                _beeMatrices[i] = Matrix4x4.TRS(p, rot, new Vector3(size, size, size));
+                _beeMatrices[i] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(Time.time, i * 2.4f, 0.5f), new Vector3(size, size, size));
                 float shade = (0.85f + 0.3f * _rad[i]) * 1.3f;
                 _beeColors[i] = new Vector4(col.r * shade, col.g * shade, col.b * shade, 1f);
             }

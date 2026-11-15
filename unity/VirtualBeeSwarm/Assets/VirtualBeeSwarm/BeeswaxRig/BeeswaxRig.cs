@@ -207,6 +207,7 @@ namespace VirtualBeeSwarm
             }
             foreach (var clip in animator.runtimeAnimatorController.animationClips)
                 if (clip != null) _clipLength[clip.name] = clip.length;
+            if (!animator.TryGetComponent<InsectBodySway>(out _)) animator.gameObject.AddComponent<InsectBodySway>();
             _ready = true;
 
             string patched = "not patched (the empty Body/Mouth, Body/WingL, Body/WingR targets take the procedural flap)";

@@ -118,7 +118,7 @@ namespace VirtualBeeSwarm.Bloom
                 float d = off.magnitude;
                 if (d < MinFace) MinFace = d; // measured before the push-out, so it's honest
                 if (d < FaceClear) _pos[i] = face + (d > 1e-4f ? off / d : Vector3.forward) * FaceClear;
-                _m[shown] = Matrix4x4.TRS(_pos[i], rot, new Vector3(BeeLength, BeeLength, BeeLength));
+                _m[shown] = Matrix4x4.TRS(_pos[i], rot * InsectBodySway.Offset(Time.time, i * 2.4f, 0.5f), new Vector3(BeeLength, BeeLength, BeeLength));
                 _col[shown] = new Vector4(1f, 0.8f, 0.28f, 1f);
                 _flap[shown] = _flap[i];
                 shown++;
