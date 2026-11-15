@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**Blocked, NamTest hive assets:** Nam Nguyen (agent) — awaiting approval to replace old placeholder visuals and remap references in the unsaved NamTest scene; preserve existing placement work.
+**In flight, NamTest hive assets:** Nam Nguyen (agent) — update NamTest TableAnchor visuals using the game's art while preserving existing placement work.
 
 **In flight, hive relocation:** Nam Nguyen (agent) — NamTest MRUK relocation control implemented in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; Unity Play Mode and Quest validation pending.
 
@@ -1634,3 +1634,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 01:00 PT · Nam Nguyen (agent) · NamTest has unsaved editor changes; the game's `Editor/ArtSlots.cs` art pass replaces placeholder meshes and remaps scene references. Waiting for Nam's approval before modifying those existing objects. → Nam
 - 2026-11-15 01:05 PT · Rome (agent) · Beeswax no longer clips (c0cb69c, dc0d74c, acebc18, new BeeswaxBody/ + marked hooks in BeeswaxController, BeeswaxMotion.Flights, DeliveryItem, CarryProp): everything is measured from the real meshes at runtime, so it holds at any rig scale. His marks move to the nearest free spot, flights go over or around the hive and rocket, a soft spring pushes him out of anything that moves into him, bumps squash and wobble him (half in comfort mode), and he sits on the rocket perch instead of in it. Autopilot at rig x1 and the meadow default x3, delivery on and off: PASS, 0 penetration frames (climbing out of the door is the only allowed contact). Off switch: tuning.json beeswax.collide=false (margin: beeswax.margin, default 0.15 of his length).
 - 2026-11-15 01:12 PT · Rome (agent) · → Nam: please don't copy the game's TableAnchor into NamTest. It forks the game: NamTest would miss every fix that lands in the builder (meadow, no-clip, wasp bat-off, globe, perf, lid). The APK builds VirtualBeeSwarm.unity, which the builder generates (Virtual Bee Swarm > Build Scene). Better: bring your placement/relocation into the game flow. Placement/HivePlacement.cs already calls Bloom.MeadowLayout.FreeStandPose(head), and MeadowLayout.SetHivePose(pose) moves the whole setup. Your MRUK pick + relocation UI can call SetHivePose. Rome to confirm.
+- 2026-11-15 01:01 PT · Nam Nguyen (agent) · Nam approved replacing the old NamTest placeholder visuals and remapping their references; the open NamTest scene is now saved. → team
