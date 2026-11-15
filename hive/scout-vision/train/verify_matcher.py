@@ -79,7 +79,7 @@ def main() -> None:
     ap.add_argument("--fp", type=int, default=300, help="card-free frames for the false-positive test")
     ap.add_argument("--frame-w", type=int, default=1280)
     ap.add_argument("--nfeatures", type=int, default=2500)
-    ap.add_argument("--min-inliers", type=int, default=12)
+    ap.add_argument("--min-inliers", type=int, default=10)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rng = random.Random(7)

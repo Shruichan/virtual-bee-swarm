@@ -18,6 +18,7 @@ from __future__ import annotations
 import sys
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import cv2
@@ -32,8 +33,9 @@ REF_FEATS = (1500, 1000, 600)  # strongest SIFT keypoints kept per copy
 FRAME_W = 1280  # frames are matched at this width (the glasses send 1280x720)
 RATIO = 0.75
 RANSAC_PX = 3.0
-MIN_INLIERS = 12
-MIN_GOOD = 10  # ratio-test survivors a class needs before a homography is tried
+MIN_INLIERS = 10
+MIN_GOOD = 8
+THREADS = 4  # ratio-test survivors a class needs before a homography is tried
 
 
 def find_refs(ref_dir: Path) -> dict[str, Path]:
@@ -85,9 +87,14 @@ class CardMatcher:
         self.ref_pts = np.concatenate(pts)
         self.ref_desc = np.concatenate(descs).astype(np.float32)
         self.ref_owner = np.concatenate(owner)
-        self.flann = cv2.FlannBasedMatcher({"algorithm": 1, "trees": 4}, {"checks": checks})
-        self.flann.add([self.ref_desc])
-        self.flann.train()
+        # a few identical FLANN indexes so the frame's descriptors are matched in parallel threads (cv2 drops the GIL)
+        self.flanns = []
+        for _ in range(THREADS):
+            f = cv2.FlannBasedMatcher({"algorithm": 1, "trees": 4}, {"checks": checks})
+            f.add([self.ref_desc])
+            f.train()
+            self.flanns.append(f)
+        self.pool = ThreadPoolExecutor(THREADS)
         self.counts = {lb: int((self.ref_owner == i).sum()) for i, lb in enumerate(self.labels)}
 
     def detect(self, rgb: np.ndarray, debug: dict | None = None) -> list[dict]:
@@ -99,12 +106,15 @@ class CardMatcher:
         kp, d = self.sift.detectAndCompute(_gray(img, self.clahe), None)
         if d is None or len(kp) < 2:
             return []
-        knn = self.flann.knnMatch(d.astype(np.float32), k=2)
+        d = d.astype(np.float32)
+        chunks = np.array_split(np.arange(len(d)), THREADS)
+        parts = self.pool.map(lambda fc: (fc[1][0], fc[0].knnMatch(d[fc[1]], k=2)), zip(self.flanns, chunks))
         q_idx, r_idx = [], []
-        for m in knn:
-            if len(m) == 2 and m[0].distance < RATIO * m[1].distance:
-                q_idx.append(m[0].queryIdx)
-                r_idx.append(m[0].trainIdx)
+        for off, knn in parts:
+            for m in knn:
+                if len(m) == 2 and m[0].distance < RATIO * m[1].distance:
+                    q_idx.append(int(off) + m[0].queryIdx)
+                    r_idx.append(m[0].trainIdx)
         if not q_idx:
             return []
         q_pts = np.float32([kp[i].pt for i in q_idx])
