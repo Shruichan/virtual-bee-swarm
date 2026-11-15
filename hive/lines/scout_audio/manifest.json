@@ -1,158 +1,158 @@
 {
   "scout_intro_1": {
-    "ms": 8029,
-    "voice": "placeholder",
-    "chars": 95,
-    "hash": "27049cf88f25"
+    "ms": 5108,
+    "voice": "beeswax-cute-sassy",
+    "chars": 84,
+    "hash": "f271232f52de"
   },
   "scout_intro_2": {
-    "ms": 5935,
-    "voice": "placeholder",
-    "chars": 80,
-    "hash": "051fb21a13b0"
+    "ms": 5062,
+    "voice": "beeswax-cute-sassy",
+    "chars": 78,
+    "hash": "b294709df806"
   },
   "scout_chime": {
-    "ms": 1997,
-    "voice": "placeholder",
+    "ms": 1515,
+    "voice": "beeswax-cute-sassy",
     "chars": 15,
-    "hash": "1a65197062c7"
+    "hash": "a00a4a54e863"
   },
   "scout_hook_beehive": {
-    "ms": 4239,
-    "voice": "placeholder",
-    "chars": 51,
-    "hash": "1bc26de4cd19"
+    "ms": 3344,
+    "voice": "beeswax-cute-sassy",
+    "chars": 57,
+    "hash": "5f484a0e0a9d"
   },
   "scout_fact_beehive": {
-    "ms": 7007,
-    "voice": "placeholder",
-    "chars": 100,
-    "hash": "680806e0cf48"
+    "ms": 5805,
+    "voice": "beeswax-cute-sassy",
+    "chars": 97,
+    "hash": "f0ead6a1a332"
   },
   "scout_hook_native_flower": {
-    "ms": 4302,
-    "voice": "placeholder",
-    "chars": 53,
-    "hash": "8f33b3250c9b"
+    "ms": 3019,
+    "voice": "beeswax-cute-sassy",
+    "chars": 55,
+    "hash": "39d1ac3715c3"
   },
   "scout_fact_native_flower": {
-    "ms": 7465,
-    "voice": "placeholder",
-    "chars": 100,
-    "hash": "986a03ebd67d"
+    "ms": 4783,
+    "voice": "beeswax-cute-sassy",
+    "chars": 93,
+    "hash": "1d739edec681"
   },
   "scout_hook_honey_jar": {
-    "ms": 5966,
-    "voice": "placeholder",
-    "chars": 81,
-    "hash": "104c65fe1767"
+    "ms": 3808,
+    "voice": "beeswax-cute-sassy",
+    "chars": 73,
+    "hash": "3f1c561ac8cc"
   },
   "scout_fact_honey_jar": {
-    "ms": 8238,
-    "voice": "placeholder",
-    "chars": 104,
-    "hash": "79cbfca07b5a"
+    "ms": 5016,
+    "voice": "beeswax-cute-sassy",
+    "chars": 97,
+    "hash": "ceeaa12e7d98"
   },
   "scout_hook_pebble_dish": {
-    "ms": 4894,
-    "voice": "placeholder",
-    "chars": 68,
-    "hash": "0378a1e25afd"
+    "ms": 4040,
+    "voice": "beeswax-cute-sassy",
+    "chars": 76,
+    "hash": "c6491ca23586"
   },
   "scout_fact_pebble_dish": {
-    "ms": 7614,
-    "voice": "placeholder",
-    "chars": 106,
-    "hash": "5135103e2feb"
+    "ms": 5851,
+    "voice": "beeswax-cute-sassy",
+    "chars": 104,
+    "hash": "97496473224a"
   },
   "scout_hook_bug_spray": {
-    "ms": 4349,
-    "voice": "placeholder",
-    "chars": 56,
-    "hash": "4737acde7a12"
+    "ms": 4040,
+    "voice": "beeswax-cute-sassy",
+    "chars": 67,
+    "hash": "d5b2b32b6c88"
   },
   "scout_fact_bug_spray": {
-    "ms": 7759,
-    "voice": "placeholder",
-    "chars": 105,
-    "hash": "2ca263ef876a"
+    "ms": 6177,
+    "voice": "beeswax-cute-sassy",
+    "chars": 106,
+    "hash": "1a3ae80dda0c"
   },
   "scout_hook_bee_hotel": {
-    "ms": 5566,
-    "voice": "placeholder",
-    "chars": 71,
-    "hash": "b31d58c98d70"
+    "ms": 3019,
+    "voice": "beeswax-cute-sassy",
+    "chars": 57,
+    "hash": "7c6003212bc4"
   },
   "scout_fact_bee_hotel": {
-    "ms": 6943,
-    "voice": "placeholder",
-    "chars": 101,
-    "hash": "c6dabc45a2b0"
+    "ms": 6037,
+    "voice": "beeswax-cute-sassy",
+    "chars": 106,
+    "hash": "347973cd1c1e"
   },
   "scout_no_1": {
-    "ms": 2511,
-    "voice": "placeholder",
-    "chars": 23,
-    "hash": "b877cc2367f8"
+    "ms": 1440,
+    "voice": "beeswax-cute-sassy",
+    "chars": 26,
+    "hash": "38bc8c5f7bd9"
   },
   "scout_no_2": {
-    "ms": 2830,
-    "voice": "placeholder",
-    "chars": 36,
-    "hash": "ebbe9949a906"
+    "ms": 2368,
+    "voice": "beeswax-cute-sassy",
+    "chars": 41,
+    "hash": "9034735d73fb"
   },
   "scout_rude": {
-    "ms": 4207,
-    "voice": "placeholder",
-    "chars": 62,
-    "hash": "5f0c9678b8ff"
+    "ms": 3204,
+    "voice": "beeswax-cute-sassy",
+    "chars": 55,
+    "hash": "746a422fe11a"
   },
   "scout_silence": {
-    "ms": 2750,
-    "voice": "placeholder",
+    "ms": 1950,
+    "voice": "beeswax-cute-sassy",
     "chars": 35,
-    "hash": "14c0254f4fd4"
+    "hash": "b12de817a0f2"
   },
   "scout_idle": {
-    "ms": 4879,
-    "voice": "placeholder",
-    "chars": 67,
-    "hash": "b15c53af1bd2"
+    "ms": 3576,
+    "voice": "beeswax-cute-sassy",
+    "chars": 70,
+    "hash": "a5138e622c67"
   },
   "scout_progress_1": {
-    "ms": 2382,
-    "voice": "placeholder",
+    "ms": 1440,
+    "voice": "beeswax-cute-sassy",
     "chars": 21,
-    "hash": "4c5eeb5dcbb1"
+    "hash": "a5449d3c6e97"
   },
   "scout_progress_2": {
-    "ms": 2713,
-    "voice": "placeholder",
-    "chars": 34,
-    "hash": "cca7a7fe5cbd"
+    "ms": 2043,
+    "voice": "beeswax-cute-sassy",
+    "chars": 45,
+    "hash": "5ce92626570f"
   },
   "scout_progress_3": {
-    "ms": 6479,
-    "voice": "placeholder",
-    "chars": 76,
-    "hash": "2e32b9580e40"
+    "ms": 5248,
+    "voice": "beeswax-cute-sassy",
+    "chars": 82,
+    "hash": "e2dc96d20d10"
   },
   "scout_progress_4": {
-    "ms": 2527,
-    "voice": "placeholder",
+    "ms": 1858,
+    "voice": "beeswax-cute-sassy",
     "chars": 33,
-    "hash": "59d5135a7552"
+    "hash": "a91690bc6b76"
   },
   "scout_progress_5": {
-    "ms": 4047,
-    "voice": "placeholder",
+    "ms": 2276,
+    "voice": "beeswax-cute-sassy",
     "chars": 41,
-    "hash": "f1c8837970fa"
+    "hash": "673dfefa40f4"
   },
   "scout_done": {
-    "ms": 8751,
-    "voice": "placeholder",
+    "ms": 7152,
+    "voice": "beeswax-cute-sassy",
     "chars": 107,
-    "hash": "c204acbbcb52"
+    "hash": "dae1da4e3087"
   }
 }

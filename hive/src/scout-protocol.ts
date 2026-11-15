@@ -46,8 +46,13 @@ export interface ScoutFrame {
   top: { label: ScoutClass; score: number }[];
   /** Optional: the score for every class (six labels + background), so the dashboard's bars are all real. */
   scores?: Partial<Record<ScoutClass, number>>;
+  /** Optional: detected objects in this frame, coordinates normalized 0..1 (x,y = top-left). For the
+   *  dashboard's bounding boxes; `top`/`scores` still drive the game. `via` = how it was found. */
+  boxes?: ScoutBox[];
   source: string; //     "rtsp://..." | "file:..." | "webcam:0"
 }
+
+export interface ScoutBox { label: ScoutClass; score: number; x: number; y: number; w: number; h: number; via?: "detector" | "marker" | "refs" }
 
 /** The vision worker's own API on SCOUT_PORTS.vision (CORS *, no token: it binds 127.0.0.1 + LAN only). */
 export interface VisionHealth { ok: true; model: string; source: string; fps: number; refs: Record<string, number> }
@@ -92,13 +97,67 @@ export interface ScoutState {
   started_at: number | null;
   /** Practice mode (screen tests): any object can trigger again once the slide changes. */
   practice?: boolean;
+  /** Booth mode (judge demo): which mode, the station order, and the station Beeswax is waiting for. */
+  mode?: ScoutMode;
+  order?: ScoutLabel[];
+  next?: ScoutLabel | null;
 }
 
 /** Why a steadily seen object did NOT trigger "Bee fact found". */
-export type ScoutBlockReason = "already_found" | "skipped" | "busy" | "cooldown";
+export type ScoutBlockReason = "already_found" | "skipped" | "busy" | "cooldown" | "not_next"; // not_next: booth, another station
 
 /** POST /scout/practice (token): turn practice mode on or off. Returns ScoutState. */
 export interface ScoutPractice { on: boolean }
+
+// ------------------------------------------------------------------ booth mode (pitch/scout-booth.md)
+
+/** demo: the free-roam game (hook, yes/no). practice: screen tests (chime + fact, no offer).
+ *  booth: the scripted judge walk. Stations in a fixed order; only the expected-next object can trigger. */
+export type ScoutMode = "demo" | "practice" | "booth";
+
+/** POST /scout/mode (token): switch mode. `order` (booth only, optional) replaces the station order.
+ *  Booth without `order` uses SCOUT_BOOTH_JUDGE_ORDER. Switching to booth restarts at the first station (no intro; POST /scout/reset plays it). Returns ScoutState.
+ *  Env SCOUT_MODE=demo|practice|booth sets the startup default (SCOUT_PRACTICE=1 still means practice),
+ *  SCOUT_ORDER=native_flower,honey_jar,... the booth order. */
+export interface ScoutModeRequest { mode: ScoutMode; order?: ScoutLabel[] }
+
+/** Operator keys (token), any mode unless noted. Each returns ScoutState.
+ *   POST /scout/force {label?}  found right now for `label` (default: booth's next station), no dwell, no gap.
+ *   POST /scout/yes             = the wearer said yes (only while offering).
+ *   POST /scout/next            booth: skip to the next station (the current one counts as skipped).
+ *   POST /scout/reset           start over: progress cleared, intro plays (= /scout/start). */
+export interface ScoutForce { label?: ScoutLabel }
+
+/** The walking order from the run-of-show: four judge stations, then the two optional ones. */
+export const SCOUT_BOOTH_ORDER: readonly ScoutLabel[] = ["native_flower", "honey_jar", "bug_spray", "bee_hotel", "pebble_dish", "beehive"];
+/** Judge mode: the first four stations. Booth mode uses this unless an `order` is passed (POST /scout/mode, SCOUT_ORDER),
+ *  so scout_booth_done lands after station 4. Pass SCOUT_BOOTH_ORDER for all six. */
+export const SCOUT_BOOTH_JUDGE_ORDER: readonly ScoutLabel[] = SCOUT_BOOTH_ORDER.slice(0, 4);
+
+export const SCOUT_BOOTH_TUNING = {
+  offerTimeoutMs: 4000, // no answer to scout_chime_ask -> scout_silence_yes, then the fact (silence = yes)
+  gapMs: 1500, //          after a station's lines end, before the next chime (direction cues don't count)
+  cueEveryMs: 8000, //     at most one direction cue (scout_dir_*) this often
+  lostMs: 10_000, //       expected object not seen for this long -> scout_dir_lost
+  // Direction cues from the expected object's most central box (normalized 0..1, 1280x720 stream):
+  leftX: 0.375, //         box center x below this -> scout_dir_left
+  rightX: 0.625, //        above this -> scout_dir_right
+  topY: 0.25, //           box center y above this line (top of frame; the camera aims ~15 deg below gaze) -> scout_dir_up (lift your head)
+  minW: 0.0625, //         box narrower than this (80 px) -> scout_dir_closer
+} as const;
+
+/** Booth line ids. Placeholders live in hive/lines/scout_lines_booth.json (loaded after scout_lines.json; it wins
+ *  on an id clash). An empty text skips the line (e.g. when the facts already end with the direction). */
+export const SCOUT_BOOTH_LINES = {
+  intro: "scout_booth_intro",
+  chimeAsk: "scout_chime_ask", //                  "Bee fact found! Would you like to learn more?" (one line)
+  silenceYes: "scout_silence_yes", //              "I'll take that as a yes."
+  no: "scout_booth_no", //                         short reply to "no", then on to the next station anyway
+  rude: "scout_rude", //                           shared with demo mode
+  next: (l: ScoutLabel) => `scout_next_${l}`, //   direction to station `l` ("One big step to your left.")
+  done: "scout_booth_done", //                     after the last station's fact
+  dir: { left: "scout_dir_left", right: "scout_dir_right", closer: "scout_dir_closer", up: "scout_dir_up", lost: "scout_dir_lost" },
+} as const;
 
 /** Hive -> dashboard over GET /scout/events (SSE, token). GET /scout/state returns ScoutState. */
 export type ScoutEvent =
@@ -146,7 +205,7 @@ export const SCOUT_LINES = {
 export interface ScoutLine {
   id: string;
   text: string; //   what Beeswax says (caption); "" for a pure sound effect
-  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done";
+  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done" | "direction";
   label?: ScoutLabel;
   source?: string; // the URL backing the fact (facts only)
 }

@@ -11,16 +11,21 @@ import { log } from "./bus";
 import { scoutDashboardHtml, scoutSlidesHtml } from "./scout-dashboard";
 import {
   SCOUT_BACKGROUND,
+  SCOUT_BOOTH_LINES,
+  SCOUT_BOOTH_JUDGE_ORDER,
+  SCOUT_BOOTH_TUNING,
   SCOUT_LABELS,
   SCOUT_LINES,
   SCOUT_TUNING,
   type ScoutAnswer,
   type ScoutBlockReason,
+  type ScoutBox,
   type ScoutClass,
   type ScoutEvent,
   type ScoutFrame,
   type ScoutLabel,
   type ScoutLine,
+  type ScoutMode,
   type ScoutPhase,
   type ScoutState,
 } from "./scout-protocol";
@@ -60,6 +65,7 @@ export interface ScoutGameDeps {
   /** Measured audio length; null = estimate from the caption. */
   durationMs?: (id: string) => number | null;
   tuning?: Partial<typeof SCOUT_TUNING>;
+  booth?: Partial<typeof SCOUT_BOOTH_TUNING>;
   random?: () => number;
 }
 
@@ -83,6 +89,7 @@ const isLabel = (s: unknown): s is ScoutLabel => typeof s === "string" && LABEL_
 
 export class ScoutGame {
   readonly tuning: typeof SCOUT_TUNING;
+  readonly booth: typeof SCOUT_BOOTH_TUNING;
   private readonly lines: Map<string, ScoutLine>;
   private readonly now: () => number;
   private readonly d: ScoutGameDeps;
@@ -96,17 +103,25 @@ export class ScoutGame {
 
   /** When the last line sent is expected to finish playing. */
   busyUntil = 0;
+  /** Booth: when the last station line (not a direction cue) finishes; the gap counts from here. */
+  private mainUntil = 0;
   private offerDeadline = 0;
+  private offerLines: string[] = [];
   private lookingSince = 0;
   private lastIdleAt = -Infinity;
   private noTurn = 0;
   private run: { label: ScoutLabel; since: number; firstAt: number; lastAt: number; score: number } | null = null;
   private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
-  private practice = false;
+  private mode: ScoutMode = "demo";
   private lastFind: { label: ScoutLabel; at: number } | null = null;
   /** Practice: since when the frames' top-1 has not been the last find, and whether that lasted PRACTICE_LOOK_AWAY_MS. */
   private awaySince: number | null = null;
   private lookedAway = false;
+  /** Booth: the station order, the index of the station Beeswax waits for, the last cue, the last sighting. */
+  private order: ScoutLabel[] = [...SCOUT_BOOTH_JUDGE_ORDER];
+  private station = 0;
+  private lastCueAt = -Infinity;
+  private lastSeenNext = 0;
   private blockedKey = "";
   private lastSig = "";
 
@@ -115,6 +130,7 @@ export class ScoutGame {
     this.lines = new Map(deps.lines.map((l) => [l.id, l]));
     this.now = deps.now ?? Date.now;
     this.tuning = { ...SCOUT_TUNING, ...deps.tuning };
+    this.booth = { ...SCOUT_BOOTH_TUNING, ...deps.booth };
     this.lastSig = this.sig();
   }
 
@@ -126,29 +142,61 @@ export class ScoutGame {
       offer: this.offer,
       current: this.current ? { ...this.current } : null,
       started_at: this.startedAt,
-      practice: this.practice,
+      practice: this.mode === "practice",
+      mode: this.mode,
+      order: [...this.order],
+      next: this.next(),
     };
+  }
+
+  /** Booth: the station Beeswax is waiting for (null outside booth mode or after the last one). */
+  next(): ScoutLabel | null {
+    return this.mode === "booth" ? (this.order[this.station] ?? null) : null;
   }
 
   /** POST /scout/practice: screen-test mode. A steady look plays the chime and the fact straight away (no offer),
    *  1 s gap, and the same object fires again once the slide changes or after 8 s of looking away. */
   setPractice(on: boolean): void {
-    this.practice = on;
+    this.setMode(on ? "practice" : "demo");
+  }
+
+  /** POST /scout/mode. Booth restarts at the first station (progress cleared, no intro). */
+  setMode(mode: ScoutMode, order?: readonly ScoutLabel[]): void {
+    const now = this.now();
+    // Booth defaults to the judge order (four stations); all six only when an order is passed.
+    if (order && order.length) this.order = [...order];
+    else if (mode === "booth") this.order = [...SCOUT_BOOTH_JUDGE_ORDER];
+    const was = this.mode;
+    this.mode = mode;
+    if (mode === "booth" || was === "booth") {
+      this.found = [];
+      this.skipped.clear();
+      this.station = 0;
+    }
+    if (this.phase === "offering" || this.phase === "telling" || (this.phase === "done" && (mode !== was || mode === "booth"))) this.toLooking(now);
+    this.lastSeenNext = now;
+    this.lastCueAt = -Infinity;
+    this.run = null;
     this.changed();
   }
 
-  /** POST /scout/start: reset, play the intro, then look. */
+  /** POST /scout/start, /scout/reset: reset, play the intro, then look. */
   start(): void {
     const now = this.now();
     this.found = [];
     this.skipped.clear();
     this.offer = null;
     this.run = null;
+    this.station = 0;
     this.startedAt = now;
     this.busyUntil = now; // cut short whatever was "playing"
+    this.mainUntil = now;
     this.lastIdleAt = -Infinity;
+    this.lastCueAt = -Infinity;
+    this.lastSeenNext = now;
     this.phase = "intro";
-    for (const id of SCOUT_LINES.intro) this.say(id);
+    if (this.mode === "booth") this.say(SCOUT_BOOTH_LINES.intro);
+    else for (const id of SCOUT_LINES.intro) this.say(id);
     this.changed();
   }
 
@@ -160,6 +208,7 @@ export class ScoutGame {
     this.current = best ? { label: best.label, score: best.score } : null;
     this.emit({ type: "frame", frame: f });
     this.trackLookAway(best?.label ?? null, now);
+    if (this.mode === "booth") return this.boothFrame(f, top, now);
     const second = top[1]?.score ?? 0;
     const counts = best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
     if (this.phase !== "looking") {
@@ -172,27 +221,13 @@ export class ScoutGame {
       this.run = null;
       return;
     }
-    const at = typeof f.at === "number" && Number.isFinite(f.at) ? f.at : now;
-    if (!this.run || this.run.label !== best.label || now - this.run.lastAt > FRAME_STALE_MS) {
-      this.run = { label: best.label, since: now, firstAt: at, lastAt: now, score: best.score };
-    } else {
-      this.run.lastAt = now;
-      this.run.score = best.score;
-    }
-    const lookMs = now - this.run.since;
+    const lookMs = this.extendRun(best.label, best.score, f, now);
     if (lookMs < this.tuning.steadyMs) return;
     const reason: ScoutBlockReason | null = !this.eligible(best.label)
       ? this.found.includes(best.label) ? "already_found" : "skipped"
       : now < this.busyUntil + this.gapMs() ? "cooldown" : null;
-    if (reason) this.blocked(best.label, reason, best.score, String(this.run.since));
-    else this.foundIt(best.label, best.score, lookMs, now - this.run.firstAt);
-  }
-
-  private blocked(label: ScoutLabel, reason: ScoutBlockReason, score: number, episode: string): void {
-    const key = `${reason}:${label}:${episode}`;
-    if (key === this.blockedKey) return;
-    this.blockedKey = key;
-    this.emit({ type: "blocked", label, reason, score, at: this.now() });
+    if (reason) this.blocked(best.label, reason, best.score, String(this.run!.since));
+    else this.foundIt(best.label, best.score, lookMs, now - this.run!.firstAt);
   }
 
   /** A final transcript from the glasses. Returns how it was read. */
@@ -210,12 +245,42 @@ export class ScoutGame {
     return answer;
   }
 
-  /** A short button press: "yes" during an offer, else nothing. */
-  button(at?: number): boolean {
+  /** A short button press (or POST /scout/yes): "yes" during an offer, else nothing. */
+  button(at?: number, text = "(button)"): boolean {
     this.tick();
     if (this.phase !== "offering") return false;
-    this.emit({ type: "heard", text: "(button)", answer: "yes", at: this.now() });
+    this.emit({ type: "heard", text, answer: "yes", at: this.now() });
     this.answer("yes", at);
+    return true;
+  }
+
+  /** POST /scout/force: found right now (no dwell, no gap) for `label`, default booth's next station. */
+  force(label?: ScoutLabel | null): boolean {
+    this.tick();
+    const l = label ?? this.next() ?? (this.current && isLabel(this.current.label) ? this.current.label : null);
+    if (!l) return false;
+    if (this.mode === "booth") {
+      const i = this.order.indexOf(l);
+      if (i < 0) return false;
+      this.station = i;
+    }
+    if (this.phase === "offering" && this.offer === l) return false;
+    this.foundIt(l, 1, 0, 0);
+    return true;
+  }
+
+  /** POST /scout/next (booth): skip the current station. */
+  skipStation(): boolean {
+    this.tick();
+    const l = this.next();
+    if (!l) return false;
+    const now = this.now();
+    if (!this.found.includes(l)) this.skipped.set(l, now);
+    this.station++;
+    this.toLooking(now);
+    if (!this.next()) this.phase = "done";
+    this.lastSeenNext = now;
+    this.changed();
     return true;
   }
 
@@ -224,13 +289,33 @@ export class ScoutGame {
     this.emit({ type: "slide", label, at });
   }
 
-  /** Time-driven transitions: lines ending, offer timeout, idle nudge. Safe to call any time. */
+  /** Time-driven transitions: lines ending, offer timeout, idle / lost nudges. Safe to call any time. */
   tick(): void {
     const now = this.now();
+    const booth = this.mode === "booth";
     if ((this.phase === "intro" || this.phase === "telling") && now >= this.busyUntil) {
       this.toLooking(now);
     } else if (this.phase === "offering" && now >= this.offerDeadline) {
-      this.decline("silence");
+      if (booth) {
+        // Booth: silence counts as yes.
+        this.emit({ type: "heard", text: "(silence)", answer: "yes", at: now });
+        this.say(SCOUT_BOOTH_LINES.silenceYes);
+        this.answer("yes");
+      } else this.decline("silence");
+    } else if (booth) {
+      const next = this.next();
+      if (
+        this.phase === "looking" &&
+        next &&
+        this.startedAt !== null &&
+        now >= this.busyUntil + this.booth.gapMs &&
+        now - Math.max(this.lastSeenNext, this.lookingSince, this.busyUntil) >= this.booth.lostMs &&
+        now - this.lastCueAt >= this.booth.cueEveryMs
+      ) {
+        this.lastCueAt = now;
+        this.lastSeenNext = now;
+        this.sayIf(SCOUT_BOOTH_LINES.dir.lost);
+      }
     } else if (
       this.phase === "looking" &&
       this.startedAt !== null &&
@@ -246,8 +331,81 @@ export class ScoutGame {
 
   // ------------------------------------------------------------ internals
 
+  /** Booth: only the expected-next station can trigger; its most central box drives the direction cues. */
+  private boothFrame(f: ScoutFrame, top: ScoutFrame["top"], now: number): void {
+    const e = this.next();
+    if (!e || this.phase !== "looking") {
+      this.run = null;
+      return;
+    }
+    const t = this.tuning;
+    const boxes = (Array.isArray(f.boxes) ? f.boxes : []).filter((b) => b && b.label === e);
+    const box = boxes.length ? boxes.reduce((a, b) => (centerDist(b) < centerDist(a) ? b : a)) : null;
+    const eScore = Math.max(top.find((x) => x.label === e)?.score ?? 0, f.scores?.[e] ?? 0);
+    const topScore = top[0]?.score ?? 0;
+    // Neighbours are in frame at the booth, so the expected object needs no margin, just to be (nearly) the best.
+    const byClass = eScore >= t.minScore && eScore >= topScore - t.minMargin;
+    const byBox = !!box && (box.via === "marker" || box.score >= t.minScore);
+    if (box || byClass) this.lastSeenNext = now;
+    const off = box ? this.cueFor(box) : null;
+
+    // Another station seen clearly: say so on the dashboard (once per looking stretch).
+    const best = top[0];
+    if (best && isLabel(best.label) && best.label !== e && best.score >= t.minScore && best.score - (top[1]?.score ?? 0) >= t.minMargin) {
+      this.blocked(best.label, "not_next", best.score, String(this.lookingSince));
+    }
+
+    if (off) {
+      // Visible but off-center / small / high: guide the wearer instead of triggering on the frame edge.
+      this.run = null;
+      if (now - this.lastCueAt >= this.booth.cueEveryMs && now >= this.busyUntil + this.booth.gapMs) {
+        this.lastCueAt = now;
+        this.sayIf(SCOUT_BOOTH_LINES.dir[off]);
+      }
+      return;
+    }
+    if (!(byBox || byClass)) {
+      this.run = null;
+      return;
+    }
+    const score = byBox && box ? Math.max(box.score, eScore) : eScore;
+    const lookMs = this.extendRun(e, score, f, now);
+    if (lookMs < t.steadyMs) return;
+    if (now < this.mainUntil + this.booth.gapMs) return this.blocked(e, "cooldown", score, String(this.run!.since));
+    this.foundIt(e, score, lookMs, now - this.run!.firstAt);
+  }
+
+  /** Which direction cue a box needs, or null when it is centered and big enough. */
+  private cueFor(b: ScoutBox): "left" | "right" | "closer" | "up" | null {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    if (cy < this.booth.topY) return "up"; // the camera aims ~15 deg below the gaze: top edge = lift the head
+    if (cx < this.booth.leftX) return "left";
+    if (cx > this.booth.rightX) return "right";
+    if (b.w < this.booth.minW) return "closer";
+    return null;
+  }
+
+  private extendRun(label: ScoutLabel, score: number, f: ScoutFrame, now: number): number {
+    const at = typeof f.at === "number" && Number.isFinite(f.at) ? f.at : now;
+    if (!this.run || this.run.label !== label || now - this.run.lastAt > FRAME_STALE_MS) {
+      this.run = { label, since: now, firstAt: at, lastAt: now, score };
+    } else {
+      this.run.lastAt = now;
+      this.run.score = score;
+    }
+    return now - this.run.since;
+  }
+
+  private blocked(label: ScoutLabel, reason: ScoutBlockReason, score: number, episode: string): void {
+    const key = `${reason}:${label}:${episode}`;
+    if (key === this.blockedKey) return;
+    this.blockedKey = key;
+    this.emit({ type: "blocked", label, reason, score, at: this.now() });
+  }
+
   private eligible(label: ScoutLabel): boolean {
-    if (this.practice) {
+    if (this.mode === "practice") {
       // Practice: anything goes, except repeating the last find before the slide has changed.
       const last = this.lastFind;
       return !(last && last.label === label && !this.lookedAway && (!this.lastSlide || this.lastSlide.recvAt <= last.at));
@@ -260,7 +418,7 @@ export class ScoutGame {
   }
 
   private gapMs(): number {
-    return this.practice ? PRACTICE_GAP_MS : this.tuning.gapMs;
+    return this.mode === "practice" ? PRACTICE_GAP_MS : this.tuning.gapMs;
   }
 
   /** Practice: latch "looked away" once the last find hasn't been top-1 for PRACTICE_LOOK_AWAY_MS (props, no slides). */
@@ -282,18 +440,28 @@ export class ScoutGame {
     this.lastFind = { label, at: now };
     this.awaySince = null;
     this.lookedAway = false;
-    this.phase = this.practice ? "telling" : "offering";
+    this.phase = this.mode === "practice" ? "telling" : "offering";
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
     this.latency("frame_to_found", frameMs);
+    if (this.mode === "booth") {
+      // Booth: one line asks ("Bee fact found! Would you like to learn more?"); silence = yes after 4 s.
+      this.offerLines = [SCOUT_BOOTH_LINES.chimeAsk];
+      this.say(SCOUT_BOOTH_LINES.chimeAsk);
+      this.latency("found_to_say", this.now() - now);
+      this.offerDeadline = this.busyUntil + this.booth.offerTimeoutMs;
+      this.changed();
+      return;
+    }
     this.say(SCOUT_LINES.chime);
-    if (this.practice) {
+    if (this.mode === "practice") {
       // Practice: no hook, no offer; the fact straight away. found/progress are left alone.
       this.say(SCOUT_LINES.fact(label));
       this.latency("found_to_say", this.now() - now);
       this.changed();
       return;
     }
+    this.offerLines = [SCOUT_LINES.chime, SCOUT_LINES.hook(label)];
     this.say(SCOUT_LINES.hook(label));
     this.latency("found_to_say", this.now() - now);
     this.offerDeadline = this.busyUntil + this.tuning.offerTimeoutMs;
@@ -303,10 +471,11 @@ export class ScoutGame {
   private answer(answer: ScoutAnswer, at?: number): void {
     const label = this.offer;
     if (!label) return;
+    if (this.mode === "booth") return this.boothAnswer(label, answer, at);
     if (answer === "yes") {
       const now = this.now();
       this.skipped.delete(label);
-      const repeat = this.found.includes(label); // practice mode: a second find of the same object
+      const repeat = this.found.includes(label); // a second find of the same object
       if (!repeat) this.found.push(label);
       this.phase = "telling";
       this.say(SCOUT_LINES.fact(label));
@@ -328,6 +497,34 @@ export class ScoutGame {
     this.decline(answer === "rude" ? "rude" : "no");
   }
 
+  /** Booth: yes -> fact; no / rude -> a short reply. Either way, then the direction to the next station. */
+  private boothAnswer(label: ScoutLabel, answer: ScoutAnswer, at?: number): void {
+    const now = this.now();
+    if (answer === "yes") {
+      this.skipped.delete(label);
+      if (!this.found.includes(label)) this.found.push(label);
+      this.say(SCOUT_LINES.fact(label));
+      const heardAt = typeof at === "number" && Number.isFinite(at) && Math.abs(now - at) < 30_000 ? Math.min(at, now) : now;
+      this.latency("answer_to_fact", this.now() - heardAt);
+    } else {
+      if (!this.found.includes(label)) this.skipped.set(label, now);
+      this.say(answer === "rude" ? SCOUT_BOOTH_LINES.rude : SCOUT_BOOTH_LINES.no);
+    }
+    const i = this.order.indexOf(label);
+    this.station = (i >= 0 ? i : this.station) + 1;
+    const next = this.next();
+    if (next) {
+      this.sayIf(SCOUT_BOOTH_LINES.next(next));
+      this.phase = "telling";
+    } else {
+      this.sayIf(SCOUT_BOOTH_LINES.done);
+      this.phase = "done";
+      this.offer = null;
+    }
+    this.lastSeenNext = now;
+    this.changed();
+  }
+
   private decline(why: "no" | "rude" | "silence"): void {
     const label = this.offer;
     const now = this.now();
@@ -346,21 +543,26 @@ export class ScoutGame {
     this.changed();
   }
 
-  /** The mic heard Beeswax's own chime/hook (3+ words, all inside the line). */
+  /** The mic heard Beeswax's own offer lines (3+ words, all inside one line). */
   private isEcho(text: string): boolean {
     const t = normText(text);
     if (t.split(" ").length < 3 || !this.offer) return false;
-    const lines = [SCOUT_LINES.chime, SCOUT_LINES.hook(this.offer)].map((id) => normText(this.lines.get(id)?.text ?? ""));
-    return lines.some((l) => l.includes(t));
+    return this.offerLines.some((id) => normText(this.lines.get(id)?.text ?? "").includes(t));
+  }
+
+  /** Optional lines (booth directions): skipped when missing or blank. */
+  private sayIf(id: string): void {
+    if (this.lines.get(id)?.text) this.say(id);
   }
 
   private say(id: string): void {
     const line = this.lines.get(id);
     const caption = line?.text ?? "";
-    if (!line) log(`scout: no line ${id} in scout_lines.json`);
+    if (!line) log(`scout: no line ${id} in the scout lines files`);
     const now = this.now();
     const ms = this.d.durationMs?.(id) ?? estimateMs(caption);
     this.busyUntil = Math.max(now, this.busyUntil) + ms;
+    if (!id.startsWith("scout_dir_")) this.mainUntil = this.busyUntil;
     let audio_url: string | null = null;
     try {
       audio_url = this.d.audioUrl?.(id) ?? null;
@@ -386,7 +588,7 @@ export class ScoutGame {
   }
 
   private sig(): string {
-    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt, this.practice]);
+    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt, this.mode, this.order, this.station]);
   }
 
   private changed(): void {
@@ -397,12 +599,20 @@ export class ScoutGame {
   }
 }
 
+const centerDist = (b: ScoutBox) => Math.hypot(b.x + b.w / 2 - 0.5, b.y + b.h / 2 - 0.5);
+
 // ---------------------------------------------------------------- files
 
 const LINES_DIR = fileURLToPath(new URL("../lines/", import.meta.url));
 const audioDir = () => process.env.SCOUT_AUDIO_DIR || join(LINES_DIR, "scout_audio");
 
-export function loadScoutLines(path = join(LINES_DIR, "scout_lines.json")): ScoutLine[] {
+/** scout_lines.json plus scout_lines_booth.json (booth lines; it wins on an id clash). With `path`: that file only. */
+export function loadScoutLines(path?: string): ScoutLine[] {
+  if (!path) {
+    const byId = new Map<string, ScoutLine>();
+    for (const f of ["scout_lines.json", "scout_lines_booth.json"]) for (const l of loadScoutLines(join(LINES_DIR, f))) byId.set(l.id, l);
+    return [...byId.values()];
+  }
   try {
     const raw = JSON.parse(readFileSync(path, "utf8"));
     if (!Array.isArray(raw)) throw new Error("not an array");
@@ -430,6 +640,14 @@ function manifestMs(id: string): number | null {
   } catch {
     return null;
   }
+}
+
+/** A booth order: distinct scout labels, at least one; null when invalid. */
+export function parseOrder(raw: unknown): ScoutLabel[] | null {
+  if (!Array.isArray(raw)) return null;
+  const o = raw.map((x) => (typeof x === "string" ? x.trim() : x));
+  if (!o.length || !o.every(isLabel) || new Set(o).size !== o.length) return null;
+  return o as ScoutLabel[];
 }
 
 const SAFE_FILE = /^[a-z0-9_]{1,80}\.mp3$/;
@@ -476,8 +694,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
   });
 
-  // SCOUT_PRACTICE=1: start in practice mode, so it survives Hive restarts (POST /scout/practice still flips it).
-  if (process.env.SCOUT_PRACTICE === "1") game.setPractice(true);
+  // Startup mode survives Hive restarts: SCOUT_MODE=demo|practice|booth (SCOUT_PRACTICE=1 = practice),
+  // SCOUT_ORDER=native_flower,honey_jar,... the booth order. POST /scout/mode and /scout/practice still switch.
+  const envOrder = parseOrder(process.env.SCOUT_ORDER?.split(","));
+  const envMode = process.env.SCOUT_MODE;
+  if (envMode === "demo" || envMode === "practice" || envMode === "booth") game.setMode(envMode, envOrder ?? undefined);
+  else if (process.env.SCOUT_PRACTICE === "1") game.setPractice(true);
+  else if (envOrder) game.setMode("demo", envOrder);
 
   const ticker = setInterval(() => {
     if (ctx.stopped?.()) return clearInterval(ticker);
@@ -528,6 +751,18 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       scores = {};
       for (const [k, v] of Object.entries(body.scores as Record<string, unknown>)) if (isClass(k) && typeof v === "number" && Number.isFinite(v)) scores[k] = v;
     }
+    let boxes: ScoutBox[] | undefined;
+    if (Array.isArray(body.boxes)) {
+      const n01 = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= -0.5 && v <= 1.5;
+      boxes = (body.boxes as Record<string, unknown>[])
+        .filter((b) => !!b && isClass(b.label) && typeof b.score === "number" && Number.isFinite(b.score) && n01(b.x) && n01(b.y) && n01(b.w) && n01(b.h))
+        .slice(0, 20)
+        .map((b) => {
+          const out: ScoutBox = { label: b.label as ScoutClass, score: b.score as number, x: b.x as number, y: b.y as number, w: b.w as number, h: b.h as number };
+          if (b.via === "detector" || b.via === "marker" || b.via === "refs") out.via = b.via;
+          return out;
+        });
+    }
     const now = Date.now();
     lastFrameAt = now;
     game.frame({
@@ -536,6 +771,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       fps: num(body.fps, 0),
       top: clean,
       ...(scores ? { scores } : {}),
+      ...(boxes ? { boxes } : {}),
       source: typeof body.source === "string" ? body.source.slice(0, 200) : "",
     });
     return c.json({ ok: true, phase: game.state().phase });
@@ -567,6 +803,43 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     if (typeof body?.on !== "boolean") return c.json({ error: "on (boolean) required" }, 400);
     game.setPractice(body.on);
     return c.json(game.state());
+  });
+
+  // ---- booth mode and operator keys (scout-protocol.ts: ScoutModeRequest, ScoutForce)
+  app.post("/scout/mode", async (c) => {
+    const body = await readJson(c);
+    const mode = body?.mode;
+    if (mode !== "demo" && mode !== "practice" && mode !== "booth") return c.json({ error: "mode must be demo, practice or booth" }, 400);
+    let order: ScoutLabel[] | undefined;
+    if (body?.order !== undefined) {
+      const o = parseOrder(body.order);
+      if (!o) return c.json({ error: "order must be distinct scout labels" }, 400);
+      order = o;
+    }
+    game.setMode(mode, order);
+    return c.json(game.state());
+  });
+
+  app.post("/scout/force", async (c) => {
+    const body = (await readJson(c)) ?? {};
+    if (body.label !== undefined && body.label !== null && !isLabel(body.label)) return c.json({ error: "label must be a scout label" }, 400);
+    const ok = game.force((body.label as ScoutLabel | null | undefined) ?? null);
+    return c.json({ ok, ...game.state() }, ok ? 200 : 409);
+  });
+
+  app.post("/scout/yes", (c) => {
+    const ok = game.button(undefined, "(operator yes)");
+    return c.json({ ok, ...game.state() }, ok ? 200 : 409);
+  });
+
+  app.post("/scout/next", (c) => {
+    const ok = game.skipStation();
+    return c.json({ ok, ...game.state() }, ok ? 200 : 409);
+  });
+
+  app.post("/scout/reset", (c) => {
+    game.start();
+    return c.json({ ok: true, ...game.state() });
   });
 
   app.post("/scout/slide", async (c) => {
