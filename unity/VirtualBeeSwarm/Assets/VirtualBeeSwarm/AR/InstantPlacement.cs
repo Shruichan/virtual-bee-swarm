@@ -3,9 +3,9 @@ using UnityEngine;
 namespace VirtualBeeSwarm.AR
 {
     /// <summary>
-    /// Aim-and-pinch placement (PLAN.md V7): in `pre`, a translucent DELIVER HERE plate follows the hand ray (right
-    /// hand first, then left, then head gaze when no hand is tracked) onto real surfaces found by the environment
-    /// raycast (Meta EnvironmentRaycastManager.PlaceBox, 0.6 x 0.45 m footprint, 0.3 m clearance). Green = it fits
+    /// Aim-and-pinch placement (PLAN.md V7): in `pre`, a translucent DELIVER HERE plate uses the pinching hand's ray,
+    /// then an idle hand, then head gaze. Meta EnvironmentRaycastManager.PlaceBox checks real surfaces using the
+    /// meadow rig's scaled footprint and clearance. Green = it fits
     /// on a flat top (normal.y > 0.9), red = it doesn't. A pinch of the aiming hand puts the hive rig there, facing
     /// away from the player. The old placement (grab the base plate, two-point edge, C key) stays as an override.
     /// Desktop: hold L to aim with the mouse, release L to place.
@@ -63,7 +63,7 @@ namespace VirtualBeeSwarm.AR
             _ghostText.characterSize = 0.004f;
             _ghostText.anchor = TextAnchor.MiddleCenter;
             _ghostText.alignment = TextAlignment.Center;
-            _ghostText.text = "DELIVER HERE\npinch";
+            _ghostText.text = ""; // Paint the first visible preview from its fit result.
             _ghost.SetActive(false);
         }
 
@@ -133,28 +133,48 @@ namespace VirtualBeeSwarm.AR
 
         bool HeadsetRay(out Ray ray, out bool place)
         {
+            ray = default;
             place = false;
-            if (PointerBusy()) { ray = default; return false; }
-            for (int h = 1; h >= 0; h--) // right first
+            bool haveIdleRay = false, freePinch = false, anyBusy = false;
+            for (int h = 1; h >= 0; h--) // right first when neither available hand pinches
             {
                 var hand = (GameHand)h;
-                if (!GameHands.IsTracked(hand) || !GameHands.TryGetPointerRay(hand, out ray)) continue;
-                place = GameHands.PinchDown(hand);
-                return true;
+                if (PointerBusy(hand))
+                {
+                    anyBusy = true;
+                    continue;
+                }
+
+                bool pressed = GameHands.PinchDown(hand);
+                freePinch |= pressed;
+                if (!GameHands.IsTracked(hand) || !GameHands.TryGetPointerRay(hand, out var handRay)) continue;
+                if (pressed)
+                {
+                    ray = handRay;
+                    place = true;
+                    return true;
+                }
+                if (haveIdleRay) continue;
+                ray = handRay;
+                haveIdleRay = true;
             }
+            if (haveIdleRay) return true;
+            if (anyBusy && !freePinch) return false;
+
             var head = Camera.main;
-            if (head == null) { ray = default; return false; }
+            if (head == null) return false;
             ray = new Ray(head.transform.position, head.transform.forward);
-            place = GameHands.PinchDown(GameHand.Left) || GameHands.PinchDown(GameHand.Right);
+            place = freePinch;
             return true;
         }
 
-        bool PointerBusy()
+        bool PointerBusy(GameHand hand)
         {
+            var source = hand == GameHand.Left ? GamePointer.Source.LeftHand : GamePointer.Source.RightHand;
             for (int i = 0; i < _pointers.Length; i++)
             {
                 var p = _pointers[i];
-                if (p == null || p.PointerSource == GamePointer.Source.Mouse) continue;
+                if (p == null || p.PointerSource != source) continue;
                 if (p.IsHoveringTarget || p.IsGrabbing) return true;
             }
             return false;

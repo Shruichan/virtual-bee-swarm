@@ -230,8 +230,13 @@ namespace VirtualBeeSwarm
             _forceAdvanceAt = -1f;
 
             if (_runStartedAt < 0f && beat >= GameBeat.Smoker) _runStartedAt = Time.time; // v3.1: the clock starts at the first station (or wherever we jumped in past it)
-            if (beat < GameBeat.Smoker) { _runStartedAt = -1f; _runEndedAt = -1f; } // back in the intro: the clock waits for smoker again
-            if (beat <= GameBeat.Heat) _runEndedAt = -1f; // back in the stations: the clock runs again
+            // An operator can replay any beat without changing a score earned by finishing all four repairs.
+            // Shortcuts into Escape still freeze the local timer, but returning to a station resumes that timer.
+            if (SolvedStations < GameIds.Stations.Length)
+            {
+                if (beat < GameBeat.Smoker) _runStartedAt = -1f;
+                if (beat <= GameBeat.Heat) _runEndedAt = -1f;
+            }
             if (beat == GameBeat.Escape && _runEndedAt < 0f) _runEndedAt = Time.time;
             if (beat == GameBeat.Hornet) PlayedHornet = true;
             if (prev == GameBeat.Pre || _showStartedAt < 0f) _showStartedAt = Time.time;
@@ -241,7 +246,8 @@ namespace VirtualBeeSwarm
                       " show " + GameMaterials.Clock(Time.time - _showStartedAt));
             // Use the same whole seconds as the in-room card. Repeat the frozen time through the ending in
             // case the first connected beat after Escape is T-0, Map or Field.
-            int? scoreSeconds = beat >= GameBeat.Escape && RunFinished ? Mathf.FloorToInt(Mathf.Max(0f, RunSeconds)) : (int?)null;
+            int? scoreSeconds = beat >= GameBeat.Escape && RunFinished && SolvedStations == GameIds.Stations.Length
+                ? Mathf.FloorToInt(Mathf.Max(0f, RunSeconds)) : (int?)null;
             if (net != null) net.SendBeat(beat, scoreSeconds);
             EnterBeat(beat);
             BeatChanged?.Invoke(prev, beat);

@@ -204,6 +204,12 @@ namespace VirtualBeeSwarm.Tests
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
 
+            // Rehearsal controls can revisit a station without changing the score for this group.
+            director.GoTo(GameBeat.Heat, "test replay");
+            Assert.IsTrue(director.RunFinished, "replaying a solved station keeps the score frozen");
+            director.GoTo(GameBeat.Escape, "test replay");
+            Assert.AreEqual(scoreTime, director.RunSeconds, "re-entering escape keeps the same rescue score");
+
             // group reset puts everything back
             director.ResetToPre();
             yield return null;
