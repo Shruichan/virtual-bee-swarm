@@ -46,8 +46,13 @@ export interface ScoutFrame {
   top: { label: ScoutClass; score: number }[];
   /** Optional: the score for every class (six labels + background), so the dashboard's bars are all real. */
   scores?: Partial<Record<ScoutClass, number>>;
+  /** Optional: detected objects in this frame, coordinates normalized 0..1 (x,y = top-left). For the
+   *  dashboard's bounding boxes; `top`/`scores` still drive the game. `via` = how it was found. */
+  boxes?: ScoutBox[];
   source: string; //     "rtsp://..." | "file:..." | "webcam:0"
 }
+
+export interface ScoutBox { label: ScoutClass; score: number; x: number; y: number; w: number; h: number; via?: "detector" | "marker" | "refs" }
 
 /** The vision worker's own API on SCOUT_PORTS.vision (CORS *, no token: it binds 127.0.0.1 + LAN only). */
 export interface VisionHealth { ok: true; model: string; source: string; fps: number; refs: Record<string, number> }
