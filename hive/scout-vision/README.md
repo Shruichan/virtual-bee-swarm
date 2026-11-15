@@ -28,10 +28,10 @@ uv run python worker.py --source data/test.mp4 --print          # file, paced in
 uv run python worker.py --source data/test/honey_jar --print    # image folder, 2 s per image
 ```
 
-Options: `--crops grid15|grid7|center` (default grid15: the centre square + 14 zoomed crops, the best crop wins),
-`--ema 0.3` (score smoothing, 0 = off), `--detector module:function` (boxes from the detect lane, scored as extra
+Options: `--crops center|grid7|grid15` (default center = old behaviour; grid15 = centre + 14 zoomed crops, best crop wins),
+`--ema 0.3` (score smoothing, default 0 = off), `--detector module:function` (boxes from the detect lane, scored as extra
 crops and sent as `boxes`), `--backbone dino|clip`, `--fps 10`, `--temp`, `--topk`, `--port 8242`, `--no-api`.
-Env: `SCOUT_CROPS`, `SCOUT_EMA`, `SCOUT_DETECTOR`, `SCOUT_CAPTURE=opencv` (RTSP via OpenCV instead of the ffmpeg pipe).
+Env: `SCOUT_CROPS`, `SCOUT_EMA`, `SCOUT_DETECTOR`, `SCOUT_CAPTURE=ffmpeg` (low-latency ffmpeg-pipe RTSP reader with fast reconnect; default opencv).
 `HIVE_TOKEN` may also live in `hive/scout-vision/.env` or `hive/.env`.
 
 Screen test calibration: `uv run python calibrate_from_session.py --slides` copies the slide photos into
