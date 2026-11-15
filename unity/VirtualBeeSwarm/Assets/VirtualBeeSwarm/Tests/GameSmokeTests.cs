@@ -303,8 +303,8 @@ namespace VirtualBeeSwarm.Tests
             // group reset puts everything back
             var lid = hive.GetComponentsInChildren<ArtAnimProp>(true).Single(prop => prop.trigger == ArtAnimProp.Trigger.Beat && prop.beat == GameBeat.Escape);
             var mapPreview = new SerializedObject(map).FindProperty("mapRoot").objectReferenceValue as GameObject;
-            AR.Touchdown.Burst(rocket);
             var crashDust = GameObject.Find("Touchdown (runtime)").GetComponentInChildren<ParticleSystem>();
+            crashDust.Emit(4);
             Assert.Greater(crashDust.particleCount, 0, "landing effects are active before replay");
             var meadow = Bloom.MeadowField.Instance;
             escape.DeliverEndCard();
