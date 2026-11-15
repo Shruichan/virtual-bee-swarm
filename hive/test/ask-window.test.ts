@@ -312,3 +312,61 @@ describe("custom what-if without a live stream", () => {
     await quest.waitFor("orbis", (m) => m.scene === "meadow");
   });
 });
+
+describe("live by default (ORBIS_WANT=live)", () => {
+  const prev = process.env.ORBIS_WANT;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.ORBIS_WANT;
+    else process.env.ORBIS_WANT = prev;
+  });
+  const starts = (relay: ReturnType<typeof fakeRelay>) => relay.posts.filter((p) => p.path === "/orbis/start");
+
+  test("the ride start warms the stream once; a new fitting stops it", async () => {
+    process.env.ORBIS_WANT = "live";
+    const relay = fakeRelay();
+    hive = makeHive({ window: windowModule }, { orbisRelayUrl: relay.url, orbisPollMs: 40 }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "hook", 1);
+    await board.waitFor("orbis", (m) => m.state === "priming");
+    expect(starts(relay).map((p) => p.body.scene)).toEqual(["meadow"]);
+    await setBeat(quest, board, "meet", 2);
+    await Bun.sleep(100);
+    expect(starts(relay).length).toBe(1);
+    await setBeat(quest, board, "pre", 0);
+    await Bun.sleep(100);
+    expect(relay.posts.some((p) => p.path === "/orbis/stop")).toBe(true);
+  });
+
+  test("clips mode never starts a billed stream on its own", async () => {
+    delete process.env.ORBIS_WANT;
+    const relay = fakeRelay();
+    hive = makeHive({ window: windowModule }, { orbisRelayUrl: relay.url, orbisPollMs: 40 }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "hook", 1);
+    await setBeat(quest, board, "whatif", 8);
+    await Bun.sleep(150);
+    expect(starts(relay)).toEqual([]);
+  });
+
+  test("a custom what-if with the stream down starts it on the what-if's own prompt", async () => {
+    process.env.ORBIS_WANT = "live";
+    const PROMPT = `${SETTING} The meadow turns bare and grey around the quiet hive. ${CAMERA}`;
+    const route = async (text: string): Promise<RouteResultLike> =>
+      text.includes("disappear") ? { intent: "what_if", topic: "custom", answer: null, custom_prompt: PROMPT, ms: 5, path: "claude" } : mockRoute(text);
+    const relay = fakeRelay();
+    hive = makeHive({ window: windowModule, route }, { orbisRelayUrl: relay.url, orbisPollMs: 40 }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11); // past the ride's own warm-up: nothing started yet
+    await Bun.sleep(100);
+    expect(starts(relay)).toEqual([]);
+    quest.say("what if all the bees disappeared");
+    await quest.waitFor("say", (m) => typeof m.line_id === "string" && m.line_id.startsWith("room_whatif_custom") && m.line_id !== "room_whatif_custom_clips");
+    await quest.waitFor("orbis", (m) => m.scene === "whatif_custom");
+    await board.waitFor("orbis", (m) => m.state === "priming");
+    expect(starts(relay).length).toBe(1);
+    expect(starts(relay)[0]!.body).toMatchObject({ prompt: PROMPT, scene: "whatif_custom" });
+  });
+});

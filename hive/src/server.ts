@@ -1021,6 +1021,30 @@ export function startHive(opts: HiveOptions): Hive {
     });
   }
 
+  // Live by default (ORBIS_WANT=live, or the Board's LIVE): the ride brings the billed stream up itself, so the first
+  // live frame is ready when the window opens, and a what-if or question restarts it if it ended (failure, hard cap).
+  // At most one start per LIVE_KICK_MS; the relay runs one session and its idle stop / hard cap still end it.
+  const LIVE_KICK_MS = 20_000;
+  let liveKickAt = -Infinity;
+  /** True when the stream is up or was just asked to start (callers may then treat the window as live). */
+  function ensureLive(why: string): boolean {
+    if (!relayUrl || orbisWant !== "live") return false;
+    if (relayRunning()) return true;
+    if (relayUp === false) return false;
+    if (Date.now() - liveKickAt < LIVE_KICK_MS) return false;
+    liveKickAt = Date.now();
+    observe(`orbis: starting the live stream (${why})`);
+    applyWant("live");
+    return true;
+  }
+  /** A new group is fitting: end the billed stream until the next ride starts it again. */
+  function stopLiveBetweenRides(): void {
+    if (!relayUrl || orbisWant !== "live" || !relayRunning()) return;
+    liveKickAt = -Infinity;
+    observe("orbis: stopping the live stream between rides");
+    applyWant("off");
+  }
+
   // A window moment: a scene shown for a question or a what-if's nearest clip. Like a what-if it never becomes the base
   // scene, undo ends it, and any other scene change (a station, a beat, a newer question) supersedes it.
   let momentSeq = 0;
@@ -1125,6 +1149,8 @@ export function startHive(opts: HiveOptions): Hive {
       }
     }
     if (n === prev) return; // recovering a score does not re-run this beat's cues
+    if (name === "pre") stopLiveBetweenRides();
+    else if (name && BEATS.indexOf(name) <= BEATS.indexOf("whatif")) ensureLive(`beat ${name}`);
     if (name === "escape") {
       setScene("full_bloom", "escape");
     } else if (name === "t0" && bus.count("quest") === 0) {
@@ -1497,6 +1523,7 @@ export function startHive(opts: HiveOptions): Hive {
         // The base line first; a repeat in the same run gets its alternates in turn ("...Again?!").
         const id = `room_whatif_${topic}`;
         deliver(hasLine(id) ? lineReply(variant(id)) : ackReply());
+        if (!field) ensureLive(`what if: ${topic}`);
         if (!field) setScene(`whatif_${topic}` as Scene, `what if: ${topic}`);
         return;
       }
@@ -1554,7 +1581,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     // The nearest recorded scene: its clip is what Unity shows while the live morph is on its way, or instead of it.
     const near = field ? null : nearestScene(said);
-    if (!field && relayUrl && relayRunning()) {
+    if (!field && ensureLive("custom what-if")) {
       deliver(lineReply(variant("room_whatif_custom"), "room_ack_allow"));
       if (near) setScene(near.scene, `what-if nearest clip: ${near.topic}`, { moment: true, steer: false });
       state.custom_prompt = check.prompt;
@@ -1594,6 +1621,7 @@ export function startHive(opts: HiveOptions): Hive {
     const near = nearestScene(said);
     // A player's own what-if (not a question's moment) stays up for anything that doesn't name a scene.
     const inWhatIf = !momentActive && (isWhatIfScene(state.scene) || state.scene === "fire_out");
+    if (near && !relayRunning()) ensureLive(`ask: ${near.topic}`);
     const live = !!relayUrl && relayRunning() && orbisWant === "live" && (!!near || !inWhatIf);
     if (!near && !live) return null;
     let seq = momentSeq;
