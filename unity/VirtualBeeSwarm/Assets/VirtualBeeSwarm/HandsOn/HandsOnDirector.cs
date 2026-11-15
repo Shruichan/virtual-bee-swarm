@@ -141,9 +141,10 @@ namespace VirtualBeeSwarm.HandsOn
                 // Match the meadow's player-facing choice row and keep these controls at hand size.
                 float scale = Bloom.MeadowLayout.Scale;
                 float height = Bloom.MeadowTuning.ChoiceHeight;
+                float rowZ = -Bloom.MeadowLayout.RowOffset(scale);
                 controlScale = 1f / scale;
-                leverPosition = new Vector3(leverLeft ? -0.43f : 0.43f, height - 0.23f, -0.19f * scale) / scale;
-                boardPosition = new Vector3(-0.04f, height - OrderBoard.TicketRise, -0.21f * scale) / scale;
+                leverPosition = new Vector3((leverLeft ? -0.43f : 0.43f) / scale, (height - 0.23f) / scale, rowZ + 0.02f);
+                boardPosition = new Vector3(-0.04f / scale, (height - OrderBoard.TicketRise) / scale, rowZ);
             }
             _lever = HoneyLever.Build(_table, leverPosition, leverLeft);
             _lever.transform.localScale = Vector3.one * controlScale;
@@ -440,6 +441,7 @@ namespace VirtualBeeSwarm.HandsOn
                             _socket.Tint = HandsOnKit.Good;
                             _socket.StopSweep();
                             Log("dish set down");
+                            BeeDelivery.Instance?.PlayManualTouchdown(_item);
                             if (!HandsOnTuning.HeatPump) { Succeed("POOL'S OPEN.\nNO DIVING."); return; }
                             _sub = 1;
                             _lever.Live = true;
@@ -509,9 +511,7 @@ namespace VirtualBeeSwarm.HandsOn
             _step = Step.Done;
             Log("set-up done at " + GameIds.StationName(st.Station) + " in " + (Time.time - _stepAt).ToString("0.0") + " s");
             _byHand.Add(st);
-            StationBase.SetupByHand = true;
-            try { st.Choose(Correct(st)); }
-            finally { StationBase.SetupByHand = false; }
+            ChooseCorrect(st, setupByHand: true);
         }
 
         /// <summary>Nobody did the hand step in time: the crew does it, with the station's own animation.</summary>
@@ -526,7 +526,14 @@ namespace VirtualBeeSwarm.HandsOn
             Transform at = st.Station == GameStation.Smoker ? _lever.transform : _sd != null && _sd.Spot != null ? _sd.Spot : _lever.transform;
             _prompt.Show("CREW ASSIST", at, at == _lever.transform ? new Vector3(0f, 0.36f, -0.02f) : Vector3.up * 0.2f, 2f);
             _step = Step.Done;
-            st.Choose(Correct(st));
+            ChooseCorrect(st, setupByHand: st.Station == GameStation.Heat && _sub == 1);
+        }
+
+        static void ChooseCorrect(StationBase st, bool setupByHand)
+        {
+            StationBase.SetupByHand = setupByHand;
+            try { st.Choose(Correct(st)); }
+            finally { StationBase.SetupByHand = false; }
         }
 
         // ------------------------------------------------------------ hooks

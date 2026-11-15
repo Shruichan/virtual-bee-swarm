@@ -147,6 +147,9 @@ namespace VirtualBeeSwarm.Tests
                 Assert.IsNotNull(ticket, "first ticket");
                 Assert.That(ticket.position.y - Bloom.MeadowLayout.Anchor.position.y,
                     Is.EqualTo(Bloom.MeadowTuning.ChoiceHeight).Within(0.02f), "tickets are at the meadow's hand height");
+                Assert.That(orderBoard.transform.localPosition.z,
+                    Is.EqualTo(-Bloom.MeadowLayout.RowOffset(Bloom.MeadowLayout.Scale)).Within(0.001f),
+                    "the order board follows the meadow's reachable choice row");
             }
 
             yield return PlayStation<SmokerStation>(director, GameIds.Choice.Swat, GameIds.Choice.Smoker);

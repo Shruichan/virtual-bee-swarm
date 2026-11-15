@@ -10,7 +10,7 @@ namespace VirtualBeeSwarm.Meta
     /// grip = fist, B/Y = push-to-talk, pose from the OVRCameraRig controller anchors.
     /// Registers at priority 10 (wins over XRControllerHandSource). Fields left empty are found at runtime.
     /// </summary>
-    public class OvrHandPoseSource : MonoBehaviour, IHandPoseSource
+    public class OvrHandPoseSource : MonoBehaviour, IHandPoseSource, IControllerPoseSource
     {
         [SerializeField] OVRCameraRig rig;
         [SerializeField] OVRHand leftHand;
@@ -91,6 +91,8 @@ namespace VirtualBeeSwarm.Meta
 
         // ------------------------------------------------------------ IHandPoseSource
         public bool IsTracked(GameHand hand) => HandTracked(hand) || ControllerTracked(hand);
+
+        public bool IsController(GameHand hand) => !HandTracked(hand) && ControllerTracked(hand);
 
         public bool IsPinching(GameHand hand)
         {
