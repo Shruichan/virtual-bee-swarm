@@ -466,7 +466,7 @@ export class ScoutGame {
     this.say(SCOUT_LINES.chime);
     if (this.mode === "practice") {
       // Practice: no hook, no offer; the fact straight away. found/progress are left alone.
-      this.say(SCOUT_LINES.fact(label));
+      this.sayFact(label);
       this.latency("found_to_say", this.now() - now);
       this.changed();
       return;
@@ -488,7 +488,7 @@ export class ScoutGame {
       const repeat = this.found.includes(label); // a second find of the same object
       if (!repeat) this.found.push(label);
       this.phase = "telling";
-      this.say(SCOUT_LINES.fact(label));
+      this.sayFact(label);
       const heardAt = typeof at === "number" && Number.isFinite(at) && Math.abs(now - at) < 30_000 ? Math.min(at, now) : now;
       this.latency("answer_to_fact", this.now() - heardAt);
       const n = this.found.length;
@@ -513,7 +513,7 @@ export class ScoutGame {
     if (answer === "yes") {
       this.skipped.delete(label);
       if (!this.found.includes(label)) this.found.push(label);
-      this.say(SCOUT_LINES.fact(label));
+      this.sayFact(label);
       const heardAt = typeof at === "number" && Number.isFinite(at) && Math.abs(now - at) < 30_000 ? Math.min(at, now) : now;
       this.latency("answer_to_fact", this.now() - heardAt);
     } else {
@@ -558,6 +558,12 @@ export class ScoutGame {
     const t = normText(text);
     if (t.split(" ").length < 3 || !this.offer) return false;
     return this.offerLines.some((id) => normText(this.lines.get(id)?.text ?? "").includes(t));
+  }
+
+  /** A fact is one or two lines: scout_fact_<label>, then scout_fact_<label>_2 when it exists. */
+  private sayFact(label: ScoutLabel): void {
+    this.say(SCOUT_LINES.fact(label));
+    this.sayIf(`${SCOUT_LINES.fact(label)}_2`);
   }
 
   /** Optional lines (booth directions): skipped when missing or blank. */
