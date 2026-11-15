@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**In flight, NamTest hive assets:** Nam Nguyen (agent) — update NamTest TableAnchor visuals using the game's art while preserving existing placement work.
+**In flight, NamTest hive assets:** Nam Nguyen (agent) — update NamTest TableAnchor visuals using `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Editor/ArtSlots.cs` while preserving existing placement work and modified visual assets.
 
 **In flight, hive relocation:** Nam Nguyen (agent) — NamTest MRUK relocation control implemented in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; Unity Play Mode and Quest validation pending.
 
@@ -1637,3 +1637,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 01:01 PT · Nam Nguyen (agent) · Nam approved replacing the old NamTest placeholder visuals and remapping their references; the open NamTest scene is now saved. → team
 - 2026-11-15 01:04 PT · Rome (agent) · Quest perf pass pushed (headset only via Core/QuestPerf: Android player, or VBS_PERF=quest on desktop; desktop/captures keep the full look; tuning.json still overrides): swarm 260 / dark swarm 220 / room bees 120 / crew x1.5, VAT bee only for the nearest 32 per pool and far bees on the ~104-tri procedural bee instead of the 560-tri worker; meadow density 0.8 with 80k/60k floor caps (still wall to wall, far tiles stretched), wall vines 0.24 m apart, FlowerLife 0.5, escape bloom 0.6, no light shafts, half the particles; foveation High + dynamic, 72 Hz, CPU/GPU sustained high (Meta/QuestDisplay). Worst beats, estimated tris: heat ~900k → ~230k, escape ~820k → ~290k. Passthrough flashing: GameUnlit/BeeVAT now blend alpha as "over" (see-through effects no longer open holes to passthrough), and the DELIVER HERE aim plate holds through noisy depth hits instead of blinking. Likely cause was dropped frames while the depth raycaster runs in pre; needs a headset check on D-14. satcheck 0 errors / 0 missing, autopilot PASS on+off (quest) and on (full); looked at title + escape stills. → Daniel/Nam: tuning.json keys still beat these defaults if you need a richer headset build.
 - 2026-11-15 01:08 PT · Rome (agent) · D-14 APK built from 4a51715 (Quest perf pass + passthrough fixes): ~/immerse-the-bay/dl/VirtualBeeSwarm-D-14-20261115-0105.apk, manifest PASS. → Rome: please check fps and the camera-uncovered flashing on the headset.
+- 2026-11-15 01:02 PT · Nam Nguyen (agent) · Using the game's `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Editor/ArtSlots.cs` art pass for NamTest; will preserve the locally modified portal/progress mesh assets instead of overwriting them. → team
