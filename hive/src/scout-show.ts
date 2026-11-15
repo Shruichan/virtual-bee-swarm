@@ -686,7 +686,9 @@ const SHOW = `<!doctype html>
   function onSay(ev) {
     lastActivity = Date.now();
     var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
-    if (id !== lastEnq) { lastEnq = id; enqueue(ev); } // mirror audio (only when sound is on); a re-sent caption doesn't replay
+    // mirror audio (only when sound is on); an Ask answer's re-sent caption doesn't replay (scout/ask parity: any
+    // other line said twice in a row, e.g. the teacher button pressed twice, plays twice like on the glasses)
+    if (id !== lastEnq || id.indexOf("scout_ask_") !== 0) { lastEnq = id; enqueue(ev); }
     if (id === "scout_teacher") { showTeacher(text); return; }
     if (id.indexOf("scout_done") === 0) celebrate(); // the finale lines play under "Bee Scout badge earned!"
     if (!text) return; // a pure sound effect: nothing to show
@@ -815,14 +817,22 @@ const SHOW = `<!doctype html>
   var audio = new Audio(); audio.preload = "none"; audio.muted = true;
   function enqueue(ev) {
     if (!mirror) return;
-    var urls = ["/scout/audio/" + encodeURIComponent(ev.line_id) + ".mp3?" + TQ];
-    if (ev.audio_url && ev.audio_url.indexOf("/scout/audio/" + ev.line_id) < 0) urls.push(ev.audio_url);
+    // scout/ask parity: an Ask Beeswax answer has no /scout/audio file, so go straight to its streamed mp3
+    var ask = String(ev.line_id || "").indexOf("scout_ask_") === 0 && ev.audio_url;
+    var urls = ask ? [ev.audio_url] : ["/scout/audio/" + encodeURIComponent(ev.line_id) + ".mp3?" + TQ];
+    if (!ask && ev.audio_url && ev.audio_url.indexOf("/scout/audio/" + ev.line_id) < 0) urls.push(ev.audio_url);
     queue.push({ id: ev.line_id, urls: urls, at: Date.now(), n: 0 });
     if (!cur) playNext();
   }
+  // scout/ask parity: Beeswax was cut off (ScoutEvent "stop": barge-in, reset): drop what is playing and queued, like the glasses ear
+  function stopAudio() {
+    queue = []; cur = null;
+    if (audio.getAttribute("src")) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+  }
   function playNext() {
     if (!mirror) { queue = []; cur = null; return; }
-    while (queue.length && Date.now() - queue[0].at > 20000) queue.shift(); // never fall far behind the wearer
+    // scout/ask parity: the glasses play every queued line in order (up to 120 s behind), so the Mac does too
+    while (queue.length && Date.now() - queue[0].at > 120000) queue.shift();
     cur = queue.shift() || null;
     if (cur) load();
   }
@@ -885,6 +895,7 @@ const SHOW = `<!doctype html>
       case "state": if (ev.state) onState(ev.state); break;
       case "found": onFound(ev); break;
       case "say": onSay(ev); break;
+      case "stop": stopAudio(); clearCaps(); break; // scout/ask parity: the glasses ear was cut, so is this screen
       case "heard": onHeard(ev); break;
     }
   }
@@ -899,7 +910,7 @@ const SHOW = `<!doctype html>
     me.onerror = function () { if (me === es && me.readyState === 2) retryEs = setTimeout(connect, 3000); }; // closed for good: retry ourselves
     var parse = function (e) { try { handle(JSON.parse(e.data)); } catch (err) {} };
     me.onmessage = parse;
-    ["frame", "found", "say", "heard", "state"].forEach(function (t) { me.addEventListener(t, parse); });
+    ["frame", "found", "say", "heard", "state", "stop"].forEach(function (t) { me.addEventListener(t, parse); }); // stop: scout/ask parity
   }
   document.addEventListener("visibilitychange", function () {
     clearTimeout(hideTimer);

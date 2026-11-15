@@ -794,6 +794,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     for (const l of listeners) l(e);
   };
 
+  /** The mp3 URL of a scout line, or null. ?ms=<length> (scout/ask): the glasses end the line on time even when the
+   *  phone's player never reports the end (seen live: 3 of 25 lines hung until the next stop). */
+  const scoutAudioUrl = (id: string): string | null => {
+    if (!existsSync(join(audioDir(), `${id}.mp3`))) return null;
+    const ms = manifestMs(id);
+    return `${ctx.base()}/scout/audio/${id}.mp3${ms ? `?ms=${ms}` : ""}`;
+  };
   /** One line to the glasses' ear, unless the glasses are muted (POST /scout/glasses-mute). */
   const toGlasses = (s: { line_id: string; caption: string; audio_url: string | null }) => {
     if (game.glassesMuted) return;
@@ -804,7 +811,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     now: ctx.now,
     event: fanout,
     durationMs: manifestMs,
-    audioUrl: (id) => (existsSync(join(audioDir(), `${id}.mp3`)) ? `${ctx.base()}/scout/audio/${id}.mp3` : null),
+    audioUrl: (id) => scoutAudioUrl(id),
     // line_id stays null (no embedded clip in the glasses); tts_id carries the scout line id so the glasses can
     // light the LED per line even when audio_url is null. Ear lines never use tts_id otherwise.
     stop: () =>
@@ -828,8 +835,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       line: (id) => {
         const l = loadScoutLines().find((x) => x.id === id);
         if (!l?.text) return null;
-        const has = existsSync(join(audioDir(), `${id}.mp3`));
-        return { caption: l.text, audio_url: has ? `${ctx.base()}/scout/audio/${id}.mp3` : null, ms: manifestMs(id) };
+        return { caption: l.text, audio_url: scoutAudioUrl(id), ms: manifestMs(id) };
       },
     });
     if (!ctx.ask) {

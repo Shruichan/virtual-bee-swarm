@@ -522,7 +522,7 @@ describe("/scout routes", () => {
     expect(seen.filter((e) => e.type === "frame").length).toBeLessThan(12);
     await until(() => seen.filter((e) => e.type === "say").length >= 2, "say events");
     const chime = seen.find((e) => e.type === "say" && e.line_id === "scout_chime") as any;
-    expect(chime.audio_url).toMatch(/\/scout\/audio\/scout_chime\.mp3$/);
+    expect(chime.audio_url).toMatch(/\/scout\/audio\/scout_chime\.mp3\?ms=900$/); // the length rides along (scout/ask)
     const hook = seen.find((e) => e.type === "say" && e.line_id === "scout_hook_honey_jar") as any;
     expect(hook.audio_url).toBe(null); // no mp3 on disk -> the glasses speak the caption
 
