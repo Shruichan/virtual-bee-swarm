@@ -333,7 +333,7 @@ namespace VirtualBeeSwarm
             while (true)
             {
                 var t = signHere.transform;
-                if (_clipParkedAt < 0f && t.gameObject.activeInHierarchy && !delivery.IsFlying(t))
+                if (_clipParkedAt < 0f && t.gameObject.activeInHierarchy && !delivery.IsFlying(t) && !Title.TitleDirector.Bringing(t))
                 {
                     _clipParkedAt = Time.time;
                     signHere.Arm(true);
@@ -389,6 +389,7 @@ namespace VirtualBeeSwarm
             Vector3 pivot = centre - rot * Vector3.up * (h * 0.5f);
             signHere.Arm(false);
             _clipParkedAt = -1f;
+            if (Title.TitleDirector.Carry(signHere, why)) return; // title.on: Beeswax brings it himself, his caption stays over him
             delivery.Park(signHere.transform, new Pose(pivot, rot), clipboardCrew);
             if (beeswax != null) beeswax.SetCaptionAnchor(signHere.transform, h + 0.05f);
             Log("SIGN HERE on its way (" + why + ")");
@@ -413,7 +414,7 @@ namespace VirtualBeeSwarm
             var t = signHere.transform;
             if (!_stamped) { delivery.Stamp(t, true); _stamped = true; } // started by N / Space / the Board
             yield return Wait(stampHoldSeconds);
-            delivery.Return(t);
+            if (!Title.TitleDirector.TakeAway(t)) delivery.Return(t); // title.on: Beeswax flies it out himself
         }
 
         // ------------------------------------------------------------ hook
