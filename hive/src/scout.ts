@@ -67,6 +67,10 @@ export interface ScoutGameDeps {
 export const SKIP_REOFFER_MS = 60_000;
 /** At most one idle nudge this often. */
 export const IDLE_EVERY_MS = 60_000;
+/** Practice mode: the pause after a line before the next chime (demo mode uses tuning.gapMs). */
+export const PRACTICE_GAP_MS = 1000;
+/** Practice mode: looking away from the last find this long lets it fire again without a slide change. */
+export const PRACTICE_LOOK_AWAY_MS = 8000;
 /** Frames further apart than this break a steady look (the worker stalled). */
 export const FRAME_STALE_MS = 1500;
 
@@ -100,6 +104,9 @@ export class ScoutGame {
   private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
   private practice = false;
   private lastFind: { label: ScoutLabel; at: number } | null = null;
+  /** Practice: since when the frames' top-1 has not been the last find, and whether that lasted PRACTICE_LOOK_AWAY_MS. */
+  private awaySince: number | null = null;
+  private lookedAway = false;
   private blockedKey = "";
   private lastSig = "";
 
@@ -123,7 +130,8 @@ export class ScoutGame {
     };
   }
 
-  /** POST /scout/practice: screen-test mode, any object can trigger again once the slide changes. */
+  /** POST /scout/practice: screen-test mode. A steady look plays the chime and the fact straight away (no offer),
+   *  1 s gap, and the same object fires again once the slide changes or after 8 s of looking away. */
   setPractice(on: boolean): void {
     this.practice = on;
     this.changed();
@@ -151,6 +159,7 @@ export class ScoutGame {
     const best = top[0];
     this.current = best ? { label: best.label, score: best.score } : null;
     this.emit({ type: "frame", frame: f });
+    this.trackLookAway(best?.label ?? null, now);
     const second = top[1]?.score ?? 0;
     const counts = best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
     if (this.phase !== "looking") {
@@ -174,7 +183,7 @@ export class ScoutGame {
     if (lookMs < this.tuning.steadyMs) return;
     const reason: ScoutBlockReason | null = !this.eligible(best.label)
       ? this.found.includes(best.label) ? "already_found" : "skipped"
-      : now < this.busyUntil + this.tuning.gapMs ? "cooldown" : null;
+      : now < this.busyUntil + this.gapMs() ? "cooldown" : null;
     if (reason) this.blocked(best.label, reason, best.score, String(this.run.since));
     else this.foundIt(best.label, best.score, lookMs, now - this.run.firstAt);
   }
@@ -225,7 +234,7 @@ export class ScoutGame {
     } else if (
       this.phase === "looking" &&
       this.startedAt !== null &&
-      now >= this.busyUntil + this.tuning.gapMs &&
+      now >= this.busyUntil + this.gapMs() &&
       now - Math.max(this.lookingSince, this.busyUntil) >= this.tuning.idleMs &&
       now - this.lastIdleAt >= IDLE_EVERY_MS
     ) {
@@ -241,7 +250,7 @@ export class ScoutGame {
     if (this.practice) {
       // Practice: anything goes, except repeating the last find before the slide has changed.
       const last = this.lastFind;
-      return !(last && last.label === label && (!this.lastSlide || this.lastSlide.recvAt <= last.at));
+      return !(last && last.label === label && !this.lookedAway && (!this.lastSlide || this.lastSlide.recvAt <= last.at));
     }
     if (this.found.includes(label)) return false;
     const skippedAt = this.skipped.get(label);
@@ -250,16 +259,41 @@ export class ScoutGame {
     return SCOUT_LABELS.every((l) => l === label || this.found.includes(l));
   }
 
+  private gapMs(): number {
+    return this.practice ? PRACTICE_GAP_MS : this.tuning.gapMs;
+  }
+
+  /** Practice: latch "looked away" once the last find hasn't been top-1 for PRACTICE_LOOK_AWAY_MS (props, no slides). */
+  private trackLookAway(top: ScoutClass | null, now: number): void {
+    const last = this.lastFind;
+    if (!last || top === null) return;
+    if (top !== last.label) {
+      this.awaySince ??= now;
+      return;
+    }
+    if (this.awaySince !== null && now - this.awaySince >= PRACTICE_LOOK_AWAY_MS) this.lookedAway = true;
+    this.awaySince = null;
+  }
+
   private foundIt(label: ScoutLabel, score: number, lookMs: number, frameMs: number): void {
     const now = this.now();
     this.run = null;
     this.offer = label;
     this.lastFind = { label, at: now };
-    this.phase = "offering";
+    this.awaySince = null;
+    this.lookedAway = false;
+    this.phase = this.practice ? "telling" : "offering";
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
     this.latency("frame_to_found", frameMs);
     this.say(SCOUT_LINES.chime);
+    if (this.practice) {
+      // Practice: no hook, no offer; the fact straight away. found/progress are left alone.
+      this.say(SCOUT_LINES.fact(label));
+      this.latency("found_to_say", this.now() - now);
+      this.changed();
+      return;
+    }
     this.say(SCOUT_LINES.hook(label));
     this.latency("found_to_say", this.now() - now);
     this.offerDeadline = this.busyUntil + this.tuning.offerTimeoutMs;
@@ -441,6 +475,9 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     say: (s) =>
       ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
   });
+
+  // SCOUT_PRACTICE=1: start in practice mode, so it survives Hive restarts (POST /scout/practice still flips it).
+  if (process.env.SCOUT_PRACTICE === "1") game.setPractice(true);
 
   const ticker = setInterval(() => {
     if (ctx.stopped?.()) return clearInterval(ticker);
