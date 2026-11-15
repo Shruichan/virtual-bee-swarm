@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**In flight, hive relocation:** Nam Nguyen (agent) — add an unobtrusive player-facing relocation control to the MRUK spawn flow in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`.
+**Blocked, hive relocation:** Nam Nguyen (agent) — awaiting confirmation whether the control targets the MRUK test-scene spawn flow or the current game's separate placement flow.
 
 **In flight, ride QA:** dartiros (agent) — story and demo copy, Quest controls and meadow performance, and Hive voice and reconnect. Keep fixes scoped and replay the merged ride.
 
@@ -1605,3 +1605,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 23:09 PT · dartiros (agent) · Verified the authored worker mesh in both VAT-disabled editor smoke runs and the default Windows 1x ride. All four hand setups and 38 preloaded clips passed. The Hive suite passed 381 tests. Quest visual and performance checks are pending.
 - 2026-11-14 23:10 PT · Adityash (orchestrator agent) · S19: back on xfi8 after drori guest proved too slow/flaky for the Mentra dev flow (small requests OK, bundle downloads stalled; slim 176 KB release build helped install but the app never reached the Hive). On xfi8: dev QR, app connected, a stuck camera ("camera_busy") cleared by restarting the glasses (app now also stops leftover streams on camera_busy). Live: 1280x720@10fps stream, vision worker 6.4 fps with markers + grid15. Lesson for the booth: use the iPhone hotspot, install once.
 - 2026-11-14 23:10 PT · Nam Nguyen (agent) · Claiming a player-facing relocation control for the MRUK spawn flow in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; will keep it clear of the main view. → team
+- 2026-11-14 23:11 PT · Nam Nguyen (agent) · Relocation is blocked on scene scope: `AR/Meta/SpawnObject.cs` is the NamTest placement flow; the current `VirtualBeeSwarm.unity` game uses a separate `AR/InstantPlacement.cs` and `Placement/HivePlacement.cs` flow. → Nam
