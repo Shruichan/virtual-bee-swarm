@@ -78,7 +78,7 @@ class Mesh:
         self.ellipsoid((cx,cy,cz+radius*.08),(radius*.30,radius*.30,radius*.20),"pollen",segments=12,rings=8)
 
     def write(self):
-        lines=[f"# {self.name}",f"mtllib {self.name}.mtl",f"o {self.name}"]
+        lines=[f"# {self.name}","mtllib meadow.mtl",f"o {self.name}"]
         lines.extend(f"v {x:.5f} {y:.5f} {z:.5f}" for x,y,z in self.vertices)
         current=None
         for material,face in self.faces:
@@ -136,8 +136,7 @@ def write_mtl():
     lines=["# Soft matte palette for a stylized AR meadow."]
     for name,color in MATERIALS.items():
         lines.extend((f"newmtl {name}",f"Kd {color[0]:.3f} {color[1]:.3f} {color[2]:.3f}","Ka 0.15 0.15 0.15","Ks 0.05 0.05 0.05","Ns 10",""))
-    for name in ("meadow_flowers","soft_grass_tuft","flowering_vine"):
-        (OUT/f"{name}.mtl").write_text("\n".join(lines))
+    (OUT/"meadow.mtl").write_text("\n".join(lines))
 
 
 if __name__=="__main__":

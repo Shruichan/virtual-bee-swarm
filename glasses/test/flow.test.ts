@@ -8,7 +8,7 @@ import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
 import {CAPTIONS, FILLERS, LINES} from "../src/background/lines"
-import {fakeSession, sleep, until, type AudioOp, type FakeOptions} from "./fakes"
+import {expectedEarLine, fakeSession, heardEarLine, sleep, until, type AudioOp, type FakeOptions} from "./fakes"
 
 const TOKEN = "test-token"
 setQuiet(true)
@@ -177,8 +177,8 @@ test("outside a scan beat: no hold-still, no photo, the Hive's line plays", asyn
   const fake = await boot()
   await questBeat(fake, "hook")
   fake.press()
-  await until(() => fake.audio.some((a) => a.kind === "speak"), 3000, "not-now line")
-  expect(fake.audio).toEqual([expect.objectContaining({kind: "speak", text: CAPTIONS[NOT_NOW]})])
+  await until(() => fake.audio.some((audio) => heardEarLine(audio, NOT_NOW)), 3000, "not-now line")
+  expect(fake.audio).toEqual([expect.objectContaining(expectedEarLine(NOT_NOW))])
   expect(fake.photos).toHaveLength(0)
   expect(paths()).not.toContain("/glasses/scan")
 })
@@ -188,9 +188,9 @@ test("scan refused with 409: says the Hive's line, not 'lost the signal'", async
   await questBeat(fake, "feed")
   scanRefused = true
   fake.press()
-  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS[NOT_NOW]), 4000, "refusal line")
+  await until(() => fake.audio.some((audio) => heardEarLine(audio, NOT_NOW)), 4000, "refusal line")
   await until(() => fake.status.last?.scanning === false, 1000, "scan reset")
-  if (NOT_NOW !== "ear_scan_failed") expect(fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS.ear_scan_failed)).toBe(false)
+  if (NOT_NOW !== "ear_scan_failed") expect(fake.audio.some((audio) => heardEarLine(audio, "ear_scan_failed"))).toBe(false)
 })
 
 test("presses while a scan is in flight are ignored", async () => {
@@ -452,10 +452,10 @@ test("hive unreachable: says so and the next press works", async () => {
   const fake = fakeSession()
   app = start(fake.session, makeConfig({hiveToken: TOKEN, hosts: ["http://127.0.0.1:9"], ...TEST_CONFIG}))
   fake.press()
-  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === CAPTIONS.ear_no_signal), 4000, "no-signal line")
+  await until(() => fake.audio.some((audio) => heardEarLine(audio, "ear_no_signal")), 4000, "no-signal line")
   await until(() => fake.status.last?.scanning === false, 1000, "scan reset")
   fake.press()
-  await until(() => fake.audio.filter((a) => a.kind === "speak" && a.text === CAPTIONS.ear_no_signal).length === 2, 4000, "second press handled")
+  await until(() => fake.audio.filter((audio) => heardEarLine(audio, "ear_no_signal")).length === 2, 4000, "second press handled")
   fake.say("what if a fire starts") // beat unknown (no bus): not sent anywhere, no crash
   await sleep(50)
 })

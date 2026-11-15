@@ -213,7 +213,7 @@ export const ROUTER_SCHEMA = {
       anyOf: [{ type: "string" }, { type: "null" }],
       description: "Only for what_if with topic custom: the three-sentence scene prompt, or null to refuse. Else null.",
     },
-    answer: { anyOf: [{ type: "string" }, { type: "null" }], description: "Only for ask: Beeswax's spoken reply, max 25 words." },
+    answer: { anyOf: [{ type: "string" }, { type: "null" }], description: "Only for ask: lead with the answer. Use one conversational sentence, or two short ones, within 110 characters. Use natural contractions and ordinary punctuation." },
   },
   required: ["intent", "topic", "custom_prompt", "answer"],
   additionalProperties: false,

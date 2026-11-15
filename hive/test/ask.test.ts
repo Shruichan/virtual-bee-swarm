@@ -471,6 +471,16 @@ describe("echo guard", () => {
 });
 
 describe("fixRouted (the router's answers in the other beats)", () => {
+  test("spoken replies stop after two sentences and never send an overlong first sentence", () => {
+    const concise = { intent: "ask", answer: "The queen lays eggs. She has a lot to do. Meeting adjourned." };
+    fixRouted("what does the queen do", concise);
+    expect(concise.answer).toBe("The queen lays eggs. She has a lot to do.");
+
+    const wordy = { intent: "ask", answer: "The queen lays eggs and keeps the workers quite busy throughout the season while the rest of the hive does all the other work it needs to do." };
+    fixRouted("what does the queen do", wordy);
+    expect(wordy.answer).toBe(cannedText("ask_offlist"));
+  });
+
   test("canned question -> canned text; old off-list text -> new; failed vet -> off-list; lost question -> stall", () => {
     const r1 = { intent: "ask", answer: "Smoke hides the alarm.", error: undefined as string | undefined };
     fixRouted("why does it smell like bananas", r1);

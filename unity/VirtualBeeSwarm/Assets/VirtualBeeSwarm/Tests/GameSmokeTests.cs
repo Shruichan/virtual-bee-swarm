@@ -203,12 +203,23 @@ namespace VirtualBeeSwarm.Tests
             Debug.Log("[VBSTest] " + escape.LastScore + " (scaled time x" + TimeScale + ")");
 
             yield return WaitForBeat(director, GameBeat.T0, 40f);
+            var launch = UnityEngine.Object.FindAnyObjectByType<T0Sequence>();
+            Assert.IsNotNull(launch, "launch sequence");
+            var rocket = new SerializedObject(launch).FindProperty("rocket").objectReferenceValue as Transform;
+            Assert.IsNotNull(rocket, "rocket");
+            var launchPosition = rocket.position;
+            var launchRotation = rocket.rotation;
             yield return WaitUntil(() => net.CurrentScene == GameIds.Scene.Moon, 15f, "Moon after liftoff");
             yield return WaitForBeat(director, GameBeat.Map, 90f);
             var map = UnityEngine.Object.FindAnyObjectByType<LevelMap>();
             Assert.IsNotNull(map, "level map");
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
+
+            Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.GreaterThan(10f), "crash tilt stays through the contract");
+            director.GoTo(GameBeat.T0, "test replay");
+            Assert.That(Vector3.Distance(launchPosition, rocket.position), Is.LessThan(0.01f), "T-0 replay returns the rocket to the pad");
+            Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.LessThan(0.5f), "T-0 replay clears the crash tilt");
 
             // Rehearsal controls can revisit a station without changing the score for this group.
             director.GoTo(GameBeat.Heat, "test replay");

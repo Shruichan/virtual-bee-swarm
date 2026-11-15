@@ -810,22 +810,28 @@ namespace VirtualBeeSwarm.Bloom
                 {
                     float k = Mathf.Clamp01((now - _t0[i]) / _dur[i]);
                     float e = k * k * (3f - 2f * k);
-                    Vector3 mid = (_from[i] + _to[i]) * 0.5f + Vector3.up * _arc[i];
-                    Vector3 p = Vector3.Lerp(Vector3.Lerp(_from[i], mid, e), Vector3.Lerp(mid, _to[i], e), e);
-                    p += new Vector3(Mathf.Sin(now * 7f + i), Mathf.Sin(now * 9f + i * 2f), Mathf.Cos(now * 8f + i)) * (0.015f * (1f - e));
-                    Vector3 vel = p - _pos[i];
-                    _pos[i] = p;
+                    Vector3 contact = PerchPosition(i, now);
+                    Vector3 mid = (_from[i] + contact) * 0.5f + Vector3.up * _arc[i];
+                    Vector3 fromMid = Vector3.Lerp(_from[i], mid, e);
+                    Vector3 toMid = Vector3.Lerp(mid, contact, e);
+                    _pos[i] = Vector3.Lerp(fromMid, toMid, e);
+                    _pos[i] += new Vector3(Mathf.Sin(now * 7f + i), Mathf.Sin(now * 9f + i * 2f), Mathf.Cos(now * 8f + i)) * (0.015f * Mathf.Sin(k * Mathf.PI));
+                    Vector3 vel = toMid - fromMid;
                     rot = vel.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(new Vector3(vel.x, vel.y * 0.4f, vel.z), Vector3.up) : Quaternion.identity;
-                    _flap[shown] = 1f;
-                    if (k >= 1f) { _perched[i] = true; _until[i] = now + 1.5f + (float)_rnd.NextDouble() * 2.5f; Visits++; }
+                    rot = Quaternion.Slerp(rot, PerchRotation(i, now), Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.7f, 1f, k)));
+                    _flap[shown] = k < 1f ? 1f : 0f;
+                    if (k >= 1f)
+                    {
+                        _perched[i] = true;
+                        _until[i] = now + 1.5f + (float)_rnd.NextDouble() * 2.5f;
+                        Visits++;
+                        GameSound.BeeLanding(contact, face);
+                    }
                 }
                 else
                 {
-                    _pos[i] = _to[i] + _rest[i] * (0.012f + 0.004f * Mathf.Sin(now * 11f + i));
-                    Vector3 up = _rest[i];
-                    Vector3 f = Vector3.Cross(up, Vector3.right);
-                    if (f.sqrMagnitude < 1e-4f) f = Vector3.forward;
-                    rot = Quaternion.AngleAxis(i * 47f + Mathf.Sin(now * 0.7f + i) * 25f, up) * Quaternion.LookRotation(f, up);
+                    _pos[i] = PerchPosition(i, now);
+                    rot = PerchRotation(i, now);
                     _flap[shown] = 0f; // resting: wings still
                     if (now >= _until[i])
                     {
@@ -852,6 +858,16 @@ namespace VirtualBeeSwarm.Bloom
             _mpb.SetVectorArray(ColorId, _col);
             _mpb.SetFloatArray(WingFlapId, _flap);
             Graphics.DrawMeshInstanced(_mesh, 0, _mat, _m, shown, _mpb, ShadowCastingMode.Off, false, layer);
+        }
+
+        Vector3 PerchPosition(int i, float now) => _to[i] + _rest[i] * (0.012f + 0.002f * Mathf.Sin(now * 11f + i));
+
+        Quaternion PerchRotation(int i, float now)
+        {
+            Vector3 up = _rest[i];
+            Vector3 forward = Vector3.Cross(up, Vector3.right);
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+            return Quaternion.AngleAxis(i * 47f + Mathf.Sin(now * 0.7f + i) * 12f, up) * Quaternion.LookRotation(forward, up);
         }
 
         /// <summary>An open flower anywhere on the meadow floor, or (a third of the time) a spot on a wall vine.</summary>

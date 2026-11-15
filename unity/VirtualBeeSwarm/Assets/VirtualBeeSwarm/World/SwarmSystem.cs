@@ -218,6 +218,8 @@ namespace VirtualBeeSwarm
             Vector3 ball = _ballTarget != null ? _ballTarget.position : _ballPoint;
             Vector3 forage = forageTarget != null ? forageTarget.position : center + new Vector3(-0.4f, 0.2f, 0f);
             float agit = Agitation;
+            var ar = AR.ArRig.Instance;
+            var room = ar != null ? ar.Room : null;
 
             Color baseColor;
             float maxSpeed, accel;
@@ -340,12 +342,19 @@ namespace VirtualBeeSwarm
                     float clear = Stakes.StakesFlags.Comfort ? 0.8f : 0.45f;
                     Vector3 fo = p - headPos;
                     float fd = fo.magnitude;
-                    if (fd < clear) p = headPos + (fd > 1e-4f ? fo / fd : Vector3.up) * clear;
+                    if (fd < clear)
+                    {
+                        Vector3 away = fd > 1e-4f ? fo / fd : Vector3.up;
+                        p = headPos + away * clear;
+                        v -= away * Mathf.Min(0f, Vector3.Dot(v, away));
+                    }
                 }
+                if (room != null && room.ClampAboveTable(ref p, bl * 0.3f) > 0f)
+                    v.y = Mathf.Max(v.y, 0f);
                 _pos[i] = p;
                 _vel[i] = v;
 
-                Vector3 fwd = vm > 0.02f ? v / vm : (target - p);
+                Vector3 fwd = v.sqrMagnitude > 0.0004f ? v : target - p;
                 Quaternion rot = fwd.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
                 _matrices[i] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(Time.time, i * 2.4f, 0.55f), new Vector3(bl, bl, bl)); // wings flap in the shader
 

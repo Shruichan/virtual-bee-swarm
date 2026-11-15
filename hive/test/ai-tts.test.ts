@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { cachedAudioSeconds, prepareSpeech } from "../src/ask";
 import { TTS_SAMPLE_RATE, ttsAvailable, ttsLimits, ttsMp3, ttsPcm } from "../src/tts";
 
 const realFetch = globalThis.fetch;
@@ -60,6 +61,52 @@ describe("ttsAvailable", () => {
   });
 });
 
+test("speech budget is shared by streaming and whole-file renders", async () => {
+  const names = ["ELEVENLABS_TTS_CHAR_BUDGET", "ELEVENLABS_TTS_BUDGET_PERIOD", "ELEVENLABS_TTS_BUDGET_DB"] as const;
+  const previous = names.map((name) => process.env[name]);
+  process.env.ELEVENLABS_TTS_CHAR_BUDGET = "7";
+  process.env.ELEVENLABS_TTS_BUDGET_PERIOD = "test-allocation";
+  process.env.ELEVENLABS_TTS_BUDGET_DB = ":memory:";
+  try {
+    mockFetch(() => new Response(streamOf([bytes(6)]), { status: 200 }));
+    expect(await collect(ttsPcm("Bee."))).toHaveLength(1);
+    expect(await ttsMp3("Hi.")).toHaveLength(6);
+    expect(await collect(ttsPcm("Hi."))).toEqual([]);
+    await expect(ttsMp3("Bee.")).rejects.toThrow("speech budget reached");
+    expect(calls).toHaveLength(2);
+  } finally {
+    for (const [index, name] of names.entries()) {
+      const value = previous[index];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test("local voice handles live PCM and MP3 without using the paid provider", async () => {
+  const previous = process.env.VBS_LOCAL_TTS_URL;
+  const url = "http://127.0.0.1:8243/speak";
+  process.env.VBS_LOCAL_TTS_URL = url;
+  delete process.env.ELEVENLABS_API_KEY;
+  try {
+    mockFetch(() => new Response(new Uint8Array(6402)));
+    expect(ttsAvailable()).toBe(true);
+    expect((await collect(ttsPcm("That's the queen."))).map((chunk) => chunk.length)).toEqual([3200, 3200, 2]);
+    expect(await ttsMp3("That's the queen.")).toHaveLength(6402);
+    expect(calls.map(({ url: requestUrl, init }) => [requestUrl, JSON.parse(String(init?.body))])).toEqual([
+      [url, { text: "That's the queen.", format: "pcm" }],
+      [url, { text: "That's the queen.", format: "mp3" }],
+    ]);
+
+    mockFetch(() => new Response(null, { status: 503 }));
+    expect(await collect(ttsPcm("That's the queen."))).toEqual([]);
+    expect(calls).toHaveLength(1);
+  } finally {
+    if (previous === undefined) delete process.env.VBS_LOCAL_TTS_URL;
+    else process.env.VBS_LOCAL_TTS_URL = previous;
+  }
+});
+
 describe("ttsPcm", () => {
   test("streams pcm_16000 from flash v2.5 and re-chunks odd sizes to whole samples", async () => {
     const sizes = [3, 5, 1, 7, 2]; // 18 bytes total
@@ -76,6 +123,7 @@ describe("ttsPcm", () => {
     expect(url).toContain("output_format=pcm_16000");
     const body = JSON.parse(String(init?.body));
     expect(body.model_id).toBe("eleven_flash_v2_5");
+    expect(body.voice_settings).toEqual({ speed: 0.95 });
     expect(body.text).toBe("Motion denied.");
   });
 
@@ -98,12 +146,23 @@ describe("ttsPcm", () => {
     expect(performance.now() - t0).toBeLessThan(1500);
   });
 
-  test("a stream that stalls ends after the idle timeout, keeping what arrived", async () => {
+  test("a stalled stream plays its first chunk but never caches the partial reply", async () => {
+    const text = "Try this reply again.";
     mockFetch(() => new Response(streamOf([bytes(6)], true), { status: 200 }));
-    const t0 = performance.now();
-    const out = await collect(ttsPcm("Noted."));
-    expect(out.reduce((n, c) => n + c.length, 0)).toBe(6);
-    expect(performance.now() - t0).toBeLessThan(1500);
+    const first = await prepareSpeech(text, ttsPcm);
+    expect(first).not.toBeNull();
+    const partial = first![Symbol.asyncIterator]();
+    expect((await partial.next()).value).toEqual(new Uint8Array(bytes(6)));
+    await expect(partial.next()).rejects.toThrow();
+    expect(cachedAudioSeconds(text)).toBe(0);
+
+    mockFetch(() => new Response(streamOf([bytes(8)]), { status: 200 }));
+    const second = await prepareSpeech(text, ttsPcm);
+    expect(second).not.toBeNull();
+    const retried = second![Symbol.asyncIterator]();
+    expect((await retried.next()).value).toEqual(new Uint8Array(bytes(8)));
+    expect((await retried.next()).done).toBe(true);
+    expect(calls).toHaveLength(1);
   });
 
   test("missing env or empty text: no request", async () => {

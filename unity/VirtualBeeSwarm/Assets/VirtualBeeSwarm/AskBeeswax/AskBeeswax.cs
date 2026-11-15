@@ -15,9 +15,9 @@ namespace VirtualBeeSwarm.Ask
     ///            Beeswax flies to the card's inner edge and shakes the Moon dust off (his own colours).
     ///   Closes:  the beat leaves map/field (the crew flies it back out), or a group reset (it vanishes).
     ///   Input:   pinch-hold with either hand while the card is up = GameNet.BeginTalk/EndTalk (T and controller B/Y keep
-    ///            working through WhatIfBeat). A pinch aimed at a chip clicks the chip instead. A hold of 0.25 s stops
-    ///            Beeswax (barge-in); a shorter pinch (a tracking flicker, a click on something else) is cancelled and
-    ///            cuts nothing. A chip: online its question goes to the Hive (answered from memory, in his voice);
+    ///            working through WhatIfBeat). Wait for Beeswax to finish, then hold and start with "Hey Beeswax".
+    ///            A pinch aimed at a chip clicks the chip instead. A short pinch is cancelled. A chip: online its
+    ///            question goes to the Hive (answered from memory, in his voice);
     ///            offline, or if the Hive stays silent for 1.5 s, the canned answer plays locally.
     ///   Card:    idle = chips; listening = red pulsing border + hex mic meter; thinking = hex sweep; answer = the
     ///            answer in dark ink where the chips were (kept 5 s after he stops).
@@ -127,6 +127,9 @@ namespace VirtualBeeSwarm.Ask
                 _net.VoiceLineStarted += HandleLine;
                 _net.TranscriptReceived += HandleTranscript;
                 _net.IntentReceived += HandleIntent;
+                _net.VoiceInputUnavailable += HandleVoiceInputUnavailable;
+                _net.VoiceWakeWait += HandleVoiceWakeWait;
+                _net.VoiceWakeRejected += HandleVoiceWakeRejected;
                 _net.GroupReset += HandleReset;
             }
             _subscribed = true;
@@ -146,6 +149,9 @@ namespace VirtualBeeSwarm.Ask
                 _net.VoiceLineStarted -= HandleLine;
                 _net.TranscriptReceived -= HandleTranscript;
                 _net.IntentReceived -= HandleIntent;
+                _net.VoiceInputUnavailable -= HandleVoiceInputUnavailable;
+                _net.VoiceWakeWait -= HandleVoiceWakeWait;
+                _net.VoiceWakeRejected -= HandleVoiceWakeRejected;
                 _net.GroupReset -= HandleReset;
             }
         }
@@ -252,6 +258,7 @@ namespace VirtualBeeSwarm.Ask
 
         void HandleTranscript(string text, bool final)
         {
+            FinishDetectedTalk();
             Apply(Flow.Transcript(text, final, Time.time));
             if (final && Flow.IsOpen) Debug.Log("[VBS][Ask] heard: \"" + text + "\"");
         }
@@ -260,6 +267,27 @@ namespace VirtualBeeSwarm.Ask
         {
             _lastIntent = name ?? "";
             Apply(Flow.Intent(name));
+        }
+
+        void HandleVoiceInputUnavailable(bool hasPermission)
+        {
+            Apply(Flow.MicrophoneUnavailable(hasPermission));
+        }
+
+        void HandleVoiceWakeWait() => Apply(Flow.WaitForVoice());
+
+        void HandleVoiceWakeRejected(bool heardWords)
+        {
+            FinishDetectedTalk();
+            Apply(Flow.WakeRejected(heardWords));
+        }
+
+        void FinishDetectedTalk()
+        {
+            // A fast transcript can arrive before Update notices that the mic stopped.
+            if (!_wasTalking || _net == null || _net.Talking) return;
+            _wasTalking = _bargePending = false;
+            Apply(Flow.TalkEnded(Time.time));
         }
 
         // ------------------------------------------------------------ frame
@@ -320,7 +348,7 @@ namespace VirtualBeeSwarm.Ask
                      : answer ? AskCardLook.Answer : AskCardLook.Idle;
             if (look != _card.Look) _card.SetLook(look);
             CaptionAway(_card.AnswerShown);
-            _card.Animate(now, Mathf.Clamp01(_net.HumLevel * 3f));
+            _card.Animate(now, _net.VoiceInputLevel);
         }
 
         void LateUpdate()
@@ -374,6 +402,7 @@ namespace VirtualBeeSwarm.Ask
         {
             if (!Flow.IsOpen || !Chips || i < 0 || i >= AskLines.Chips.Length) return;
             _lastChipPressFrame = Time.frameCount;
+            _net?.ResetVoiceWakeGate();
             Debug.Log("[VBS][Ask] chip " + i + ": " + AskLines.ChipQuestions[i] + (_net != null && _net.Online ? " (to the Hive)" : " (local)"));
             _lastIntent = "";
             Apply(Flow.Chip(AskLines.ChipQuestions[i], Time.time));

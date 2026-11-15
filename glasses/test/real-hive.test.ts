@@ -12,7 +12,7 @@ import {start} from "../src/background/app"
 import {Hive as HiveClient} from "../src/background/hive"
 import {makeConfig} from "../src/background/config"
 import {CAPTIONS, FILLERS, LINES} from "../src/background/lines"
-import {fakeSession, sleep, until, type FakeOptions} from "./fakes"
+import {expectedEarLine, fakeSession, heardEarLine, sleep, until, type FakeOptions} from "./fakes"
 
 setQuiet(true)
 const TOKEN = "real-hive-token"
@@ -121,8 +121,6 @@ async function beat(fake: ReturnType<typeof fakeSession>, name: (typeof BEATS)[n
 }
 
 const spoken = (fake: ReturnType<typeof fakeSession>) => fake.audio.filter((a) => a.kind === "speak").map((a: any) => a.text)
-/** Captions of the Hive's ear lines (whatever the catalog holds right now). */
-const earTexts = () => Object.values(hiveLines.LINES).filter((l) => l.channel === "ear").map((l) => l.text)
 
 test("real Hive: press -> photo + heard -> Quest gets started/photo/verdict, the ear gets the verdict", async () => {
   const fake = await boot({photoMs: 100})
@@ -154,17 +152,17 @@ test("real Hive: press -> photo + heard -> Quest gets started/photo/verdict, the
   await until(() => fake.status.last?.scanning === false, 2000, "scan done")
 })
 
-test("real Hive: outside scan beats the line the Hive names is spoken from the catalog (pre, then hornet)", async () => {
+test("real Hive: outside scan beats the line the Hive names plays (pre, then hornet)", async () => {
   const fake = await boot()
   await beat(fake, "pre")
   fake.press()
-  await until(() => spoken(fake).length === 1, 3000, "pre line")
-  expect(earTexts()).toContain(spoken(fake)[0])
+  await until(() => fake.audio.length === 1, 3000, "pre line")
+  expect(fake.audio[0]).toMatchObject(expectedEarLine("ear_practice"))
 
   await beat(fake, "hornet")
   fake.press()
-  await until(() => spoken(fake).length === 2, 3000, "not-now line")
-  expect(earTexts()).toContain(spoken(fake)[1])
+  await until(() => fake.audio.length === 2, 3000, "not-now line")
+  expect(fake.audio[1]).toMatchObject(expectedEarLine("ear_not_now"))
   expect(fake.photos).toHaveLength(0)
 })
 
@@ -293,8 +291,9 @@ test("real Hive: a wrong token is refused and the ear says so", async () => {
   const fake = fakeSession({photoUrl})
   app = start(fake.session, makeConfig({hiveToken: "wrong", hosts: [hive.url], giveUpMs: 5000}))
   fake.press()
-  await until(() => spoken(fake).length === 1, 4000, "no-signal line")
-  expect(spoken(fake)).toEqual(["I can't reach the hive. Check the hotspot."])
+  await until(() => fake.audio.some((audio) => heardEarLine(audio, "ear_no_signal")), 4000, "no-signal line")
+  // With no known beat, the glasses may start a hold-still filler before the 401 arrives.
+  expect(fake.audio.at(-1)).toMatchObject(expectedEarLine("ear_no_signal"))
   expect(fake.status.last?.log.some((l) => l.includes("HTTP 401"))).toBe(true)
   expect(fake.status.last?.log.some((l) => l.includes("wrong"))).toBe(false) // token never logged
 })
