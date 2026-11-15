@@ -16,10 +16,13 @@ namespace VirtualBeeSwarm
         [Tooltip("Where a jar goes to pour (above the hive).")]
         [SerializeField] Transform pourPoint;
         [SerializeField] bool requireMistakeFirst;
-        [SerializeField] float liftHintAfterSeconds = 10f;
-        [SerializeField] float giveUpLiftAfterSeconds = 20f;
+        [Tooltip("v2: room_feed_lift_hint when there's no lift this long after room_feed_intro.")]
+        [SerializeField] float liftHintSeconds = 8f;
+        [Tooltip("v2: no lift this long after room_feed_intro: skip the lift (no room_lift_light), straight to room_feed_tip.")]
+        [SerializeField] float liftGiveUpSeconds = 18f;
 
         protected override GameLine Prompt => GameLines.FeedPrompt;
+        protected override GameLine Hint => RideLines.HintFeed;
 
         bool _lifted, _triedHoney;
         Vector3 _honeyHome, _syrupHome;
@@ -56,32 +59,50 @@ namespace VirtualBeeSwarm
             if (swarm != null) swarm.SetMode(SwarmMode.Calm);
         }
 
+        /// <summary>
+        /// v2: room_feed_intro ("Problem two. Speaking of honey...") as Beeswax flies to the hive roof; no lift 8 s ->
+        /// room_feed_lift_hint; the lift -> room_lift_light ("Light, right? That's bad.") -> room_feed_tip ("We're
+        /// starving."); no lift 18 s -> skip it, room_feed_tip. Then the syrup zips in and the jar's crew strains as
+        /// room_feed_prompt plays, and room_crew_heavy over the jar's struggle.
+        /// </summary>
         protected override IEnumerator StationIntro()
         {
-            yield return SayAndWait(Prompt, 0.8f, 5f);
+            if (beeswax != null && hive != null) beeswax.FlyTo(hive.transform.position + Vector3.up * 0.32f); // raps the roof
+            yield return SayAndWait(Prompt, 0.8f, 5.5f);
             if (hive != null) hive.LiftEnabled = true;
             float start = Time.time;
             bool hinted = false;
-            while (!_lifted && Time.time - start < giveUpLiftAfterSeconds)
+            while (!_lifted && Time.time - start < liftGiveUpSeconds)
             {
-                if (!hinted && Time.time - start > liftHintAfterSeconds)
+                if (!hinted && Time.time - start > liftHintSeconds && (net == null || !net.IsSpeaking))
                 {
                     hinted = true;
+                    RidePacing.NoteStall("feed: no lift " + liftHintSeconds.ToString("0") + " s after the intro");
                     if (net != null) net.Say(GameLines.FeedLiftHint);
                 }
                 yield return null;
             }
-            if (beeswax != null) beeswax.WhipAround();
+            if (beeswax != null) { beeswax.WhipAround(); beeswax.GoPresent(); } // he tumbles off the roof
+            if (_lifted) yield return SayLine(RideLines.LiftLight, 1f);
+            else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
             if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
+            yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
             if (delivery != null && delivery.HeavyInbound)
             {
                 // V17: Beeswax yells at the jar's crew once, over its flight
                 Debug.Log("[VBS][Stations] feed: " + GameLines.RoomCrewHeavy.id + " over the jar's flight");
                 yield return SayAndWait(GameLines.RoomCrewHeavy, 1f, 3f);
             }
-            yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
             OfferChoices();
+        }
+
+        /// <summary>v2: right first time, the hero fact still gets said (room_feed_why).</summary>
+        protected override IEnumerator AfterSolved(string choice)
+        {
+            if (_triedHoney) yield break;
+            yield return Wait(0.3f);
+            yield return SayLine(RideLines.FeedWhy);
         }
 
         protected override bool IsChoiceAllowed(string choice) =>

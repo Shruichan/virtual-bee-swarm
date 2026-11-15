@@ -19,6 +19,16 @@ namespace VirtualBeeSwarm
         [SerializeField] Transform[] drinkers = new Transform[0];
 
         protected override GameLine Prompt => GameLines.HeatPrompt;
+        protected override GameLine Hint => RideLines.HintHeat;
+
+        /// <summary>v2 optional #1 after the pebble line (the score clock has stopped): room_heat_mom.</summary>
+        protected override IEnumerator AfterSolved(string choice)
+        {
+            var mom = RideLines.HeatMom;
+            if (!RidePacing.Optional(1, mom)) yield break;
+            yield return Wait(0.3f);
+            yield return SayLine(mom);
+        }
         protected override bool KeepPropsAfter => true; // the pebble dish stays on the table
 
         protected override void Awake()
