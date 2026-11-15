@@ -34,8 +34,9 @@ namespace VirtualBeeSwarm.Dressing
 
         [Header("Layout (TableAnchor space; the player stands at -Z)")]
         [SerializeField] Vector3 nestPosition = new Vector3(-0.3f, 0f, 0.21f);
-        [SerializeField] Vector3 waterDishPosition = new Vector3(0.29f, 0f, 0.18f);
-        [SerializeField] Vector3 beeHotelPosition = new Vector3(-0.25f, 0f, -0.18f);
+        // Keep the habitat props at the player-side corners: clear of the beekeeper mat and the Moon flag spots.
+        [SerializeField] Vector3 waterDishPosition = new Vector3(0.34f, 0f, -0.25f);
+        [SerializeField] Vector3 beeHotelPosition = new Vector3(-0.40f, 0f, -0.32f);
         [SerializeField] float tuftHeight = 0.06f;
         [Header("Insects")]
         [SerializeField] float solitaryScale = 0.8f;
