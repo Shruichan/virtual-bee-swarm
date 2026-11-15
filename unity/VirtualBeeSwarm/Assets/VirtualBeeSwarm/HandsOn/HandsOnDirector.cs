@@ -310,7 +310,7 @@ namespace VirtualBeeSwarm.HandsOn
             _ordered = choice;
             _board.MarkOrdered(choice);
             if (_beeswax != null) _beeswax.WhipAround(); // he shouts the order at the window
-            GameSound.Cue("order_up", _board.transform);
+            GameSound.Cue("start_signed", _board.transform); // "order_up" has no voice (was silent): the signature click
             _prompt.Hide();
             Log("ordered " + choice + " at " + GameIds.StationName(_cur.Station));
             _cur.RestartPickClock(); // no "Off the record?" hint / "Overruled" while it flies in
@@ -532,7 +532,7 @@ namespace VirtualBeeSwarm.HandsOn
             if (!string.IsNullOrEmpty(cheer) && at != null)
                 _prompt.Show(cheer, at, at == _lever.transform ? new Vector3(0f, 0.36f, -0.02f) : Vector3.up * 0.2f, 2.2f, HandsOnKit.Good);
             else _prompt.Hide();
-            GameSound.Cue("setup_done", at);
+            GameSound.Cue("touchdown_heavy", at); // "setup_done" has no voice (was silent): a seated thunk
             _step = Step.Done;
             Log("set-up done at " + GameIds.StationName(st.Station) + " in " + (Time.time - _stepAt).ToString("0.0") + " s");
             _byHand.Add(st);
