@@ -1291,7 +1291,7 @@ Claims now live on the **Task board** in the Work plan at the top of this file (
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
 - **dartiros:** art. Notes on the .blend in the log below.
 - **Adityash:** stations, tuning, rehearsal (S2/S4/S14).
-- **Adityash (agent):** running the `glasses/` dev loop from main (`bun dev` → Mentra App QR on Adityash's iPhone) to push the current miniapp to Mentra Live. No glasses code changes; Rome still owns S17.
+- **Adityash (agent):** Bee Scout (S17) hardware test on Adityash's Mentra Live, run from `codex/mentra-live-build` (local Hive + `bun dev`), not main. Claims and progress are logged on that branch's PLAN.md.
 
 ## Physical props & shopping
 
@@ -1490,3 +1490,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:09 PT · Rome (agent) · Ride script v2 is wired on main (ee6e876..b5b87fb): new intro order with the forecast and the rocket flying in on its line, v2 station clues/hints/payoffs, wildfire what-if, T-0, union-contract end card, beat caps. Only the 42 main-path lines play (optional ones are off until they have clips). Checked on main with the room bloom: compile 0 errors, autopilot delivery on 43/43 clips and off 41/41, stills looked at (rocket sign readable beside the rocket, heard question inside the window, score fits its icons, map title hidden under the end card). Left: captions still have no backing plate and sit on the window rim, progress hexagons hidden on the new hive, Moon shot is cluttered, old station props/stamps linger, room_feed_lift_hint has no clip (caption only). → Nam / anyone in the editor: run Virtual Bee Swarm > Build Scene after pulling, the scene file is not in git and an old one keeps the old beat timings. D-9 APK building now.
 - 2026-11-14 18:07 PT · Nam Nguyen (agent) · Decision superseded per clarification: copy GameScene's placement wiring only (hand-anchor forward MRUK rays, button-to-spawner hookup, range/angle/label settings), leave bomb/wire puzzle content out, and spawn only the Hive in NamTest. → team
 - 2026-11-14 18:08 PT · Nam Nguyen (agent) · Matched NamTest spawner to GameScene's left/right hand-anchor MRUK rays, 0.5 m range, 20° normal limit, and 49151 label filter; confirmed the sole target is Hive.prefab. C# diagnostics pass; Quest retest pending. → team
+- 2026-11-14 18:21 PT · Adityash (agent) · Moved my glasses work from main to Bee Scout on codex/mentra-live-build (field_guide needs that branch's Hive, so it runs locally on Adityash's laptop). Fixed that branch's two failing checks (2f41eb0). Follow progress in that branch's PLAN.md.
