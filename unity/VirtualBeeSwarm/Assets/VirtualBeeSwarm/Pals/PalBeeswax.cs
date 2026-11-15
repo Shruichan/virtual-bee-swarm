@@ -79,6 +79,10 @@ namespace VirtualBeeSwarm.Pals
         bool _mine;
 
         float _nextLine;
+        /// <summary>[SwarmTouch hook] Beeswax is free for a one-off caption: the same check his pal lines use.</summary>
+        public bool FreeToTalk => _bw != null && Free() && Time.time >= _nextLine;
+        /// <summary>[SwarmTouch hook] another feature just made him talk: keep the pal lines' quiet gap after it.</summary>
+        public void HoldLines(float gap) => _nextLine = Mathf.Max(_nextLine, Time.time + gap);
 
         // dance
         const float DanceRound = 2.3f, DanceRounds = 3f, DanceRun = 0.45f, DanceSlant = 35f;
