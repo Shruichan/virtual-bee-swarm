@@ -155,6 +155,7 @@ namespace VirtualBeeSwarm
             public Vector3 targetPos;            // local to targetParent, or world
             public Quaternion targetRot;
             public Quaternion startRot;
+            public Vector3 startScale;
             public Action onDone;
             public Vector3 tilt, tiltVel, prevPos, prevVel;
             public int prevValid;
@@ -167,6 +168,7 @@ namespace VirtualBeeSwarm
 
         readonly Job[] _jobs = new Job[MaxJobs];
         Vector3[] _bPos, _bFrom, _bVel;
+        float[] _bYaw;
         Vector4[] _bColor;
         int[] _bJob, _bSlot;
         float[] _bPhase, _bDelay;
@@ -243,6 +245,7 @@ namespace VirtualBeeSwarm
             _bPos = new Vector3[MaxBees];
             _bFrom = new Vector3[MaxBees];
             _bVel = new Vector3[MaxBees];
+            _bYaw = new float[MaxBees];
             _bColor = new Vector4[MaxBees];
             _bJob = new int[MaxBees];
             _bSlot = new int[MaxBees];
@@ -759,6 +762,7 @@ namespace VirtualBeeSwarm
                 j.p0 = from;
                 j.p1 = from + Vector3.up * 0.12f;
                 j.startRot = t.rotation;
+                j.startScale = t.localScale;
             }
             else
             {
@@ -766,9 +770,11 @@ namespace VirtualBeeSwarm
                 j.p0 = pane;
                 j.p1 = pane + n * 0.4f + Vector3.up * 0.2f;
                 j.startRot = worldRot;
+                j.startScale = item.restScale * exitScale;
                 t.SetPositionAndRotation(pane, worldRot);
-                t.localScale = item.restScale * exitScale;
+                t.localScale = j.startScale;
             }
+            item.squashUntil = -1f;
             if (j.crew == 0) j.crew = AllocBees(ji, want, from + Vector3.up * (item.Top + 0.04f));
             j.phase = Phase.Inbound;
             float dist = Vector3.Distance(from, worldPos);
@@ -862,6 +868,7 @@ namespace VirtualBeeSwarm
         void BeginOutbound(Job j)
         {
             var t = j.item.transform;
+            j.item.squashUntil = -1f;
             j.start = _now;
             if (j.after == Phase.Drag && j.phase != Phase.Drag)
             {
@@ -878,6 +885,7 @@ namespace VirtualBeeSwarm
             j.p0 = t.position;
             j.p1 = t.position + Vector3.up * 0.3f;
             j.startRot = t.rotation;
+            j.startScale = t.localScale;
             j.phase = Phase.Outbound;
             float dist = Vector3.Distance(t.position, PanePosition());
             float speed = (j.heavy ? heavySpeed : crownSpeed) * j.speedScale;
@@ -927,6 +935,7 @@ namespace VirtualBeeSwarm
                 _bPos[b] = at;
                 _bFrom[b] = at;
                 _bVel[b] = Vector3.zero;
+                _bYaw[b] = float.NaN;
                 _bDelay[b] = 0f;
                 j.bees[got++] = b;
             }
@@ -1083,7 +1092,7 @@ namespace VirtualBeeSwarm
             }
             RecountInFlight();
             StepItems(now);
-            Draw(now);
+            Draw(now, dt);
         }
 
         float K(Job j) => j.duration <= 0f ? 1f : Mathf.Clamp01((_now - j.start) / j.duration);
@@ -1107,8 +1116,8 @@ namespace VirtualBeeSwarm
             Vector3 pivot = Bezier(j.p0, j.p1, p2, p3, u);
             if (j.heavy && j.style == DeliveryStyle.Crown) pivot.y -= heavyDip * (Bump(u, 0.45f) + Bump(u, 0.75f));
             Quaternion rot = Quaternion.Slerp(j.startRot, TargetRot(j), u);
-            float scaleK = Mathf.Clamp01(k / 0.2f);
-            t.localScale = Vector3.LerpUnclamped(item.restScale * exitScale, item.restScale, scaleK);
+            float scaleK = Mathf.SmoothStep(0f, 1f, k / 0.2f);
+            t.localScale = Vector3.LerpUnclamped(j.startScale, item.restScale, scaleK);
             ApplySwing(j, item, pivot, rot, dt, 1f - Mathf.SmoothStep(0f, 1f, (u - 0.8f) / 0.2f));
             PlaceCrew(j, now: _now, carrying: true);
             if (k >= 1f)
@@ -1247,8 +1256,8 @@ namespace VirtualBeeSwarm
             Vector3 c2 = pane + PaneNormal() * 0.4f + Vector3.up * 0.2f;
             Vector3 pivot = Bezier(j.p0, j.p1, c2, pane, u);
             if (j.heavy) pivot.y -= heavyDip * 0.6f * Bump(u, 0.5f);
-            float s = Mathf.Lerp(1f, exitScale, Mathf.Clamp01((u - 0.7f) / 0.3f));
-            t.localScale = item.restScale * s;
+            float scaleK = Mathf.SmoothStep(0f, 1f, (u - 0.7f) / 0.3f);
+            t.localScale = Vector3.LerpUnclamped(j.startScale, item.restScale * exitScale, scaleK);
             ApplySwing(j, item, pivot, j.startRot, dt, 1f);
             PlaceCrew(j, _now, carrying: true);
             if (k >= 1f)
@@ -1550,10 +1559,11 @@ namespace VirtualBeeSwarm
         }
 
         // ------------------------------------------------------------ draw
-        void Draw(float now)
+        void Draw(float now, float dt)
         {
             Vector4 courier = new Vector4(courierColor.r * brightness, courierColor.g * brightness, courierColor.b * brightness, 1f);
             Vector4 repo = new Vector4(repoColor.r * brightness, repoColor.g * brightness, repoColor.b * brightness, 1f);
+            float turnBlend = 1f - Mathf.Exp(-12f * dt);
             int n = 0;
             for (int b = 0; b < MaxBees; b++)
             {
@@ -1563,19 +1573,31 @@ namespace VirtualBeeSwarm
                 Vector3 p = _bPos[b];
                 Vector3 fwd = _bVel[b];
                 if (j.phase == Phase.Depart || j.phase == Phase.Ring) fwd = p - _bFrom[b];
-                if (j.phase == Phase.Hold && j.crew == 1 && j.item != null)
+                Quaternion rot;
+                if (j.crew == 1 && j.style == DeliveryStyle.Crown && j.item != null &&
+                    j.phase != Phase.SwirlIn && j.phase != Phase.SwirlOut)
                 {
-                    fwd = -j.item.transform.forward;
-                    fwd.y = 0f;
+                    // The solo courier should face along its flight, then turn toward the player while hovering.
+                    // Use yaw only so the small vertical bob cannot flip its facing near a stop.
+                    if (j.phase == Phase.Hold) fwd = -j.item.transform.forward;
+                    if (fwd.x * fwd.x + fwd.z * fwd.z > 1e-8f)
+                    {
+                        float targetYaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
+                        _bYaw[b] = float.IsNaN(_bYaw[b]) ? targetYaw : Mathf.LerpAngle(_bYaw[b], targetYaw, turnBlend);
+                    }
+                    rot = Quaternion.Euler(0f, float.IsNaN(_bYaw[b]) ? 0f : _bYaw[b], 0f);
                 }
-                else if (fwd.sqrMagnitude < 1e-8f || j.phase == Phase.Hold)
+                else
                 {
-                    Vector3 c = j.item != null ? j.item.transform.position : p;
-                    Vector3 radial = p - c;
-                    radial.y = 0f;
-                    fwd = radial.sqrMagnitude > 1e-8f ? Vector3.Cross(Vector3.up, radial) : Vector3.forward;
+                    if (fwd.sqrMagnitude < 1e-8f || j.phase == Phase.Hold)
+                    {
+                        Vector3 c = j.item != null ? j.item.transform.position : p;
+                        Vector3 radial = p - c;
+                        radial.y = 0f;
+                        fwd = radial.sqrMagnitude > 1e-8f ? Vector3.Cross(Vector3.up, radial) : Vector3.forward;
+                    }
+                    rot = Quaternion.LookRotation(fwd, Vector3.up);
                 }
-                Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up);
                 float ph = _bPhase[b];
                 float scale = beeLength * (Bloom.MeadowLayout.Active ? 1.4f : 1f); // meadow: bees that read across the room
                 if (j.phase == Phase.Depart)

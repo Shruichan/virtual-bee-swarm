@@ -119,6 +119,7 @@ namespace VirtualBeeSwarm.Stakes
         bool[] _overhead;
         Vector3[] _p0, _c1, _c2, _p3, _pos, _prev, _vel, _slot;
         float[] _t0, _dur, _phase, _goldStart, _homeAt;
+        Quaternion[] _rotation;
         Matrix4x4[] _matrices;
         Vector4[] _colors;
         MaterialPropertyBlock _mpb;
@@ -167,6 +168,7 @@ namespace VirtualBeeSwarm.Stakes
             _p0 = new Vector3[_n]; _c1 = new Vector3[_n]; _c2 = new Vector3[_n]; _p3 = new Vector3[_n];
             _pos = new Vector3[_n]; _prev = new Vector3[_n]; _vel = new Vector3[_n]; _slot = new Vector3[_n];
             _t0 = new float[_n]; _dur = new float[_n]; _phase = new float[_n]; _goldStart = new float[_n]; _homeAt = new float[_n];
+            _rotation = new Quaternion[_n];
             _matrices = new Matrix4x4[_n];
             _colors = new Vector4[_n];
             _mpb = new MaterialPropertyBlock();
@@ -231,6 +233,7 @@ namespace VirtualBeeSwarm.Stakes
                 _state[i] = Band;
                 _pos[i] = _prev[i] = SlotWorld(i, Time.time);
                 _vel[i] = Vector3.zero;
+                _rotation[i] = Quaternion.LookRotation(_fwd);
                 Active++;
             }
             Log("snap", _target);
@@ -422,6 +425,11 @@ namespace VirtualBeeSwarm.Stakes
 
         void Launch(int i, float now, Vector3 p0, Vector3 c1, Vector3 c2, Vector3 p3, float seconds, byte after, bool overhead)
         {
+            if (_state[i] == Off)
+            {
+                Vector3 firstStep = c1 - p0;
+                _rotation[i] = Quaternion.LookRotation(firstStep.sqrMagnitude > 1e-8f ? firstStep : _nWin);
+            }
             _state[i] = Fly;
             _after[i] = after;
             _overhead[i] = overhead;
@@ -504,6 +512,7 @@ namespace VirtualBeeSwarm.Stakes
                 if (_pouring && Active >= want) _pouring = false;
             }
 
+            float turnBlend = 1f - Mathf.Exp(-13f * dt);
             bool anyIn = false, anyAlive = false;
             Color dark = darkColor * brightness, gold = goldColor * brightness;
             int drawn = 0;
@@ -530,7 +539,7 @@ namespace VirtualBeeSwarm.Stakes
                     // a little flutter across the path, zero at both ends
                     float f = Mathf.Sin(k * Mathf.PI) * 0.025f;
                     p += _right * (Mathf.Sin(now * 9f + _phase[i]) * f) + Vector3.up * (Mathf.Cos(now * 7f + _phase[i] * 2f) * f);
-                    if (_after[i] == AfterOff) scale = Mathf.Lerp(1f, 0.5f, Mathf.InverseLerp(0.75f, 1f, k));
+                    if (_after[i] == AfterOff) scale = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(0.75f, 1f, k));
                     else if (_after[i] == AfterBand) { scale = Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(k * 6f)); anyIn = true; }
                     if (k >= 1f)
                     {
@@ -570,10 +579,10 @@ namespace VirtualBeeSwarm.Stakes
                 Vector3 step = p - _prev[i];
                 _prev[i] = p;
                 _pos[i] = p;
-                Vector3 fwd = step.sqrMagnitude > 1e-8f ? step : (_band - p);
-                Quaternion rot = fwd.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
+                if (step.sqrMagnitude > 1e-8f)
+                    _rotation[i] = Quaternion.Slerp(_rotation[i], Quaternion.LookRotation(step), turnBlend);
                 float len = beeLength * scale;
-                _matrices[drawn] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(now, _phase[i], 0.55f), new Vector3(len, len, len)); // wings flap in the shader
+                _matrices[drawn] = Matrix4x4.TRS(p, _rotation[i] * InsectBodySway.Offset(now, _phase[i], 0.55f), new Vector3(len, len, len)); // wings flap in the shader
 
                 float g = _goldStart[i] < 0f ? 0f : Mathf.Clamp01((now - _goldStart[i]) / 0.6f);
                 float shade = 0.8f + 0.35f * (0.5f + 0.5f * Mathf.Sin(_phase[i] * 5.3f));

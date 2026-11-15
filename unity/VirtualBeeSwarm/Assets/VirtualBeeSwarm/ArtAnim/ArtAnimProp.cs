@@ -77,16 +77,19 @@ namespace VirtualBeeSwarm
             if (_director == null) return;
             _director.BeatChanged += OnBeat;
             if (_director.Beat < beat) Snap(false);
+            else if (!_open && _director.Beat != GameBeat.Field) _pending = Time.time + delay;
         }
 
         void OnDisable()
         {
+            _pending = -1f;
             if (_director != null) _director.BeatChanged -= OnBeat;
         }
 
         void OnBeat(GameBeat from, GameBeat to)
         {
-            if (to >= beat && !_open && to != GameBeat.Field) { _pending = Time.time + delay; return; }
+            if (to == GameBeat.Field) { _pending = -1f; return; }
+            if (to >= beat && !_open) { _pending = Time.time + delay; return; }
             if (to < beat)
             {
                 _pending = -1f;

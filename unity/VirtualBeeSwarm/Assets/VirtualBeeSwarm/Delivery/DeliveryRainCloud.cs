@@ -22,6 +22,9 @@ namespace VirtualBeeSwarm
         [SerializeField] int crew = 6;
         [SerializeField] int emberBurst = 30;
 
+        const float RainRate = 90f;
+        const float RainRampSeconds = 0.25f;
+
         enum State { Idle, Coming, Raining, Leaving }
         State _state;
         float _rainSince;
@@ -43,7 +46,11 @@ namespace VirtualBeeSwarm
         }
 
         void OnEnable() { if (net != null) net.SceneChanged += HandleScene; }
-        void OnDisable() { if (net != null) net.SceneChanged -= HandleScene; }
+        void OnDisable()
+        {
+            if (net != null) net.SceneChanged -= HandleScene;
+            Stop();
+        }
 
         void OnDestroy()
         {
@@ -86,7 +93,8 @@ namespace VirtualBeeSwarm
 
         public void Stop()
         {
-            if (_rain != null) { _rain.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); }
+            if (_rain != null) _rain.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            if (_embers != null) _embers.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             if (cloud != null && D != null) D.Release(cloud, hide: true);
             else if (cloud != null) cloud.gameObject.SetActive(false);
             _state = State.Idle;
@@ -103,13 +111,19 @@ namespace VirtualBeeSwarm
                     {
                         _state = State.Raining;
                         _rainSince = Time.time;
-                        if (_rain != null) _rain.Play(true);
+                        if (_rain != null)
+                        {
+                            UpdateRainRate(0f);
+                            _rain.Play(true);
+                        }
                         GameSound.Cue("fire_out", cloud);
                     }
                     else if (!cloud.gameObject.activeInHierarchy) _state = State.Idle;
                     break;
                 case State.Raining:
-                    if (Time.time - _rainSince >= parkSeconds)
+                    float elapsed = Time.time - _rainSince;
+                    if (_rain != null) UpdateRainRate(elapsed);
+                    if (elapsed >= parkSeconds)
                     {
                         if (_rain != null) _rain.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                         D.Return(cloud);
@@ -120,6 +134,14 @@ namespace VirtualBeeSwarm
                     if (!cloud.gameObject.activeSelf) _state = State.Idle;
                     break;
             }
+        }
+
+        void UpdateRainRate(float elapsed)
+        {
+            float ramp = Mathf.Max(0.01f, Mathf.Min(RainRampSeconds, parkSeconds * 0.5f));
+            float fade = Mathf.Clamp01(Mathf.Min(elapsed, parkSeconds - elapsed) / ramp);
+            var emission = _rain.emission;
+            emission.rateOverTime = RainRate * Mathf.SmoothStep(0f, 1f, fade);
         }
 
         void EnsureCloud()
@@ -152,7 +174,7 @@ namespace VirtualBeeSwarm
                 main.simulationSpace = ParticleSystemSimulationSpace.World;
                 main.maxParticles = 120;
                 var em = _rain.emission;
-                em.rateOverTime = 90f;
+                em.rateOverTime = 0f;
                 var sh = _rain.shape;
                 sh.enabled = true;
                 sh.shapeType = ParticleSystemShapeType.Box;

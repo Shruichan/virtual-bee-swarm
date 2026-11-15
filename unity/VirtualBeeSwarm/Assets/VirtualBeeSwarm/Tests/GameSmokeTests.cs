@@ -193,6 +193,11 @@ namespace VirtualBeeSwarm.Tests
             whatIf.LocalPutOut();
             Assert.IsFalse(embers.Emitting, "embers stopped");
             Assert.IsTrue(whatIf.FireOut, "fire out");
+            embers.Play(delay: 1f);
+            Assert.IsTrue(embers.Scheduled, "the delayed ember cue is queued");
+            embers.enabled = false;
+            embers.enabled = true;
+            Assert.IsFalse(embers.Scheduled, "a disabled ember effect forgets the previous cue");
 
             yield return WaitForBeat(director, GameBeat.Escape, 30f);
             Assert.AreEqual(scoreTime, director.RunSeconds, "the fire sequence does not add to the rescue time");
@@ -210,8 +215,20 @@ namespace VirtualBeeSwarm.Tests
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
 
-            // Rehearsal controls can revisit a station without changing the score for this group.
+            // Rehearsal controls can revisit a station without changing the score or finishing an abandoned flight.
+            bool checkFlight = beeswax.RootDriver is BeeswaxMotion && beeswax.Visible;
+            if (checkFlight)
+            {
+                Vector3 flightStart = beeswax.transform.position;
+                beeswax.FlyTo(flightStart + Vector3.right * 0.5f);
+                yield return WaitUntil(() => !beeswax.Arrived && Vector3.Distance(beeswax.transform.position, flightStart) > 0.01f,
+                    5f, "Beeswax takes off before rehearsal jump");
+            }
+            Vector3 beforeJump = beeswax.transform.position;
             director.GoTo(GameBeat.Heat, "test replay");
+            if (checkFlight)
+                Assert.That(Vector3.Distance(beeswax.transform.position, beforeJump), Is.LessThan(0.01f),
+                    "the rehearsal jump never teleports Beeswax to his abandoned flight destination");
             Assert.IsTrue(director.RunFinished, "replaying a solved station keeps the score frozen");
             director.GoTo(GameBeat.Escape, "test replay");
             Assert.AreEqual(scoreTime, director.RunSeconds, "re-entering escape keeps the same rescue score");
@@ -225,6 +242,14 @@ namespace VirtualBeeSwarm.Tests
             Assert.AreEqual(0, director.SolvedStations);
             Assert.AreEqual(0, hex.LitCount);
             Assert.IsFalse(lid.GetComponent<Animation>().IsPlaying(lid.clip), "the escape lid cannot open after reset");
+
+            director.GoTo(GameBeat.Escape, "test suspended opening");
+            lid.enabled = false;
+            director.ResetToPre();
+            lid.enabled = true;
+            resetAt = Time.time;
+            yield return WaitUntil(() => Time.time - resetAt > lid.delay, 4f, "suspended lid cue");
+            Assert.IsFalse(lid.GetComponent<Animation>().IsPlaying(lid.clip), "a disabled lid cue cannot play after reset");
             Debug.Log("[VBSTest] full run OK (forceOffline=" + forceOffline + ")");
         }
 

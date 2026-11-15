@@ -31,7 +31,11 @@ namespace VirtualBeeSwarm
         }
 
         void OnEnable() { if (net != null) net.FxReceived += HandleFx; }
-        void OnDisable() { if (net != null) net.FxReceived -= HandleFx; }
+        void OnDisable()
+        {
+            if (net != null) net.FxReceived -= HandleFx;
+            ResetFx();
+        }
 
         void HandleFx(string name, int delayMs, int durationMs)
         {
