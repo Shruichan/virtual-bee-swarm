@@ -133,10 +133,20 @@ namespace VirtualBeeSwarm.HandsOn
         {
             // On the table's front corner. Left by default: the right side is Beeswax's presenter spot and the rocket.
             float x = HandsOnTuning.LeverLeft ? -0.46f : 0.56f;
-            _lever = HoneyLever.Build(_table, new Vector3(x, 0f, -0.02f), HandsOnTuning.LeverLeft);
+            var leverPosition = new Vector3(x, 0f, -0.02f);
+            var orderPosition = new Vector3(-0.04f, 0f, -0.04f);
+            if (Bloom.MeadowLayout.Active)
+            {
+                float scale = Bloom.MeadowLayout.Scale;
+                orderPosition.y = Bloom.MeadowTuning.ChoiceHeight / scale - OrderBoard.TicketRise;
+                orderPosition.z = -0.21f;
+                leverPosition.x /= scale;
+                leverPosition.z = orderPosition.z - 0.12f / scale;
+            }
+            _lever = HoneyLever.Build(_table, leverPosition, HandsOnTuning.LeverLeft);
             _lever.Pulled += HandlePulled;
             _lever.Refused += HandleRefused;
-            _board = OrderBoard.Build(_table, new Vector3(-0.04f, 0f, -0.04f));
+            _board = OrderBoard.Build(_table, orderPosition);
             _board.Ordered += Order;
             _socket = SetupSocket.Build(_table);
             _prompt = HandsOnPrompt.Build(_table, "[VBS] HandsOnPrompt");
@@ -323,7 +333,7 @@ namespace VirtualBeeSwarm.HandsOn
             {
                 _lever.Live = true;
                 _lever.ShowCradle(_sd != null && _sd.Active);
-                ShowAtLever("PUMP THE BEE-LLOWS\n3 PUFFS");
+                ShowAtLever("PULL THE LEVER 3 TIMES\nTO SMOKE THE HIVE");
                 return;
             }
             if (_item == null || spot == null) { Succeed(""); return; }
@@ -338,11 +348,11 @@ namespace VirtualBeeSwarm.HandsOn
             {
                 case GameStation.Feed:
                     _socket.Show(spot.position + Vector3.up * 0.006f, _table.rotation, 0.075f, false);
-                    _prompt.Show("POUR IT IN\nTHE ROOF FEEDER", spot, Vector3.up * 0.3f);
+                    _prompt.Show("HOLD SYRUP OVER\nTHE ROOF FEEDER", spot, Vector3.up * 0.3f);
                     break;
                 case GameStation.Wasps:
                     _socket.Show(spot.position + Vector3.up * 0.035f - _hive.transform.forward * 0.012f, _hive.transform.rotation, 0.06f, true);
-                    _prompt.Show("SLOT IT\nIN THE DOOR", spot, Vector3.up * 0.09f - _hive.transform.right * 0.2f - _hive.transform.forward * 0.05f); // beside the door, not over it
+                    _prompt.Show("GRAB THE REDUCER\nSLOT IT INTO THE DOOR", spot, Vector3.up * 0.09f - _hive.transform.right * 0.2f - _hive.transform.forward * 0.05f); // beside the door, not over it
                     break;
                 default:
                     _socket.Show(spot.position + Vector3.up * 0.004f, _table.rotation, 0.095f, false);
@@ -419,7 +429,7 @@ namespace VirtualBeeSwarm.HandsOn
                             _lever.Live = true;
                             _hintAt = now + HandsOnTuning.HintSeconds;
                             Progress();
-                            ShowAtLever("PUMP THE WATER");
+                            ShowAtLever("PULL THE LEVER\nTO FILL THE DISH");
                         }
                     }
                     break;

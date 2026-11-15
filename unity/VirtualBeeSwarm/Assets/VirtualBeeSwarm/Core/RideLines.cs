@@ -15,8 +15,6 @@ namespace VirtualBeeSwarm
             GameLines.TryGet(id, out var line) ? line : new GameLine(id, fallbackCaption);
 
         // pre + meet
-        public static GameLine PreNudge => Get("room_pre_nudge", "Poke it with one finger. That's how you'll pick everything today.");
-        public static GameLine PreSigned => Get("room_pre_signed", "Signed. Crew, cut the window!");
         public static GameLine HookCarry => Get("room_hook_carry", "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract.");
         public static GameLine MeetRole => Get("room_meet_role", "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper.");
         public static GameLine Forecast => Get("room_forecast", "Job perk: that window shows the future. Paris, tomorrow. Lovely.");

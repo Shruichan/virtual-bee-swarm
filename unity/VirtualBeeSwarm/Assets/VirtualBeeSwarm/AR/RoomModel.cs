@@ -288,13 +288,15 @@ namespace VirtualBeeSwarm.AR
         {
             room.Clear("placement");
             if (tableAnchor == null) return;
-            float depth = ArTuning.TableDepth;
+            float k = Mathf.Max(0.01f, tableAnchor.lossyScale.x); // meadow: the rig may be scaled up on the floor
+            float depth = ArTuning.TableDepth * k;
+            inset *= k;
             Vector3 fwd = tableAnchor.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.forward;
             fwd.Normalize();
             Vector3 center = tableAnchor.position + fwd * (depth * 0.5f - inset);
-            room.SetTable(center, Quaternion.LookRotation(fwd, Vector3.up), new Vector2(DefaultWidth * 0.5f, depth * 0.5f));
+            room.SetTable(center, Quaternion.LookRotation(fwd, Vector3.up), new Vector2(DefaultWidth * 0.5f * k, depth * 0.5f));
             if (wall.valid) room.WindowWall = wall;
             room.FloorY = floorY;
             room.AddDefaultFootprints(tableAnchor);

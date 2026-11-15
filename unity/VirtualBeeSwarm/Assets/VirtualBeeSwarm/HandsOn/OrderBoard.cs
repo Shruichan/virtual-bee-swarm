@@ -10,6 +10,7 @@ namespace VirtualBeeSwarm.HandsOn
     public class OrderBoard : MonoBehaviour
     {
         public const float Spacing = 0.12f;
+        internal const float TicketRise = 0.049f;
 
         public event Action<string> Ordered;
 
@@ -50,7 +51,7 @@ namespace VirtualBeeSwarm.HandsOn
                 bool on = i < _count;
                 if (t.gameObject.activeSelf != on) t.gameObject.SetActive(on);
                 if (!on) continue;
-                t.transform.localPosition = new Vector3((i - (_count - 1) * 0.5f) * Spacing, 0.049f, 0.012f);
+                t.transform.localPosition = new Vector3((i - (_count - 1) * 0.5f) * Spacing, TicketRise, 0.012f);
                 t.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
                 t.Set(choices[i], labels[i], crossed(choices[i]), i + 1);
             }

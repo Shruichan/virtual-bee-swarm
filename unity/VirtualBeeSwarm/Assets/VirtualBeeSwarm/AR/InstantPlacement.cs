@@ -92,10 +92,12 @@ namespace VirtualBeeSwarm.AR
             Vector3 fwd = Vector3.ProjectOnPlane(ray.direction, Vector3.up);
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(_rig.HeadForward(), Vector3.up);
             fwd.Normalize();
-            bool fits = _rig.Raycaster.PlaceBox(ray, boxSize, fwd, out var hit);
+            bool meadow = Bloom.MeadowLayout.Active; // meadow: the big rig needs open FLOOR (never a table, bed or sofa)
+            bool fits = _rig.Raycaster.PlaceBox(ray, meadow ? boxSize * Bloom.MeadowLayout.Scale : boxSize, fwd, out var hit);
             LastStatus = hit.status;
             bool show = hit.status == ArHitStatus.Hit && (hit.point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
             fits = fits && show && hit.normal.y > 0.9f;
+            if (meadow && Mathf.Abs(hit.point.y - Bloom.MeadowLayout.FloorY) > 0.1f) fits = false;
             if (_ghost.activeSelf != show) _ghost.SetActive(show);
             if (!show) return;
 

@@ -32,7 +32,7 @@ namespace VirtualBeeSwarm.Stakes
     /// </summary>
     public class DarkSwarm : MonoBehaviour
     {
-        const int HardMax = 200;
+        const int HardMax = 600; // meadow: darkswarm.count (tuning.json) up to 600, one instanced draw
         const byte Off = 0, Fly = 1, Band = 2;
         const byte AfterBand = 0, AfterOff = 1, AfterReturn = 2;
 
@@ -111,6 +111,8 @@ namespace VirtualBeeSwarm.Stakes
         public float MinOverheadClearance { get; private set; } = float.PositiveInfinity;
 
         int _n, _target;
+        float _sizeScale = 1f;
+        int Scaled(int count) => Mathf.RoundToInt(count * _sizeScale);
         bool _pouring;
         float _budget;
         byte[] _state, _after;
@@ -122,6 +124,7 @@ namespace VirtualBeeSwarm.Stakes
         MaterialPropertyBlock _mpb;
         static readonly int ColorArrayId = Shader.PropertyToID("_Color");
         bool _instancing, _bandValid, _loggedSettle;
+        Bloom.BeeLod _lod; // meadow
         int _cursor;
 
         // frame geometry
@@ -136,6 +139,7 @@ namespace VirtualBeeSwarm.Stakes
                 beeMaterial = GameMaterials.Create("VBS_DarkBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
+            _lod = Bloom.BeeLod.Make(beeMesh, beeMaterial); // meadow: far bees low-poly (Quest budget)
             BeeVat.Apply(ref beeMesh, ref beeMaterial, "dark swarm"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
             Allocate();
@@ -143,7 +147,20 @@ namespace VirtualBeeSwarm.Stakes
 
         void Allocate()
         {
-            _n = Mathf.Clamp(maxBees, 1, HardMax);
+            // meadow: darkswarm.count fills the upper room; the stakes' sizes (made for maxBees) scale with it, the band widens
+            Bloom.MeadowTuning.EnsureLoaded();
+            _n = Mathf.Clamp(Mathf.Max(maxBees, Bloom.MeadowTuning.DarkCount), 1, HardMax);
+            _sizeScale = _n / (float)Mathf.Max(1, maxBees);
+            if (_sizeScale > 1.01f)
+            {
+                float g = Mathf.Sqrt(_sizeScale);
+                bandWidth *= Mathf.Min(2.8f, 1.2f * g);
+                bandDepth *= Mathf.Min(3.5f, 1.6f * g);
+                bandHeight *= Mathf.Min(2.5f, 1.2f * g);
+                maxRiseAboveEye = Mathf.Max(maxRiseAboveEye, 0.8f);
+                pourRate *= _sizeScale;
+                changeRate *= _sizeScale;
+            }
             _state = new byte[_n];
             _after = new byte[_n];
             _overhead = new bool[_n];
@@ -174,7 +191,7 @@ namespace VirtualBeeSwarm.Stakes
         {
             if (Mode != DarkSwarmMode.Deck) ClearAll();
             Mode = DarkSwarmMode.Deck;
-            _target = Mathf.Clamp(count, 0, _n);
+            _target = Mathf.Clamp(Scaled(count), 0, _n);
             _pouring = true;
             _budget = 0f;
             _loggedSettle = false;
@@ -186,7 +203,7 @@ namespace VirtualBeeSwarm.Stakes
         /// <summary>Ease the size to `count` (through the window). Shows the band if it was hidden.</summary>
         public void SetCount(int count)
         {
-            count = Mathf.Clamp(count, 0, _n);
+            count = Mathf.Clamp(Scaled(count), 0, _n);
             if (Mode == DarkSwarmMode.Hidden || Mode == DarkSwarmMode.Home)
             {
                 if (Mode == DarkSwarmMode.Home) ClearAll();
@@ -203,7 +220,7 @@ namespace VirtualBeeSwarm.Stakes
         {
             ClearAll();
             Mode = DarkSwarmMode.Deck;
-            _target = Mathf.Clamp(count, 0, _n);
+            _target = Mathf.Clamp(Scaled(count), 0, _n);
             _pouring = false;
             _loggedSettle = true;
             ResetSafetyStats();
@@ -583,8 +600,11 @@ namespace VirtualBeeSwarm.Stakes
 
             if (_instancing)
             {
+                if (_lod == null || !_lod.Draw(beeMesh, beeMaterial, _matrices, _colors, drawn, gameObject.layer)) // meadow: near VAT / far low-poly
+                {
                 _mpb.SetVectorArray(ColorArrayId, _colors);
                 Graphics.DrawMeshInstanced(beeMesh, 0, beeMaterial, _matrices, drawn, _mpb, ShadowCastingMode.Off, false, gameObject.layer);
+                }
             }
             else
             {

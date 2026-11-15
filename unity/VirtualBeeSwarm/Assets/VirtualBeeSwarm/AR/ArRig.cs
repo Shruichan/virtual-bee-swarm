@@ -367,6 +367,7 @@ namespace VirtualBeeSwarm.AR
             }
             float top = _anchor.position.y;
             float cy = Mathf.Clamp(top + 0.55f, 1.2f, 1.7f);
+            if (Bloom.MeadowLayout.Active) cy = Bloom.MeadowLayout.WindowCentreY; // meadow: above the big hive on the floor
             Vector3 pos;
             Quaternion rot;
             float width;
@@ -377,21 +378,33 @@ namespace VirtualBeeSwarm.AR
                 pos.y = cy;
                 rot = Quaternion.LookRotation(-n, Vector3.up); // +Z into the wall, away from the player (as on the table)
                 width = _foundWall.halfWidth * 2f;
+                if (Bloom.MeadowLayout.Active) width = Bloom.MeadowLayout.WindowWidth; // meadow: a big portal on the wall
                 WindowState = "on the wall (" + why + "), width " + width.ToString("0.00", C) + " m";
             }
             else
             {
                 Vector3 fwd = Flat(_anchor.forward);
                 Vector3 hivePos = hive != null ? hive.transform.position : _anchor.position;
-                pos = hivePos + fwd * freeStandingBehind;
+                pos = hivePos + fwd * (Bloom.MeadowLayout.Active ? Bloom.MeadowLayout.WindowBehindHive : freeStandingBehind); // meadow
                 pos.y = cy;
                 rot = Quaternion.LookRotation(fwd, Vector3.up);
-                width = freeStandingWidth;
+                width = Bloom.MeadowLayout.Active ? Bloom.MeadowLayout.WindowWidth : freeStandingWidth; // meadow
                 WindowState = "free-standing " + freeStandingBehind.ToString("0.0", C) + " m behind the hive (" + why + ")";
             }
             if (wt.parent != _wallAnchor) wt.SetParent(_wallAnchor, false);
             wt.SetPositionAndRotation(pos, rot);
             float k = width / Mathf.Max(0.05f, _pane.x);
+            if (Bloom.MeadowLayout.Active) // meadow: the big window clears the hive roof (raised, slid away from the rocket), top under the ceiling
+            {
+                float ceil = Room.CeilingOrDefault, halfH = _pane.y * k * 0.5f;
+                float above = Bloom.MeadowLayout.RoofY + 0.15f + halfH;
+                pos.y = Mathf.Max(pos.y, above);
+                pos.y = Mathf.Max(Room.FloorY + halfH + 0.3f, Mathf.Min(pos.y, ceil - 0.08f - halfH));
+                float shift = Bloom.MeadowLayout.WindowSideShift(wt.right, width, pos.y >= above - 0.01f);
+                pos += wt.right * shift;
+                WindowState += ", slid " + shift.ToString("0.00", C) + " m along the wall clear of the hive roof";
+                wt.position = pos;
+            }
             wt.localScale = _winLocalScale * k;
             if (Room.HasWall && _foundWall.valid)
                 Room.ComputeWallSpots(pos, wt.right, wt.up, _pane * k * 0.5f, _foundWall.normal);

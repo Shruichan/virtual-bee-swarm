@@ -165,6 +165,7 @@ namespace VirtualBeeSwarm
         /// <summary>Aim and pinch (v3.1 V7, AR/ArRig): the rig goes exactly to this pose, saved for the session.</summary>
         public void PlaceAt(Pose pose)
         {
+            pose = Bloom.MeadowLayout.Grounded(pose); // meadow: no table, the rig stands on the floor
             rigAnchor.SetPositionAndRotation(pose.position, pose.rotation);
             Save();
         }
@@ -175,6 +176,14 @@ namespace VirtualBeeSwarm
         {
             var head = Head();
             if (head == null) return;
+            if (Bloom.MeadowLayout.Active) // meadow: no table, the scaled-up rig stands on the floor ahead
+            {
+                var pose = Bloom.MeadowLayout.FreeStandPose(head);
+                rigAnchor.SetPositionAndRotation(pose.position, pose.rotation);
+                Save();
+                Bloom.MeadowLayout.NoteAuto(pose, distance == headsetDistance ? "headset start" : "key " + placeInFrontKey);
+                return;
+            }
             Vector3 fwd = head.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;

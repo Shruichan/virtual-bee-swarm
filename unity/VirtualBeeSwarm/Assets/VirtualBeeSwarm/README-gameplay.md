@@ -1,4 +1,4 @@
-# Virtual Bee Swarm gameplay layer (concept v3 "Save the Hive")
+# HONEYMOON gameplay layer
 
 Plain C# for Unity 6 (6000.2). Drop this folder in as `Assets/VirtualBeeSwarm/`, then build the scene from code:
 menu **Virtual Bee Swarm → Build Scene**, or in batchmode:
@@ -7,8 +7,8 @@ menu **Virtual Bee Swarm → Build Scene**, or in batchmode:
 Unity -batchmode -nographics -projectPath <project> -executeMethod VirtualBeeSwarm.Editor.BuildGameScene.Build -quit -logFile build.log
 ```
 
-That writes `Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity` with every system wired and primitive placeholders, copies the
-XR rig in from `Scenes/RigTemplate.unity` (see "XR rig" below) and makes it the only scene in Build Settings.
+That writes `Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity`, wires the authored art with primitive fallbacks,
+and copies the XR rig from `Scenes/RigTemplate.unity`. It is the sole scene in Build Settings.
 Materials, meshes and textures are created only if they're missing, so your tweaks to them survive a rebuild.
 The scene itself is regenerated each time (the old one is copied to `Library/SceneBackups/` first; the menu asks
 before it overwrites, batch mode doesn't). **The scene is a build output:** git-ignored, never edited by hand.
@@ -32,31 +32,20 @@ Input: GameHands (registry) <- OvrHandPoseSource (Meta) | XRControllerHandSource
        GamePointer (mouse / hand rays), GameFingertip (poke), ChoiceButton, HivePlacement
 ```
 
-- **Unity is the only beat clock.** `GameDirector` reports `beat.set` on every change, accepts `beat.request`
-  (any beat; `pre` = full reset), and auto-advances a beat that runs past its max duration
-  (`maxSeconds[]`, index = beat number). On a timeout the beat wraps up first (a station: Beeswax does it himself,
-  "Noted for the minutes"), then the director moves on after `timeoutGraceSeconds` (15 s; a wrap-up that finishes
-  sooner advances sooner). A station left while its right answer is still playing (timeout grace ran out, operator
-  skip) still lights its hexagon and counts as solved; a station skipped with no answer stays unlit until the escape
-  lights all four. Jumping ahead past `meet` still opens the window. The hornet plays only if the run
-  clock is under `hornetIfRunSecondsBelow` (125 s) when wasps ends, or when forced (key K / Board request n=6).
-  Run clock = hook → escape; that's the score card's "Hive saved in m:ss". The rocket shows the 4:00 countdown.
-- **Stations** (`StationBase`): prompt → choice buttons → `GameNet.MakeChoice` (sends `choice.made` through the
-  client's `BeeswaxStations`, which plays the outcome line/clip/fx locally if the Hive is down or silent for 1.5 s)
-  → the station's own visuals → right: hexagon lights, beat completes; wrong: consequence plays, that button turns red
-  and locks, retry. The Board's `choice.request` (protocol v2.1, operator twin of a choice) is applied exactly like a
-  press during that station's beat and ignored elsewhere. `GameNet` subscribes to the client's typed
-  `BeeswaxBus.OnChoiceRequest` (client 0.2.1+); keep `BeeswaxStations.applyChoiceRequests` off. `fx.force` arrives as a plain `fx` (the Hive and the v2.1 client convert it).
-- **Offline** (Hive unreachable, or key O = forced offline): nothing waits on the network. Choices fall back to
-  `BeeswaxStations` (client offline) or to `GameLines` (forced offline / no BeeswaxStations). Beat lines play
-  at once, online too: the Hive never voices a beat change (`hive/src/server.ts` `beatEntered` only sets the window
-  scene), and the voice suppresses a Hive copy of the same line id. Only a station outcome without `BeeswaxStations`
-  uses `SayUnlessHive` (wait 1.2 s for the Hive's line). Desktop F/P inject the fire/put-out intent + fx locally (and
-  steer the live window if online).
-- **What-if:** the fire is tracked from the window scene (`whatif_fire` / `fire_out`), whoever caused it: the
-  player's voice, the Board's `whatif.force`, an `orbis.request`, or F/P. `fire_out` completes the beat. Offline
-  (Hive unreachable or forced), a talk press + release counts as the question (first = fire, second = put it out),
-  and with no input Beeswax starts the fire 9 s after the prompt and puts it out 8 s later, so the beat always shows it.
+- **Opening.** One worker bee brings the clipboard and waits for the signature. `IntroSequence` sends it back,
+  cuts the ring, and brings in the hive. Beeswax speaks from inside, then emerges after it lands.
+- **Clock and progress.** `GameDirector` reports `beat.set`, accepts `beat.request` and wraps up overdue beats.
+  The four-minute clock starts at Smoker. Four distinct station fixes stop the score clock. A return to Pre clears
+  progress. The hornet is off by default and can be enabled with K or a Board request.
+- **Stations.** `StationBase` owns the outcome and progress. In default `handsOn.mode=full`, poking an ORDER UP
+  ticket calls in a prop. Players pump the smoker, lift and feed the hive, fit the entrance reducer, and set down
+  and fill the pebble dish. A wrong choice plays its consequence and leaves the other orders available.
+  The crew assists if the setup stalls. The Board's `choice.request` applies only during the matching station.
+- **What-if.** Voice, the Board, and desktop F/P can start or put out the fire. Silence triggers a preview and an
+  unattended fire is put out before the rescue. With the Hive offline, Unity drives the whole beat locally.
+- **Ending.** The rescue shows the score and restores the meadow. The lever launches the rocket in hands-on mode.
+  Quest cues Moon at liftoff and restores the meadow at touchdown. Reconnect during T-0 restores the scene for the
+  current launch phase. The run ends with the map and final contract.
 - `GameLines` is **generated** from `hive/lines/lines.json` + `stations.json` (`Editor/Voice/BeeswaxVoiceTools`,
   menu **Virtual Bee Swarm > Voice**): every line as a field (`room_t0_earth` → `GameLines.RoomT0Earth`), the names
   the beats use (`Hook`, `FeedPrompt`, ... = the `Aliases` table in the tool) and the outcome table. Never edit it by
@@ -72,7 +61,7 @@ Input: GameHands (registry) <- OvrHandPoseSource (Meta) | XRControllerHandSource
 
 ## Desktop keys (editor / no headset)
 
-Without an XR device, `DesktopCamera` takes over (fake table shown, other MainCameras off). F1 toggles the HUD.
+Without an XR device, `DesktopCamera` shows the floor meadow. F1 toggles the HUD.
 
 | Key | Does |
 |---|---|
@@ -81,14 +70,15 @@ Without an XR device, `DesktopCamera` takes over (fake table shown, other MainCa
 | Shift+R | reset to pre (same as the Board's group.reset) |
 | K | hornet mode: auto / always / never |
 | O | force offline on/off (simulate the Hive being unreachable) |
-| 1 / 2 / 3 | pick a station choice (also: click the buttons) |
+| 1 / 2 / 3 | order a station choice (or click a ticket) |
+| X / Y | carry a prop through setup / pull the lever |
 | G (hold) | lift/tip the hive (feed station); or drag it with the mouse |
 | C | place the rig in front of the camera (pre) |
 | H (hold) | make a fist (hornet ball) |
 | U (hold) | hum (heats the hornet ball) |
 | T (hold) | push-to-talk (needs the Hive + BeeswaxVoiceInput); offline in the what-if beat, press + release = ask |
 | F / P | what-if: "what if a fire starts?" / "put it out!" (offline/operator backup) |
-| F2 | autopilot: plays the whole show by itself (wrong choice first at each station, hornet on) |
+| F2 | autopilot plays the whole show (K enables the optional hornet) |
 | F1 | hide/show the debug HUD |
 | Right mouse + WASD, Q/E | look and move |
 
@@ -96,17 +86,14 @@ In the headset: poke buttons with a fingertip, or point + pinch (hands) / trigge
 the thing or ray + pinch. Fist (hands) / grip (controllers) = hornet ball. Talk = hold pinch in the what-if beat, or
 controller B/Y in any voice beat. The Board's hum slider (`hum.set`) also drives the thermometer.
 
-## Placing the hive on the real table (pre beat)
+## Placing the hive
 
-Everything on the table hangs under `GameRig/TableAnchor` (hive, rocket, window, stations, Beeswax's spots,
-Moon). `HivePlacement` (on the base plate) moves that anchor:
-1. **Grab and drop** the translucent base plate; on release the rig turns to face the player.
-2. **Two-point calibration:** pinch the table's front edge twice (left, then right) where no button is under the
-   pointer. The hive goes 22 cm in from the middle of that edge, facing you.
+`GameRig/TableAnchor` carries the hive and stations in both layouts. In the default meadow layout, `MeadowLayout`
+places the rig on open floor and keeps the clipboard at hand size. Before signing, an aim-and-pinch floor hit
+moves the rig. `ArRig` mounts the window on a wall if one is available.
 
-In the headset the rig first appears in front of the player (55 cm ahead, 75 cm below the eyes, once the head is
-tracked; `autoPlaceInHeadset`), so it never starts inside them. Then use 1. or 2.
-The pose is kept for this app session (static), not across app restarts. Only in `pre` unless `onlyInPre` is off.
+Set `meadow.rig=false` in `tuning.json` for the tabletop layout. `HivePlacement` then supports grab-and-drop of the
+base plate and two-point calibration along the table's front edge. The app remembers placement for the session.
 
 ## File map
 
@@ -125,7 +112,9 @@ The pose is kept for this app session (static), not across app restarts. Only in
 | `Beats/*` | Intro (pre/hook/meet), Hornet, WhatIf, Escape, T0, LevelMap. |
 | `World/*` | HiveBody, HexagonPanel, SwarmSystem, BeeswaxController, FutureWindow, EmbersFx, GameMeshes. |
 | `Interaction/*` | ChoiceButton, GamePointer, GameFingertip, XRControllerHandSource. |
-| `Placement/HivePlacement.cs` | Grab-and-drop + two-point table calibration. |
+| `Placement/HivePlacement.cs` | Session placement and tabletop calibration. |
+| `Bloom/MeadowLayout.cs`, `Bloom/MeadowField.cs` | Floor-first rig, room meadow, and placement API. |
+| `HandsOn/*`, `Delivery/*` | Orders, hands-on setup, lever, and bee deliveries. |
 | `Meta/*` (asmdef `VirtualBeeSwarm.Meta`) | `OvrHandPoseSource`, `OvrPassthroughDimmer`. Compiles only when `com.meta.xr.sdk.core` is installed (version define `VBS_META`). |
 | `Shaders/GameUnlit.shader` | One unlit shader for everything: instanced color, optional vertex color, blend modes; URP + built-in, stereo-instancing macros. |
 | `Editor/BuildGameScene.cs` | Builds the scene (and `OfflineTest.unity`: no network, no mic, no rig). |
@@ -136,11 +125,11 @@ The pose is kept for this app session (static), not across app restarts. Only in
 | `Editor/Setup/ProjectBootstrap.cs` (asmdef `VirtualBeeSwarm.Setup.Editor`) | Quest project settings + the rig template scene (VirtualBeeSwarm only). |
 | `Meta/Editor/MetaRigWiring.cs` (asmdef `VirtualBeeSwarm.Meta.Editor`) | Builder step: floor-level origin, OVRHand + OVRSkeleton per hand, wires `OvrHandPoseSource` / `OvrPassthroughDimmer`. |
 | `Core/GameAutopilot.cs` | Plays the whole show (F2). With runOnStart + quitWhenDone it's the smoke test: exit code 0 = pass. |
-| `Tests/*` (asmdef `VirtualBeeSwarm.Tests`, editor + UNITY_INCLUDE_TESTS) | Same run as an EditMode test that enters play mode (`GameSmokeTests`) and as `-executeMethod VirtualBeeSwarm.Tests.GameSmokeRunner.Run`. The runner works headless (PASS on pop-os, 2026-11-14) and ignores errors with no VirtualBeeSwarm/Beeswax frame (Meta's native plugins are missing on a Linux editor) and missing window clips. The NUnit test fails on any error log, so it fails there. |
+| `Tests/*` (asmdef `VirtualBeeSwarm.Tests`, editor + UNITY_INCLUDE_TESTS) | EditMode tests that enter Play mode. `-executeMethod VirtualBeeSwarm.Tests.GameSmokeRunner.Run` runs the editor smoke checks. |
 
-## What the modeler replaces (keep the named transforms)
+## Art slots and required transforms
 
-| Placeholder (in the scene) | Replace with | Keep / wire |
+| Scene location | Art slot | Keep / wire |
 |---|---|---|
 | `TableAnchor/Hive/LiftRoot/Body, Roof, Stand` | hive model (tippable) | `HiveBody.bodyRenderers` (tinted sick), `liftRoot` (moves when lifted), `Door` pivot (its scale.x = door width), `DoorPoint`, `SwarmCenter`, `HeatGlow` renderer |
 | `.../Hexagons/Hex1-4` | hexagon panel | `HexagonPanel.hexagons` (order = smoker, feed, wasps, heat) |
@@ -154,8 +143,8 @@ The pose is kept for this app session (static), not across app restarts. Only in
 | Choice buttons (hex + TextMesh) | nicer buttons / physical props | any collider + `ChoiceButton` (`choiceId` must be a protocol choice) |
 | TextMesh captions/labels | TextMeshPro | `BeeswaxController.caption` etc. are TextMesh fields today |
 
-Placeholder-only: all meshes are primitives, TextMesh with the built-in font, and the window's local fallback is
-tinted scrolling noise per scene (real fallback clips come through the client's `OrbisWindow.sceneClips`).
+The main scene uses authored slots where available. The window uses the Orbis stream or recorded clips and falls
+back to tinted noise when neither is available.
 
 ## XR rig
 
@@ -167,8 +156,8 @@ tinted scrolling noise per scene (real fallback clips come through the client's 
   `OvrHandPoseSource` + `OvrPassthroughDimmer` on `GameRig/Input`.
 - `DesktopCamera` switches itself off when an XR device is active and on Android.
 - Token: `Resources/beeswax_token.txt` or `HIVE_TOKEN` (see the client README). Pre-grant the mic permission.
-- Performance: one instanced draw for 150 bees, unlit everywhere, no shadows, <= 80 ember particles, no per-frame
-  allocations in the game loop (captions/labels allocate only when their text changes).
+- The meadow culls floor tiles. The bee swarms use instancing and choose the animated VAT model for nearby bees
+  and lower-detail models farther away. Check GPU time on a headset with the full meadow and swarm enabled.
 
 ## Smoke test (whole run, no headset, no network, no mic, no sound)
 
@@ -176,8 +165,9 @@ tinted scrolling noise per scene (real fallback clips come through the client's 
 offline, the bus and window never connect, no HumDetector / BeeswaxVoiceInput). The autopilot plays it.
 
 - **In the editor:** open `OfflineTest.unity` (or the real scene with key O), press Play, press F2.
-- Autopilot options: `idleStation` (0-3) leaves that station to the max-duration wrap-up, `whatIfHandsOff` lets the
-  offline what-if timers run the fire. The pop-os harness sets them from `SMOKE_IDLE_STATION` / `SMOKE_WHATIF_HANDS_OFF`.
+- Set `VBS_AUTOPILOT_HANDSON=1` for simulated prop setup and lever input. `SMOKE_IDLE_STATION` (0–3) leaves one
+  station to the timeout. `SMOKE_WHATIF_HANDS_OFF=1` exercises the fire timers. These desktop runs simulate input
+  and cannot verify physical placement or tracking.
 - **Headless:** `Editor/GameSmokeBuild.Build` builds a desktop player (silent: audio is switched off for that
   build and restored) of a generated test scene, then you run it under `xvfb-run ... -batchmode -nographics`. It
   logs `[VBSAutopilot] PASS` and exits 0. `SMOKE_ONLINE=1` makes an online variant (no mic components, hosts from

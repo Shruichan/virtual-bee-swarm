@@ -121,7 +121,7 @@ namespace VirtualBeeSwarm
 
             // live / clip picture from the Hive (or the override in front of it)
             Texture tex = _override != null ? _override : net != null ? net.OrbisTexture : null;
-            bool showLive = tex != null;
+            bool showLive = livePane != null && tex != null;
             if (livePane != null)
             {
                 if (livePane.enabled != showLive) livePane.enabled = showLive;
@@ -133,7 +133,8 @@ namespace VirtualBeeSwarm
             }
             ShowingOrbis = showLive;
 
-            // local fallback (always animates underneath; covered by the live pane when it shows)
+            // Leave the frame attached to the fallback pane in place and draw only the visible surface.
+            if (fallbackPane != null && fallbackPane.enabled == showLive) fallbackPane.enabled = !showLive;
             if (fallbackPane != null && !showLive)
             {
                 float t = Time.time;

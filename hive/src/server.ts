@@ -1037,7 +1037,8 @@ export function startHive(opts: HiveOptions): Hive {
         observe("no score: the clock never started (no station beat before escape)");
       }
       setScene("full_bloom", "escape");
-    } else if (name === "t0") {
+    } else if (name === "t0" && bus.count("quest") === 0) {
+      // The Quest asks for the Moon at liftoff. In a Board-only rehearsal the beat itself is the cue.
       setScene("moon", "t0");
     } else if (name === "map") {
       setScene("full_bloom", "map");

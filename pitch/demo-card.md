@@ -3,14 +3,14 @@
 **Mediator** TODO · **Operator** Rome? · **Spotter** TODO · **Host** TODO
 Token never on a screen judges can see.
 
-**Before (≤60 s), mediator:** "These bees have a union, and the union just voted to move to the Moon. You've got four minutes to fix their hive, all on this table. Heads up: Beeswax is scripted. Near the end he'll ask you for a 'what if.' Say it out loud."
-**Spotter:** "Can you see the table? Hold up your hands."
+**Before (≤60 s), mediator** — "A bee is bringing you a clipboard. Poke SIGN HERE. When the hive arrives, you've got four minutes to fix it or we're headed to the Moon. When Beeswax asks for a what-if, pinch and hold to talk."
+**Spotter** — "Can you see the meadow? Hold up your hands."
 
 **Nudges (only if stuck 10 s)**
 - Smoker: "Which one would *you* want, if you were a bee?"
 - Hive: "Try lifting it. Heavy?"
 - What-if: "Ask him what happens if there's a fire." Not heard: "Louder, he's a bee."
-- Running long: skip the hornet. Never cut honey, fire, Moon.
+- Running long: keep the honey mistake, fire, and Moon.
 
 **After, mediator:** "Every station is real beekeeping. Did you pick the honey? It sounds like the nice option, and it can carry a disease that kills hives." Then [LIVE] "That window is Orbis, live. It morphed when you spoke." / [CLIPS] "That window is Orbis footage we made for each scene." Then: "Beeswax's own lines are pre-recorded, the AI only picks from a list, and it finishes without Wi-Fi. Questions?"
 
@@ -24,4 +24,4 @@ Token never on a screen judges can see.
 | Quest disconnected | Keep going (offline timers). Check hotspot, restart Hive. |
 | App crashed | Relaunch, Board → RESET GROUP. |
 
-**Reset (60 s):** RESET GROUP · window `ready` and session < 10 min · props + hive on the tape · wipe face cover, battery > 40% · one line in the notes: what broke, what they laughed at, what we couldn't answer.
+**Reset (60 s)** — RESET GROUP · window ready and session < 10 min · clear the marked player area · wipe face cover, battery > 40% · note what broke, what landed, and what we couldn't answer.

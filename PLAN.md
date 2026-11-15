@@ -805,11 +805,10 @@ future window, the demo script, "Choices are physical where we can make them", M
 line under Sponsors. Everything else stays: Beeswax, the four stations and their facts, the voice what-if, the Moon
 ending, the map.
 
-**Logline.** Bees cut a window into your real wall and fly a sick hive through it onto your real table. Beeswax, the
-union-rep drone, climbs out with the deal: let the hive die and angry swarms ravage the Earth, and you humans get the
-Moon. Your evacuation rocket lands next to the hive with a four-minute boarding clock. You order the fixes and the
-bees deliver them; wrong orders get repossessed back out through the wall. Fix four things and the evacuation is
-cancelled. Then Beeswax takes your unused ticket, finds no flowers on the Moon and crash-lands back on your table.
+**Logline.** A worker bee brings a clipboard. Sign it and the crew cuts open the meadow window and flies a sick hive
+into your room. Beeswax climbs out and gives you four minutes to fix the hive before humans have to evacuate to the
+Moon. Order the supplies and use them to save the hive. The crew repossesses the wrong orders. Once the hive is saved,
+Beeswax takes your unused ticket, finds no flowers on the Moon, and crash-lands back beside the hive.
 
 **The stakes, said once and plainly**
 - If we don't look after the bees, an angry swarm ravages the Earth and humans have to flee to the Moon.
@@ -819,7 +818,7 @@ cancelled. Then Beeswax takes your unused ticket, finds no flowers on the Moon a
   - On "angry swarms", a dark swarm pours out of the window, sweeps high over the player and settles in a band
     above the window. The room dims.
   - The rocket is flown in and planted next to the hive, reading EARTH → MOON · BOARDING 4:00.
-  - "Four minutes, or you're on that rocket." The clock starts when the first station starts, not during the intro.
+  - "Four minutes, or you're on that rocket." The clock starts at the first station. If it reaches zero, Beeswax grants an extension.
 - During the stations the dark swarm above the window is the only stakes meter: about 30 more bees per wrong pick,
   fewer per fix. The room stays slightly dim.
 - At the escape the swarm turns gold and flies home through the window, the room brightens ("the sun comes out"),
@@ -839,25 +838,20 @@ cancelled. Then Beeswax takes your unused ticket, finds no flowers on the Moon a
   - The fire is something you ordered by voice.
 - What gets delivered: the hive (hanging from chains of bees), the rocket, every station choice, the score card,
   the rain cloud that puts out the fire (SHOULD), and the map (COULD).
-- How you order:
-  - Each station's choices fly in together as Beeswax starts the prompt.
-  - They park, perfectly still, in an arc above the front edge of the table.
-  - The props are the buttons: poke the prop or its price tag.
-  - The pick is stamped APPROVED or GRIEVANCE the moment you touch it.
+- Poke an ORDER UP ticket at hand height and the crew flies in the item. Pump the smoker, pour the syrup, slot in the
+  entrance reducer, or set down the pebble dish and pump water. The crew can finish a step if the player gets stuck.
 - Wrong pick: the item does its bad thing. A red repo crew hauls it back out through the window while Beeswax
   explains, and the swarm above grows. Real fact: undertaker bees haul dead bees and debris out of the hive.
-- Right pick: the crew sets it down on its spot on the real table (shadow, thunk, dust), and the leftover choices
-  fly back out.
+- A correct item stays at its station after setup. Any leftover choices fly back out.
 - Three hero flights get the polish: the hive arriving, the store-honey repo, and the fire-brigade rain cloud.
   Everything else flies in 1.5 s or less.
 - If deliveries look bad on the headset, `delivery.mode` drops to `swirl` (items appear inside a spinning ring of
   bees) or to `off` (today's buttons). The show runs the same either way.
 
 **AR first**
-- The real table is the stage. The Operator aims at the table and pinches (the two-point edge calibration is the
-  fallback). The hive snaps to the real surface height, and everything that lands casts a contact shadow.
-- The meadow window hangs on the real wall behind the table when that wall is 3 m away or less. Otherwise it stands
-  free 0.7 m behind the hive.
+- The hive stands on the floor by default. The title opens in the meadow, the orders and lever sit within reach, and the
+  room fills out as the hive recovers. Table placement is available when the meadow rig is turned off.
+- The meadow window uses a nearby wall when the room provides one. It can also stand behind the hive.
 - The room's light is the stakes: passthrough dims when the swarm comes out and brightens when it goes home.
 - Bees go behind your hands and the table (Depth API occlusion) if it passes the 13:00 frame-rate test. Bees land
   on the real table between beats.
@@ -976,7 +970,7 @@ Paths use the new names. In the staged copy at `unity/HoneymoonQuest/Assets/Hone
 **V14 · Hook rewrite, SIGN HERE and clock** · MUST · 1.5 h · depends: V12, V13, V6, V21 (lines)
 - **What:**
   - **Pre:**
-    - The SIGN HERE clipboard (4 bees, held still) calls the existing START path.
+    - One worker bee holds out SIGN HERE. Signing starts the hive delivery, then Beeswax comes out of the hive.
     - It is re-placed 0.45 m ahead of the head and 0.1 m below eye level on `OVRManager.HMDMounted` and whenever `pre` starts.
     - `room_pre` plays after 6 s idle while the headset is on.
   - **`ResetWorld`:**
@@ -1305,6 +1299,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
+**Opening and story flow:** dartiros (agent) — worker bee clipboard, station handoffs, and the fire and Moon cues.
+
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, S21.1:** Rome (agent) — improve sticker-card and clue-slip readability in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Stickers/`; no scene edits.
@@ -1361,7 +1357,7 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 | From | Message | What the Hive does |
 |---|---|---|
-| quest | `beat.set{n, name}` | Authoritative beat, rebroadcast to all. `smoker` (the first station) starts the score clock (v3.1); `escape` sends `score` and sets the window to `full_bloom`; `t0` sets `moon` |
+| quest | `beat.set{n, name}` | Authoritative beat, rebroadcast to all. `smoker` starts the Hive's clock. `escape` sends its score and sets the window to `full_bloom`. Quest cues `moon` at liftoff with `orbis.request`. The Hive cues it at `t0` for Board-only rehearsals. |
 | quest | `choice.made{station, choice, correct}` | Plays the outcome from `hive/lines/stations.json`: room `say`, `fx`, window scene, memory. Board/monitor get a copy |
 | quest | `swarm.arrived{socket}`, `hornet.cooked{overshoot}` | Logged to board/monitor |
 | quest | `say{channel, line_id, tts_id, audio_url, caption}` | Unity cueing a line: `ear` → glasses; `room` → board/monitor copy only (Unity already played it) |
@@ -1585,3 +1581,10 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 21:28 PT · Rome (agent) · S22.1 validation review found the larger grass layer can exceed Unity's 1,023-instance cap in one `DrawMeshInstanced` call; splitting each species into bounded batches before publishing the full-ride meadow update. → team
 
 - 2026-11-14 21:31 PT · Rome (agent) · S22.1 fix pushed on `codex/rome-meadow-draw-batches`: per-species meadow draws now split into reusable 1,023-instance batches; `git diff --check` passes. Unity editor/compiler and Quest are unavailable on this machine, so headset build/performance verification remains with Nam. → team
+
+- 2026-11-14 22:04 PT · Rome (agent) · Meadow room-fill pushed (a7c7211, fe2cdeb, 4fc10c5): no table, the hive rig x3.5 stands on the floor (hive 0.3-1.4 m, choices 1.05 m on stakes, rocket 1.7 m, window 1.8 m slid clear of the roof); dense grass+flower meadow wall to wall with a moss ground layer from the title on (sick = paler/thinner, full bloom at the escape); wall vines to the ceiling from the start; swarm.count 500, darkswarm.count 400, crew.scale 2.5, meadow.roomBees 300 in tuning.json, only the nearest swarm.vatNear=80 bees per pool draw the VAT bee, the rest the low-poly bee. Floor tiles are view-culled: ~155k floor tris submitted + ~90k walls, 6 meadow draws, in the 6x6 m stand-in room. FlowerLife table clusters and floor grass step aside under the meadow rig (its floor blooms stay at 40%) → Rome (Codex agent). Verified: compile 0, scene 1033 comps 0 missing, autopilot on/off PASS, Android compile 0, Meadow shader 24 Android variants; stills checked. → Nam: room-scan placement should call MeadowLayout.SetHivePose(new Pose(floorHit, yaw facing away from the player)) instead of setting the anchor position (a table/sofa hit is put back on the floor anyway). On the headset please check: the rig is not inside a wall or sofa, choices within reach at ~1.05 m, nothing through you, and OVR Metrics GPU < 11 ms at 72 fps with the full swarm (if not, lower swarm.count / darkswarm.count / meadow.roomBees / meadow.density in tuning.json).
+- 2026-11-14 21:45 PT · dartiros (agent) · Claiming the opening story adjustment: a worker bee delivers SIGN HERE, then Beeswax arrives with the hive.
+
+- 2026-11-14 22:15 PT · dartiros (agent) · Synced the story fixes with the floor meadow. A worker bee brings SIGN HERE, the order tickets are at hand height, and the window follows the rocket at launch and reconnect. Updated the READMEs and booth notes to match. Hive tests 376/376. Desktop story runs reached the contract. Still checking the new floor build and Quest.
+
+- 2026-11-14 22:18 PT · dartiros (agent) · Verified the synced floor ride on Windows at 1x: all four setups by hand, 38/38 preloaded clips, and the Moon lines inside T-0. Hive: 376 tests passed. Quest check pending.

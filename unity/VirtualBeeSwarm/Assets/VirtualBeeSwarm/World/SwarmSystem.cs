@@ -52,12 +52,13 @@ namespace VirtualBeeSwarm
         public int GuardCount { get; private set; } = 12;
         public int Count => _n;
 
-        const int MaxBees = 300;
+        const int MaxBees = 640; // meadow: swarm.count (tuning.json) up to 640, one instanced draw
         int _n;
         Vector3[] _pos, _vel, _dir;
         float[] _phase, _radius, _height, _speed;
         Matrix4x4[] _matrices;
         Vector4[] _colors;
+        Bloom.BeeLod _lod; // meadow
         MaterialPropertyBlock _mpb;
         static readonly int ColorArrayId = Shader.PropertyToID("_Color");
         float _modeSince, _pourStart;
@@ -75,6 +76,7 @@ namespace VirtualBeeSwarm
                 beeMaterial = GameMaterials.Create("VBS_Bee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
+            _lod = Bloom.BeeLod.Make(beeMesh, beeMaterial); // meadow: far bees low-poly (Quest budget)
             BeeVat.Apply(ref beeMesh, ref beeMaterial, "swarm"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
             if (!_instancing) Debug.LogWarning("[VBS] GPU instancing not supported here: bees drawn one by one.");
@@ -93,7 +95,8 @@ namespace VirtualBeeSwarm
 
         void Allocate()
         {
-            _n = Mathf.Clamp(beeCount, 1, MaxBees);
+            Bloom.MeadowTuning.EnsureLoaded(); // meadow: swarm.count fills the room
+            _n = Mathf.Clamp(Mathf.Max(beeCount, Bloom.MeadowTuning.SwarmCount), 1, MaxBees);
             _pos = new Vector3[_n];
             _vel = new Vector3[_n];
             _dir = new Vector3[_n];
@@ -167,6 +170,30 @@ namespace VirtualBeeSwarm
             return cam != null ? cam.transform : null;
         }
 
+        /// <summary>Meadow: which bees roam the room (a third; comfort mode: one in ten).</summary>
+        static bool Roams(int i) => Stakes.StakesFlags.Comfort ? i % 10 == 1 : i % 3 == 1;
+
+        /// <summary>Meadow: a wide lazy loop through the room round the hive (1-2.8 m out, 0.25-2.1 m above the floor),
+        /// clear of the player's head. One in three bees in Idle / Calm.</summary>
+        Vector3 Roam(int i, float t, Vector3 center, Vector3 headPos)
+        {
+            float ph = _phase[i], sp = _speed[i];
+            float a = ph + t * 0.22f * sp * ((i & 2) == 0 ? 1f : -1f);
+            float r = 1.0f + 1.8f * _radius[i] + 0.3f * Mathf.Sin(t * 0.37f + ph * 3f);
+            float floor = Bloom.MeadowLayout.FloorY;
+            float y = floor + 0.25f + 1.85f * _height[i] + 0.25f * Mathf.Sin(t * 0.5f + ph * 2f);
+            Vector3 p = new Vector3(center.x + Mathf.Cos(a) * r, y, center.z + Mathf.Sin(a) * r);
+            var field = Bloom.MeadowField.Instance; // inside the room: never through a wall
+            if (field != null && field.RoomRect(out var lo, out var hi))
+            {
+                p.x = Mathf.Clamp(p.x, lo.x + 0.3f, hi.x - 0.3f);
+                p.z = Mathf.Clamp(p.z, lo.y + 0.3f, hi.y - 0.3f);
+            }
+            Vector3 off = p - headPos;
+            if (off.sqrMagnitude < 0.8f * 0.8f) p.y = headPos.y + 0.75f; // over the head, not through it
+            return p;
+        }
+
         void Update()
         {
             if (Mode == SwarmMode.Hidden || _n == 0) return;
@@ -202,6 +229,8 @@ namespace VirtualBeeSwarm
             baseColor = Color.Lerp(baseColor, angryColor, agit);
             maxSpeed *= 1f + agit;
 
+            float _spread = Bloom.MeadowLayout.SwarmSpread; // meadow: orbit the scaled-up hive, not inside it
+            float bl = beeLength * (_spread > 1.01f ? 1.4f : 1f); // meadow: bees that read across the room
             for (int i = 0; i < _n; i++)
             {
                 float ph = _phase[i];
@@ -214,7 +243,7 @@ namespace VirtualBeeSwarm
                     case SwarmMode.Angry:
                     {
                         float a = ph + t * 2.4f * sp;
-                        float r = 0.35f + 0.5f * _radius[i];
+                        float r = (0.35f + 0.5f * _radius[i]) * _spread;
                         target = center + new Vector3(Mathf.Cos(a) * r, -0.05f + 0.6f * _height[i] + Mathf.Sin(t * 3f + ph) * 0.1f, Mathf.Sin(a) * r);
                         // every 8th bee takes turns buzzing toward the player (stops halfway between hive and face)
                         if ((i & 7) == 0 && Mathf.Sin(t * 0.9f + ph) > 0.55f)
@@ -236,6 +265,7 @@ namespace VirtualBeeSwarm
                             col = guardColor;
                             break;
                         }
+                        if (Mode == SwarmMode.Calm && Bloom.MeadowLayout.Active && Roams(i)) { target = Roam(i, t, center, headPos); break; } // meadow
                         if ((i % 5) == 0)
                         {
                             // forager: hive -> window -> hive
@@ -244,7 +274,7 @@ namespace VirtualBeeSwarm
                             break;
                         }
                         float a = ph + t * 0.5f * sp;
-                        float r = (0.14f + 0.12f * _radius[i]) * _pull;
+                        float r = (0.14f + 0.12f * _radius[i]) * _pull * _spread;
                         target = center + new Vector3(Mathf.Cos(a) * r, -0.02f + 0.2f * _height[i] + Mathf.Sin(t + ph) * 0.02f, Mathf.Sin(a) * r);
                         break;
                     }
@@ -254,7 +284,7 @@ namespace VirtualBeeSwarm
                         if (t < leaveAt)
                         {
                             float a = ph + t * 0.6f * sp;
-                            target = center + new Vector3(Mathf.Cos(a) * 0.12f, 0.05f, Mathf.Sin(a) * 0.12f);
+                            target = center + new Vector3(Mathf.Cos(a) * 0.12f * _spread, 0.05f, Mathf.Sin(a) * 0.12f * _spread);
                         }
                         else if (t < leaveAt + 0.5f)
                         {
@@ -263,7 +293,7 @@ namespace VirtualBeeSwarm
                         else
                         {
                             float a = ph + t * 0.35f * sp;
-                            float r = 0.6f + 1.0f * _radius[i];
+                            float r = (0.6f + 1.0f * _radius[i]) * _spread;
                             target = center + new Vector3(Mathf.Cos(a) * r, 0.1f + 0.9f * _height[i] + Mathf.Sin(t * 0.7f + ph) * 0.1f, Mathf.Sin(a) * r);
                         }
                         break;
@@ -276,8 +306,13 @@ namespace VirtualBeeSwarm
                     }
                     default:
                     {
+                        if (Bloom.MeadowLayout.Active && Roams(i)) // meadow: a third of the swarm roams the whole room (comfort: 1 in 10)
+                        {
+                            target = Roam(i, t, center, headPos);
+                            break;
+                        }
                         float a = ph + t * 0.9f * sp;
-                        float r = (0.18f + 0.17f * _radius[i]) * _pull;
+                        float r = (0.18f + 0.17f * _radius[i]) * _pull * _spread;
                         target = center + new Vector3(Mathf.Cos(a) * r, -0.04f + 0.3f * _height[i] + Mathf.Sin(t * 1.3f + ph) * 0.04f, Mathf.Sin(a) * r);
                         break;
                     }
@@ -296,12 +331,19 @@ namespace VirtualBeeSwarm
                 float vm = v.magnitude;
                 if (vm > maxSpeed) v *= maxSpeed / vm;
                 p += v * dt;
+                if (_spread > 1.01f) // meadow: no bee closer than 0.45 m to the face (comfort: 0.8 m)
+                {
+                    float clear = Stakes.StakesFlags.Comfort ? 0.8f : 0.45f;
+                    Vector3 fo = p - headPos;
+                    float fd = fo.magnitude;
+                    if (fd < clear) p = headPos + (fd > 1e-4f ? fo / fd : Vector3.up) * clear;
+                }
                 _pos[i] = p;
                 _vel[i] = v;
 
                 Vector3 fwd = vm > 0.02f ? v / vm : (target - p);
                 Quaternion rot = fwd.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
-                _matrices[i] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(Time.time, i * 2.4f, 0.55f), new Vector3(beeLength, beeLength, beeLength)); // wings flap in the shader
+                _matrices[i] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(Time.time, i * 2.4f, 0.55f), new Vector3(bl, bl, bl)); // wings flap in the shader
 
                 float shade = 0.85f + 0.3f * _radius[i];
                 _colors[i] = new Vector4(col.r * shade * brightness, col.g * shade * brightness, col.b * shade * brightness, 1f);
@@ -309,8 +351,11 @@ namespace VirtualBeeSwarm
 
             if (_instancing)
             {
+                if (_lod == null || !_lod.Draw(beeMesh, beeMaterial, _matrices, _colors, _n, gameObject.layer)) // meadow: near VAT / far low-poly
+                {
                 _mpb.SetVectorArray(ColorArrayId, _colors);
                 Graphics.DrawMeshInstanced(beeMesh, 0, beeMaterial, _matrices, _n, _mpb, ShadowCastingMode.Off, false, gameObject.layer);
+                }
             }
             else
             {

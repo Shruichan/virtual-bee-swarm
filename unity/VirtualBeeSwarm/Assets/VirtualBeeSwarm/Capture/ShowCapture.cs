@@ -76,6 +76,8 @@ namespace VirtualBeeSwarm.Capture
             Application.targetFrameRate = -1;
             Application.runInBackground = true;
             AudioListener.volume = 0f;
+            // meadow: the floor is culled to Camera.main's view; with several views per frame draw it all
+            Bloom.MeadowField.CullToView = (Environment.GetEnvironmentVariable("VBS_CAPTURE_VIEWS") ?? "pov").Trim() == "pov";
             _dir = Environment.GetEnvironmentVariable("VBS_CAPTURE_OUT");
             if (string.IsNullOrEmpty(_dir)) _dir = Path.Combine(Application.persistentDataPath, "capture");
             Directory.CreateDirectory(_dir);
@@ -225,6 +227,19 @@ namespace VirtualBeeSwarm.Capture
                     cam.tag = "Untagged";
                     cam.transform.SetPositionAndRotation(widePos, Quaternion.LookRotation(wideLook - widePos, Vector3.up));
                     cam.fieldOfView = wideFov;
+                }
+                else if (v == "top" || v == "corner") // meadow: straight down over the room / a high 3/4 view of the floor
+                {
+                    cam = new GameObject(v == "top" ? "TopCamera" : "CornerCamera").AddComponent<Camera>();
+                    cam.CopyFrom(_pov);
+                    cam.tag = "Untagged";
+                    if (v == "top") cam.transform.SetPositionAndRotation(new Vector3(0f, 2.3f, 0.1f), Quaternion.Euler(90f, 0f, 0f));
+                    else
+                    {
+                        var cp = new Vector3(2.6f, 2.25f, -2.4f);
+                        cam.transform.SetPositionAndRotation(cp, Quaternion.LookRotation(new Vector3(-0.2f, 0.5f, 0.6f) - cp, Vector3.up));
+                    }
+                    cam.fieldOfView = v == "top" ? 100f : 62f;
                 }
                 else continue;
                 var ss = NewRt(size.x * supersample, size.y * supersample, 24);
@@ -392,10 +407,11 @@ namespace VirtualBeeSwarm.Capture
             Box(root, "LeftWall", new Vector3(-W * 0.5f, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
             Box(root, "RightWall", new Vector3(W * 0.5f, H * 0.5f, midZ), new Vector3(0.06f, H, back), wall);
             Box(root, "Baseboard", new Vector3(0f, 0.05f, wallZ - 0.01f), new Vector3(W, 0.1f, 0.02f), trim);
-            Box(root, "Rug", new Vector3(tc.x, 0.003f, tc.z - 0.2f), new Vector3(2.4f, 0.006f, 1.9f), rug);
-            Box(root, "TableTop", new Vector3(tc.x, tc.y - 0.02f, tc.z), new Vector3(th.x * 2f, 0.04f, th.y * 2f), wood);
-            Box(root, "Apron", new Vector3(tc.x, tc.y - 0.08f, tc.z), new Vector3(th.x * 2f - 0.1f, 0.08f, th.y * 2f - 0.1f), wood);
-            for (int i = 0; i < 4; i++)
+            bool meadow = Bloom.MeadowLayout.FreeStanding; // meadow: the hive stands on its stump, no stand-in table or rug
+            if (!meadow) Box(root, "Rug", new Vector3(tc.x, 0.003f, tc.z - 0.2f), new Vector3(2.4f, 0.006f, 1.9f), rug);
+            if (!meadow) Box(root, "TableTop", new Vector3(tc.x, tc.y - 0.02f, tc.z), new Vector3(th.x * 2f, 0.04f, th.y * 2f), wood);
+            if (!meadow) Box(root, "Apron", new Vector3(tc.x, tc.y - 0.08f, tc.z), new Vector3(th.x * 2f - 0.1f, 0.08f, th.y * 2f - 0.1f), wood);
+            for (int i = 0; i < (meadow ? 0 : 4); i++)
             {
                 float lx = (i % 2 == 0 ? -1f : 1f) * (th.x - 0.07f), lz = (i < 2 ? -1f : 1f) * (th.y - 0.07f);
                 Box(root, "Leg" + i, new Vector3(tc.x + lx, (tc.y - 0.04f) * 0.5f, tc.z + lz), new Vector3(0.055f, tc.y - 0.04f, 0.055f), wood);
