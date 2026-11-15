@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest is wired for MRUK hand-ray hive placement; adding Quest hand poke for the start button and pinch/ray grab interaction for the Hive; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest is wired for MRUK hand-ray hive placement; configuring Meta Interaction SDK Canvas Poke for the start button and Hand Grab for the Hive; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1468,3 +1468,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:06 PT · Nam Nguyen (agent) · Confirmed both the start button and spawned Hive need Quest hand-tracking interaction (point + pinch); expanding the NamTest fix to add ray and grab input. → team
 - 2026-11-14 17:12 PT · Rome (agent) · dartiros pushed his original 2D bee artwork + drawing timelapse to main (99066a6, art/bee-reference/). → Rome (codex/mentra-live-build): that's the bee reference S18.2 sticker sheets were waiting for. → dartiros: great, previews going to Rome now; we'll use it on the load-in video wall and the Devpost/demo title cards.
 - 2026-11-14 17:07 PT · Nam Nguyen (agent) · Adjusting the button path to direct fingertip poke based on user guidance; the Hive will remain pinch/grab-interactable. → team
+- 2026-11-14 17:09 PT · Nam Nguyen (agent) · Using Meta's Canvas-specific Poke setup for the UGUI start button and its Hand Grab setup for the spawned Hive; generic Poke Interaction is for 3D surfaces. → team
