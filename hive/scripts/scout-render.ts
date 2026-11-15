@@ -12,7 +12,7 @@
 // Output: mp3, mono, 44.1 kHz, 64 kbps, loudness-normalized to -16 LUFS. Chime lines get a two-note ding in
 // front of the voice. manifest.json: { "<id>": { ms, voice, chars, hash } }. The game uses ms for timing.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -169,6 +169,7 @@ async function main(): Promise<void> {
   const manifest: ScoutManifest = {};
   const jobs: ScoutLine[] = [];
   for (const line of lines) {
+    if (!line.text.trim()) continue; // empty text = the line is switched off: no audio
     const prev = old[line.id];
     const file = join(SCOUT_AUDIO_DIR, `${line.id}.mp3`);
     const fresh = prev && existsSync(file) && prev.hash === lineHash(line);
@@ -182,13 +183,23 @@ async function main(): Promise<void> {
   console.log(`${lines.length} lines, ${jobs.length} to render (${voice}${sayVoice ? `: ${sayVoice}` : ""})`);
   const tmp = mkdtempSync(join(tmpdir(), "scout-render-"));
   const failed: string[] = [];
+  // Same text in two ids (demo and booth copies) -> one render, copied, so both sound identical.
+  const rendered = new Map<string, string>();
   try {
     for (const line of jobs) {
       const out = join(SCOUT_AUDIO_DIR, `${line.id}.mp3`);
+      const twin = rendered.get(lineHash(line));
+      if (twin) {
+        copyFileSync(join(SCOUT_AUDIO_DIR, `${twin}.mp3`), out);
+        manifest[line.id] = { ...manifest[twin]!, chars: line.text.length };
+        console.log(`  ${line.id}  copied`);
+        continue;
+      }
       try {
         const raw = voice === PLACEHOLDER ? renderSay(line.text, sayVoice, tmp) : await renderEleven(line.text, tmp);
         encodeLevel(raw, out, line.kind === "chime");
         manifest[line.id] = { ms: durationMs(out), voice, chars: line.text.length, hash: lineHash(line) };
+        rendered.set(lineHash(line), line.id);
         console.log(`  ${line.id}  ${manifest[line.id]!.ms} ms`);
       } catch (e) {
         failed.push(line.id);
@@ -199,8 +210,9 @@ async function main(): Promise<void> {
     rmSync(tmp, { recursive: true, force: true });
   }
 
-  // Drop audio for ids that left the lines file.
-  const ids = new Set(lines.map((l) => l.id));
+  // Drop audio for ids that left the lines files or were switched off.
+  const ids = new Set(lines.filter((l) => l.text.trim()).map((l) => l.id));
+  for (const id of Object.keys(manifest)) if (!ids.has(id)) delete manifest[id];
   for (const f of readdirSync(SCOUT_AUDIO_DIR)) {
     if (f.endsWith(".mp3") && !ids.has(f.slice(0, -4))) rmSync(join(SCOUT_AUDIO_DIR, f));
   }
