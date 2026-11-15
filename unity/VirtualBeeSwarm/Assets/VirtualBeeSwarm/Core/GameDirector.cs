@@ -25,11 +25,11 @@ namespace VirtualBeeSwarm
         [Header("Clock")]
         [Tooltip("Max seconds per beat (index = beat number). 0 = no limit. Then the beat's OnBeatTimeout runs and the " +
                  "director advances at most timeoutGraceSeconds later.")]
-        [SerializeField] float[] beatCapSeconds = { 0f, 25f, 48f, 55f, 85f, 50f, 40f, 50f, 60f, 25f, 45f, 0f, 0f };
+        [SerializeField] float[] beatCapSeconds = { 0f, 25f, 48f, 55f, 85f, 50f, 40f, 50f, 60f, 25f, 65f, 0f, 0f };
         // ride script v2 (typical run, then the cap): hook 8 s (25), meet 32 s (48: six lines, one of them the forecast),
         // smoker 36 s (55: hint 8 s + no-pick timeout 20 s), feed 43 s (85: lift timeout 18 s, the honey mistake is 11 s), wasps 23 s +10 per wrong
         // pick (50), heat 18 s +9 per wrong pick (50), what-if 33 s (60: hint, put-out hint, 25 s silence), escape 14 s (25),
-        // T-0 24 s (45), map/unload 27 s (no cap: the ride ends there).
+        // T-0 includes boarding, launch, crash and the Moon award (65), map/unload 27 s (no cap: the ride ends there).
         [SerializeField] AutoAdvance autoAdvance = AutoAdvance.Always;
         [Tooltip("After a beat's max: how long its wrap-up may take (a station's own \"Noted for the minutes\" + outcome line " +
                  "is ~5-14 s) before the director moves on anyway. A wrap-up that calls Complete() advances sooner.")]

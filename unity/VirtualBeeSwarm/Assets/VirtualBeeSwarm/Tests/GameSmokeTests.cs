@@ -213,6 +213,9 @@ namespace VirtualBeeSwarm.Tests
             var launchPosition = rocket.position;
             var launchRotation = rocket.rotation;
             yield return WaitUntil(() => net.CurrentScene == GameIds.Scene.Moon, 15f, "Moon after liftoff");
+            yield return WaitUntil(() => launch.MoonAwardVisible || director.Beat != GameBeat.T0, 80f, "Moon award after the crash");
+            Assert.AreEqual(GameBeat.T0, director.Beat, "the Moon award is shown before the map");
+            Assert.IsTrue(launch.MoonAwardVisible, "the rocket scene reveals the Moon award");
             yield return WaitForBeat(director, GameBeat.Map, 90f);
             var map = UnityEngine.Object.FindAnyObjectByType<LevelMap>();
             Assert.IsNotNull(map, "level map");
