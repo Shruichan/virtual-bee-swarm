@@ -296,7 +296,7 @@ describe("scan pipeline", () => {
       const photoMsg = await c.waitFor("scan.photo");
       expect(photoMsg).toEqual({ type: "scan.photo", scan_id: press.scan_id, width: 1024, height: 768 });
       const idx = c.events.findIndex((e) => e.kind === "json" && e.msg.type === "scan.photo");
-      const bin = c.events[idx + 1];
+      const bin = await c.waitEvent((event) => event === c.events[idx + 1]);
       expect(bin?.kind).toBe("bin");
       const data = (bin as { data: Uint8Array }).data;
       expect(data[0]).toBe(BINARY_KIND.SCAN_PHOTO);

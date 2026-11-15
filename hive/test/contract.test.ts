@@ -119,8 +119,10 @@ describe("data files", () => {
     for (const d of ["hive/src", "hive/scripts", "glasses/src", "unity/BeeswaxClient", "hive/orbis-relay"]) walk(join(REPO, d));
     const missing: string[] = [];
     for (const f of files) {
-      for (const m of readFileSync(f, "utf8").matchAll(/["'`]((?:room|ear)_[a-z0-9_]*[a-z0-9])["'`]/g)) {
-        if (!LINES[m[1]!] && !OPTIONAL.has(m[1]!)) missing.push(`${m[1]} (${f.slice(REPO.length + 1)})`);
+      for (const m of readFileSync(f, "utf8").matchAll(/(\.StartsWith\(\s*)?["'`]((?:room|ear)_[a-z0-9_]*[a-z0-9])["'`]/g)) {
+        const id = m[2]!;
+        const exists = m[1] ? Object.keys(LINES).some((line) => line.startsWith(id)) : Boolean(LINES[id]);
+        if (!exists && !OPTIONAL.has(id)) missing.push(`${id} (${f.slice(REPO.length + 1)})`);
       }
     }
     expect(files.length).toBeGreaterThan(20);
