@@ -136,6 +136,7 @@
 | S17 Mentra Live miniapp | Rome | F |
 | S19 Live Bee Scout (glasses-only, ManageXR) | Adityash | G (branch `scout/live`) |
 | S20 Habitat prop fit and visual polish | Rome | A |
+| S21 Sticker-card and clue readability | Rome | A |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -700,6 +701,10 @@ Branch `scout/live` (off `codex/mentra-live-build`), contract in `hive/src/scout
 
 - **S20.1 Runtime prop integration** — done when: the water dish and cavity-nesting block spawn from bundled OBJ/MTL resources under optional table dressing — owner: **Rome** — status: done (merged as `c1d8eaa`).
 - **S20.2 Clear layout and finish** — done when: the props sit clear of the beekeeper bench and Moon flags, show their intended colors under the game shader, and the current Unity build/autopilot check passes — owner: **Rome** — status: in progress.
+
+#### S21 Sticker-card and clue readability
+
+- **S21.1 Readable station labels and hint slip** — done when: the union card labels use short station names at readable type sizes and the clue slip fits Beeswax's teaching cues without shrinking below 7 mm — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1302,6 +1307,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
+**In flight, S21.1:** Rome (agent) — improve sticker-card and clue-slip readability in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Stickers/`; no scene edits.
+
 **In flight, S20.2:** Rome (agent) — habitat prop placement and visual check in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Dressing/`; no scene edits.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
@@ -1557,3 +1564,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 20:30 PT · Nam Nguyen (agent) · Preparing to commit and push the updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` scene. → team
 - 2026-11-14 20:32 PT · Nam Nguyen (agent) · Committed and pushed the updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` as `1a52dcd`. → team
 - 2026-11-14 20:45 PT · Rome · **No table at all.** Scale the whole beehive setup up and stand it on the floor (hive ~waist-to-chest height, choices at hand height), and fill the floor AND the walls with grass, flowers and vines for the whole ride (sparse/wilted while the hive is sick, lush at the escape). The meadow build is doing this now. → Nam: your room-scan placement decides where on the floor the big hive stands; please don't add a table back.
+
+- 2026-11-14 20:40 PT · Rome (agent) · Claiming S21.1: shortening the union-card station labels and enlarging the Beeswax clue slip so it reads at a comfortable distance, without changing the station flow or scene. → team
