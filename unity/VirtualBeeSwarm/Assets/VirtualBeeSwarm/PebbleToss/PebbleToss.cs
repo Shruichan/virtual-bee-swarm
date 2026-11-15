@@ -25,7 +25,8 @@ namespace VirtualBeeSwarm.Pebbles
         public static PebbleToss Instance { get; private set; }
 
         const int Max = 6, Need = 3;
-        const float InviteSeconds = 12f, PlayerCapSeconds = 20f, HardCapSeconds = 30f;
+        const float InviteSeconds = 12f, PlayerCapSeconds = 15f, HardCapSeconds = 30f, NudgeSeconds = 6f;
+        const int GiveUpMisses = 3, GuideDots = 7;
         const float ThrowBoost = 1.25f, MaxThrow = 7f, FlightSeconds = 1.3f;
 
         enum P { Bowl, Held, Flying, InDish, Gone }
@@ -78,6 +79,9 @@ namespace VirtualBeeSwarm.Pebbles
         float _capOrig = -1f, _builtR = -1f;
         float _startedAt, _r, _beeLen, _dishR, _floorTop, _rimH, _waterY, _bowlR, _catchY, _cardHideAt = -1f, _camUntil = -1f;
         Coroutine _ghostCo;
+        Transform _guide; // dotted arc bowl -> dish until the first pebble lands
+        readonly Renderer[] _guideDot = new Renderer[GuideDots];
+        Renderer _guideRing;
         static bool _enabled = true, _demo;
 
         // ------------------------------------------------------------ install
@@ -105,7 +109,7 @@ namespace VirtualBeeSwarm.Pebbles
             _dishMat = new PhysicsMaterial("VBS_TossDish") { bounciness = 0.05f, dynamicFriction = 0.7f, staticFriction = 0.8f, bounceCombine = PhysicsMaterialCombine.Average };
             _floorMat = new PhysicsMaterial("VBS_TossFloor") { bounciness = 0.4f, dynamicFriction = 0.5f, staticFriction = 0.5f, bounceCombine = PhysicsMaterialCombine.Average };
             _fx = gameObject.AddComponent<JuiceParticles>();
-            _card = HandsOnPrompt.Build(transform, "PebbleCard");
+            _card = HandsOnPrompt.Build(transform, "PebbleCard", 0.0034f); // bigger than the station prompts: players missed it
             _director = FindAnyObjectByType<GameDirector>();
         }
 
@@ -178,12 +182,19 @@ namespace VirtualBeeSwarm.Pebbles
             if (_ghostAuto) _ghostCo = StartCoroutine(GhostTosses());
 
             string reason = "3 pebbles";
+            bool nudged = false;
             while (_running && _landed < Need)
             {
                 float age = Time.time - _startedAt;
+                // nobody touched a pebble in 6 s: Beeswax nudges with an existing line (never on the autopilot's clip-checked path)
+                if (!nudged && age > NudgeSeconds && _grabs == 0 && _thrown == 0)
+                {
+                    nudged = true;
+                    if (!_pilot || _demo) StartCoroutine(SayWhenFree(RideLines.HintHeat, 2f));
+                }
                 if (age > HardCapSeconds) { reason = "hard cap"; break; }
                 if (age > InviteSeconds && (!AnyInPlay() || age > PlayerCapSeconds)) { reason = "timeout"; break; }
-                if (_misses >= 4 && _landed == 0 && !AnyInPlay()) { reason = "4 misses"; break; } // polish: no long silent stretch of misses
+                if (_misses >= GiveUpMisses && !AnyInPlay()) { reason = GiveUpMisses + " misses"; break; } // no long stretch of misses
                 yield return null;
             }
             if (!_running) yield break;
@@ -223,9 +234,9 @@ namespace VirtualBeeSwarm.Pebbles
             _running = true;
             _startedAt = Time.time;
             _camUntil = _demo ? float.MaxValue : -1f;
-            ShowCard("PINCH A PEBBLE.\nTOSS IT IN THE DISH.");
+            ShowCard("PINCH A PEBBLE.\nDROP IT IN THE DISH.");
             Debug.Log("[VBS][Pebble] start: dish r " + (_dishR * 100f).ToString("0.0") + " cm at " + _dishRoot.position.ToString("F2") +
-                      ", water y " + _waterY.ToString("0.000") + ", bowl at " + _bowlRoot.position.ToString("F2") + ", pebble r " +
+                      ", water y " + _waterY.ToString("0.000") + ", bowl at " + _bowlRoot.position.ToString("F2") + " (" + (FlatDist(_bowlRoot.position, _dishRoot.position) * 100f).ToString("0") + " cm from the dish), pebble r " +
                       (_r * 100f).ToString("0.0") + " cm, bee " + (_beeLen * 100f).ToString("0.0") + " cm, catch floor y " + _catchY.ToString("0.00") +
                       (_ghostAuto ? " (ghost hand)" : ""));
             return true;
@@ -291,10 +302,10 @@ namespace VirtualBeeSwarm.Pebbles
             if (floor > _dishRoot.position.y - 0.1f || floor < eye.y - 2.2f) floor = Mathf.Min(_dishRoot.position.y - 0.6f, eye.y - 1.5f);
             _catchY = floor;
             float y = Mathf.Max(eye.y - 0.5f, floor + 0.45f);
-            // polish: a dish the room moved far off (rooms 16/21: ~0.8 m from the bowl) got missed again and again. The
-            // bowl comes forward toward it, but stays within arm's reach (at most 0.52 m ahead of the eyes).
-            float ahead = Mathf.Clamp(toDish.magnitude - 0.55f, 0.34f, 0.52f);
-            Vector3 at = eye + fwd * ahead + right * 0.24f;
+            // the bowl sits in front of the player on the way to the dish (it was off to the right and players never saw it):
+            // 0.4 m short of the dish, between 0.3 m and arm's reach (0.6 m) ahead, nudged 8 cm aside so it doesn't hide the dish
+            float ahead = Mathf.Clamp(toDish.magnitude - 0.4f, 0.3f, 0.6f);
+            Vector3 at = eye + fwd * ahead + right * 0.08f;
             at.y = y;
 
             if (_bowlRoot == null)
@@ -336,6 +347,41 @@ namespace VirtualBeeSwarm.Pebbles
                 st.localScale = new Vector3(0.028f, h * 0.5f, 0.028f);
             }
             _bowlRoot.gameObject.SetActive(true);
+            BuildGuide();
+        }
+
+        void BuildGuide()
+        {
+            if (_guide != null) return;
+            _guide = new GameObject("PebbleGuide").transform;
+            _guide.SetParent(transform, false);
+            for (int i = 0; i < GuideDots; i++)
+                _guideDot[i] = HandsOnKit.Glow(PrimitiveType.Sphere, "Dot" + i, _guide, Vector3.zero, Vector3.one * 0.02f, new Color(1f, 0.74f, 0.12f, 0.85f));
+            _guideRing = HandsOnKit.Glow(PrimitiveType.Cylinder, "Ring", _guide, Vector3.zero, Vector3.one, new Color(1f, 0.74f, 0.12f, 0.35f));
+            _guide.gameObject.SetActive(false);
+        }
+
+        /// <summary>Dots stream along an arc from the bowl into the dish, and a ring pulses on the water, until the first pebble lands.</summary>
+        void UpdateGuide()
+        {
+            if (_guide == null) return;
+            bool show = _running && !_finished && _landed == 0 && _bowlRoot != null && _bowlRoot.gameObject.activeSelf && _dishRoot != null;
+            if (_guide.gameObject.activeSelf != show) _guide.gameObject.SetActive(show);
+            if (!show) return;
+            Vector3 a = _bowlRoot.position + Vector3.up * (_bowlR * 0.6f);
+            Vector3 b = new Vector3(_dishRoot.position.x, _waterY + _r, _dishRoot.position.z);
+            Vector3 c = Vector3.Lerp(a, b, 0.5f) + Vector3.up * (0.06f + 0.12f * Vector3.Distance(a, b));
+            float ph = Time.time * 0.55f, size = Mathf.Clamp(_r * 1.1f, 0.014f, 0.024f);
+            for (int i = 0; i < GuideDots; i++)
+            {
+                float t = Mathf.Repeat(ph + i / (float)GuideDots, 1f);
+                _guideDot[i].transform.position = Bez(a, c, b, t);
+                _guideDot[i].transform.localScale = Vector3.one * size * (0.35f + 0.65f * Mathf.Sin(t * Mathf.PI));
+            }
+            float k = Mathf.Repeat(Time.time * 0.8f, 1f), rr = _dishR * (0.5f + 0.5f * k) * 2f;
+            _guideRing.transform.position = new Vector3(b.x, _waterY + 0.004f, b.z);
+            _guideRing.transform.localScale = new Vector3(rr, 0.002f, rr);
+            GameMaterials.Tint(_guideRing, new Color(1f, 0.74f, 0.12f, 0.45f * (1f - k)));
         }
 
         /// <summary>Throw away the bowl, pebbles and bees (built for another pebble size); BuildBowl makes new ones.</summary>
@@ -448,6 +494,7 @@ namespace VirtualBeeSwarm.Pebbles
         void Update()
         {
             UpdateBees();
+            UpdateGuide();
             if (_cardHideAt > 0f && Time.time > _cardHideAt) { _cardHideAt = -1f; _card.Hide(); }
             bool inHeat = _director != null && _director.Beat == GameBeat.Heat;
             if (!inHeat && _capOrig >= 0f) RestoreCap();
