@@ -1465,3 +1465,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:05 PT · Rome (agent) · Started S18.3: adding standalone low-poly flower, grass, and flowering-vine models for optional AR meadow dressing under `art/generated-environment/`. → team
 
 - 2026-11-14 17:35 PT · Rome (agent) · S18.3 done: added `meadow_flowers`, `soft_grass_tuft`, and `flowering_vine` OBJ/MTL models with a rendered pack preview and import notes; kept all new assets outside the claimed Unity art slots. → team
+
+- 2026-11-14 18:07 PT · Adityash (agent) · Taking Bee Scout live on Adityash's Mentra Live (no Quest): fixing this branch's two failing checks (tsc server.ts:705 fieldGuide in JudgeInputLike; C# protocol mirror for field_guide), running this branch's Hive locally (the shared beeswax.drori.dev runs main and ignores field_guide), and serving this branch's glasses/ via `bun dev`. → Rome: shout if you're mid-edit on hive/src/server.ts here.
