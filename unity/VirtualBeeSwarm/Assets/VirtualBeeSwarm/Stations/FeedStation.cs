@@ -87,6 +87,7 @@ namespace VirtualBeeSwarm
             if (_lifted) yield return SayLine(RideLines.LiftLight, 1f);
             else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
+            yield return SayLine(GameLines.RoomFeedRocketFuel);
             if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
             yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
             if (delivery != null && delivery.HeavyInbound)
