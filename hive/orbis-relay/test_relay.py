@@ -141,7 +141,18 @@ def names(client):
     return [c[0] for c in client.commands]
 
 
+def test_mostly_black_spots_reset_frames_only():
+    w, h = 64, 36
+    black = (bytes(w * h * 4), w, h)
+    meadow = (bytes([40, 160, 60, 255]) * (w * h), w, h)
+    assert relay.mostly_black(black)
+    assert not relay.mostly_black(meadow)
+    assert not relay.mostly_black(Image.new("RGB", (8, 8)))  # fake-source frames are never skipped
+    print("ok  black reset frames are skipped, real and fake frames are not")
+
+
 async def main() -> None:
+    test_mostly_black_spots_reset_frames_only()
     cfg = relay.Config()
     cfg.fake, cfg.api_key = False, "rk_test_not_real"
     cfg.idle_s, cfg.stall_s, cfg.prime_s = 3.0, 2.0, 5.0
@@ -340,3 +351,4 @@ async def named_scenes() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
