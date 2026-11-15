@@ -245,7 +245,16 @@ namespace VirtualBeeSwarm.FlowerLife
         // ------------------------------------------------------------------ game events
         void HandleBeat(GameBeat prev, GameBeat beat)
         {
-            if (beat == GameBeat.Pre || beat == GameBeat.Field) { Clear(); return; }
+            if (beat == GameBeat.Field) { Clear(); return; }
+            if (beat == GameBeat.Pre)
+            {
+                // Let the room feel like a meadow from the title onward. Most plants start small and
+                // drooped; each station then grows its share of the field as the hive recovers.
+                Clear();
+                _active = true;
+                Layout();
+                return;
+            }
             if (!_laidOut) Layout();
             _active = true;
             bool escaped = beat >= GameBeat.Escape;
@@ -413,8 +422,9 @@ namespace VirtualBeeSwarm.FlowerLife
             int floorStart = _n;
             if (FlowerLifeTuning.Floor)
             {
-                // RoomBloom's FlowerField carpets the floor at the escape: then this ring is half as thick
-                int want = Mathf.RoundToInt((VirtualBeeSwarm.Bloom.RoomBloom.Instance != null ? 150 : 300) * density);
+                // Keep a real meadow around the player throughout the ride. At desktop density this is
+                // 480 instanced plants; the headset's 0.75 density default yields 360.
+                int want = Mathf.RoundToInt(480 * density);
                 Vector3 tc = room != null && room.HasTable ? room.Table.center : aPos + fwd * 0.1f;
                 var placed = new List<Vector2>(want);
                 for (int tries = 0; tries < want * 30 && placed.Count < want; tries++)
@@ -554,7 +564,7 @@ namespace VirtualBeeSwarm.FlowerLife
             if (!_subscribed) Subscribe();
             if (_director == null) return;
             var beat = _director.Beat;
-            if (!_active && beat != GameBeat.Pre && beat != GameBeat.Field) HandleBeat(beat, beat); // installed mid-show
+            if (!_active && beat != GameBeat.Field) HandleBeat(beat, beat); // installed mid-show, including the title
             if (!_active || !_laidOut) return;
             if (_relayoutAt >= 0f && Time.time >= _relayoutAt)
             {
