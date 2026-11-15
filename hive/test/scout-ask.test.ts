@@ -588,6 +588,18 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     }
   });
 
+  test("scout line URLs carry the mp3 length (?ms=) so the glasses can end a line the phone never reports done", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const app = new Hono();
+    let stopped = false;
+    registerScoutRoutes(app, { bus: { broadcast: (m: Record<string, unknown>) => void sent.push(m) } as never, authed: () => true, base: () => "http://hive", stopped: () => stopped });
+    await app.request("/scout/force", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: "honey_jar" }) });
+    const chime = sent.find((m) => m.tts_id === "scout_chime")!;
+    expect(String(chime.audio_url)).toMatch(/^http:\/\/hive\/scout\/audio\/scout_chime\.mp3\?ms=\d+$/);
+    expect((await app.request(String(chime.audio_url).replace("http://hive", ""))).status).toBe(200);
+    stopped = true;
+  });
+
   test("off without ElevenLabs (tests strip the key) unless forced", async () => {
     const app = new Hono();
     let stopped = false;
