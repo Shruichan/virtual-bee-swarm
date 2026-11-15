@@ -42,6 +42,7 @@ const expected: { id: string; kind: string; label?: ScoutLabel }[] = [
   { id: `${SCOUT_BOOTH_LINES.done}_2`, kind: "done" },
   { id: `${SCOUT_BOOTH_LINES.done}_3`, kind: "done" },
   ...[1, 2, 3].map((n) => ({ id: `scout_any_q_${n}`, kind: "any_q" })),
+  { id: "scout_wake_ack", kind: "any_q" }, // after the "Hey Beeswax" wake word
   ...Object.values(SCOUT_BOOTH_LINES.dir).map((id) => ({ id, kind: "direction" as const })),
   ...SCOUT_LABELS.flatMap((label) => [
     { id: `${SCOUT_LINES.fact(label)}_2`, kind: "fact" as const, label },

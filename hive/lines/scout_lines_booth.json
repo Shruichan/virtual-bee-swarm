@@ -1,7 +1,7 @@
 [
   {"id": "scout_booth_intro", "kind": "intro", "text": "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant."},
   {"id": "scout_booth_intro_2", "kind": "intro", "text": "Bees are super important for our planet. Six things around you matter a lot to bees."},
-  {"id": "scout_booth_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? I'll always BEE here, so interrupt me anytime!"},
+  {"id": "scout_booth_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? Just say \"Hey Beeswax\" and I'll BEE right there!"},
   {"id": "scout_chime_ask", "kind": "chime", "text": "Bee fact found! Would you like to learn more?"},
   {"id": "scout_silence_yes", "kind": "silence", "text": "I'll take that as a yes."},
   {"id": "scout_booth_no", "kind": "no", "text": "Don't worry, I'll BEE right here if you need anything."},
