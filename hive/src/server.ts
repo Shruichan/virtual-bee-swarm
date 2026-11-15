@@ -1248,9 +1248,9 @@ export function startHive(opts: HiveOptions): Hive {
     const t0 = Date.now();
     const group = state.group_id;
     const stt: SttResultLike = pcm.length ? await safeTranscribe(pcm) : { text: "", ms: 0, provider: "none", error: "no_audio" };
+    if (group !== state.group_id) return;
     latency("voice.stt", stt.ms);
     bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
-    if (group !== state.group_id) return;
     if (!stt.text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
       // ASK BEESWAX: a press with nothing in it gets "Didn't catch that" instead of silence (no Claude call).
@@ -1283,6 +1283,7 @@ export function startHive(opts: HiveOptions): Hive {
     const beat = beatName(state);
     if (deps.ask?.wants(text, beat)) return askTurn(text, source, t0, group, beat, earReply, operator);
     const r = await safeRoute(text, { beat, recent });
+    if (group !== state.group_id) return null;
     deps.ask?.fixRouted(text, r); // canned/vetted answers; a lost question says "ask me again", not a random ack
     latency(operator ? "board.route" : "voice.route", r.ms);
     const intent: Intent = { type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) };
@@ -1295,8 +1296,6 @@ export function startHive(opts: HiveOptions): Hive {
         `${Math.round(r.ms)} ms${r.error ? ` (${r.error})` : ""}${r.answer ? ` answer: "${r.answer}"` : ""}${custom}`,
     );
     if (r.blocked) log(`custom what-if refused: ${r.blocked}`);
-    if (group !== state.group_id) return null; // group reset mid-utterance
-
     const response: UtteranceResponse = { intent: r.intent, topic: r.topic, line_id: null, audio_url: null, caption: "" };
     if (!operator && !VOICE_BEATS.includes(beat)) {
       observe(`voice: not acting in beat ${beat}`);
@@ -1424,16 +1423,16 @@ export function startHive(opts: HiveOptions): Hive {
     operator: boolean,
   ): Promise<Understood | null> {
     const ask = deps.ask!;
-    const toRoom = beat !== "field" && (operator || bus.count("quest") > 0);
-    const onLive = () => toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
+    const toRoom = (beat !== "field" || source === "quest") && (operator || bus.count("quest") > 0);
+    const onLive = () => group === state.group_id && toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
     const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive });
+    if (group !== state.group_id) return null;
     latency("ask.route", a.ms);
     const name: IntentName = a.kind === "ack" ? "ack" : a.kind === "echo" || a.kind === "not_heard" ? "unknown" : "ask";
     const route: Routed = { intent: name, topic: null, answer: a.text || null, ms: a.ms, path: a.path === "claude" ? "claude" : "keyword", error: a.error };
     bus.broadcast({ type: "intent", name, topic: null, text, path: route.path, ms: Math.round(a.ms) });
     observe(`ask ${operator ? "operator" : source}: "${text.slice(0, 80)}" -> ${a.kind}${a.ask_id ? `/${a.ask_id}` : ""} via ${a.path} ${a.ms} ms${a.error ? ` (${a.error})` : ""}${a.text ? ` "${a.text}"` : ""}`);
     const response: UtteranceResponse = { intent: name, topic: null, line_id: null, audio_url: null, caption: "" };
-    if (group !== state.group_id) return null;
     if (a.kind !== "echo") {
       const reply: Reply = a.line_id ? lineReply(a.line_id, "room_ack_grievance") : a.text ? { line_id: null, text: a.text } : ackReply();
       if (toRoom) sayReply(reply, "room");

@@ -61,6 +61,88 @@ afterEach(async () => {
 });
 
 describe("ASK BEESWAX in the Hive", () => {
+
+  test.each(["transcription", "routing"] as const)("group reset discards an utterance waiting on %s", async (stage) => {
+    const reached = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const wait = async (pendingStage: typeof stage) => {
+      if (stage !== pendingStage) return;
+      reached.resolve();
+      await resume.promise;
+    };
+    const question = "what if a fire starts?";
+    hive = makeHive({
+      transcribe: async () => {
+        await wait("transcription");
+        return { text: question, ms: 1, provider: "mock" };
+      },
+      route: async () => {
+        await wait("routing");
+        return { intent: "what_if", topic: "fire", answer: null, ms: 1, path: "keyword" };
+      },
+    }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "whatif", 8);
+    quest.say(question);
+    await reached.promise;
+    board.send({ type: "group.reset" });
+    try {
+      await quest.waitFor("group.reset");
+      const before = quest.msgs.length;
+      resume.resolve();
+      await Bun.sleep(60);
+      const afterReset = quest.msgs.slice(before);
+      expect(afterReset.some((m) => m.type === "transcript" || m.type === "intent")).toBe(false);
+      expect(afterReset.some((m) => m.type === "orbis" && m.scene === "whatif_fire")).toBe(false);
+    } finally {
+      resume.resolve();
+    }
+  });
+
+  test("group reset discards a delayed Ask Beeswax answer", async () => {
+    const reached = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<ReturnType<typeof answerReply>>();
+    const answer = answerReply("She lays all the eggs. She's everybody's mom.", ["queen"]);
+    mockAsk(() => {
+      reached.resolve();
+      return resume.promise;
+    });
+    hive = makeHive({ ask: askModule }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+    quest.say("what does the queen do?");
+    await reached.promise;
+    board.send({ type: "group.reset" });
+    try {
+      await quest.waitFor("group.reset");
+      const before = quest.msgs.length;
+      resume.resolve(answer);
+      await Bun.sleep(60);
+      const afterReset = quest.msgs.slice(before);
+      expect(afterReset.some((m) => m.type === "intent" || m.type === "say")).toBe(false);
+    } finally {
+      resume.resolve(answer);
+    }
+  });
+
+  test("Field replies go to the Quest room for Quest questions and to the glasses for glasses questions", async () => {
+    hive = makeHive({ ask: askModule }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    const glasses = await TestClient.connect(hive, "glasses");
+    clients.push(glasses);
+    await setBeat(quest, board, "field", 12);
+    quest.say("why bananas?");
+    const room = await quest.waitFor("say", (m) => m.channel === "room" && m.caption === cannedText("ask_bananas"));
+    expect(room.caption).toBe(cannedText("ask_bananas"));
+
+    glasses.say("can drones sting?", "glasses");
+    const ear = await glasses.waitFor("say", (m) => m.channel === "ear" && m.caption === cannedText("ask_drone_sting"));
+    expect(ear.caption).toBe(cannedText("ask_drone_sting"));
+  });
+
   test("map beat: filler say before the answer's tts.start; the router is skipped; latency hops logged", async () => {
     const calls = mockAsk(() => answerReply("She lays all the eggs. She's everybody's mom.", ["queen"]));
     hive = makeHive({ ask: askModule, ttsAvailable: () => true }) as H;
