@@ -62,6 +62,7 @@ namespace VirtualBeeSwarm.Ask
 
         bool _subscribed, _wasTalking, _pinchPrev, _pinchTalk, _keyPrev, _autoPending, _lookSet;
         float _pressAt = -1f, _autoOpenAt = -1f, _talkAt = -1f, _answerHoldUntil = -1f;
+        int _lastChipPressFrame = -1;
         bool _bargePending, _captionAway;
         Transform _away;
         AskState _lastState = AskState.Closed;
@@ -301,7 +302,6 @@ namespace VirtualBeeSwarm.Ask
                 _bargePending = false;
                 Apply(AskCue.StopVoice);
             }
-            if (Flow.IsOpen) Presses(now);
             Apply(Flow.Tick(now, _net.AwaitingReply, _net.IsSpeaking));
             if (Flow.IsOpen && !askBeat) Close("beat");
             if (Flow.IsOpen) CardLook(now);
@@ -323,15 +323,24 @@ namespace VirtualBeeSwarm.Ask
             _card.Animate(now, Mathf.Clamp01(_net.HumLevel * 3f));
         }
 
+        void LateUpdate()
+        {
+            // GamePointer has resolved this frame's chip hover and click before we handle a pinch as speech.
+            if (_net != null && Flow.IsOpen) Presses(Time.time);
+        }
+
         /// <summary>Pinch-hold talks while the card is up. Offline (or the desktop T key offline): the press says ask_offline.</summary>
         void Presses(float now)
         {
             bool pinch = GameHands.PinchHeld(GameHand.Left) || GameHands.PinchHeld(GameHand.Right);
-            bool key = !_net.Online && (GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld()); // online, WhatIfBeat handles keys and controllers
+            bool talkButton = GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld();
+            bool key = !_net.Online && talkButton; // online, WhatIfBeat owns the talk button
             bool held = pinch || key;
             if (held && !_pinchPrev && !_keyPrev)
             {
-                if (pinch && _card.AnyChipHovered) _pressAt = -1f; // aimed at a chip: GamePointer clicks it
+                bool pointerClick = pinch && (_card.AnyChipHovered || _lastChipPressFrame == Time.frameCount);
+                bool otherTalk = _net.Online && (talkButton || _net.Talking);
+                if (pointerClick || otherTalk) _pressAt = -1f;
                 else
                 {
                     _pressAt = now;
@@ -364,6 +373,7 @@ namespace VirtualBeeSwarm.Ask
         public void PressChip(int i)
         {
             if (!Flow.IsOpen || !Chips || i < 0 || i >= AskLines.Chips.Length) return;
+            _lastChipPressFrame = Time.frameCount;
             Debug.Log("[VBS][Ask] chip " + i + ": " + AskLines.ChipQuestions[i] + (_net != null && _net.Online ? " (to the Hive)" : " (local)"));
             _lastIntent = "";
             Apply(Flow.Chip(AskLines.ChipQuestions[i], Time.time));
