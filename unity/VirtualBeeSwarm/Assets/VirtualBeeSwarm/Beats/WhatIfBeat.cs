@@ -156,6 +156,8 @@ namespace VirtualBeeSwarm
             TalkHeld = hold;
             if (hold && !_holdPrev)
             {
+                // Barge-in, as on the Ask card: the mic must never hear Beeswax ("Just not fire." would block the fast path).
+                if (IsActive && net.IsSpeaking) net.StopVoice();
                 // Decide once per press: online -> stream the mic; offline -> the release is the question (what-if only).
                 _pressStreams = net.Online && net.BeginTalk();
             }
