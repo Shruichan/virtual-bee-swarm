@@ -33,6 +33,8 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
   }
   const secrets = config.hiveToken ? [...new Set([config.hiveToken, encodeURIComponent(config.hiveToken)])] : []
   const push = () => session.ui.send("status", {...status, latency: {...status.latency}, log: [...status.log]})
+  // Scout mode: mirror the log to the Hive so the laptop sees it (skip the Hive client's own lines to avoid loops).
+  let mirror: ((line: string) => void) | null = null
   const log = (...args: unknown[]) => {
     let line = args.map((a) => (typeof a === "string" ? a : describe(a))).join(" ")
     // native fetch/WebSocket errors may quote the URL, and the token rides in its query
@@ -41,9 +43,13 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     status.log.push(`${new Date().toTimeString().slice(0, 8)} ${line}`)
     if (status.log.length > LOG_LINES) status.log.shift()
     push()
+    mirror?.(line)
   }
-
   const hive = new Hive(config.hosts, config.hiveToken, log)
+  if (config.scoutMode)
+    mirror = (line) => {
+      if (!line.startsWith("hive") && !line.startsWith("bus")) void hive.send("/glasses/event", {kind: "log", line})
+    }
   const ear = new Ear(session.speaker, log)
   const led = new Led(session.led, log)
   const transcript = new Transcript()
