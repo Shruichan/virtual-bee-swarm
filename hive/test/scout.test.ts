@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, IDLE_EVERY_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
-import { SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
+import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, ANSWER_MAX_MS, IDLE_EVERY_MS, PRACTICE_OUT_OF_VIEW_MS, PRACTICE_REFIRE_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
+import { SCOUT_STOP_ID, SCOUT_TEACHER_LINE, SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 import { makeHive, TestClient, TOKEN } from "./helpers";
 
 /** The real lines (both files): only for the "every id the game says exists" checks. Content checks live in scout-lines.test.ts. */
@@ -28,6 +28,7 @@ function fixtureLines(): ScoutLine[] {
     { id: SCOUT_BOOTH_LINES.silenceYes, kind: "silence", text: "I'll take that as a yes." },
     { id: SCOUT_BOOTH_LINES.no, kind: "no", text: "Booth no." },
     { id: SCOUT_BOOTH_LINES.done, kind: "done", text: "Booth done." },
+    { id: SCOUT_TEACHER_LINE, kind: "teacher", text: "Ask your teacher for another assignment!" },
   ];
   for (let n = 1; n <= 5; n++) L.push({ id: `scout_progress_${n}`, kind: "progress", text: `Progress ${n}.` });
   for (const [k, id] of Object.entries(SCOUT_BOOTH_LINES.dir)) L.push({ id, kind: "direction", text: `Direction ${k}.` });
@@ -46,11 +47,13 @@ function setup(opts: { durationMs?: number } = {}) {
   let clock = 1_000_000;
   const says: ScoutSay[] = [];
   const events: ScoutEvent[] = [];
+  const stops: number[] = [];
   const game = new ScoutGame({
     lines: LINES,
     now: () => clock,
     say: (s) => says.push(s),
     event: (e) => events.push(e),
+    stop: () => stops.push(clock),
     durationMs: () => opts.durationMs ?? 1000,
     audioUrl: (id) => `http://hive/scout/audio/${id}.mp3`,
   });
@@ -77,7 +80,7 @@ function setup(opts: { durationMs?: number } = {}) {
     }
   };
   const idle = () => advance(30_000); // let everything finish playing and the gap pass
-  return { game, says, events, ids, advance, frame, look, idle, now: () => clock };
+  return { game, says, events, stops, ids, advance, frame, look, idle, now: () => clock };
 }
 
 /** Started, intro finished, gap passed. */
@@ -635,30 +638,57 @@ describe("practice mode and blocked reasons", () => {
     expect(s.ids()).toEqual(["scout_chime", "scout_fact_bug_spray"]);
   });
 
-  test("practice mode: 8 s of looking away lets the same object fire again without a slide change", () => {
+  test("practice rediscovery: the same card fires again 20 s after its fact ended, once out of view for 3 s", () => {
     const s = ready();
     s.game.setPractice(true);
-    s.look("pebble_dish", T.steadyMs + 100);
+    s.look("pebble_dish", T.steadyMs); // fires on the last frame; chime + fact end 2 s later
     s.advance(2000);
     s.says.length = 0;
-    s.look("background", 5000, 0.9, 0.1); // away, but not long enough
+    s.look("pebble_dish", PRACTICE_REFIRE_MS + 1000); // stared at the whole time: never out of view
+    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
+    s.look("background", PRACTICE_OUT_OF_VIEW_MS - 1000, 0.9, 0.1); // out of view, not long enough
     s.look("pebble_dish", 2000);
-    expect(s.ids()).toEqual([]);
-    s.look("background", 8100, 0.9, 0.1); // away 8 s
-    s.look("pebble_dish", T.steadyMs + 100);
-    expect(s.ids()).toEqual(["scout_chime", "scout_fact_pebble_dish"]);
+    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
+    s.look("background", PRACTICE_OUT_OF_VIEW_MS + 100, 0.9, 0.1);
+    s.look("pebble_dish", T.steadyMs + 3000); // + room for an idle nudge's gap
+    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual(["scout_chime", "scout_fact_pebble_dish"]);
   });
 
-  test("practice mode: another class on top for 8 s also counts as away", () => {
+  test("practice rediscovery: out of view 3 s but under 20 s since the fact waits for the 20 s", () => {
     const s = ready();
     s.game.setPractice(true);
-    s.look("bee_hotel", T.steadyMs + 100);
-    s.advance(2000);
-    s.look("native_flower", 8100, 0.5, 0.1); // top-1 but too weak to fire: still away from bee_hotel
-    expect(s.ids()).not.toContain("scout_fact_native_flower");
+    s.look("bee_hotel", T.steadyMs);
+    s.advance(2000); // fact ended
+    s.look("native_flower", PRACTICE_OUT_OF_VIEW_MS + 100, 0.5, 0.1); // another class on top (too weak to fire)
     s.says.length = 0;
-    s.look("bee_hotel", T.steadyMs + 100);
-    expect(s.ids()).toEqual(["scout_chime", "scout_fact_bee_hotel"]);
+    s.look("bee_hotel", 5000); // ~8 s after the fact
+    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
+    s.look("bee_hotel", PRACTICE_REFIRE_MS - 8000 + 3000); // + room for the idle nudge and its gap
+    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual(["scout_chime", "scout_fact_bee_hotel"]);
+  });
+
+  test("practice rediscovery: another card firing in between frees the first one at once", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("honey_jar", T.steadyMs);
+    s.advance(2000 + 1000);
+    s.look("bug_spray", T.steadyMs);
+    s.advance(2000 + 1000);
+    s.says.length = 0;
+    s.look("honey_jar", T.steadyMs);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_honey_jar"]);
+  });
+
+  test("POST /scout/reset logic: start() clears the practice memory", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("beehive", T.steadyMs);
+    s.advance(3000);
+    s.game.start();
+    s.advance(2000 + 1000 + 100); // intro lines + practice gap
+    s.says.length = 0;
+    s.look("beehive", T.steadyMs);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_beehive"]);
   });
 
   test("demo mode is unchanged after practice is switched off", () => {
@@ -1110,5 +1140,110 @@ describe("two-line facts (scout_fact_<label>_2)", () => {
     b.game.force();
     b.game.button();
     expect(b.says).toEqual(["scout_chime_ask", "scout_fact_native_flower", "scout_fact_native_flower_2", "scout_next_honey_jar"]);
+  });
+});
+
+// ---------------------------------------------------------------- Ask Beeswax API, interrupt, teacher
+
+describe("answering (Ask Beeswax API)", () => {
+  test("beginAnswer: phase answering, frames ignored, one at a time; endAnswer(audioMs) waits for the audio", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    expect(s.game.beginAnswer()).toBe(true);
+    expect(s.game.state().phase).toBe("answering");
+    expect(s.game.beginAnswer()).toBe(false);
+    s.look("honey_jar", 3000);
+    expect(s.says).toEqual([]);
+    expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "honey_jar", reason: "busy" });
+    s.game.endAnswer(2000);
+    s.look("honey_jar", 1900);
+    expect(s.game.state().phase).toBe("answering");
+    expect(s.says).toEqual([]);
+    s.advance(200);
+    expect(s.game.state().phase).toBe("looking");
+    s.look("honey_jar", 1000 + T.steadyMs); // the practice gap after the answer, then a fresh look
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_honey_jar"]);
+  });
+
+  test("endAnswer() with no audio left goes straight back to looking; outside an answer it is a no-op", () => {
+    const s = ready();
+    s.game.endAnswer();
+    expect(s.game.state().phase).toBe("looking");
+    s.game.beginAnswer();
+    s.game.endAnswer();
+    expect(s.game.state().phase).toBe("looking");
+  });
+
+  test("beginAnswer during a demo offer drops the offer without skipping it", () => {
+    const s = ready();
+    s.look("beehive", T.steadyMs + 100);
+    expect(s.game.state().phase).toBe("offering");
+    s.game.beginAnswer();
+    expect(s.game.state()).toMatchObject({ phase: "answering", offer: null, skipped: [] });
+    s.advance(T.offerTimeoutMs + 3000);
+    expect(s.ids()).not.toContain("scout_silence");
+  });
+
+  test("an answer that never ends gives up after ANSWER_MAX_MS", () => {
+    const s = ready();
+    s.game.beginAnswer();
+    s.advance(ANSWER_MAX_MS - 200);
+    expect(s.game.state().phase).toBe("answering");
+    s.advance(300);
+    expect(s.game.state().phase).toBe("looking");
+  });
+
+  test("interrupt mid-fact: stop to the glasses, stop event, busy-until now, back to looking", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("bug_spray", T.steadyMs);
+    expect(s.game.state().phase).toBe("telling");
+    s.advance(300);
+    s.game.interrupt();
+    expect(s.stops).toEqual([s.now()]);
+    expect(s.events.some((e) => e.type === "stop")).toBe(true);
+    expect(s.game.busyUntil).toBe(s.now());
+    expect(s.game.state().phase).toBe("looking");
+    // interrupt, then answer: the usual Ask Beeswax sequence
+    s.game.interrupt();
+    expect(s.game.beginAnswer()).toBe(true);
+    expect(s.game.state().phase).toBe("answering");
+  });
+
+  test("interrupt during an offer keeps the offer, timed out from now", () => {
+    const s = ready();
+    s.look("beehive", T.steadyMs + 100); // chime + hook: 2 s
+    s.game.interrupt();
+    expect(s.game.state().phase).toBe("offering");
+    s.advance(T.offerTimeoutMs + 100);
+    expect(s.ids().at(-1)).toBe("scout_silence");
+  });
+
+  test("teacher() says scout_teacher", () => {
+    const s = ready();
+    s.game.teacher();
+    expect(s.ids()).toEqual([SCOUT_TEACHER_LINE]);
+    expect(s.says[0]!.caption).toBe("Ask your teacher for another assignment!");
+  });
+});
+
+describe("teacher + reset routes", () => {
+  test("POST /scout/teacher says it on the bus; POST /scout/reset cuts the ear, then the intro", async () => {
+    const hive = makeHive({}, { prewarmOnStart: false });
+    const glasses = await TestClient.connect(hive, "glasses");
+    try {
+      const post = (path: string) => fetch(`${hive.url}${path}?token=${TOKEN}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      expect((await fetch(`${hive.url}/scout/teacher`, { method: "POST" })).status).toBe(401);
+      expect((await post("/scout/teacher")).status).toBe(200);
+      const t = await glasses.waitFor("say", (m) => m.tts_id === SCOUT_TEACHER_LINE);
+      expect(t.caption.length).toBeGreaterThan(0);
+      expect(await (await post("/scout/reset")).json()).toMatchObject({ ok: true, phase: "intro" });
+      const stop = await glasses.waitFor("say", (m) => m.tts_id === SCOUT_STOP_ID);
+      expect(stop).toMatchObject({ channel: "ear", line_id: null, audio_url: null, caption: "" });
+      await glasses.waitFor("say", (m) => typeof m.tts_id === "string" && m.tts_id.startsWith("scout_intro"));
+    } finally {
+      glasses.close();
+      await hive.stop();
+    }
   });
 });
