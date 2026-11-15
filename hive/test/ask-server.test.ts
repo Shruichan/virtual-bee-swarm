@@ -391,8 +391,15 @@ describe("ASK BEESWAX in the Hive", () => {
     expect(hive.deps.routeCalls).toHaveLength(1);
   });
 
-  test("warm-up: the canned answers are rendered once at start and replayed without TTS", async () => {
+  test("default startup does not spend credits pre-rendering canned answers", async () => {
     delete process.env.ASK_WARM_AUDIO;
+    hive = makeHive({ ask: askModule, ttsAvailable: () => true }) as H;
+    await Bun.sleep(30);
+    expect(hive.deps.ttsCalls).toHaveLength(0);
+  });
+
+  test("warm-up: the canned answers are rendered once at start and replayed without TTS when enabled", async () => {
+    process.env.ASK_WARM_AUDIO = "1";
     hive = makeHive({ ask: askModule, ttsAvailable: () => true }) as H;
     const n = Object.keys(askModule.ASK_CANNED).length;
     for (let i = 0; i < 50 && hive.deps.ttsCalls.length < n; i++) await Bun.sleep(10);

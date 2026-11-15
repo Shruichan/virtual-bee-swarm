@@ -61,6 +61,28 @@ describe("ttsAvailable", () => {
   });
 });
 
+test("speech budget is shared by streaming and whole-file renders", async () => {
+  const names = ["ELEVENLABS_TTS_CHAR_BUDGET", "ELEVENLABS_TTS_BUDGET_PERIOD", "ELEVENLABS_TTS_BUDGET_DB"] as const;
+  const previous = names.map((name) => process.env[name]);
+  process.env.ELEVENLABS_TTS_CHAR_BUDGET = "7";
+  process.env.ELEVENLABS_TTS_BUDGET_PERIOD = "test-allocation";
+  process.env.ELEVENLABS_TTS_BUDGET_DB = ":memory:";
+  try {
+    mockFetch(() => new Response(streamOf([bytes(6)]), { status: 200 }));
+    expect(await collect(ttsPcm("Bee."))).toHaveLength(1);
+    expect(await ttsMp3("Hi.")).toHaveLength(6);
+    expect(await collect(ttsPcm("Hi."))).toEqual([]);
+    await expect(ttsMp3("Bee.")).rejects.toThrow("speech budget reached");
+    expect(calls).toHaveLength(2);
+  } finally {
+    for (const [index, name] of names.entries()) {
+      const value = previous[index];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 describe("ttsPcm", () => {
   test("streams pcm_16000 from flash v2.5 and re-chunks odd sizes to whole samples", async () => {
     const sizes = [3, 5, 1, 7, 2]; // 18 bytes total

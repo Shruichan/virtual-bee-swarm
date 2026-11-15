@@ -1,5 +1,8 @@
 // Beeswax's live voice: ElevenLabs Flash v2.5 with the Voice-Designed voice (ELEVENLABS_VOICE_ID).
 // ttsPcm streams PCM16 for room lines on the Quest; ttsMp3 renders a whole mp3 for the glasses.
+import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 export const TTS_SAMPLE_RATE = 16000;
@@ -12,6 +15,34 @@ type ConvertFormat = "mp3_44100_64" | "mp3_44100_128" | "pcm_16000";
 
 export function ttsAvailable(): boolean {
   return Boolean(process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim());
+}
+
+let usage: { path: string; db: Database } | null = null;
+
+function reserveTts(text: string): boolean {
+  const setting = process.env.ELEVENLABS_TTS_CHAR_BUDGET?.trim();
+  if (!setting) return false;
+  const limit = Number(setting);
+  if (!/^\d+$/.test(setting) || !Number.isSafeInteger(limit) || limit < 0) {
+    throw new Error("ELEVENLABS_TTS_CHAR_BUDGET must be a nonnegative integer");
+  }
+  const period = process.env.ELEVENLABS_TTS_BUDGET_PERIOD?.trim() || "default";
+  const configuredPath = process.env.ELEVENLABS_TTS_BUDGET_DB?.trim();
+  const path = configuredPath === ":memory:" ? configuredPath : resolve(configuredPath || resolve(import.meta.dir, "../out/tts-usage.sqlite"));
+  if (usage?.path !== path) {
+    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+    const db = new Database(path);
+    db.exec("PRAGMA busy_timeout = 1000; CREATE TABLE IF NOT EXISTS tts_usage (period TEXT PRIMARY KEY, chars INTEGER NOT NULL)");
+    usage?.db.close();
+    usage = { path, db };
+  }
+  const count = text.length;
+  if (count > limit) throw new Error("ElevenLabs speech budget reached");
+  const change = usage.db.query(
+    "INSERT INTO tts_usage (period, chars) VALUES (?, ?) ON CONFLICT(period) DO UPDATE SET chars = chars + excluded.chars WHERE chars + excluded.chars <= ?",
+  ).run(period, count, limit);
+  if (change.changes === 0) throw new Error("ElevenLabs speech budget reached");
+  return true;
 }
 
 let cached: { key: string; client: ElevenLabsClient } | null = null;
@@ -83,10 +114,11 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
   let bytes = 0;
   try {
     const { client, voiceId } = env();
+    const budgeted = reserveTts(t);
     const request = client.textToSpeech.stream(
       voiceId,
       { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000" },
-      { abortSignal: ac.signal, maxRetries: 1, timeoutInSeconds: ttsLimits.firstByteMs / 1000 },
+      { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: ttsLimits.firstByteMs / 1000 },
     );
     const stream = await withTimeout(request, ttsLimits.firstByteMs, "TTS response");
     for await (const chunk of readChunks(stream)) {
@@ -121,10 +153,11 @@ export async function ttsBytes(
   const ac = new AbortController();
   const total = setTimeout(() => ac.abort(), opts.timeoutMs ?? ttsLimits.totalMs);
   try {
+    const budgeted = reserveTts(t);
     const request = client.textToSpeech.convert(
       opts.voiceId ?? voiceId,
       { text: t, modelId: opts.model ?? TTS_MODEL, outputFormat: opts.format ?? "mp3_44100_64" },
-      { abortSignal: ac.signal, maxRetries: 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
+      { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
     );
     const stream = await withTimeout(request, opts.timeoutMs ?? ttsLimits.totalMs, "TTS response");
     const parts: Uint8Array[] = [];
