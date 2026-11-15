@@ -68,8 +68,8 @@ namespace VirtualBeeSwarm
         protected override IEnumerator StationIntro()
         {
             if (beeswax != null && hive != null) beeswax.FlyTo(hive.transform.position + Vector3.up * 0.32f); // raps the roof
-            yield return SayAndWait(Prompt, 0.8f, 5.5f);
             if (hive != null) hive.LiftEnabled = true;
+            yield return SayAndWait(Prompt, 0.8f, 5.5f);
             float start = Time.time;
             bool hinted = false;
             while (!_lifted && Time.time - start < liftGiveUpSeconds)
@@ -82,6 +82,7 @@ namespace VirtualBeeSwarm
                 }
                 yield return null;
             }
+            if (hive != null) hive.LiftEnabled = false; // set it down before choosing and pouring
             if (beeswax != null) { beeswax.WhipAround(); beeswax.GoPresent(); } // he tumbles off the roof
             if (_lifted) yield return SayLine(RideLines.LiftLight, 1f);
             else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");

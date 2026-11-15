@@ -1,16 +1,19 @@
 # BeeswaxClient (Unity 6, Meta Quest)
 
-Networking, audio and textures for the "Save the Hive" Quest app (concept v3): the Hive bus, station choices, the player's voice, Beeswax's voice in the room, the future window (Orbis), and the hum detector. It has **no Meta SDK dependency**: gameplay (beat machine, stations, swarm, Beeswax's body, embers) stays with the Quest team and just calls these components and listens to C# events.
+Networking, audio, and window video for HONEYMOON. The package handles the Hive bus, station choices, voice input, Beeswax's voice, Orbis, and hum detection. The [Quest project](../VirtualBeeSwarm/README.md) calls these components and uses their C# events to run the ride.
 
-The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_VERSION 2, with the additive v2.1 messages). `Runtime/BeeswaxProtocol.cs` mirrors all of it (beats, stations, choices, scenes, what-if topics, fx, intents, every message), so change both together.
+[`hive/src/protocol.ts`](../../hive/src/protocol.ts) defines protocol version 2. [`Runtime/BeeswaxProtocol.cs`](Runtime/BeeswaxProtocol.cs) mirrors it. Update both when the contract changes.
 
 **v2.1** (still version 2, nothing removed): the Board's operator buttons (`choice.request` for a station choice, `fx.force`, `whatif.force`), the `score` message, custom what-ifs (topic `custom`, scene `whatif_custom`, `Intent.custom_prompt`), and an optional `want` on `orbis.request`.
 
-## The v3 flow in one picture
+The additive v2.2 update includes the `forecast_peaceful` and `forecast_ravaged` scenes.
+
+## How the ride uses the client
 
 | Player does | Unity calls | The Hive answers with | Unity events |
 |---|---|---|---|
-| Enters a beat | `bus.SendBeatSet(n)` | the window scene for escape/T-0/map | `OnOrbis`, the window switches by itself |
+| Enters a beat | `bus.SendBeatSet(n)` | window cues for hook, escape, and map. During a Board-only rehearsal, entering T-0 cues the Moon | `OnOrbis` switches the window |
+| Launches the rocket on Quest | `window.RequestScene("moon")` | `orbis{scene: "moon"}` at liftoff | `OnSceneChanged` switches the local window immediately |
 | Picks a choice at a station | `stations.Choose(station, choice)` (sends `choice.made`) | `say` (Beeswax's line), `orbis{scene}`, `fx` | the voice and window react by themselves; `OnFx` for swarm/hive glow |
 | Holds the talk button / pinch | `voiceIn.BeginTalk()` … `voiceIn.EndTalk()` | `transcript`, `intent`, then a line, scene and fx | `OnTranscript`, `OnIntent`, `OnFx` |
 | "What if a fire starts?" | (voice, as above) | `intent{what_if, fire}`, `orbis{whatif_fire}`, `fx{embers, delay_ms}` | spawn embers out of the portal on `OnFxDue("embers")` (it waits out `delay_ms`), stop on `embers_stop` |
@@ -20,7 +23,7 @@ The contract is [`hive/src/protocol.ts`](../../hive/src/protocol.ts) (PROTOCOL_V
 | *(Board)* forces an fx | | a plain `fx` (the Hive turns `fx.force` into one) | `OnFx` / `OnFxDue`, nothing new |
 | *(Board)* forces a what-if / "put it out" | | the same `orbis`, `fx` and line as the spoken one, but no `transcript`/`intent` (`whatif.force` itself never reaches the Quest) | as for voice, minus `OnIntent`: key what-if feel off `window.OnSceneChanged` / the fx |
 | *(Board)* types an unplanned what-if | | `transcript`, `intent{what_if, custom, custom_prompt}` and the line, as if the player said it (POST `/board/custom`) | as for voice |
-| Enters escape | `bus.SendBeatSet(Beat.Escape)` | `score{elapsed_s, text, grievances}` | `OnScore` (also `bus.LastScore`): put `text` on the score card. The score is frozen at the first escape; re-entering escape sends the same one again |
+| Enters escape | `bus.SendBeatSet(Beat.Escape)` | `score{elapsed_s, text, grievances}` for the Board and clients | `OnScore` and `bus.LastScore` expose the Hive score. HONEYMOON's in-room card uses Unity's timer, which stops after the fourth fix |
 
 **Unity is the only beat clock.** If the Hive is down, `BeeswaxStations` plays the same outcome locally (line, window clip, fx), so your offline timers still finish every beat with the right line and clip.
 
@@ -76,7 +79,7 @@ It ends up inside the APK, which is fine for a sideloaded demo build but not for
 - Beeswax's body: an `AudioSource` + `BeeswaxRoomVoice`. Add pre-rendered lines to its list, or drop the mp3s from `hive/out/unity/` into `Resources/BeeswaxLines/<line_id>`.
 - On `BeeswaxStations`: assign `voice` (Beeswax) and `window` (the portal), so offline outcomes play.
 - On `BeeswaxVoiceInput`: assign `ignoreWhileSpeaking` = Beeswax's voice (VAD won't trigger on him), and either the two mixer snapshots or your own `OnDuck` handler.
-- Window: `OrbisWindow` with `targetRenderer` = the portal pane. Fallback clips per scene: fill `sceneClips` (scene → VideoClip), or put `<scene>.mp4` files in `Assets/StreamingAssets/` (or a subfolder named in `sceneClipFolder`). The scene names are `BeeswaxProtocol.Scenes` (`meadow`, `smoker_settle`, `smoker_angry`, `feed_sick`, `feed_recover`, `wasps_raid`, `wasps_leave`, `heat_stress`, `heat_drink`, `whatif_fire`, `fire_out`, `whatif_rain`, `whatif_flowers`, `whatif_spray`, `whatif_winter`, `whatif_custom`, `full_bloom`, `moon`). `whatif_custom` needs no clip (the window keeps the one it has; give it one only through `sceneClips`). A missing file is skipped (logged once), and the pane hides if nothing plays.
+- Window: set `OrbisWindow.targetRenderer` to the portal pane. Assign clips in `sceneClips` or add `<scene>.mp4` to `Assets/StreamingAssets/` under the configured `sceneClipFolder`. Use names from `BeeswaxProtocol.Scenes`. The custom what-if keeps the previous clip by default and takes an optional clip through `sceneClips`. The client skips missing files and logs each once.
 
 Every component finds `BeeswaxBus.Instance` by itself if you leave its `bus` field empty.
 
@@ -203,8 +206,9 @@ Other hooks: `OnTranscript` (captions: "You said: …"), `voiceIn.AwaitingReply`
 ### The window
 
 - `orbis{scene}` from the Hive switches the clip at once, live or not. When live frames arrive they win (unless the Board chose `clips`).
-- Only the Hive sets the scene. The relay's own status on the frames socket only updates `State` (so `failed`/`ended` switch to clips at once): after a stop the relay keeps reporting the last scene it streamed, which would otherwise pull the window back to an old clip on every frames reconnect.
-- The Hive sends `orbis{}` only when something changes, so after every (re)connect the window reads the Hive's current scene and Board mode from `GET /health` (`syncOnWelcome`). A Quest that restarts or reconnects mid-demo shows the right clip at once. Any `orbis{}`/`orbis.request` that arrives first wins.
+- The Hive publishes the shared scene. The relay's frame socket updates `State` so `failed` and `ended` switch to clips.
+- The Hive defaults to `clips`. Set `ORBIS_WANT` in `hive/.env` to choose the initial mode (`live`, `clips`, or `off`). Start a live session with **LIVE** on the Beat Board and a configured Reactor key. [Relay setup](../../hive/orbis-relay/README.md)
+- On reconnect, the window reads the current scene and Board mode from `GET /health` (`syncOnWelcome`). A newer bus update takes precedence. During T-0, Quest sends its current scene on welcome so the Moon view stays with the flight and the meadow returns on landing.
 - `RequestScene(scene)` switches the local clip now and sends `orbis.request{want, scene}`. Offline, it is re-sent after the next welcome, and Hive statuses naming another scene are ignored until the Hive confirms ours.
 - The `want` it carries (`RequestWant`): a running stream (`priming`/`ready`) → `live`; else the Board's mode; else `clips`. The Hive ignores `want` on a request that carries a scene (v2.1 makes `want` optional and says so), so the Quest can't start or stop the billed stream either way. It still sends one because a v2 Hive rejects an `orbis.request` without `want`. `bus.SendOrbisRequest("", scene)` sends a scene-only request for a v2.1 Hive.
 - **Custom what-ifs (`whatif_custom`)** have a live prompt Claude writes on the spot but no recorded clip. While the window is on it, clips mode keeps playing the clip of the last scene that had one (`ClipScene`; the Hive's `fallback_clip` for it names that same kept clip, but the window goes by its own `ClipScene`), so the pane never goes blank. Live mode shows the morph as usual. A `sceneClips` entry for `whatif_custom` (say, a generic "something strange in the meadow" loop) is used if you add one; `StreamingAssets/whatif_custom.mp4` is not looked for.

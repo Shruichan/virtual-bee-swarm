@@ -1,4 +1,5 @@
 using UnityEngine;
+using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
 {
@@ -36,6 +37,7 @@ namespace VirtualBeeSwarm
         float _grabDistance;
         bool _directGrab;
         readonly Collider[] _overlap = new Collider[8];
+        readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
 
         public void Configure(Source s, LineRenderer line)
         {
@@ -69,6 +71,10 @@ namespace VirtualBeeSwarm
                 return;
             }
 
+            // A locked lever can provide feedback, but must lose to an active target.
+            HoneyLever lockedLever = null;
+            Vector3 lockedLeverPoint = default;
+
             // ---- direct hand grab
             if (down && source != Source.Mouse && TryGetHandPoint(out var handPoint))
             {
@@ -76,14 +82,15 @@ namespace VirtualBeeSwarm
                 for (int i = 0; i < n; i++)
                 {
                     var g = _overlap[i].GetComponentInParent<IGameGrabTarget>();
-                    if (g != null && g.Grabbable)
+                    if (g == null || !g.Grabbable) continue;
+                    if (g is HoneyLever lever && !lever.Live)
                     {
-                        SetHover(null);
-                        _grab = g;
-                        _directGrab = true;
-                        g.BeginGrab(handPoint);
-                        return;
+                        lockedLever = lever;
+                        lockedLeverPoint = handPoint;
+                        continue;
                     }
+                    BeginDirectGrab(g, handPoint);
+                    return;
                 }
             }
 
@@ -93,11 +100,12 @@ namespace VirtualBeeSwarm
             float hitDistance = 0f;
             if (HasRay && Physics.Raycast(ray, out RaycastHit hit, maxDistance, layers, QueryTriggerInteraction.Collide))
             {
-                if (hit.collider != _lastCol)
+                // A delivered prop can become grabbable while the player is already pointing at it.
+                if (hit.collider != _lastCol || down) CacheHit(hit.collider);
+                if (_lastGrabTarget is HoneyLever lever && !lever.Live && TryHitBehindLever(ray, hit.collider, out var behind))
                 {
-                    _lastCol = hit.collider;
-                    _lastTarget = hit.collider.GetComponentInParent<IGameTarget>();
-                    _lastGrabTarget = hit.collider.GetComponentInParent<IGameGrabTarget>();
+                    hit = behind;
+                    if (hit.collider != _lastCol) CacheHit(hit.collider);
                 }
                 target = _lastTarget != null && _lastTarget.Interactable ? _lastTarget : null;
                 grabTarget = _lastGrabTarget != null && _lastGrabTarget.Grabbable ? _lastGrabTarget : null;
@@ -118,6 +126,39 @@ namespace VirtualBeeSwarm
                 grabTarget.BeginGrab(ray.GetPoint(hitDistance));
             }
             else if (target != null) target.Click();
+            else if (lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+        }
+
+        void BeginDirectGrab(IGameGrabTarget target, Vector3 point)
+        {
+            SetHover(null);
+            _grab = target;
+            _directGrab = true;
+            target.BeginGrab(point);
+        }
+
+        void CacheHit(Collider hit)
+        {
+            _lastCol = hit;
+            _lastTarget = hit.GetComponentInParent<IGameTarget>();
+            _lastGrabTarget = hit.GetComponentInParent<IGameGrabTarget>();
+        }
+
+        bool TryHitBehindLever(Ray ray, Collider leverCollider, out RaycastHit hit)
+        {
+            hit = default;
+            float nearest = maxDistance;
+            int count = Physics.RaycastNonAlloc(ray, _hitsBehindLever, maxDistance, layers, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit other = _hitsBehindLever[i];
+                if (other.collider == leverCollider || other.distance >= nearest) continue;
+                nearest = other.distance;
+                hit = other;
+            }
+            return hit.collider != null &&
+                   (hit.collider.GetComponentInParent<IGameTarget>()?.Interactable == true ||
+                    hit.collider.GetComponentInParent<IGameGrabTarget>()?.Grabbable == true);
         }
 
         void SetHover(IGameTarget t)

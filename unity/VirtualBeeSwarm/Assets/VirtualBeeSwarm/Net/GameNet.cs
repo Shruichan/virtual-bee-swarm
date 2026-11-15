@@ -88,6 +88,7 @@ namespace VirtualBeeSwarm
 
         // ---------------------------------------------------------------- events (main thread, game types only)
         public event Action<bool> ConnectionChanged;               // online?
+        public event Action HiveWelcomed;                           // first welcome on each connection
         public event Action<int, bool> BeatRequested;              // (n, or -1 with next = true)
         public event Action GroupReset;
         public event Action<string, bool> TranscriptReceived;      // (text, final)
@@ -238,6 +239,7 @@ namespace VirtualBeeSwarm
                 _bound = b;
                 if (b != null)
                 {
+                    b.OnWelcome += HandleWelcome;
                     b.OnBeatRequest += HandleBeatRequest;
                     b.OnGroupReset += HandleGroupReset;
                     b.OnSay += HandleSay;
@@ -276,6 +278,7 @@ namespace VirtualBeeSwarm
         {
             if (_bound != null)
             {
+                _bound.OnWelcome -= HandleWelcome;
                 _bound.OnBeatRequest -= HandleBeatRequest;
                 _bound.OnGroupReset -= HandleGroupReset;
                 _bound.OnSay -= HandleSay;
@@ -298,6 +301,11 @@ namespace VirtualBeeSwarm
         }
 
         // ---------------------------------------------------------------- inbound (bus events; ignored while forceOffline)
+        void HandleWelcome(Beeswax.Welcome _)
+        {
+            if (!forceOffline) HiveWelcomed?.Invoke();
+        }
+
         void HandleBeatRequest(Beeswax.BeatRequest r)
         {
             if (forceOffline) return;
