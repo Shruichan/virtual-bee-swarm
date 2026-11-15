@@ -29,6 +29,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
                 EnvUtil.MakeMesh("PortalVines", art, kit.portalVines, kit.vc, false, out _vines);
                 EnvUtil.MakeMesh("LightShafts", art, kit.shafts, kit.glow, false, out _shafts);
                 _shafts.enabled = false;
+                if (QuestPerf.On) { _shafts.gameObject.SetActive(false); _shafts = null; } // headset: no big additive layer (overdraw)
             }
             // petals off the ring, motes out of the pane; both drift toward the player (+Z in the art's space)
             var host = hasArt ? pane : window.transform;

@@ -97,6 +97,17 @@ namespace VirtualBeeSwarm.Bloom
             VatNear = 80;
             CrewScale = 2.5f;
             LoadedFrom = "defaults";
+            if (QuestPerf.On)
+            {
+                // the headset (72 fps): a lighter meadow and fewer bees; far bees are the low-poly bee (BeeLod)
+                Density = 0.8f;
+                RoomBees = 120;
+                SwarmCount = 260;
+                DarkCount = 220;
+                VatNear = 32;
+                CrewScale = 1.5f;
+                LoadedFrom = "quest defaults";
+            }
         }
 
         public static void EnsureLoaded()

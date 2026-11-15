@@ -117,6 +117,8 @@ namespace VirtualBeeSwarm
             return false;
         }
 
+        void OnEnable() => BeeswaxBody.MarkDirty(); // [BeeswaxBody hook] a new prop: Beeswax's body rescans now
+
         void OnDisable()
         {
             if (shadow != null && shadow.enabled) shadow.enabled = false;
