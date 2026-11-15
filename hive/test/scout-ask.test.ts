@@ -427,6 +427,20 @@ describe("barge-in (real ScoutGame, fake clock)", () => {
     expect(a.expectingQuestion).toBe(false);
     expect(a.route("the honey", classifyAnswer("the honey"))).toBe("game");
   });
+
+  test("the any-q window opens when the line plays (after the fact queued before it), not when it is sent", () => {
+    let clock = 10_000;
+    const game = { ...fakeGame([]), busyUntil: clock + 9000 }; // fact lines + the any-q line end 9 s from now
+    const a = new ScoutAsk({ game, now: () => clock, base: () => "h", say: () => {}, llm: fakeLlm([]), tts: fakeTts() });
+    a.event({ type: "say", line_id: "scout_any_q_1", caption: "Got any questions? Bee my guest!", audio_url: null, at: clock });
+    expect(a.expectingQuestion).toBe(false); // the fact is still playing
+    clock += 7000; // the any-q line is playing
+    expect(a.expectingQuestion).toBe(true);
+    clock += 2000 + ANY_Q_WINDOW_MS - 100;
+    expect(a.expectingQuestion).toBe(true);
+    clock += 200;
+    expect(a.expectingQuestion).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------- the /scout routes

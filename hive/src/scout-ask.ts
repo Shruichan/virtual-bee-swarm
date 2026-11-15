@@ -535,6 +535,8 @@ export class AskAudio {
 /** The game's Ask Beeswax API (scout/game). Optional so this works before that branch lands. */
 export interface AnswerGame {
   state(): ScoutState;
+  /** When the last line sent is expected to finish playing (ScoutGame.busyUntil). */
+  readonly busyUntil?: number;
   beginAnswer?(): boolean;
   endAnswer?(audioMs?: number): void;
   interrupt?(): void;
@@ -606,6 +608,7 @@ export class ScoutAsk {
   private lastFound: ScoutLabel | null = null;
   /** Until when an utterance counts as a question by default (after scout_any_q_*). */
   private anyQUntil = 0;
+  private anyQFrom = 0;
   private captions: { text: string; at: number }[] = [];
   private recent: string[] = [];
   private audios = new Map<string, AskAudio>();
@@ -625,8 +628,13 @@ export class ScoutAsk {
     if (e.type === "found") this.lastFound = e.label;
     else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) {
       this.noteSaid(e.caption, e.at);
-      // the line plays after whatever is queued; estimating from its own length keeps the window generous
-      if (e.line_id.startsWith(ANY_Q_PREFIX)) this.anyQUntil = Math.max(e.at, this.now()) + estimateSpeechMs(e.caption) + ANY_Q_WINDOW_MS;
+      // the line plays after the fact lines queued before it: the game's busyUntil already includes it
+      if (e.line_id.startsWith(ANY_Q_PREFIX)) {
+        const len = estimateSpeechMs(e.caption);
+        const ends = Math.max(this.d.game.busyUntil ?? 0, Math.max(e.at, this.now()) + len);
+        this.anyQFrom = ends - len - 500; // not while the fact before it is still playing
+        this.anyQUntil = ends + ANY_Q_WINDOW_MS;
+      }
     }
     else if (e.type === "state" && e.state.phase === "intro") this.reset(); // game restarted
   }
@@ -654,7 +662,8 @@ export class ScoutAsk {
 
   /** Is an utterance now a question by default (just after "Got any questions?")? */
   get expectingQuestion(): boolean {
-    return this.now() <= this.anyQUntil;
+    const now = this.now();
+    return now >= this.anyQFrom && now <= this.anyQUntil;
   }
 
   route(text: string, answer: ScoutAnswer): AskRoute {
