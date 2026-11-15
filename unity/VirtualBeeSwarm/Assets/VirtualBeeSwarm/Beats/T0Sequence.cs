@@ -320,11 +320,36 @@ namespace VirtualBeeSwarm
 
         Pose GetCrashPose()
         {
+            if (Bloom.MeadowLayout.Active && _hasLaunchPose)
+            {
+                // The launch pad is already clear of the hive at the current meadow scale.
+                Transform anchor = rocket.parent;
+                Vector3 position = anchor != null ? anchor.TransformPoint(_launchPose.position) : _launchPose.position;
+                Quaternion upright = anchor != null ? anchor.rotation * _launchPose.rotation : _launchPose.rotation;
+                Transform hive = anchor != null ? anchor.Find("Hive") : null;
+                float side = hive == null || Vector3.Dot(position - hive.position, upright * Vector3.right) >= 0f ? 1f : -1f;
+                Quaternion tilted = upright * Quaternion.Euler(0f, 0f, -18f * side);
+                if (rocket.TryGetComponent(out DeliveryItem body) && body.measured)
+                {
+                    Vector3 scale = rocket.lossyScale;
+                    Vector3 centre = Vector3.Scale(body.localBounds.center, scale);
+                    Vector3 extent = Vector3.Scale(body.localBounds.extents, new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+                    position.y += LowestPoint(centre, extent, upright) - LowestPoint(centre, extent, tilted);
+                }
+                if (crashSpot != null) crashSpot.position = position; // the crash sound uses this anchor
+                return new Pose(position, tilted);
+            }
             if (crashSpot != null)
                 return new Pose(crashSpot.position, crashSpot.rotation * Quaternion.Euler(0f, 0f, 28f));
             var parent = rocket.parent;
             return new Pose(parent != null ? parent.TransformPoint(_rocketHomePos) : _rocketHomePos,
                 (parent != null ? parent.rotation * _rocketHomeRot : _rocketHomeRot) * Quaternion.Euler(0f, 0f, 28f));
+        }
+
+        static float LowestPoint(Vector3 centre, Vector3 extent, Quaternion rotation)
+        {
+            Vector3 up = Quaternion.Inverse(rotation) * Vector3.up;
+            return Vector3.Dot(centre, up) - Vector3.Dot(extent, new Vector3(Mathf.Abs(up.x), Mathf.Abs(up.y), Mathf.Abs(up.z)));
         }
 
         void PutRocketDown()

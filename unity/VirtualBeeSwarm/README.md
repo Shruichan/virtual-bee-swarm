@@ -211,6 +211,7 @@ in the comment at the top of `Editor/GameSmokeBuild.cs`.
 Build a Windows capture player from Unity 6000.2.9f1 with
 `-batchmode -quit -force-d3d11 -buildTarget StandaloneWindows64 -executeMethod VirtualBeeSwarm.Capture.Editor.CaptureBuild.Build`.
 Set `CAPTURE_OUT` if you want the player outside the project. The default output is `Builds/Capture`.
+Set `CAPTURE_DEVELOPMENT=1` when building a player for development previews. For a Pals recording, run that player with `VBS_OPENING_BEESWAX=1`, `VBS_PALS_DEMO=1` and `VBS_AUTOPILOT_PRE_IDLE=30`.
 
 From the repo root, use Python with Pillow and FFmpeg with H.264 support. The runner accepts FFmpeg on PATH,
 `--ffmpeg`, or the binary bundled with `imageio-ffmpeg`.

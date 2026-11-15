@@ -230,6 +230,9 @@ namespace VirtualBeeSwarm.Tests
             Assert.IsFalse(rainCloud.Busy, "the finale's window preview cannot bring the room's rain crew");
 
             Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.GreaterThan(10f), "crash tilt stays through the contract");
+            if (Bloom.MeadowLayout.Active)
+                Assert.That(Vector3.ProjectOnPlane(rocket.position - launchPosition, Vector3.up).magnitude,
+                    Is.LessThan(0.01f), "the rocket crashes back on its pad clear of the hive");
 
             // Rehearsal controls can revisit a station without changing the score or finishing an abandoned flight.
             bool checkFlight = beeswax.RootDriver is BeeswaxMotion && beeswax.Visible;

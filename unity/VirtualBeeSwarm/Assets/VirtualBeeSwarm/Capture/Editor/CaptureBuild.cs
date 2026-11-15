@@ -4,8 +4,10 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
+using UnityEditor.XR.Management;
 using UnityEngine;
 using UnityEngine.Video;
+using UnityEngine.XR.Management;
 using VirtualBeeSwarm.Editor;
 using Object = UnityEngine.Object;
 
@@ -30,6 +32,8 @@ namespace VirtualBeeSwarm.Capture.Editor
             const string audioPath = "ProjectSettings/AudioManager.asset";
             Object audio = null;
             bool audioWasDisabled = false;
+            XRGeneralSettings standaloneXr = null;
+            bool xrWasEnabled = false;
             string scenePath = null;
             try
             {
@@ -112,6 +116,14 @@ namespace VirtualBeeSwarm.Capture.Editor
                 disable.boolValue = true;
                 audioSo.ApplyModifiedPropertiesWithoutUndo();
 
+                // Capture uses desktop rooms. Native XR startup can crash this player before the scene loads.
+                standaloneXr = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Standalone);
+                if (standaloneXr != null)
+                {
+                    xrWasEnabled = standaloneXr.InitManagerOnStart;
+                    SetXrStartup(standaloneXr, false);
+                }
+
                 string outDir = Environment.GetEnvironmentVariable("CAPTURE_OUT");
                 if (string.IsNullOrEmpty(outDir)) outDir = Path.GetFullPath("Builds/Capture");
                 Directory.CreateDirectory(outDir);
@@ -120,7 +132,8 @@ namespace VirtualBeeSwarm.Capture.Editor
                     scenes = new[] { scenePath },
                     locationPathName = Path.Combine(outDir, target == BuildTarget.StandaloneWindows64 ? "vbs-capture.exe" : "vbs-capture.x86_64"),
                     target = target,
-                    options = BuildOptions.None,
+                    options = Environment.GetEnvironmentVariable("CAPTURE_DEVELOPMENT") == "1"
+                        ? BuildOptions.Development : BuildOptions.None,
                 });
                 Debug.Log("[VBSCapture] build " + report.summary.result + " errors=" + report.summary.totalErrors + " -> " + outDir);
                 code = report.summary.result == BuildResult.Succeeded ? 0 : 1;
@@ -132,6 +145,7 @@ namespace VirtualBeeSwarm.Capture.Editor
             }
             finally
             {
+                if (standaloneXr != null) SetXrStartup(standaloneXr, xrWasEnabled);
                 if (audio != null)
                 {
                     var audioSo = new SerializedObject(audio);
@@ -147,6 +161,13 @@ namespace VirtualBeeSwarm.Capture.Editor
                 AssetDatabase.DeleteAsset(TempMat);
             }
             if (Application.isBatchMode) EditorApplication.Exit(code);
+        }
+
+        static void SetXrStartup(XRGeneralSettings settings, bool enabled)
+        {
+            settings.InitManagerOnStart = enabled;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssetIfDirty(settings);
         }
 
         static int MissingScripts(string path)

@@ -34,8 +34,8 @@ namespace VirtualBeeSwarm
         [SerializeField] float cardTiltDegrees = 14f;
         [Header("End card (v2, map beat)")]
         [Tooltip("Reading distance ahead of the head. The vertical offset is capped to keep the contract in view.")]
-        [SerializeField] float endCardAhead = 0.62f;
-        [SerializeField] float endCardBelowEye = 0.43f;
+        [SerializeField] float endCardAhead = 0.78f;
+        [SerializeField] float endCardAboveEye = 0.09f;
         [SerializeField] float endCardTiltDegrees = 22f;
         [SerializeField] int endCardCrew = 6;
 
@@ -44,7 +44,7 @@ namespace VirtualBeeSwarm
         Vector3 _cardScale = Vector3.one;
         float _cardParentScale = 1f;
         GameObject _endPanel;
-        float _cardWorldScale, _endPanelHeight, _cardBottom; // world metres: the panel, and the card's bottom below its pivot
+        float _endPanelHeight, _cardBottom; // world metres: the panel, and the card's bottom below its pivot
         public bool EndCardShown => _endPanel != null && _endPanel.activeInHierarchy;
         // the held card draws after the room's text (TextMesh ignores depth, so the map's labels showed through it)
         readonly System.Collections.Generic.List<(Renderer r, Material[] mats)> _onTop = new System.Collections.Generic.List<(Renderer, Material[])>();
@@ -129,7 +129,6 @@ namespace VirtualBeeSwarm
             }
             _cardBottom = any ? -minY * s : 0.055f;
             const float width = 0.46f, height = 0.33f, gap = 0.012f;
-            _cardWorldScale = s;
             _endPanelHeight = height;
             var panel = new GameObject("EndCard");
             panel.transform.SetParent(card, false);
@@ -188,7 +187,7 @@ namespace VirtualBeeSwarm
 
         /// <summary>
         /// v2, map beat (room_end_contract): a crew delivers the score card again, now with the contract under the score,
-        /// and holds it in front of the player (endCardAhead, a little below the eye, tilted to face them).
+        /// and holds it in front of the player, above the dialogue and tilted to face them.
         /// </summary>
         public void DeliverEndCard()
         {
@@ -201,10 +200,10 @@ namespace VirtualBeeSwarm
             Vector3 fwd = head != null ? head.forward : Vector3.forward;
             Vector3 up = head != null ? head.up : Vector3.up;
             Quaternion rot = Quaternion.LookRotation(fwd, up) * Quaternion.Euler(endCardTiltDegrees, 0f, 0f);
-            // Keep the full score and contract close to the player's gaze, including when seated.
+            // Leave room below the contract for Beeswax's closing captions.
             float below = (_cardBottom + 0.012f + _endPanelHeight) * 0.5f;
-            float eyeOffset = Mathf.Clamp(endCardBelowEye, 0f, endCardAhead * 0.10f);
-            Vector3 centre = eye + fwd * endCardAhead - up * eyeOffset;
+            float eyeOffset = Mathf.Clamp(endCardAboveEye, 0f, endCardAhead * 0.12f);
+            Vector3 centre = eye + fwd * endCardAhead + up * eyeOffset;
             Vector3 pivot = centre + rot * Vector3.up * below;
             Vector3 scale = SetDisplayScale(t);
             if (delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
