@@ -1,0 +1,158 @@
+{
+  "scout_intro_1": {
+    "ms": 8029,
+    "voice": "placeholder",
+    "chars": 95,
+    "hash": "27049cf88f25"
+  },
+  "scout_intro_2": {
+    "ms": 5935,
+    "voice": "placeholder",
+    "chars": 80,
+    "hash": "051fb21a13b0"
+  },
+  "scout_chime": {
+    "ms": 1997,
+    "voice": "placeholder",
+    "chars": 15,
+    "hash": "1a65197062c7"
+  },
+  "scout_hook_beehive": {
+    "ms": 4239,
+    "voice": "placeholder",
+    "chars": 51,
+    "hash": "1bc26de4cd19"
+  },
+  "scout_fact_beehive": {
+    "ms": 7007,
+    "voice": "placeholder",
+    "chars": 100,
+    "hash": "680806e0cf48"
+  },
+  "scout_hook_native_flower": {
+    "ms": 4302,
+    "voice": "placeholder",
+    "chars": 53,
+    "hash": "8f33b3250c9b"
+  },
+  "scout_fact_native_flower": {
+    "ms": 7465,
+    "voice": "placeholder",
+    "chars": 100,
+    "hash": "986a03ebd67d"
+  },
+  "scout_hook_honey_jar": {
+    "ms": 5966,
+    "voice": "placeholder",
+    "chars": 81,
+    "hash": "104c65fe1767"
+  },
+  "scout_fact_honey_jar": {
+    "ms": 8238,
+    "voice": "placeholder",
+    "chars": 104,
+    "hash": "79cbfca07b5a"
+  },
+  "scout_hook_pebble_dish": {
+    "ms": 4894,
+    "voice": "placeholder",
+    "chars": 68,
+    "hash": "0378a1e25afd"
+  },
+  "scout_fact_pebble_dish": {
+    "ms": 7614,
+    "voice": "placeholder",
+    "chars": 106,
+    "hash": "5135103e2feb"
+  },
+  "scout_hook_bug_spray": {
+    "ms": 4349,
+    "voice": "placeholder",
+    "chars": 56,
+    "hash": "4737acde7a12"
+  },
+  "scout_fact_bug_spray": {
+    "ms": 7759,
+    "voice": "placeholder",
+    "chars": 105,
+    "hash": "2ca263ef876a"
+  },
+  "scout_hook_bee_hotel": {
+    "ms": 5566,
+    "voice": "placeholder",
+    "chars": 71,
+    "hash": "b31d58c98d70"
+  },
+  "scout_fact_bee_hotel": {
+    "ms": 6943,
+    "voice": "placeholder",
+    "chars": 101,
+    "hash": "c6dabc45a2b0"
+  },
+  "scout_no_1": {
+    "ms": 2511,
+    "voice": "placeholder",
+    "chars": 23,
+    "hash": "b877cc2367f8"
+  },
+  "scout_no_2": {
+    "ms": 2830,
+    "voice": "placeholder",
+    "chars": 36,
+    "hash": "ebbe9949a906"
+  },
+  "scout_rude": {
+    "ms": 4207,
+    "voice": "placeholder",
+    "chars": 62,
+    "hash": "5f0c9678b8ff"
+  },
+  "scout_silence": {
+    "ms": 2750,
+    "voice": "placeholder",
+    "chars": 35,
+    "hash": "14c0254f4fd4"
+  },
+  "scout_idle": {
+    "ms": 4879,
+    "voice": "placeholder",
+    "chars": 67,
+    "hash": "b15c53af1bd2"
+  },
+  "scout_progress_1": {
+    "ms": 2382,
+    "voice": "placeholder",
+    "chars": 21,
+    "hash": "4c5eeb5dcbb1"
+  },
+  "scout_progress_2": {
+    "ms": 2713,
+    "voice": "placeholder",
+    "chars": 34,
+    "hash": "cca7a7fe5cbd"
+  },
+  "scout_progress_3": {
+    "ms": 6479,
+    "voice": "placeholder",
+    "chars": 76,
+    "hash": "2e32b9580e40"
+  },
+  "scout_progress_4": {
+    "ms": 2527,
+    "voice": "placeholder",
+    "chars": 33,
+    "hash": "59d5135a7552"
+  },
+  "scout_progress_5": {
+    "ms": 4047,
+    "voice": "placeholder",
+    "chars": 41,
+    "hash": "f1c8837970fa"
+  },
+  "scout_done": {
+    "ms": 8751,
+    "voice": "placeholder",
+    "chars": 107,
+    "hash": "c204acbbcb52"
+  }
+}
