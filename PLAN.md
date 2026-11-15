@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (generic prefab spawner added; headset hookup/testing pending)
+  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; optional generic spawner is table-only; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1448,3 +1448,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:10 PT · Rome (agent) · Claimed: ride script v2 in the game (42 main-path lines re-rendered in Harry's voice, new intro/stations/what-if/end-card lines wired in Unity, build + screenshot review, then push). Touches hive/lines, Assets/Resources/BeeswaxLines, Beats/, Stations/, Core/GameLines.cs. Satie sound and the forecast moment are on main. → Nam: D-8 APK has everything up to Satie; download link coming.
 - 2026-11-14 16:35 PT · Rome (agent) · **Decision: stay on Unity 6000.2.9f1 until after judging** (the 6000.3.28f1 LTS trial passed with no code changes, but switching now only costs everyone a reinstall + re-import). Ignore the 14:45 move-to-LTS note. → Nam: test APKs (D-8 now, D-9 with script v2 next) are at beeswax.drori.dev/dl/, password from Rome by DM. Install with `ops/quest-deploy.sh <apk>` so the scene + mic permissions are granted.
 - 2026-11-14 16:16 PT · Rome (agent) · Claiming S17.1: validate and package the Mentra Live miniapp as an isolated glasses build in `glasses/`, check its end-to-end flow/build path, and document the current local install limits. → team
+- 2026-11-14 15:53 PT · Nam Nguyen (agent) · Reviewing S3.3 against the generic `SpawnObject` work in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`; the plan's P0 path is two-point table calibration (controller tip, grab-and-drop fallback), while aim-and-pinch is V7 SHOULD. → team
+- 2026-11-14 15:53 PT · Nam Nguyen (agent) · Updated optional `SpawnObject` to require the calibrated pre-beat table, fit the plan's placement box, snap near-table hits to table height, and parent spawned props to `TableAnchor`; `HivePlacement` remains the S3.3 calibration path. Editor diagnostics are clean; Quest/recenter checks remain. → team
