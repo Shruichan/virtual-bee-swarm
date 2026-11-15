@@ -8,8 +8,10 @@
 //   player  "iframe" = MediaMTX's own player page instead of the built-in WHEP player
 //   webrtc  MediaMTX WebRTC base URL (default http://<page host>:8889)
 //   video   play this video URL instead of the stream (dev harness only)
-//   sound=1 start with the audio mirror armed (a browser still needs one click or key press first)
-// Keys: M = sound on/off, F = full screen, Esc = close the lessons panel.
+// Sound: off on every load. The page makes no sound at all until someone turns it on (button or M); the
+// camera <video> never carries audio (no audio track is requested, and it stays muted). The glasses speak regardless.
+//   boxes=1 draw the detection boxes (boxes=0 hides them); default off, B toggles, the choice is remembered here
+// Keys: M = sound on/off, B = boxes on/off, F = full screen, Esc = close the lessons panel.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -175,17 +177,15 @@ const SHOW = `<!doctype html>
   #frame { position: relative; width: 100%; max-height: calc(100% - 4.6rem); aspect-ratio: 16 / 9; margin: 0 auto; border-radius: 1.6rem; overflow: hidden;
     background: #2b2018; border: .55rem solid var(--paper); box-shadow: 0 0 0 .16rem var(--brown), 0 1.4rem 2.8rem rgba(85, 41, 15, .22); }
   #frame video, #frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0; background: #2b2018; }
+  #hint { position: absolute; z-index: 4; left: 1rem; bottom: 1rem; padding: .3rem .9rem; border-radius: 99rem; background: rgba(43, 32, 24, .6); color: #fffdf8;
+    font-size: 1.05rem; font-weight: 700; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #hint.on { opacity: 1; }
   #boxes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
   #napping { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center; gap: .6rem; text-align: center;
     background: radial-gradient(circle at 50% 42%, #f2eee6, var(--greige) 80%); color: var(--ink-soft); font-size: 1.6rem; font-weight: 700; transition: opacity .6s; }
   #napping img { width: 13rem; animation: snooze 3.2s ease-in-out infinite; }
   @keyframes snooze { 50% { transform: translateY(.5rem) rotate(-2deg); } }
   .playing #napping { opacity: 0; pointer-events: none; }
-  #pin { position: absolute; z-index: 4; top: 1rem; right: 1rem; display: flex; align-items: center; gap: .7rem; padding: .35rem 1.3rem .35rem .35rem;
-    border-radius: 99rem; background: var(--paper); box-shadow: 0 0 0 .14rem var(--brown), 0 .5rem 1.4rem rgba(0, 0, 0, .3);
-    font-size: 1.5rem; font-weight: 800; transform: scale(0); transform-origin: right center; transition: transform .45s cubic-bezier(.2, 1.5, .4, 1); }
-  #pin.on { transform: scale(1); }
-  #pin img { width: 3.4rem; height: 3.4rem; border-radius: 50%; object-fit: cover; }
   .under { display: flex; align-items: flex-start; gap: 1.4rem; min-height: 3.6rem; }
   .quiet { display: flex; align-items: center; gap: .45rem; margin-top: .4rem; padding: .45rem .9rem .45rem .7rem; border: 0; border-radius: 99rem; cursor: pointer;
     background: transparent; color: var(--ink-soft); font-size: 1.15rem; font-weight: 700; opacity: .7; white-space: nowrap; }
@@ -365,8 +365,8 @@ const SHOW = `<!doctype html>
     <div id="frame">
       <video id="video" autoplay muted playsinline></video>
       <canvas id="boxes"></canvas>
+      <div id="hint" aria-live="polite"></div>
       <div id="napping"><img src="/scout/assets/beeswax-sleep.webp" alt=""><div id="naptext">The glasses camera is waking up&hellip;</div></div>
-      <div id="pin"><img id="pinimg" alt=""><span id="pinname"></span></div>
     </div>
     <div class="under">
       <button id="restart" class="quiet" type="button" title="Start the walk over: clears what was found">
@@ -466,6 +466,19 @@ const SHOW = `<!doctype html>
   var bx = { list: [], at: 0, flash: null }, disp = {};
   var BOX_HOLD_MS = 600, BOX_FADE_MS = 400;
   var bc = $("boxes"), g = bc.getContext("2d");
+  // Boxes are off unless asked for: ?boxes=1 / ?boxes=0, or B (remembered in this browser).
+  var showBoxes = false;
+  try { showBoxes = localStorage.getItem("lbs-boxes") === "1"; } catch (e) {}
+  if (Q.get("boxes") === "1") showBoxes = true; else if (Q.get("boxes") === "0") showBoxes = false;
+  var hintTimer = null;
+  function setBoxes(on, hint) {
+    showBoxes = !!on;
+    try { localStorage.setItem("lbs-boxes", showBoxes ? "1" : "0"); } catch (e) {}
+    if (!hint) return;
+    var h = $("hint"); h.textContent = showBoxes ? "Boxes on" : "Boxes off"; h.classList.add("on");
+    clearTimeout(hintTimer); hintTimer = setTimeout(function () { h.classList.remove("on"); }, 2000);
+  }
+  if (Q.get("boxes") === "1" || Q.get("boxes") === "0") setBoxes(showBoxes, false);
   function vrect(W, H) {
     var vw = video.videoWidth || 16, vh = video.videoHeight || 9, k = Math.min(W / vw, H / vh);
     return { x: (W - vw * k) / 2, y: (H - vh * k) / 2, w: vw * k, h: vh * k };
@@ -482,7 +495,7 @@ const SHOW = `<!doctype html>
     if (bc.width !== Math.round(W) || bc.height !== Math.round(H)) { bc.width = Math.round(W); bc.height = Math.round(H); }
     g.clearRect(0, 0, bc.width, bc.height);
     var now = Date.now(), age = now - bx.at, alpha = age < BOX_HOLD_MS ? 1 : Math.max(0, 1 - (age - BOX_HOLD_MS) / BOX_FADE_MS);
-    if (alpha <= 0 || !bx.list.length || !playing) { disp = {}; requestAnimationFrame(drawBoxes); return; }
+    if (alpha <= 0 || !bx.list.length || !playing || !showBoxes) { disp = {}; requestAnimationFrame(drawBoxes); return; }
     var r = vrect(bc.width, bc.height), rem = parseFloat(getComputedStyle(document.documentElement).fontSize) * d, seen = {}, count = {};
     var flash = bx.flash && now < bx.flash.until ? bx.flash.label : null, tags = [];
     bx.list.forEach(function (b) {
@@ -521,7 +534,7 @@ const SHOW = `<!doctype html>
   }
 
   // ------------------------------------------------------------------ the found moment
-  var revealTimer = null, outTimer = null, pinTimer = null, pinLabel = null;
+  var revealTimer = null, outTimer = null;
   var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
   function onFound(ev) {
     lastActivity = Date.now();
@@ -537,7 +550,6 @@ const SHOW = `<!doctype html>
     clearTimeout(revealTimer); clearTimeout(outTimer);
     revealUntil = Date.now() + 4700;
     revealTimer = setTimeout(function () { rv.classList.add("out"); outTimer = setTimeout(function () { rv.classList.remove("on", "out"); }, 500); }, 4200);
-    setPin(ev.label);
     hideYou();
     if (earn(ev.label)) flyBadge(ev.label); // first time: the card becomes a badge and flies into the case
   }
@@ -621,15 +633,6 @@ const SHOW = `<!doctype html>
     celebTimer = setTimeout(function () { c.classList.add("out"); celebOut = setTimeout(hideCelebrate, 500); }, 8000);
   }
   function hideCelebrate() { clearTimeout(celebTimer); clearTimeout(celebOut); $("celebrate").classList.remove("on", "out"); }
-  function setPin(label) {
-    pinLabel = label;
-    $("pinimg").src = ASSETS + (CFG.CARDS[label] || "logo.webp");
-    $("pinname").textContent = name(label);
-    $("pin").classList.remove("on");
-    clearTimeout(pinTimer);
-    pinTimer = setTimeout(function () { $("pin").classList.add("on"); pinTimer = setTimeout(clearPin, 30000); }, 4400);
-  }
-  function clearPin() { pinLabel = null; $("pin").classList.remove("on"); }
 
   // ------------------------------------------------------------------ Beeswax says
   var speakTimer = null, idleTimer = null;
@@ -654,7 +657,7 @@ const SHOW = `<!doctype html>
     var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
     if (id === "scout_teacher") { showTeacher(text); if (mirror) enqueue(ev); return; }
     if (id.indexOf("scout_done") === 0) celebrate(); // the finale lines play under "Bee Scout badge earned!"
-    if (!text) return; // a pure sound effect
+    if (!text) { enqueue(ev); return; } // a pure sound effect: nothing to show, plays only when sound is on
     var b = $("bubble"), c = $("cap"), isAsk = id.indexOf("scout_ask_") === 0;
     var update = isAsk && id === curLine; // an "Ask Beeswax" answer growing as it streams in
     if (update && text === curText) return;
@@ -740,7 +743,7 @@ const SHOW = `<!doctype html>
     memToday = 0; try { localStorage.setItem(dayKey(), "0"); } catch (e) {}
     showToday(0);
     clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
-    clearTimeout(pinTimer); clearPin(); bx.flash = null;
+    bx.flash = null;
     hideYou(); hideTeacher(); stopSpeaking(); goIdle(); clearCase();
   });
 
@@ -751,38 +754,47 @@ const SHOW = `<!doctype html>
     if ((journey !== null && st.started_at && st.started_at !== journey) || (st.phase === "intro" && !found.length)) clearCase();
     if (st.started_at) journey = st.started_at;
     found.forEach(function (l) { if (earn(l)) fillSlot(l, false); });
-    if (pinLabel && S.phase === "looking" && S.offer !== pinLabel) { clearTimeout(pinTimer); pinTimer = setTimeout(clearPin, 6000); }
   }
 
   // ------------------------------------------------------------------ audio mirror: Beeswax's lines on this screen
+  // The only sound this page can make. Off on every load; every path checks the switch again right before playing.
   var mirror = false, queue = [], cur = null;
-  var audio = new Audio(); audio.preload = "auto";
+  var audio = new Audio(); audio.preload = "none"; audio.muted = true;
   function enqueue(ev) {
+    if (!mirror) return;
     var urls = ["/scout/audio/" + encodeURIComponent(ev.line_id) + ".mp3?" + TQ];
     if (ev.audio_url && ev.audio_url.indexOf("/scout/audio/" + ev.line_id) < 0) urls.push(ev.audio_url);
     queue.push({ id: ev.line_id, urls: urls, at: Date.now(), n: 0 });
     if (!cur) playNext();
   }
   function playNext() {
+    if (!mirror) { queue = []; cur = null; return; }
     while (queue.length && Date.now() - queue[0].at > 20000) queue.shift(); // never fall far behind the wearer
     cur = queue.shift() || null;
     if (cur) load();
   }
-  function load() { audio.src = cur.urls[cur.n]; var p = audio.play(); if (p && p.catch) p.catch(function () {}); }
+  function load() {
+    if (!mirror || !cur) return;
+    audio.muted = false; audio.src = cur.urls[cur.n];
+    var p = audio.play(); if (p && p.catch) p.catch(function () {});
+  }
   audio.addEventListener("ended", playNext);
+  audio.addEventListener("play", function () { if (!mirror) { audio.pause(); audio.muted = true; } });
   audio.addEventListener("error", function () {
-    if (!cur || !audio.getAttribute("src")) return;
+    if (!mirror || !cur || !audio.getAttribute("src")) return;
     if (cur.n + 1 < cur.urls.length) { cur.n++; load(); return; }
     playNext();
   });
   function setMirror(on) {
-    mirror = on;
-    $("sound").setAttribute("aria-pressed", on ? "true" : "false");
-    $("soundt").textContent = on ? "Sound on" : "Sound off";
-    if (!on) { queue = []; cur = null; audio.pause(); audio.removeAttribute("src"); }
+    mirror = !!on;
+    var b = $("sound");
+    b.setAttribute("aria-pressed", mirror ? "true" : "false");
+    b.title = (mirror ? "Sound on: Beeswax's voice plays on this screen. Click or press M to mute." : "Sound off: this screen is silent. Click or press M to hear Beeswax.");
+    $("soundt").textContent = mirror ? "Sound on" : "Sound off";
+    if (!mirror) { queue = []; cur = null; audio.pause(); audio.muted = true; audio.removeAttribute("src"); audio.load(); }
   }
   $("sound").addEventListener("click", function () { setMirror(!mirror); });
-  if (Q.get("sound") === "1") setMirror(true);
+  setMirror(false); // always start silent
 
   // ------------------------------------------------------------------ Hive events (SSE, named events)
   function handle(ev) {
@@ -819,6 +831,8 @@ const SHOW = `<!doctype html>
   // ------------------------------------------------------------------ video: WHEP straight from MediaMTX (same as /scout)
   var video = $("video"), pc = null, retryTimer = null, lastT = -1, lastMove = 0, playing = false, netFails = 0;
   var iframeMode = Q.get("player") === "iframe", fileVideo = Q.get("video");
+  video.muted = true; video.volume = 0;
+  ["play", "volumechange", "loadedmetadata"].forEach(function (t) { video.addEventListener(t, function () { if (!video.muted) video.muted = true; }); });
   var playerUrl = WEBRTC + "/" + streamPath + "/";
   function setPlaying(on) {
     playing = on;
@@ -841,8 +855,7 @@ const SHOW = `<!doctype html>
     var p = pc = new RTCPeerConnection();
     var ms = new MediaStream();
     p.addTransceiver("video", { direction: "recvonly" });
-    p.addTransceiver("audio", { direction: "recvonly" });
-    p.ontrack = function (e) { ms.addTrack(e.track); video.srcObject = ms; };
+    p.ontrack = function (e) { if (e.track.kind !== "video") { e.track.stop(); return; } ms.addTrack(e.track); video.srcObject = ms; video.muted = true; };
     p.onconnectionstatechange = function () {
       if (p !== pc) return;
       var st = p.connectionState;
@@ -873,7 +886,7 @@ const SHOW = `<!doctype html>
   }, 1000);
   if (iframeMode) {
     video.remove();
-    var fr = el("iframe"); fr.src = playerUrl + "?controls=false&muted=true&autoplay=true"; fr.allow = "autoplay";
+    var fr = el("iframe"); fr.src = playerUrl + "?controls=false&muted=true&autoplay=true"; // no autoplay delegation: the player can only autoplay muted
     $("frame").insertBefore(fr, $("frame").firstChild);
     setPlaying(true);
   } else if (fileVideo) {
@@ -885,6 +898,7 @@ const SHOW = `<!doctype html>
   addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
+    else if (e.key === "b" || e.key === "B") setBoxes(!showBoxes, true);
     else if (e.key === "Escape") hideTeacher();
     else if (e.key === "f" || e.key === "F") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); }
   });
