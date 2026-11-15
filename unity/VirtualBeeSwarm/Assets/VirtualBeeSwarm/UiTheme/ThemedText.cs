@@ -50,6 +50,7 @@ namespace VirtualBeeSwarm.Theme
         bool _srcMatRead;
         string _text;
         Vector3 _boundsSize, _boundsCenter, _lossy;
+        float _boxW, _boxH; // the TMP text box (source local units): the card must cover it, not just the TextMesh bounds
         Color _color = new Color(-1f, 0f, 0f, 0f);
         float _nextPoll;
         bool _shown = true, _logged;
@@ -196,6 +197,8 @@ namespace VirtualBeeSwarm.Theme
             t.localScale = new Vector3(k, k, k);
             t.localPosition = new Vector3(b.center.x, b.center.y, 0f);
             float boxW = b.size.x * 1.04f, boxH = Mathf.Max(b.size.y, lines * em * 1.2f) * 1.06f;
+            _boxW = boxW;
+            _boxH = boxH;
             _tmp.rectTransform.sizeDelta = new Vector2(boxW / k, boxH / k);
             _tmp.text = Style.reflow ? _text.Replace('\n', ' ') : _text;
             if (_card != null) PlaceCard(b, lossy);
@@ -216,7 +219,10 @@ namespace VirtualBeeSwarm.Theme
             var ct = _card.transform;
             ct.localScale = new Vector3(1f / sx, 1f / sy, 1f / sz);
             ct.localPosition = new Vector3(b.center.x, b.center.y, Style.behind / sz);
-            var size = new Vector2(b.size.x * sx + 2f * Style.pad.x, b.size.y * sy + 2f * Style.pad.y);
+            // cover the box the reflowed text actually fills (1.04x wider, maybe more lines than the TextMesh): sized from
+            // the TextMesh bounds alone, words at the line ends ran past the paper edge (seen in the 20-room playtests)
+            float w = Mathf.Max(b.size.x, _boxW), h = Mathf.Max(b.size.y, _boxH);
+            var size = new Vector2(w * sx + 2f * Style.pad.x, h * sy + 2f * Style.pad.y);
             _card.SetSize(size);
             if (_sticker != null)
                 _sticker.localPosition = new Vector3(-size.x * 0.5f + Style.stickerSize * 0.12f, size.y * 0.5f - Style.stickerSize * 0.05f, -0.003f);
