@@ -52,7 +52,7 @@ describe("lines.json", () => {
 
   test("numbers are spelled out (Flash v2.5 does not normalize digits) and the scripted wording is there", () => {
     for (const l of entries) expect({ id: l.id, digits: /\d/.test(l.text) }).toEqual({ id: l.id, digits: false });
-    expect(lineText("room_hook_1")).toContain("ravage the Earth");
+    expect(lineText("room_hook_1")).toBe("Save our hive, or the swarms take Earth. That rocket is our backup plan.");
     expect(lineText("room_meet_1")).toContain("Local Twenty Thousand");
     expect(lineText("room_meet_2")).toBe("Four problems. Four minutes. Or you're on that rocket.");
     expect(lineText("room_meet_2")).toContain("Four minutes");
