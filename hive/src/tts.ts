@@ -66,7 +66,8 @@ function concat(parts: Uint8Array[]): Uint8Array {
 
 /**
  * PCM16 LE mono chunks at TTS_SAMPLE_RATE, every chunk an even number of bytes (whole samples).
- * Never throws: on a missing key, HTTP error or timeout it logs and ends early (possibly with no audio).
+ * Before audio starts, failures log and end quietly. After audio starts, failures
+ * propagate so callers can distinguish a truncated stream from a completed reply.
  */
 export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
   const t = clean(text);
@@ -98,9 +99,11 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
         yield buf.subarray(0, even);
       }
     }
+    if (ac.signal.aborted) throw new Error(`TTS exceeded ${ttsLimits.totalMs} ms`);
     console.log(`[tts] pcm ${bytes} bytes in ${Math.round(performance.now() - start)}ms`);
   } catch (e) {
     console.warn(`[tts] pcm stopped after ${bytes} bytes: ${errText(e)}`);
+    if (bytes > 0) throw e;
   } finally {
     clearTimeout(total);
     ac.abort(); // no-op when the body is fully read; cancels the request if the consumer stopped early

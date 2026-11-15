@@ -2,9 +2,19 @@
 // tests press buttons and speak. No hardware, no network, no sound.
 import type {Session} from "../src/background/app"
 import type {GlassesStatus} from "../src/shared/channels"
-import {LINES} from "../src/background/lines"
+import {CAPTIONS, LINES} from "../src/background/lines"
 
 export type AudioOp = {kind: "clip"; line: string} | {kind: "url"; url: string} | {kind: "speak"; text: string}
+
+export function expectedEarLine(lineId: string): Exclude<AudioOp, {kind: "url"}> {
+  return LINES[lineId] ? {kind: "clip", line: lineId} : {kind: "speak", text: CAPTIONS[lineId]!}
+}
+
+export function heardEarLine(audio: AudioOp, lineId: string): boolean {
+  const expected = expectedEarLine(lineId)
+  if (expected.kind === "clip") return audio.kind === "clip" && audio.line === expected.line
+  return audio.kind === "speak" && audio.text === expected.text
+}
 
 export interface FakeOptions {
   photoMs?: number
