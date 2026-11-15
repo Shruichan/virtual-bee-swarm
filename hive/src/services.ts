@@ -85,10 +85,11 @@ export function classify(service: ServiceName, e: unknown): { problem: string; f
     return { problem: "The Hive's own speech budget is used up", fix: "Raise ELEVENLABS_TTS_CHAR_BUDGET in hive/.env (or start a new ELEVENLABS_TTS_BUDGET_PERIOD) and restart. Captions show meanwhile.", network: false };
   if (/not configured|unset/.test(low))
     return { problem: "Not configured", fix: `Set ${env} in hive/.env and restart the Hive.`, network: false };
-  if (status === 401 || /invalid_api_key|unauthorized|invalid api key/.test(low))
-    return { problem: "API key rejected", fix: "Put a valid ELEVENLABS_API_KEY in hive/.env and restart the Hive.", network: false };
+  // before the 401 check: ElevenLabs sends "quota_exceeded" (out of credits) as a 401 too
   if (status === 402 || /quota_exceeded|quota exceeded|insufficient|credits|character limit|payment/.test(low))
     return { problem: "Out of credits", fix: "Top up at elevenlabs.io (Subscription), or set ELEVENLABS_TTS_CHAR_BUDGET=0 to run on recorded lines + captions only.", network: false };
+  if (status === 401 || /invalid_api_key|unauthorized|invalid api key/.test(low))
+    return { problem: "API key rejected", fix: "Put a valid ELEVENLABS_API_KEY in hive/.env and restart the Hive.", network: false };
   if (status === 429 || /too_many_concurrent|rate.?limit|too many requests/.test(low))
     return { problem: "Too many requests at once", fix: "Temporary; wait a moment. Recorded lines keep playing.", network: false };
   if (status === 404 || /voice.*not.*found|voice_not_found/.test(low))
@@ -120,6 +121,34 @@ export function noteFailure(service: ServiceName, e: unknown, now = Date.now()):
   } catch {
     // never let reporting break the ride
   }
+}
+
+/** A setup problem found at start (not a failed call): shown like a failure until the Hive restarts. */
+export function noteConfig(service: ServiceName, problem: string, fix: string, now = Date.now()): void {
+  try {
+    upsert(service, problem, fix, now);
+  } catch {
+    // never let reporting break the ride
+  }
+}
+
+/**
+ * Beeswax must sound like one voice: the live voice (ElevenLabs voice id, or the local rehearsal voice) should be the
+ * one the recorded lines were made with (the Unity line manifest's voice_id). Returns what was found; warns on a mismatch.
+ */
+export function checkVoiceConsistency(env: Record<string, string | undefined>, manifestVoiceId: string | null): string {
+  if (env.VBS_LOCAL_TTS_URL?.trim()) {
+    noteConfig("elevenlabs_tts", "Live answers use the local rehearsal voice (VBS_LOCAL_TTS_URL), not Beeswax's recorded voice",
+      "For the demo, remove VBS_LOCAL_TTS_URL from hive/.env and restart, so live answers match the recorded lines.");
+    return "local";
+  }
+  const live = env.ELEVENLABS_VOICE_ID?.trim() || "";
+  if (live && manifestVoiceId && live !== manifestVoiceId) {
+    noteConfig("elevenlabs_tts", `Live voice ${live} isn't the recorded lines' voice ${manifestVoiceId}`,
+      `Set ELEVENLABS_VOICE_ID=${manifestVoiceId} in hive/.env and restart, so live answers sound like the recorded lines.`);
+    return "mismatch";
+  }
+  return live ? "match" : "none";
 }
 
 /** A call to `service` worked: clear its alert (and the internet alert, since something remote answered). */
