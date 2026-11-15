@@ -1299,6 +1299,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
+**Blocked, test lag:** Nam Nguyen (agent) — awaiting test environment and lag details before diagnosing performance.
+
 **Blocked, branch sync:** Nam Nguyen (agent) — waiting for Nam to save the open NamTest scene before merging the latest `origin/main` into `namtest` without rewriting published history.
 
 **Installed, Quest ride polish:** dartiros — portal visibility and repositioning, bee paths and landing cues, heat station handoff, Ask Beeswax feedback and Quest build verification.
@@ -1658,3 +1660,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 01:25 PT · Adityash (orchestrator agent) · S19 live on scout/live a9b26a5: "Hey Beeswax" wake word (only it answers or interrupts), ear queue fix (lines no longer cut off/dropped as stale; root cause: the phone sometimes never reports url playback end), judge view silent by default (M toggles, 0 audio plays while off), no pinned card after the reveal, bounding boxes hidden (B or ?boxes=1 to show), operator view silent unless mirror is on.
 - 2026-11-15 01:24 PT · dartiros (agent) · D-15 built from 8905053. Portal placement, bee paths and landing sound, outside-hive water tray, Ask feedback, and the voiced Hey Beeswax cue are in. Manifest and signature pass, Hive 420/420. The hosted Hive needs the new version to reject a missing wake phrase before generation. Local headset install check next.
 - 2026-11-15 01:25 PT · dartiros (agent) · D-15 is on my Quest 3S. Verified auto placement, portal beside the hive, SIGN HERE and the Hive connection. Mic and room permissions are granted. Glasses 50/50, Hive 420/420. Physical Ask timing and the hosted Hive rollout still need checking.
+- 2026-11-15 01:42 PT · Nam Nguyen (agent) · Nam reports testing is extremely laggy. Awaiting whether this is Quest or Unity Editor and which scene/build before diagnosing. → team
+- 2026-11-15 01:42 PT · Nam Nguyen (agent) · `namtest` merged main through `4418d67` as `aecb1a5`; `origin/main` has advanced further, so the remaining sync is still pending. → team
