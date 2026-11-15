@@ -145,10 +145,10 @@ describe("steady detection", () => {
 
   test("one weak frame breaks the run", () => {
     const s = ready();
-    s.look("beehive", 600);
+    s.look("beehive", T.steadyMs - 300);
     s.frame([{ label: "beehive", score: 0.4 }]);
     s.advance(100);
-    s.look("beehive", 600);
+    s.look("beehive", T.steadyMs - 300);
     expect(s.says).toEqual([]);
     s.look("beehive", 400);
     expect(s.ids()).toEqual(["scout_chime", "scout_hook_beehive"]);
@@ -961,5 +961,83 @@ describe("booth routes", () => {
         else process.env[k] = v;
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------- AprilTag markers: certain, fire after markerSteadyMs
+
+describe("marker boxes (via marker)", () => {
+  const tag = (label: ScoutClass, cx = 0.5) => box(label, cx, 0.5, 0.15, 0.15, 0.3, "marker");
+  /** Frames at 10 fps carrying `boxes`, `ms` long. */
+  const feed = (s: ReturnType<typeof setup>, boxes: Box[], ms: number, top: { label: ScoutClass; score: number }[]) => {
+    for (let t = 0; t <= ms; t += 100) {
+      s.game.frame({ at: s.now(), frame_ms: 30, fps: 10, top, boxes, source: "test" });
+      if (t < ms) s.advance(100);
+    }
+  };
+
+  test("tuning: steadyMs 500, markerSteadyMs 250", () => {
+    expect(T.steadyMs).toBe(500);
+    expect(T.markerSteadyMs).toBe(250);
+  });
+
+  test("demo: a tag-backed winner fires after markerSteadyMs, a plain one only after steadyMs", () => {
+    const s = ready();
+    feed(s, [tag("honey_jar")], T.markerSteadyMs - 100, [{ label: "honey_jar", score: 0.9 }]);
+    expect(s.says).toEqual([]);
+    feed(s, [tag("honey_jar")], 100, [{ label: "honey_jar", score: 0.9 }]);
+    expect(s.ids()).toEqual(["scout_chime", "scout_hook_honey_jar"]);
+
+    const p = ready();
+    p.look("honey_jar", T.markerSteadyMs + 100);
+    expect(p.says).toEqual([]);
+  });
+
+  test("demo: a tag counts even when the class scores don't", () => {
+    const s = ready();
+    feed(s, [tag("bug_spray")], T.markerSteadyMs + 50, [{ label: "background", score: 0.9 }]);
+    expect(s.ids()).toEqual(["scout_chime", "scout_hook_bug_spray"]);
+  });
+
+  test("demo: a tag for a different label than the clear winner doesn't speed it up", () => {
+    const s = ready();
+    feed(s, [tag("bug_spray", 0.9)], T.markerSteadyMs + 100, [{ label: "honey_jar", score: 0.9 }]);
+    expect(s.says).toEqual([]);
+  });
+
+  test("demo: tags still respect the gap and already-found", () => {
+    const s = ready();
+    feed(s, [tag("beehive")], T.markerSteadyMs + 50, [{ label: "background", score: 0.9 }]);
+    s.game.utterance("yes"); // fact + progress, 4 lines in all
+    s.advance(4000);
+    s.says.length = 0;
+    feed(s, [tag("beehive")], 2000, [{ label: "background", score: 0.9 }]); // already found
+    expect(s.says).toEqual([]);
+    feed(s, [tag("honey_jar")], T.gapMs - 2000 - 400, [{ label: "background", score: 0.9 }]); // gap not over
+    expect(s.says).toEqual([]);
+    feed(s, [tag("honey_jar")], 600, [{ label: "background", score: 0.9 }]);
+    expect(s.ids()).toEqual(["scout_chime", "scout_hook_honey_jar"]);
+  });
+
+  test("practice: tag fires fast, but not twice on the same slide", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.game.slide("pebble_dish", s.now());
+    feed(s, [tag("pebble_dish")], T.markerSteadyMs + 50, [{ label: "pebble_dish", score: 0.9 }]);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_pebble_dish"]);
+    s.advance(3000);
+    s.says.length = 0;
+    feed(s, [tag("pebble_dish")], 2000, [{ label: "pebble_dish", score: 0.9 }]);
+    expect(s.says).toEqual([]);
+  });
+
+  test("booth: an expected-next tag fires after markerSteadyMs; another station's tag never does", () => {
+    const s = boothReady();
+    s.see([tag("honey_jar")], 2000, [{ label: "background", score: 0.9 }]);
+    expect(s.says).toEqual([]);
+    s.see([tag("native_flower")], T.markerSteadyMs - 100, [{ label: "background", score: 0.9 }]);
+    expect(s.says).toEqual([]);
+    s.see([tag("native_flower")], 100, [{ label: "background", score: 0.9 }]);
+    expect(s.ids()).toEqual(["scout_chime_ask"]);
   });
 });

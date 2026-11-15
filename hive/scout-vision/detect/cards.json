@@ -1,0 +1,14 @@
+{
+  "_comment": "Station cards for make_cards.py. image: file under image_root (relative to hive/scout-vision, or absolute). Rename objects or swap pictures here; label must stay one of the six game labels so the tag id (detect/markers.py TAG_IDS) matches. tag_cm = printed side of the tag's black square at 100% scale on US Letter.",
+  "tag_cm": 11.0,
+  "family": "DICT_APRILTAG_25h9",
+  "image_root": "detect/card_images",
+  "cards": [
+    {"label": "native_flower", "name": "Sunflower", "image": "native_flower.jpg", "credit": "Photo: Fir0002 (flagstaffotos.com.au), GFDL 1.2, Wikimedia Commons: Sunflower sky backdrop.jpg"},
+    {"label": "honey_jar", "name": "Store honey", "image": "honey_jar.jpg", "credit": "Photo: Eric Kilby, CC BY-SA 2.0, Wikimedia Commons: Honey Bear - Backlit (20302280285).jpg"},
+    {"label": "bug_spray", "name": "Bug spray", "image": "bug_spray.png", "credit": "Illustration: Live Bee Scout team"},
+    {"label": "bee_hotel", "name": "Bee hotel", "image": "bee_hotel.jpg", "credit": "Photo: Daniel Ballmer, CC BY-SA 4.0, Wikimedia Commons: Wildbienenlöcher.jpg"},
+    {"label": "pebble_dish", "name": "Bee water dish", "image": "pebble_dish.png", "credit": "Illustration: Live Bee Scout team"},
+    {"label": "beehive", "name": "Beehive", "image": "beehive.jpg", "credit": "Photo: Alabama Extension, CC0, Wikimedia Commons"}
+  ]
+}
