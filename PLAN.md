@@ -135,6 +135,7 @@
 | S16 Devpost, tracks, repo | Rome | E |
 | S17 Mentra Live miniapp | Rome | F |
 | S19 Live Bee Scout (glasses-only, ManageXR) | Adityash | G (branch `scout/live`) |
+| S20 Habitat prop fit and visual polish | Rome | A |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -694,6 +695,11 @@ Branch `scout/live` (off `codex/mentra-live-build`), contract in `hive/src/scout
 - **S19.2 Scout lines** `hive/lines/scout_lines.json` + audio (branch `scout/lines`) — done when: every id in SCOUT_LINES exists, checks pass (length, no digits, sourced facts), reviewer pass, rendered — owner: **Adityash (lines agent)** — status: in progress. Needs the ElevenLabs key for Harry renders.
 - **S19.3 Scout dashboard** Hive `/scout` + `/scout/slides` (branch `scout/dashboard`) — done when: live glasses video, current match, timeline, now-speaking caption + audio, progress, latency; screenshot reviewed — owner: **Adityash (dashboard agent)** — status: in progress.
 - **S19.4 Scout game** `hive/src/scout.ts` + glasses answer routing (branch `scout/game`) — done when: unit tests cover found → hook → yes/no/rude/silence → fact → progress → done — owner: **Adityash (game agent)** — status: in progress.
+
+#### S20 Habitat prop fit and visual polish
+
+- **S20.1 Runtime prop integration** — done when: the water dish and cavity-nesting block spawn from bundled OBJ/MTL resources under optional table dressing — owner: **Rome** — status: done (merged as `c1d8eaa`).
+- **S20.2 Clear layout and finish** — done when: the props sit clear of the beekeeper bench and Moon flags, show their intended colors under the game shader, and the current Unity build/autopilot check passes — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1297,6 +1303,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
+- **Rome (agent):** S20.2 habitat prop placement and visual check in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Dressing/`; no scene edits.
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
@@ -1540,3 +1547,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 20:10 PT · Adityash (orchestrator agent) · S19 next: (1) lines agent makes the scout lines friendlier ("Bee fact found!" + "...Would you like to learn more?") and renders them in Adityash's new ElevenLabs voice "Beeswax (cute sassy)" (voice_id QDutJflVBVtxM2TBSenF, key in Adityash's git-ignored hive/.env), scout_audio only; (2) vision agent debugs slow/rare triggers from a recorded glasses session (stream also drops every 1.5–3 min with i/o timeouts; watchdog restarts it). → Rome: Adityash wants this new voice to replace Harry in the Quest game too. That is your lane and past the 16:00 freeze, so nobody will re-run prerender.ts or overwrite the committed Unity/glasses clips until you say yes here.
 - 2026-11-14 20:20 PT · Rome · **Yes to the new voice in the Quest game.** → Adityash: please re-render ALL game lines in "Beeswax (cute sassy)" on your key: `hive/lines/lines.json` room/ear lines via hive/scripts/prerender.ts (same model eleven_multilingual_v2 unless the new voice needs another), then put the clips through the Unity importer (Assets/Resources/BeeswaxLines + _manifest.json + regenerated Core/GameLines.cs) and push to main in two commits (clips, then GameLines). Keep line ids and text exactly as on main (the pun pass + script v2 text is final). Log here when it lands; Rome's agent then re-times the show, runs the full autopilot with every clip required, and builds the next APK. → Rome (agent): also needs the live Ask Beeswax voice switched (ELEVENLABS_VOICE_ID in hive/.env on pop-os); a voice from Adityash's account may need his key or the voice shared to Rome's ElevenLabs.
 - 2026-11-14 20:09 PT · Rome (agent) · New art in (NewProps/, Environment/, Art/<prop>/, Art/Environment/; self-installing, no shared files touched). → dartiros: all ten of your new props are in the ride. Union badge on Beeswax's chest from the meet. Frame rest, sample tray, queen cage and hive tool sit on a cream "beekeeper kit" mat left of the hive (tray and frame react to the stations, tool levers on the hive lift). Nectar droplets wobble onto the lid on the right feed pick. Queen cage plug opens at the escape and your queen rises big in front of the lid (Hover, Blink, crown toward the player). Moon flag + Earth flag stand on the table Moon at T-0 (Flag Flutter). Watering can pours (Pour Tilt) into the three flower pots on the end card and flowers sprout. Also: meadow island under the hive, portal vines/shafts/petals, table Moon + stars at T-0. Verified on main c1d8eaa: 0 compile errors, scene 0 missing scripts, autopilot 1x REQUIRE_CLIPS PASS delivery on/off; stills looked at. Not run on a Quest. → feel/dressing lane (c1d8eaa): the new pollinator water dish and nest block render SOLID BLACK in the capture (likely: DressingHabitatMesh sets no vertex colours and GameUnlit multiplies by them; mesh.SetColors(white) should fix), and the nest block at (-0.25, -0.18) sits on top of the new bench mat while the water dish at (0.29, 0.18) is where the Moon flags stand at T-0; please move/fix in Dressing, I did not touch it.
+
+- 2026-11-14 20:18 PT · Rome (agent) · Claiming S20.2: resolving habitat prop overlap with the beekeeper bench and T-0 Moon flags; check final colors under GameUnlit, then run the existing Unity smoke/autopilot path if available. → team
