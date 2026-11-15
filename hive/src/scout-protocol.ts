@@ -85,7 +85,8 @@ export interface ScoutSlide { label: ScoutClass | null; at: number }
 
 // ------------------------------------------------------------------ the game
 
-export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done";
+/** answering: Ask Beeswax (scout/ask) is answering a question; frames are ignored until it ends. */
+export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done" | "answering";
 export type ScoutAnswer = "yes" | "no" | "rude" | "other";
 
 export interface ScoutState {
@@ -108,6 +109,16 @@ export type ScoutBlockReason = "already_found" | "skipped" | "busy" | "cooldown"
 
 /** POST /scout/practice (token): turn practice mode on or off. Returns ScoutState. */
 export interface ScoutPractice { on: boolean }
+
+// ------------------------------------------------------------------ interruptions, Ask Beeswax, teacher button
+
+/** The bus `say` that tells the glasses to cut the ear (stop the current line, drop the queue):
+ *  {type:"say", channel:"ear", line_id:null, tts_id:SCOUT_STOP_ID, audio_url:null, caption:""}. Glasses in scout mode
+ *  call Ear.clear() on it and play nothing; older builds see an empty say and play nothing either. */
+export const SCOUT_STOP_ID = "scout_stop";
+
+/** POST /scout/teacher (token): Beeswax says SCOUT_TEACHER_LINE (the judge screen's button). Returns ScoutState. */
+export const SCOUT_TEACHER_LINE = "scout_teacher";
 
 // ------------------------------------------------------------------ booth mode (pitch/scout-booth.md)
 
@@ -168,6 +179,8 @@ export type ScoutEvent =
   | { type: "state"; state: ScoutState }
   | { type: "latency"; hop: ScoutHop; ms: number }
   | { type: "slide"; label: ScoutClass | null; at: number }
+  /** Beeswax was cut off (ScoutGame.interrupt(), POST /scout/reset): the glasses ear dropped what it was playing. */
+  | { type: "stop"; at: number }
   /** An object was seen steadily (>= steadyMs) but stayed silent, once per look. */
   | { type: "blocked"; label: ScoutLabel; reason: ScoutBlockReason; score: number; at: number };
 
@@ -206,7 +219,7 @@ export const SCOUT_LINES = {
 export interface ScoutLine {
   id: string;
   text: string; //   what Beeswax says (caption); "" for a pure sound effect
-  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done" | "direction";
+  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done" | "direction" | "teacher";
   label?: ScoutLabel;
   source?: string; // the URL backing the fact (facts only)
 }

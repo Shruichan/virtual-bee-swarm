@@ -4,7 +4,7 @@ import { join } from "node:path";
 import demoRaw from "../lines/scout_lines.json";
 import boothRaw from "../lines/scout_lines_booth.json";
 import { PLACEHOLDER, SCOUT_AUDIO_DIR, SCOUT_MANIFEST_FILE, VOICE_NAMES, lineHash, readManifest } from "../scripts/scout-render";
-import { SCOUT_BOOTH_LINES, SCOUT_LABELS, SCOUT_LINES, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
+import { SCOUT_BOOTH_LINES, SCOUT_LABELS, SCOUT_LINES, SCOUT_TEACHER_LINE, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 
 const demo = demoRaw as ScoutLine[];
 const booth = boothRaw as ScoutLine[];
@@ -32,6 +32,7 @@ const expected: { id: string; kind: ScoutLine["kind"]; label?: ScoutLabel }[] = 
   { id: SCOUT_BOOTH_LINES.silenceYes, kind: "silence" },
   { id: SCOUT_BOOTH_LINES.no, kind: "no" },
   { id: SCOUT_BOOTH_LINES.done, kind: "done" },
+  { id: SCOUT_TEACHER_LINE, kind: "teacher" }, // POST /scout/teacher
   ...Object.values(SCOUT_BOOTH_LINES.dir).map((id) => ({ id, kind: "direction" as const })),
   ...SCOUT_LABELS.flatMap((label) => [
     { id: `${SCOUT_LINES.fact(label)}_2`, kind: "fact" as const, label },
