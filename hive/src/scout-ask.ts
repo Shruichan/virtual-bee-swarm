@@ -60,10 +60,18 @@ const bigrams = (t: string) => {
 const SEP = "[\\s,.!?;:\\-–—]+";
 /** "Beeswax" as speech-to-text writes it: beeswax, bees wax, bee's wax, bee wax, beezwax, b's wax, bees whacks... */
 const NAME = "b(?:ee|e)?(?:['’]?s|z)?[\\s\\-]*(?:wax|wacks|whacks|wax's)";
-/** hey/hay/hi/a/okay/yo + the name, the name alone, or "hey bee(s)". */
-export const WAKE_RX = new RegExp(`\\b(?:(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP})?${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
-/** An explicit call ("hey beeswax"), which Beeswax's own lines never contain ("Hey class! I'm Beeswax"). */
+/** Filler allowed before the wake phrase ("um, okay, so hey beeswax ..."). */
+const LEAD = "(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|okay|ok|so|well|and|wait)" + SEP + ")*";
+/** The wake phrase, only at the START of the utterance: hey/hi/okay/yo/a + the name (or "hey bee(s)"), or the name
+ *  alone as the first word. "... the transcript of what Beeswax was saying" never wakes him. */
+export const WAKE_RX = new RegExp(
+  `^[\\s,.!?;:\\-–—]*${LEAD}(?:(?:(?:hey|hay|hi|a|okay|ok|yo)${SEP})?${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
+  "i",
+);
+/** An explicit call ("hey beeswax") anywhere: Beeswax's own lines never contain one ("Hey class! I'm Beeswax"). */
 const CALL_RX = new RegExp(`\\b(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
+/** The name anywhere (echo check: did his own line say it?). */
+const NAME_RX = new RegExp(`\\b${NAME}\\b`, "i");
 const EDGE_RX = /^[\s,.!?;:\-–—]+|[\s,.;:\-–—]+$/g;
 const FILLER_ONLY_RX = /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|hey|hi|hello|okay|ok|please|there)\s*)*$/;
 
@@ -72,7 +80,7 @@ export function parseWake(text: string): { wake: boolean; rest: string } {
   const raw = String(text ?? "");
   const m = WAKE_RX.exec(raw);
   if (!m) return { wake: false, rest: raw.trim() };
-  const rest = `${raw.slice(0, m.index).replace(EDGE_RX, "")} ${raw.slice(m.index + m[0].length).replace(EDGE_RX, "")}`.replace(EDGE_RX, "").trim();
+  const rest = raw.slice(m.index + m[0].length).replace(EDGE_RX, "").trim();
   return { wake: true, rest: FILLER_ONLY_RX.test(norm(rest)) ? "" : rest };
 }
 
@@ -88,7 +96,7 @@ export function isEcho(text: string, captions: readonly string[], loose = false)
     if (` ${c} `.includes(` ${t} `)) return true;
     // He said his own name ("I'm Beeswax, your unbeelievably ..."): STT spells his puns differently, so most of the
     // words being his is enough. Not for an explicit "hey beeswax" his line doesn't contain.
-    if (loose && WAKE_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
+    if (loose && NAME_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
       const words = new Set(c.split(" "));
       const ws = t.split(" ");
       if (ws.filter((w) => words.has(w)).length / ws.length >= 0.6) return true;
@@ -641,7 +649,7 @@ export const WAKE_WINDOW_MS = 8000;
 export const WAKE_ACK_ID = "scout_wake_ack";
 export const WAKE_ACK_FALLBACK = "Yes? I'm all antennae!";
 /** Captions this recent count for the echo check. */
-const ECHO_WINDOW_MS = 25_000;
+const ECHO_TAIL_MS = 2000; // a line can come back as a transcript this long after it stops playing
 /** From the say to the first sound in the ear, roughly (phone fetch + player start). */
 const PLAYER_START_MS = 700;
 const KEEP_ASKS = 12;
@@ -655,7 +663,8 @@ export class ScoutAsk {
   private lastFound: ScoutLabel | null = null;
   /** Until when an utterance counts as the question (after a bare "Hey Beeswax"). */
   private wakeUntil = 0;
-  private captions: { text: string; at: number }[] = [];
+  /** What Beeswax says or will say, and until when it can come back through the mic (echo check). */
+  private captions: { text: string; until: number }[] = [];
   private recent: string[] = [];
   private audios = new Map<string, AskAudio>();
   private stats: AskStats[] = [];
@@ -672,7 +681,11 @@ export class ScoutAsk {
   /** Feed every game event: remembers the last found card and what Beeswax said (echo check). */
   event(e: ScoutEvent): void {
     if (e.type === "found") this.lastFound = e.label;
-    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) this.noteSaid(e.caption, e.at);
+    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_") && e.line_id !== WAKE_ACK_ID) {
+      // queued lines play after what is ahead of them: the game's busyUntil already includes this one
+      const own = Math.max(e.at, this.now()) + estimateSpeechMs(e.caption);
+      this.noteSaid(e.caption, Math.max(this.d.game.busyUntil ?? 0, own) + PLAYER_START_MS + ECHO_TAIL_MS);
+    } else if (e.type === "stop") this.cutCaptions(); // cut off: the queued lines will never play
     else if (e.type === "state" && e.state.phase === "intro") this.reset(); // game restarted
   }
 
@@ -687,14 +700,20 @@ export class ScoutAsk {
     return this.lastFound;
   }
 
-  private noteSaid(caption: string, at = this.now()): void {
-    this.captions.push({ text: caption, at });
+  private noteSaid(caption: string, until: number): void {
+    this.captions.push({ text: caption, until });
     if (this.captions.length > 20) this.captions.shift();
+  }
+
+  /** Beeswax was cut off: nothing still queued will play, so it can't echo. */
+  private cutCaptions(): void {
+    const end = this.now() + ECHO_TAIL_MS;
+    for (const c of this.captions) c.until = Math.min(c.until, end);
   }
 
   private recentCaptions(): string[] {
     const now = this.now();
-    return this.captions.filter((c) => now - c.at <= ECHO_WINDOW_MS).map((c) => c.text);
+    return this.captions.filter((c) => now <= c.until).map((c) => c.text);
   }
 
   /** Is the next utterance the question (a bare "Hey Beeswax" was just acknowledged)? */
@@ -724,9 +743,10 @@ export class ScoutAsk {
     } catch (e) {
       log("scout ask: say failed:", e);
     }
-    this.noteSaid(caption);
-    this.emit({ type: "say", ...s, at: this.now() });
     const ackMs = line?.ms ?? estimateSpeechMs(caption);
+    this.cutCaptions();
+    this.noteSaid(caption, this.now() + PLAYER_START_MS + ackMs + ECHO_TAIL_MS);
+    this.emit({ type: "say", ...s, at: this.now() });
     this.wakeUntil = this.now() + PLAYER_START_MS + ackMs + WAKE_WINDOW_MS;
     try {
       g.endAnswer?.(this.wakeUntil - this.now()); // the game waits for the question, then looks again
@@ -772,6 +792,7 @@ export class ScoutAsk {
     if (this.stats.length > KEEP_ASKS) this.stats.shift();
 
     const g = this.d.game;
+    this.cutCaptions();
     try {
       g.interrupt?.();
     } catch (e) {
@@ -831,7 +852,7 @@ export class ScoutAsk {
       } catch (e) {
         log("scout ask: say failed:", e);
       }
-      this.noteSaid(caption);
+      this.noteSaid(caption, this.now() + 15_000); // still streaming: corrected when the answer is done
       this.emit({ type: "say", line_id: segId, caption, audio_url: url, at: this.now() });
     };
 
@@ -919,8 +940,8 @@ export class ScoutAsk {
     } else if (this.mode === "progressive") {
       // dashboard: the full caption (the glasses already got the say with the first sentence)
       this.emit({ type: "say", line_id: lineId, caption: text, audio_url: `${this.d.base()}/scout/ask/${id}.mp3`, at: this.now() });
-      this.noteSaid(text);
     }
+    this.noteSaid(text, (audioStartAt ?? this.now()) + PLAYER_START_MS + audioMs + ECHO_TAIL_MS);
     st.done_ms = ms();
     this.recent.push(`Kid: ${question.slice(0, 160)}`, `Beeswax: ${text}`);
     if (this.recent.length > 4) this.recent.splice(0, this.recent.length - 4);

@@ -229,9 +229,9 @@ describe("Scout unit", () => {
   })
 
   test("wake word mirrors the Hive's; his own name in his own line is an echo", () => {
-    for (const w of ["Hey Beeswax, why", "hey bees wax", "Hey, bee's wax.", "hay beeswax", "A beeswax tell me", "hey beezwax", "Hey bees, why", "okay beeswax", "what's that, hey beeswax?", "Hey Bs wax"])
+    for (const w of ["Hey Beeswax, why", "hey bees wax", "Hey, bee's wax.", "hay beeswax", "A beeswax tell me", "hey beezwax", "Hey bees, why", "okay beeswax", "um so hey beeswax what", "Hey Bs wax"])
       expect([w, hasWake(w)]).toEqual([w, true])
-    for (const n of ["why do bees need pebbles", "the bees are cute", "Hey B, hello?", "Hey, can you tell me a little bit more?", ""]) expect([n, hasWake(n)]).toEqual([n, false])
+    for (const n of ["why do bees need pebbles", "the bees are cute", "what's that, hey beeswax?", "showing the transcript of what Beeswax was saying", "Hey B, hello?", "Hey, can you tell me a little bit more?", ""]) expect([n, hasWake(n)]).toEqual([n, false])
     expect(isEchoOf("would you like to learn more", ["Bee fact found! Would you like to learn more?"])).toBe(true)
     expect(isEchoOf("what is a bee hotel", ["This is a bee hotel."])).toBe(false)
 
@@ -242,6 +242,10 @@ describe("Scout unit", () => {
     expect(s.callsBeeswax("I'm Beeswax")).toBe(false)
     expect(s.callsBeeswax("I'm Beeswax your unbelievably charming")).toBe(false)
     expect(s.callsBeeswax("Hey Beeswax, what is honey")).toBe(true)
+    s.noteSaid('Questions? Just say "Hey Beeswax"!')
+    expect(s.callsBeeswax("Hey Beeswax")).toBe(false) // the tip line heard back while it plays
+    s.noteDone('Questions? Just say "Hey Beeswax"!')
+    expect(s.callsBeeswax("Hey Beeswax")).toBe(false) // ...and just after
   })
 
   test("LED failures are swallowed and it gives up after three", async () => {
@@ -259,10 +263,12 @@ describe("Ear: queued scout lines play fully and in order", () => {
   /** A speaker whose url play() can hang; it reports playing, then stopped after `ms` (unless silent). */
   function speaker(o: {ms: number; hang?: boolean; silentStates?: boolean}) {
     const played: string[] = []
+    const spoken: string[] = []
     const listeners = new Set<(e: {state: string}) => void>()
     const emit = (state: string) => listeners.forEach((l) => l({state}))
     return {
       played,
+      spoken,
       sp: {
         async createStream() {
           throw new Error("no clips")
@@ -274,7 +280,8 @@ describe("Ear: queued scout lines play fully and in order", () => {
           if (!o.silentStates) emit("stopped")
           if (o.hang) await new Promise(() => {}) // the host never sends the result
         },
-        async speak() {
+        async speak(t: string) {
+          spoken.push(t)
           return {completed: true}
         },
         stop() {},
@@ -317,5 +324,8 @@ describe("Ear: queued scout lines play fully and in order", () => {
     void ear.play({line_id: null, audio_url: "u/b", caption: "b"}, {maxMs: 150})
     await until(() => s.played.length === 2, 2000, "second line")
     expect(s.played).toEqual(["u/a", "u/b"])
+    await sleep(300)
+    expect(s.spoken).toEqual([]) // never played a second time in the phone's voice
+    expect(logs.some((l) => String(l).includes("took too long"))).toBe(true)
   })
 })

@@ -716,6 +716,8 @@ const DASHBOARD = `<!doctype html>
   function note(t) { $("audnote").textContent = t || ""; }
   function enqueue(ev) {
     if (!mirror) return;
+    // an Ask Beeswax answer comes as two say events (audio, then the full caption): play it once
+    if ((cur && cur.id === ev.line_id) || queue.some(function (q) { return q.id === ev.line_id; })) return;
     var local = "/scout/audio/" + encodeURIComponent(ev.line_id) + ".mp3?" + TQ;
     var urls = [local];
     if (ev.audio_url && ev.audio_url.indexOf("/scout/audio/" + ev.line_id) < 0) urls.push(ev.audio_url);

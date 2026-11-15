@@ -43,9 +43,14 @@ const norm = (s: string) =>
     .trim()
 const SEP = "[\\s,.!?;:\\-–—]+"
 const NAME = "b(?:ee|e)?(?:['’]?s|z)?[\\s\\-]*(?:wax|wacks|whacks|wax's)"
-const WAKE_RX = new RegExp(`\\b(?:(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP})?${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i")
-
+const LEAD = "(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|okay|ok|so|well|and|wait)" + SEP + ")*"
+/** Only at the START of the utterance (after fillers): "... what Beeswax was saying" never wakes him. */
+const WAKE_RX = new RegExp(
+  `^[\\s,.!?;:\\-–—]*${LEAD}(?:(?:(?:hey|hay|hi|a|okay|ok|yo)${SEP})?${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
+  "i",
+)
 const CALL_RX = new RegExp(`\\b(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i")
+const NAME_RX = new RegExp(`\\b${NAME}\\b`, "i")
 
 /** "Hey Beeswax" (and its speech-to-text spellings) anywhere in the utterance. */
 export function hasWake(text: string): boolean {
@@ -69,7 +74,7 @@ export function isEchoOf(text: string, captions: readonly string[], loose = fals
     const c = norm(cap)
     if (!c) return false
     if (` ${c} `.includes(` ${t} `)) return true
-    if (loose && WAKE_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
+    if (loose && NAME_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
       const words = new Set(c.split(" "))
       const ws = t.split(" ")
       if (ws.filter((w) => words.has(w)).length / ws.length >= 0.6) return true
@@ -81,7 +86,10 @@ export function isEchoOf(text: string, captions: readonly string[], loose = fals
   })
 }
 
-const ECHO_WINDOW_MS = 25_000
+/** A line can come back as a transcript this long after it stops playing. */
+const ECHO_TAIL_MS = 2000
+/** A line that never reports its end stops counting after this long. */
+const ECHO_MAX_MS = 30_000
 
 export interface ScoutDeps {
   hive: Pick<Hive, "send">
@@ -96,7 +104,7 @@ export interface ScoutDeps {
 export class Scout {
   private started = false
   private ledFailures = 0
-  private spoken: {text: string; at: number}[] = []
+  private spoken: {text: string; until: number}[] = []
   /** Already stopped the ear for this utterance (partials repeat). */
   private stoppedThisTurn = false
 
@@ -119,15 +127,21 @@ export class Scout {
   /** The ear started a line (echo guard). */
   noteSaid(caption: string): void {
     if (!caption) return
-    this.spoken.push({text: caption, at: Date.now()})
+    this.spoken.push({text: caption, until: Date.now() + ECHO_MAX_MS})
     if (this.spoken.length > 12) this.spoken.shift()
+  }
+
+  /** The ear finished (or cut) a line: it can echo only a moment longer. */
+  noteDone(caption: string): void {
+    const end = Date.now() + ECHO_TAIL_MS
+    for (const s of this.spoken) if (s.text === caption) s.until = Math.min(s.until, end)
   }
 
   /** Is the wearer calling Beeswax ("Hey Beeswax ...", not his own voice heard back)? Only then is he cut off. */
   callsBeeswax(text: string): boolean {
     if (!hasWake(text)) return false
     const now = Date.now()
-    return !isEchoOf(text, this.spoken.filter((s) => now - s.at <= ECHO_WINDOW_MS).map((s) => s.text), true)
+    return !isEchoOf(text, this.spoken.filter((s) => now <= s.until).map((s) => s.text), true)
   }
 
   private stopFor(text: string, partial: boolean): void {
