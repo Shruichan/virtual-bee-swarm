@@ -62,6 +62,47 @@ afterEach(async () => {
 
 describe("ASK BEESWAX in the Hive", () => {
 
+  test("a bare wake opens three Quest follow-ups with remembered context and no paid greeting", async () => {
+    const context: string[] = [];
+    const calls = mockAsk(() => answerReply("She lays the eggs. Everybody's mum around here.", ["queen"]));
+    hive = makeHive({
+      ask: {
+        ...askModule,
+        async answer(text, ctx, hooks) {
+          context.push(askModule.askUserText(text, ctx));
+          return askModule.answer(text, ctx, hooks);
+        },
+      },
+    }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+
+    const sayDialogue = async (text: string, wake: boolean, status: string) => {
+      quest.send({ type: "listen.start", source: "quest", mode: "ptt", wake_phrase: wake, ask_dialogue: true });
+      quest.sendMic(new TextEncoder().encode(text.length % 2 ? text + " " : text));
+      quest.send({ type: "listen.end", source: "quest" });
+      await quest.waitFor("transcript", (m) => m.text === text && m.wake_status === status);
+      if (status === "question") await quest.waitFor("intent", (m) => m.text === text && m.name === "ask");
+    };
+    await sayDialogue("Hey Beeswax?", true, "opened");
+    expect(context).toEqual([]);
+    expect(calls.n).toBe(0);
+    expect(quest.of("say")).toEqual([]);
+    await sayDialogue("why bananas?", false, "question");
+    await sayDialogue("can drones sting?", false, "question");
+    await sayDialogue("do bees help after wildfires?", false, "question");
+    await sayDialogue("please give me another answer", false, "rejected");
+    expect(context).toHaveLength(3);
+    expect(context[1]).toContain("Q: why bananas?");
+    expect(context[2]).toContain("Q: can drones sting?");
+    expect(calls.n).toBe(0);
+    await sayDialogue("Hey Beeswax!", true, "opened");
+    await setBeat(quest, board, "field", 12);
+    await sayDialogue("without waking the new beat", false, "rejected");
+    expect(context).toHaveLength(3);
+  });
+
   test("Quest Ask rejects background words and the bare name before routing or speech", async () => {
     const askCalls: string[] = [];
     hive = makeHive({

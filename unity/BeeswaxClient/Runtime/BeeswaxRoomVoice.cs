@@ -97,6 +97,7 @@ namespace Beeswax
         readonly byte[] _pair = new byte[2];
         Line _current;
         BeeswaxBus _bound;
+        float _dialogueGain = 1f;
 
         // ---------------------------------------------------------------- lifecycle
         void Reset() { source = GetComponent<AudioSource>(); }
@@ -113,7 +114,25 @@ namespace Beeswax
                 source.spatialBlend = 1f;
                 source.dopplerLevel = 0f;
                 if (!string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName())) source.spatialize = true;
+                if (Application.platform == RuntimePlatform.Android)
+                {
+                    source.spatialBlend = 0.8f;
+                    source.minDistance = Mathf.Max(source.minDistance, 1.8f);
+                    _dialogueGain = 1.41f; // +3 dB on quiet blocks, also on streamed speech
+                }
             }
+        }
+
+        void OnAudioFilterRead(float[] data, int channels) => ApplyDialogueGain(data, _dialogueGain);
+
+        static void ApplyDialogueGain(float[] data, float gain)
+        {
+            if (gain <= 1f) return;
+            float peak = 0f;
+            foreach (float sample in data) peak = Math.Max(peak, Math.Abs(sample));
+            // Keep the shape of the whole block instead of clipping each loud sample.
+            if (peak > 0f) gain = Math.Min(gain, 0.98f / peak);
+            for (int i = 0; i < data.Length; i++) data[i] *= gain;
         }
 
         void OnEnable() => Bind();

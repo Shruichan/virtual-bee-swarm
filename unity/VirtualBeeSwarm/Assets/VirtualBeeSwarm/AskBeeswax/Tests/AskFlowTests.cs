@@ -130,6 +130,22 @@ namespace VirtualBeeSwarm.Ask.Tests
         }
 
         [Test]
+        public void StandaloneWakeOpensTheFollowUpPromptWithoutCounting()
+        {
+            Assert.IsTrue(AskFlow.TryWakePhrase("Hey, Beeswax!", out var suffix));
+            Assert.IsEmpty(suffix);
+            var flow = Opened();
+            flow.TalkStarted(0f);
+            flow.TalkEnded(1f);
+            Assert.IsTrue(Has(flow.DialogueOpened(), AskCue.Status | AskCue.BuzzOff));
+            Assert.AreEqual(AskFlow.StatusFollowUp, flow.Status);
+            Assert.IsFalse(flow.ExpectingReply);
+            Assert.AreEqual(0, flow.Minutes);
+            Assert.IsTrue(Has(flow.SetDialogueOpen(false), AskCue.Status));
+            Assert.AreEqual(AskFlow.StatusIdle, flow.Status);
+        }
+
+        [Test]
         public void WakeQuestionRequiresTheNameAtTheStartAndAQuestionAfterwards()
         {
             Assert.AreEqual("why bananas?", AskFlow.WakeQuestion("Hey, Beeswax, why bananas?"));

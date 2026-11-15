@@ -15,7 +15,7 @@ namespace VirtualBeeSwarm.Ask
     ///            Beeswax flies to the card's inner edge and shakes the Moon dust off (his own colours).
     ///   Closes:  the beat leaves map/field (the crew flies it back out), or a group reset (it vanishes).
     ///   Input:   pinch-hold with either hand while the card is up = GameNet.BeginTalk/EndTalk (T and controller B/Y keep
-    ///            working through WhatIfBeat). Wait for Beeswax to finish, then hold and start with "Hey Beeswax".
+    ///            working through WhatIfBeat). Start with "Hey Beeswax"; hold again for a short run of follow-ups.
     ///            A pinch aimed at a chip clicks the chip instead. A short pinch is cancelled. A chip: online its
     ///            question goes to the Hive (answered from memory, in his voice);
     ///            offline, or if the Hive stays silent for 1.5 s, the canned answer plays locally.
@@ -129,6 +129,7 @@ namespace VirtualBeeSwarm.Ask
                 _net.IntentReceived += HandleIntent;
                 _net.VoiceInputUnavailable += HandleVoiceInputUnavailable;
                 _net.VoiceWakeWait += HandleVoiceWakeWait;
+                _net.VoiceDialogueOpened += HandleDialogueOpened;
                 _net.VoiceWakeRejected += HandleVoiceWakeRejected;
                 _net.GroupReset += HandleReset;
             }
@@ -151,6 +152,7 @@ namespace VirtualBeeSwarm.Ask
                 _net.IntentReceived -= HandleIntent;
                 _net.VoiceInputUnavailable -= HandleVoiceInputUnavailable;
                 _net.VoiceWakeWait -= HandleVoiceWakeWait;
+                _net.VoiceDialogueOpened -= HandleDialogueOpened;
                 _net.VoiceWakeRejected -= HandleVoiceWakeRejected;
                 _net.GroupReset -= HandleReset;
             }
@@ -192,6 +194,7 @@ namespace VirtualBeeSwarm.Ask
         public void Close(string why, bool reset = false)
         {
             if (_pinchTalk && _net != null && _net.Talking) _net.EndTalk(cancel: true);
+            _net?.EndVoiceDialogue();
             _pinchTalk = false;
             _pressAt = -1f;
             bool wasOpen = Flow.IsOpen;
@@ -276,6 +279,12 @@ namespace VirtualBeeSwarm.Ask
 
         void HandleVoiceWakeWait() => Apply(Flow.WaitForVoice());
 
+        void HandleDialogueOpened()
+        {
+            FinishDetectedTalk();
+            Apply(Flow.DialogueOpened());
+        }
+
         void HandleVoiceWakeRejected(bool heardWords)
         {
             FinishDetectedTalk();
@@ -296,6 +305,7 @@ namespace VirtualBeeSwarm.Ask
             if (_net == null || _director == null) return;
             float now = Time.time;
             bool askBeat = AskBeat(_director.Beat);
+            if (Flow.IsOpen) Apply(Flow.SetDialogueOpen(_net.AskFollowUpOpen));
 
             if (_autoPending && !_net.IsSpeaking) { _autoPending = false; _autoOpenAt = now + autoOpenDelay; }
             if (_autoOpenAt >= 0f && now >= _autoOpenAt) { _autoOpenAt = -1f; Open("auto after the contract"); }

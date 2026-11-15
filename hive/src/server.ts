@@ -405,6 +405,7 @@ interface Listen {
   source: VoiceSource;
   turn: VoiceTurn;
   wakePhrase: boolean;
+  askDialogue: boolean;
   mode: "ptt" | "vad";
   startedAt: number;
   chunks: Uint8Array[];
@@ -569,10 +570,13 @@ export function startHive(opts: HiveOptions): Hive {
       onChoiceRequest: (station, choice) => choiceRequest(station, choice),
       onFxForce: (name) => fxForce(name),
       onWhatIfForce: (m) => whatIfForce(m),
-      onListenStart: (ws, mode, wakePhrase) => listenStart(ws, mode, wakePhrase),
+      onListenStart: (ws, mode, wakePhrase, askDialogue) => listenStart(ws, mode, wakePhrase, askDialogue),
       onMic: (ws, pcm) => micFrame(ws, pcm),
       onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
-      onClientClose: (ws) => finishListen(ws, "closed"),
+      onClientClose: (ws) => {
+        finishListen(ws, "closed");
+        questAskDialogues.delete(ws.data.id);
+      },
       onLog: (role, text) => chipAsked(role, text),
     },
     { token, host: opts.host ?? hostname(), heartbeatMs: opts.heartbeatMs },
@@ -1072,7 +1076,10 @@ export function startHive(opts: HiveOptions): Hive {
   const ON_CLOCK = new Set<BeatName>(["smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
 
   function beatEntered(n: number, prev: number, scoreSeconds?: number): void {
-    if (n !== prev) beatRevision++;
+    if (n !== prev) {
+      beatRevision++;
+      questAskDialogues.clear();
+    }
     const needsQuestScore = scoreSeconds !== undefined && !state.score_authoritative;
     if (n === prev && !needsQuestScore) return; // a re-sent beat.set (Unity reconnect)
     const name = BEATS[n];
@@ -1179,6 +1186,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   function groupReset(): void {
+    questAskDialogues.clear();
     dropJobs();
     for (const [id, l] of listens) {
       clearTimeout(l.watchdog);
@@ -1202,6 +1210,9 @@ export function startHive(opts: HiveOptions): Hive {
   // ------------------------------------------------------------ voice in: listen.start, MIC_PCM16, listen.end
 
   const listens = new Map<string, Listen>(); // by client id
+  const questAskDialogues = new Map<string, { expires: number; remaining: number }>();
+  const ASK_DIALOGUE_MS = 20_000, ASK_DIALOGUE_QUESTIONS = 3;
+  const wakePrefix = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu;
   const strayWarned = new Set<string>();
   let listenSeq = 0;
 
@@ -1213,7 +1224,7 @@ export function startHive(opts: HiveOptions): Hive {
     return turn.group === state.group_id && (operator || turn.beatRevision === beatRevision);
   }
 
-  function listenStart(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean): void {
+  function listenStart(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean, askDialogue: boolean): void {
     const id = ws.data.id;
     const old = listens.get(id);
     if (old) {
@@ -1231,6 +1242,7 @@ export function startHive(opts: HiveOptions): Hive {
       source: ws.data.role === "glasses" ? "glasses" : "quest",
       turn: captureVoiceTurn(),
       wakePhrase,
+      askDialogue,
       mode,
       startedAt: Date.now(),
       chunks: [],
@@ -1278,7 +1290,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     const pcm = concat(l.chunks, l.bytes & ~1);
     log(`listen ${ws.data.id}#${l.n}: ${(pcm.length / 32000).toFixed(2)} s of audio (${l.mode}, ${why})`);
-    void runVoice(pcm, l.source, ws, l.turn, l.wakePhrase).catch((err) => log("voice pipeline error:", err));
+    void runVoice(pcm, l, ws).catch((err) => log("voice pipeline error:", err));
   }
 
   async function safeTranscribe(pcm: Uint8Array): Promise<SttResultLike> {
@@ -1329,23 +1341,45 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   /** Mic audio -> transcript -> intent -> act. Never throws. */
-  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client, turn: VoiceTurn, wakePhrase: boolean): Promise<void> {
+  async function runVoice(pcm: Uint8Array, listen: Listen, ws: Client): Promise<void> {
     const t0 = Date.now();
+    const { source, turn, wakePhrase, askDialogue } = listen;
     const isCurrent = () => voiceTurnIsCurrent(turn);
     if (!isCurrent()) return;
     const stt: SttResultLike = pcm.length ? await safeTranscribe(pcm) : { text: "", ms: 0, provider: "none", error: "no_audio" };
     if (!isCurrent()) return;
     latency("voice.stt", stt.ms);
-    bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
     let text = stt.text;
-    if (wakePhrase && source === "quest" && (turn.beat === "map" || turn.beat === "field")) {
-      // The card shows the actual transcript, but only the question goes to the router, voice and window.
-      const match = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu.exec(text);
-      text = match?.[1]?.trim() ?? "";
-      if (!/[\p{L}\p{N}]/u.test(text)) {
-        observe("voice: Quest Ask needs Hey Beeswax followed by a question");
-        return;
+    let wakeStatus: "opened" | "question" | "rejected" | undefined;
+    const questAsk = source === "quest" && (turn.beat === "map" || turn.beat === "field");
+    if (questAsk && (wakePhrase || askDialogue)) {
+      const match = wakePrefix.exec(text);
+      const now = Date.now();
+      const known = askDialogue ? questAskDialogues.get(ws.data.id) : undefined;
+      const remaining = match ? ASK_DIALOGUE_QUESTIONS :
+        !wakePhrase && known && listen.startedAt <= known.expires ? known.remaining : 0;
+      if (match) text = match[1]!.trim();
+      const hasQuestion = /[\p{L}\p{N}]/u.test(text);
+      if (askDialogue && match && !hasQuestion) {
+        questAskDialogues.set(ws.data.id, { expires: now + ASK_DIALOGUE_MS, remaining });
+        wakeStatus = "opened";
+      } else if (remaining > 0 && hasQuestion) {
+        if (askDialogue) {
+          questAskDialogues.set(ws.data.id, { expires: now + ASK_DIALOGUE_MS, remaining: remaining - 1 });
+          wakeStatus = "question";
+        }
+      } else {
+        // Bare greetings are acknowledged locally. Rejected turns never reach Claude, speech, or Orbis.
+        if (askDialogue) wakeStatus = "rejected";
+        text = "";
       }
+    }
+    bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider,
+      ...(wakeStatus ? { wake_status: wakeStatus } : {}) });
+    if (wakeStatus === "opened") return;
+    if (questAsk && (wakePhrase || askDialogue) && !text) {
+      observe("voice: Quest Ask needs a question in an active dialogue or a fresh Hey Beeswax");
+      return;
     }
     if (!text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace VirtualBeeSwarm.Theme
 {
     /// <summary>
-    /// The progress tracker: a union card leaning on the real table beside the hive. Four comb cells, one per station;
+    /// The progress tracker: a union card beside the hive. Four comb cells, one per station;
     /// a fix slaps that station's sticker bee on with a pop, a station Beeswax had to do himself gets the sleeping bee,
     /// every wrong pick adds a red tally stroke, and the corner shows the run clock. Built from UiCard + StickerArt +
     /// themed text only (about 12 draw calls, no lights, 4 alpha quads). StickerDirector feeds it.

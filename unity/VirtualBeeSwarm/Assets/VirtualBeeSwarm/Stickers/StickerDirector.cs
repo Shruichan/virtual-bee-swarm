@@ -7,8 +7,8 @@ using VirtualBeeSwarm.Stakes;
 namespace VirtualBeeSwarm.Theme
 {
     /// <summary>
-    /// Daniel's sticker bees as progress and puzzle help, all on or by the real table (nothing is a HUD):
-    ///   - the UNION CARD leans on the table left of the hive from "Four problems. Four minutes." on: a fix slaps that
+    /// Daniel's sticker bees as world-space progress and puzzle help:
+    ///   - the UNION CARD sits beside the player's station view from "Four problems. Four minutes." on: a fix slaps that
     ///     station's sticker on, a station Beeswax had to do himself gets the sleeping bee, wrong picks add red tallies,
     ///     the corner runs the clock;
     ///   - when a station's hint fires (StationDelivery's lean, or 12 s without a pick), the winking bee pops up over
@@ -49,6 +49,9 @@ namespace VirtualBeeSwarm.Theme
         int _lastGrievances, _lastClockSecond = int.MinValue;
         float _choosingSince = -1f, _nextSlowPoll;
         bool _wasChoosing;
+        bool _cardFloorMode, _cardHasEye;
+        Vector3 _cardEye, _cardAnchorPosition;
+        Quaternion _cardAnchorRotation;
 
         // hint sticker + clue slip
         Transform _hint;
@@ -99,7 +102,7 @@ namespace VirtualBeeSwarm.Theme
             { int forced = ForcedSlept(); if (forced >= 0 && forced < 4) _slept[forced] = true; }
 
             _anchor = FindAnchor();
-            _card = UnionCard.Create(_anchor != null ? _anchor : transform);
+            _card = UnionCard.Create(transform); // keep physical card size when the meadow rig scales
             BuildClue();
             _hint = StickerArt.Quad(transform, StickerArt.Winking, hintStickerSize, "[VBS] HintSticker");
             _hint.gameObject.SetActive(false);
@@ -253,22 +256,44 @@ namespace VirtualBeeSwarm.Theme
             if (_card == null || _card.Visible) return;
             PlaceCard();
             _card.Show(true);
-            Debug.Log("[VBS][Stickers] union card on the table (" + why + ") at " + _card.transform.position.ToString("F2"));
+            Debug.Log("[VBS][Stickers] union card (" + why + ") at " + _card.transform.position.ToString("F2"));
         }
 
-        /// <summary>On the table left of the hive, leaning back, turned to the player's head; kept on the real table top.</summary>
         void PlaceCard()
         {
             var cam = Camera.main;
             Vector3 origin = _anchor != null ? _anchor.position : transform.position;
-            Vector3 p = _anchor != null ? _anchor.TransformPoint(cardSpot) : origin + cardSpot;
+            _cardAnchorPosition = origin;
+            _cardAnchorRotation = _anchor != null ? _anchor.rotation : Quaternion.identity;
+            _cardHasEye = cam != null;
+            _cardEye = cam != null ? cam.transform.position : origin + Vector3.up * 1.65f;
+            _cardFloorMode = Bloom.MeadowLayout.Active || _anchor == null;
+
+            if (_cardFloorMode)
+            {
+                Vector3 ahead = Vector3.ProjectOnPlane(origin - _cardEye, Vector3.up);
+                if (ahead.sqrMagnitude < 0.04f && cam != null)
+                    ahead = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up);
+                if (ahead.sqrMagnitude < 1e-4f)
+                    ahead = _anchor != null ? Vector3.ProjectOnPlane(_anchor.forward, Vector3.up) : Vector3.forward;
+                if (ahead.sqrMagnitude < 1e-4f) ahead = Vector3.forward;
+                ahead.Normalize();
+                Vector3 side = Vector3.Cross(Vector3.up, ahead);
+                Vector3 card = _cardEye + ahead * 0.58f + side * 0.33f;
+                float floor = Bloom.MeadowLayout.FloorY;
+                card.y = Mathf.Clamp(_cardEye.y - 0.35f, floor + 0.65f, floor + 1.3f);
+                _card.transform.SetPositionAndRotation(card, Quaternion.LookRotation(card - _cardEye, Vector3.up));
+                return;
+            }
+
+            Vector3 p = _anchor.TransformPoint(cardSpot);
             var rig = VirtualBeeSwarm.AR.ArRig.Instance;
             if (rig != null && rig.Room != null && rig.Room.HasTable)
             {
                 Vector3 home = origin;
                 for (int i = 0; i < 10 && !rig.Room.InsideTable(p, 0.1f); i++) p = Vector3.MoveTowards(p, home, 0.03f);
             }
-            p.y = origin.y;
+            p.y = rig != null && rig.Room.HasTable ? rig.Room.Table.Y : origin.y;
             Vector3 toHead = cam != null ? cam.transform.position - p : (_anchor != null ? -_anchor.forward : Vector3.back);
             toHead.y = 0f;
             if (toHead.sqrMagnitude < 0.01f) toHead = _anchor != null ? -_anchor.forward : Vector3.back;
@@ -277,6 +302,18 @@ namespace VirtualBeeSwarm.Theme
             float lift = UnionCard.Height * 0.5f * Mathf.Sin(cardTilt * Mathf.Deg2Rad) + 0.004f;
             _card.transform.SetPositionAndRotation(p + Vector3.up * lift,
                 Quaternion.LookRotation(away, Vector3.up) * Quaternion.Euler(90f - cardTilt, 0f, 0f));
+        }
+
+        void RefreshCardPose()
+        {
+            if (!_card.Visible) return;
+            bool floorMode = Bloom.MeadowLayout.Active || _anchor == null;
+            bool moved = _anchor != null && ((_anchor.position - _cardAnchorPosition).sqrMagnitude > 0.04f * 0.04f ||
+                                           Quaternion.Angle(_anchor.rotation, _cardAnchorRotation) > 5f);
+            var cam = Camera.main;
+            bool eyeMoved = floorMode && cam != null && (!_cardHasEye ||
+                (cam.transform.position - _cardEye).sqrMagnitude > 0.25f * 0.25f);
+            if (floorMode != _cardFloorMode || moved || eyeMoved) PlaceCard();
         }
 
         /// <summary>The station's slot: sticker on if it was solved (sleeping bee if Beeswax did it).</summary>
@@ -294,6 +331,7 @@ namespace VirtualBeeSwarm.Theme
             if (_director == null || _card == null) return;
             float now = Time.time;
             var beat = _director.Beat;
+            RefreshCardPose();
             UpdateClock(beat);
 
             int st = StationIndex(beat);

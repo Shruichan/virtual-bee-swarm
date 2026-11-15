@@ -236,6 +236,20 @@ namespace VirtualBeeSwarm.Tests
             Debug.Log("[VBSTest] full run OK (forceOffline=" + forceOffline + ")");
         }
 
+        [Test]
+        public void QuestWorkerLodKeepsTheAuthoredPaletteAndWingHinges()
+        {
+            var worker = AssetDatabase.LoadAssetAtPath<Mesh>(ArtSlots.VbsRoot + "/Art/Bee/Bee_unit.asset");
+            Assert.IsNotNull(worker, "authored worker input");
+            var far = BeeVat.AuthoredWorkerFarMesh(worker);
+            Assert.IsNotNull(far);
+            Assert.AreNotSame(worker, far, "the high-count pools need the reduced rest mesh");
+            Assert.That(far.GetIndexCount(0) / 3, Is.InRange(75, 140), "stay near the original Quest budget");
+            CollectionAssert.AreEquivalent(worker.colors32.Distinct(), far.colors32.Distinct(), "same colors at distance");
+            Assert.IsTrue(far.uv3.Any(flag => flag.x < -0.5f), "left wing still flaps");
+            Assert.IsTrue(far.uv3.Any(flag => flag.x > 0.5f), "right wing still flaps");
+        }
+
         static void AssertAuthoredSceneArt()
         {
             var clipboard = UnityEngine.Object.FindAnyObjectByType<SignHereClipboard>(FindObjectsInactive.Include);

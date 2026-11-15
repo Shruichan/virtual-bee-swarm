@@ -231,10 +231,14 @@ export interface ChoiceMade { type: "choice.made"; station: Station; choice: Cho
 
 /** Client (quest|glasses) → Hive: start/stop a voice utterance. Between them the client sends binary
  *  MIC_PCM16 frames (16 kHz mono). mode "ptt" = held button/pinch; "vad" = client-side voice detection. */
-export interface ListenStart { type: "listen.start"; source: "quest" | "glasses"; mode: "ptt" | "vad"; wake_phrase?: boolean }
+export interface ListenStart { type: "listen.start"; source: "quest" | "glasses"; mode: "ptt" | "vad"; wake_phrase?: boolean; ask_dialogue?: boolean }
 export interface ListenEnd { type: "listen.end"; source: "quest" | "glasses"; cancel?: boolean }
 /** Hive → all: speech-to-text result. */
-export interface Transcript { type: "transcript"; text: string; final: boolean; source: "quest" | "glasses"; ms: number; stt: string }
+export interface Transcript {
+  type: "transcript"; text: string; final: boolean; source: "quest" | "glasses"; ms: number; stt: string;
+  /** Present for Quest Ask clients that opt into the bounded dialogue. */
+  wake_status?: "opened" | "question" | "rejected";
+}
 
 export const INTENTS = ["what_if", "undo", "ask", "ack", "unknown"] as const;
 export type IntentName = (typeof INTENTS)[number];
