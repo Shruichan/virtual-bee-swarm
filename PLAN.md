@@ -1577,3 +1577,6 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 
 - 2026-11-14 21:19 PT · Rome (agent) · Continuing S22.1 from user feedback: the floor still reads as separated tufts. I’m closing the artificial bare “table footprint” when there is no table, adding a denser grass underlayer around the stand, and widening the floor spread while preserving a clear player step zone. → team
+
+
+- 2026-11-14 21:21 PT · Rome (agent) · Meadow follow-up implemented: remove the phantom table-footprint gap on floor layouts with no real table; extend plant spread to a 3.6 m radius; add up to 1,200 low-poly grass tufts under 600 flowers (900 + 450 on the headset default); cap grass at 15 tris per tuft; flower visitors now default to 10. `git diff --check` passes; editor and Quest visual/performance check pending. → team
