@@ -108,5 +108,17 @@
   {"id": "ear_hint_heat", "channel": "ear", "beat": "heat", "text": "Psst. Shallow water. With pebbles.", "tags": ["hint", "load-bearing"]},
   {"id": "ear_hint_whatif", "channel": "ear", "beat": "whatif", "text": "Ask me: what if a fire starts?", "tags": ["hint", "load-bearing"]},
   {"id": "ear_aside_window", "channel": "ear", "beat": "meet", "text": "That's the meadow window. Your choices show up there.", "tags": ["aside"]},
-  {"id": "ear_aside_hornet", "channel": "ear", "beat": "hornet", "text": "Not all wasps are bad. Just that guy.", "tags": ["aside"]}
+  {"id": "ear_aside_hornet", "channel": "ear", "beat": "hornet", "text": "Not all wasps are bad. Just that guy.", "tags": ["aside"]},
+  {"id": "room_pal_boop_giggle", "channel": "room", "text": "Hee! Quit it. I'm on the clock.", "tags": ["pals", "boop"]},
+  {"id": "room_pal_boop_file", "channel": "room", "text": "Was that a boop? That's harassment. I'm filing.", "tags": ["pals", "boop"]},
+  {"id": "room_pal_boop_blush", "channel": "room", "text": "Okay. One boop. Off the record.", "tags": ["pals", "boop"]},
+  {"id": "room_pal_wave", "channel": "room", "text": "Hi! Waving's free. Dues aren't.", "tags": ["pals", "wave"]},
+  {"id": "room_pal_highfive", "channel": "room", "text": "Up top! I'd go high-six, but you're a finger short.", "tags": ["pals", "highfive"]},
+  {"id": "room_pal_palm", "channel": "room", "text": "Bee-hold. Foragers away from home rarely sting. Too busy. Real ones? Look, don't touch.", "tags": ["pals", "palm", "fact:foragers"]},
+  {"id": "room_pal_honey_offer", "channel": "room", "text": "Bonus shift. Pinch that frame's top bar and pull it out.", "tags": ["pals", "honey"]},
+  {"id": "room_pal_honey_caps", "channel": "room", "text": "See the wax lids? Bees cap honey once it's ripe. Scrape them off.", "tags": ["pals", "honey", "fact:honey_caps"]},
+  {"id": "room_pal_honey_help", "channel": "room", "text": "Fine, I'll scrape. Drones can't make wax. Taking it off, I can do.", "tags": ["pals", "honey", "fact:drones"]},
+  {"id": "room_pal_honey_winter", "channel": "room", "text": "That's plenty. The rest stays. They eat it all winter.", "tags": ["pals", "honey", "fact:winter_honey"]},
+  {"id": "room_pal_dance", "channel": "room", "text": "I don't forage, but I took the seminar. The waggle points to food from the sun. Longer waggle, farther flowers.", "tags": ["pals", "dance", "fact:waggle"]},
+  {"id": "room_pal_show_me", "channel": "room", "text": "Motion carried. Eyes on the window.", "tags": ["pals", "show_me", "window"]}
 ]

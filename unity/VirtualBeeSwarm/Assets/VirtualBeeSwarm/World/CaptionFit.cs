@@ -171,6 +171,17 @@ namespace VirtualBeeSwarm
         {
             Bounds bounds = e.renderer.localBounds;
             if (bounds.size.x < 1e-4f) return false;
+            // BeeswaxController turns his caption to the head in Update, but his body (banking, turning, the rig's
+            // animation) still moves after that, which rolled the card or turned it edge-on: face the head again,
+            // upright (yaw only), before fitting
+            bool faced = false;
+            Vector3 away = e.root.position - head.position;
+            away.y = 0f;
+            if (away.sqrMagnitude > 1e-4f)
+            {
+                var want = Quaternion.LookRotation(away, Vector3.up);
+                if (Quaternion.Angle(want, e.root.rotation) > 0.5f) { e.root.rotation = want; faced = true; }
+            }
             Transform text = e.text.transform;
             Vector3 center = text.TransformPoint(bounds.center);
             Vector3 offset = head.InverseTransformDirection(center - head.position);
@@ -205,6 +216,13 @@ namespace VirtualBeeSwarm
                 e.appliedLocalPos = root.localPosition;
                 e.appliedLocalScale = root.localScale;
                 e.appliedLocalRot = root.localRotation;
+            }
+            else if (faced)
+            {
+                e.applied = true;
+                e.appliedLocalPos = e.root.localPosition;
+                e.appliedLocalScale = e.root.localScale;
+                e.appliedLocalRot = e.root.localRotation;
             }
             return moved && UpdateSpeechLeader(text, bounds, head);
         }

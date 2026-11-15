@@ -360,6 +360,7 @@ namespace VirtualBeeSwarm.AR
             if (window == null || _wallAnchor == null) return;
             var wt = window.transform;
             bool meadow = Bloom.MeadowLayout.Active;
+            if (meadow) { PlaceMeadowPortal(wt, why); return; } // a free-floating portal in the meadow, never on the wall
             if (!ArTuning.WindowOnWall && !meadow)
             {
                 if (wt.parent != _windowHome)
@@ -450,6 +451,107 @@ namespace VirtualBeeSwarm.AR
             if (Room.HasWall && usingWall)
                 Room.ComputeWallSpots(pos, wt.right, wt.up, _pane * k * 0.5f, _foundWall.normal);
             LogLine("window " + WindowState);
+        }
+
+        /// <summary>Meadow: the window is a free-floating portal standing in the meadow behind the hive, never on the wall
+        /// (wall vines can't cover it): meadow.windowWidth wide, ~1.45 m behind the hive (at least 0.5 m off a found
+        /// wall), its bottom over the eye-to-roof line so the roof never hides it from the player's spot, its top under
+        /// the ceiling, slid sideways only if the rocket would cover it, turned to face the player. Grow / SwellToMoon are
+        /// capped (FutureWindow.MaxSize) so it stays under the ceiling and over the roof line when it swells.</summary>
+        void PlaceMeadowPortal(Transform wt, string why)
+        {
+            const float behindHive = 1.45f, minBehind = 0.75f, wallGap = 0.5f;
+            Vector3 fwd = Flat(_anchor.forward);
+            Vector3 hivePos = hive != null ? hive.transform.position : _anchor.position;
+            var cam = Camera.main;
+            Vector3 eye = cam != null ? cam.transform.position : hivePos - fwd * 1.05f + Vector3.up * 1.6f;
+            eye.y = Mathf.Clamp(eye.y, Room.FloorY + 1.1f, Room.FloorY + 1.9f);
+            float behind = behindHive;
+            string wallNote = "no wall known";
+            var wall = _foundWall.valid ? _foundWall : Room.HasWall ? Room.WindowWall : default;
+            if (wall.valid)
+            {
+                float facing = Vector3.Dot(fwd, -wall.normal);
+                if (facing > 0.3f)
+                {
+                    float toWall = Vector3.Dot(wall.point - hivePos, -wall.normal) / facing; // along fwd, hive -> wall plane
+                    behind = Mathf.Clamp(Mathf.Min(behind, toWall - wallGap), minBehind, behindHive);
+                    wallNote = (toWall - behind).ToString("0.00", C) + " m off the wall";
+                }
+            }
+            Vector3 pos = hivePos + fwd * behind;
+            // size by the whole portal (frame + honeycomb rim), not the picture: meadow.windowWidth rim to rim, smaller
+            // only when the room is too low for it between the roof line and the ceiling
+            var fx = window.Fx;
+            Vector2 outer = fx != null && fx.OuterSize.x > 1e-4f ? fx.OuterSize : new Vector2(_pane.x, _pane.y);
+            Vector3 outerC = fx != null ? fx.OuterCenter : Vector3.zero; // visual centre, window-local
+            float s0 = Mathf.Max(1e-4f, Mathf.Abs(_winLocalScale.x));
+            float width = Bloom.MeadowLayout.WindowWidth;
+            float k = width / Mathf.Max(1e-4f, outer.x * s0);
+            float ceil = Room.CeilingOrDefault;
+            float bottom = Bloom.MeadowLayout.WindowBottomY(pos) - 0.06f; // its 12 cm margin over the roof line, halved
+            float avail = ceil - 0.04f - bottom;
+            string fit = "";
+            if (avail < 1.0f && PlaceBesideHive(wt, fwd, hivePos, eye, outer, outerC, s0, ceil, why)) return; // too low a room over the roof
+            if (outer.y * s0 * k > avail && avail > 0.4f)
+            {
+                k = avail / (outer.y * s0);
+                fit = " (fitted under the " + (ceil - Room.FloorY).ToString("0.00", C) + " m ceiling)";
+            }
+            width = outer.x * s0 * k;
+            float halfH = outer.y * s0 * k * 0.5f;
+            float cy = bottom + halfH; // the visual centre
+            cy = Mathf.Max(Room.FloorY + halfH + 0.3f, Mathf.Min(cy, ceil - 0.04f - halfH));
+            pos.y = cy - outerC.y * s0 * k;
+            // the rocket: if it would stand in front of the portal from the player's spot, slide the portal away from it
+            Vector3 right = Vector3.Cross(Vector3.up, fwd).normalized;
+            float shift = 0f;
+            var rocket = _anchor.Find("HONEYMOON-1");
+            if (rocket != null && rocket.gameObject.activeInHierarchy)
+            {
+                float dP = Vector3.Dot(pos - eye, fwd), dR = Vector3.Dot(rocket.position - eye, fwd);
+                if (dR > 0.2f && dP > dR)
+                {
+                    float lat = Vector3.Dot(rocket.position - eye, right) * (dP / dR) - Vector3.Dot(pos - eye, right);
+                    float rocketHalf = 0.3f * (dP / dR);
+                    float need = width * 0.5f + 0.15f + rocketHalf - Mathf.Abs(lat);
+                    if (need > 0f) shift = -Mathf.Sign(lat == 0f ? 1f : lat) * need;
+                }
+            }
+            pos += right * shift;
+            Vector3 face = Flat(pos - eye);
+            if (face.sqrMagnitude < 1e-4f) face = fwd;
+            if (wt.parent != _wallAnchor) wt.SetParent(_wallAnchor, false);
+            wt.SetPositionAndRotation(pos, Quaternion.LookRotation(face.normalized, Vector3.up)); // +Z away from the player
+            wt.localScale = _winLocalScale * k;
+            // swelling (escape grow, T-0 moon) stays under the ceiling and over the roof line: grows about its centre
+            float room = Mathf.Min(ceil - 0.03f - cy, cy - (bottom - 0.1f));
+            window.MaxSize = Mathf.Max(1f, room / Mathf.Max(0.05f, halfH));
+            WindowState = "free-floating portal " + behind.ToString("0.00", C) + " m behind the hive (" + wallNote + "; " + why + "), width " +
+                          width.ToString("0.00", C) + " m rim to rim" + fit + ", centre " + (cy - Room.FloorY).ToString("0.00", C) + " m up, bottom " +
+                          (cy - halfH - Room.FloorY).ToString("0.00", C) + " m, slid " + shift.ToString("0.00", C) + " m, max swell x" +
+                          window.MaxSize.ToString("0.00", C);
+            LogLine("window " + WindowState);
+        }
+
+        /// <summary>A room too low for the portal over the roof: free-standing beside the hive, 1.2 m wide, at eye height,
+        /// on the side away from the rocket where the room scan has floor and no furniture (MeadowLayout.TryWindowBesideHive).</summary>
+        bool PlaceBesideHive(Transform wt, Vector3 fwd, Vector3 hivePos, Vector3 eye, Vector2 outer, Vector3 outerC, float s0, float ceil, string why)
+        {
+            float floor = Bloom.MeadowLayout.FloorY + 0.3f, top = Mathf.Max(floor + 0.1f, ceil - 0.06f);
+            float k = Mathf.Min(1.2f / Mathf.Max(1e-4f, outer.x * s0), (top - floor) / Mathf.Max(1e-4f, outer.y * s0));
+            float width = outer.x * s0 * k, half = outer.y * s0 * k * 0.5f;
+            Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up);
+            Vector3 near = hivePos + fwd * 0.2f;
+            near.y = Mathf.Clamp(eye.y + 0.1f, floor + half, Mathf.Max(floor + half, top - half));
+            if (!Bloom.MeadowLayout.TryWindowBesideHive(near, rot * Vector3.right, width, half, out var pos)) return false;
+            if (wt.parent != _wallAnchor) wt.SetParent(_wallAnchor, false);
+            wt.SetPositionAndRotation(pos - Vector3.up * (outerC.y * s0 * k), rot);
+            wt.localScale = _winLocalScale * k;
+            window.MaxSize = 1f;
+            WindowState = "free-standing portal beside the hive (room too low over the roof; " + why + "), width " + width.ToString("0.00", C) + " m";
+            LogLine("window " + WindowState);
+            return true;
         }
 
         // ------------------------------------------------------------ placement plumbing

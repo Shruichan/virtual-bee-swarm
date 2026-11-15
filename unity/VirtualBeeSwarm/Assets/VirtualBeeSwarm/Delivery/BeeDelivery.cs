@@ -699,6 +699,7 @@ namespace VirtualBeeSwarm
             if (t == null) return;
             Init();
             var item = Register(t);
+            HiveClearance.Push(t, ref worldPos, worldRot, item); // never set down / parked inside the hive model
             if (Mode == DeliveryMode.Off)
             {
                 if (item.job >= 0) { Snap(item.job, false); if (item.job >= 0) FreeJob(item.job); }
