@@ -76,8 +76,6 @@ export interface ScoutGameDeps {
 
 /** A skipped object is offered again after this long, or once everything else is found. */
 export const SKIP_REOFFER_MS = 60_000;
-/** At most one idle nudge this often. */
-export const IDLE_EVERY_MS = 60_000;
 /** Practice mode: the pause after a line before the next chime (demo mode uses tuning.gapMs). */
 export const PRACTICE_GAP_MS = 1000;
 /** Practice rediscovery: the last card fires again once its fact ended this long ago AND it was out of view
@@ -117,7 +115,9 @@ export class ScoutGame {
   private offerDeadline = 0;
   private offerLines: string[] = [];
   private lookingSince = 0;
-  private lastIdleAt = -Infinity;
+  private anyQTurn = 0;
+  /** Practice: the six-badge finale played this journey. */
+  private finaleDone = false;
   private noTurn = 0;
   private run: { label: ScoutLabel; since: number; firstAt: number; lastAt: number; score: number } | null = null;
   private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
@@ -205,7 +205,7 @@ export class ScoutGame {
     this.startedAt = now;
     this.busyUntil = now; // cut short whatever was "playing"
     this.mainUntil = now;
-    this.lastIdleAt = -Infinity;
+    this.finaleDone = false;
     this.lastCueAt = -Infinity;
     this.lastSeenNext = now;
     // practice rediscovery state
@@ -217,8 +217,9 @@ export class ScoutGame {
     this.answerEndsAt = null;
     this.blockedKey = "";
     this.phase = "intro";
-    if (this.mode === "booth") this.say(SCOUT_BOOTH_LINES.intro);
-    else for (const id of SCOUT_LINES.intro) this.say(id);
+    // Every intro line that exists, in order: scout_intro_1.._3, or scout_booth_intro, _2, _3.
+    if (this.mode === "booth") this.saySeries(SCOUT_BOOTH_LINES.intro);
+    else for (const id of SCOUT_LINES.introAll) this.sayIf(id);
     this.changed();
   }
 
@@ -284,6 +285,9 @@ export class ScoutGame {
   /** POST /scout/force: found right now (no dwell, no gap) for `label`, default booth's next station. */
   force(label?: ScoutLabel | null): boolean {
     this.tick();
+    // A bare force while Beeswax is busy (intro, a fact, an answer) is refused, so a double key press can't skip a
+    // station; naming the label forces it anyway.
+    if (!label && (this.phase === "intro" || this.phase === "telling" || this.phase === "answering")) return false;
     const l = label ?? this.next() ?? (this.current && isLabel(this.current.label) ? this.current.label : null);
     if (!l) return false;
     if (this.mode === "booth") {
@@ -383,12 +387,7 @@ export class ScoutGame {
     } else if ((this.phase === "intro" || this.phase === "telling") && now >= this.busyUntil) {
       this.toLooking(now);
     } else if (this.phase === "offering" && now >= this.offerDeadline) {
-      if (booth) {
-        // Booth: silence counts as yes.
-        this.emit({ type: "heard", text: "(silence)", answer: "yes", at: now });
-        this.say(SCOUT_BOOTH_LINES.silenceYes);
-        this.answer("yes");
-      } else this.decline("silence");
+      this.decline("silence"); // demo only: practice and booth never offer
     } else if (booth) {
       const next = this.next();
       if (
@@ -403,16 +402,8 @@ export class ScoutGame {
         this.lastSeenNext = now;
         this.sayIf(SCOUT_BOOTH_LINES.dir.lost);
       }
-    } else if (
-      this.phase === "looking" &&
-      this.startedAt !== null &&
-      now >= this.busyUntil + this.gapMs() &&
-      now - Math.max(this.lookingSince, this.busyUntil) >= this.tuning.idleMs &&
-      now - this.lastIdleAt >= IDLE_EVERY_MS
-    ) {
-      this.lastIdleAt = now;
-      this.say(SCOUT_LINES.idle);
     }
+    // (No idle nudge any more: scout_idle is never said.)
     this.changed();
   }
 
@@ -540,25 +531,37 @@ export class ScoutGame {
     this.lastFind = { label, at: now };
     this.awaySince = null;
     this.lookedAway = false;
-    this.phase = this.mode === "practice" ? "telling" : "offering";
+    this.phase = this.mode === "demo" ? "offering" : "telling";
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
     this.latency("frame_to_found", frameMs);
-    if (this.mode === "booth") {
-      // Booth: one line asks ("Bee fact found! Would you like to learn more?"); silence = yes after 4 s.
-      this.offerLines = [SCOUT_BOOTH_LINES.chimeAsk];
-      this.say(SCOUT_BOOTH_LINES.chimeAsk);
-      this.latency("found_to_say", this.now() - now);
-      this.offerDeadline = this.busyUntil + this.booth.offerTimeoutMs;
-      this.changed();
-      return;
-    }
     this.say(SCOUT_LINES.chime);
-    if (this.mode === "practice") {
-      // Practice: no hook, no offer; the fact straight away. found/progress are left alone.
+    if (this.mode !== "demo") {
+      // Practice and booth: no hook, no offer. "Bee fact found!", the fact (+ _2), then "any questions?"
+      // (Ask Beeswax takes it from there through beginAnswer/endAnswer).
       this.sayFact(label);
       this.lastFactEnd = this.busyUntil;
       this.latency("found_to_say", this.now() - now);
+      const isNew = !this.found.includes(label); // a badge per distinct card; a rediscovery replays the fact only
+      if (isNew) this.found.push(label);
+      this.sayAnyQ();
+      if (this.mode === "booth") {
+        // On to the next station: its direction line, or the finale after the last one.
+        const i = this.order.indexOf(label);
+        this.station = (i >= 0 ? i : this.station) + 1;
+        const next = this.next();
+        if (next) this.sayIf(SCOUT_BOOTH_LINES.next(next));
+        else {
+          this.saySeries(SCOUT_BOOTH_LINES.done);
+          this.phase = "done";
+          this.offer = null;
+        }
+        this.lastSeenNext = now;
+      } else if (isNew && this.found.length === SCOUT_LABELS.length && !this.finaleDone) {
+        // Practice: all six badges, first time this journey: the finale (practice keeps going afterwards).
+        this.finaleDone = true;
+        this.saySeries(SCOUT_LINES.done);
+      }
       this.changed();
       return;
     }
@@ -572,7 +575,6 @@ export class ScoutGame {
   private answer(answer: ScoutAnswer, at?: number): void {
     const label = this.offer;
     if (!label) return;
-    if (this.mode === "booth") return this.boothAnswer(label, answer, at);
     if (answer === "yes") {
       const now = this.now();
       this.skipped.delete(label);
@@ -586,7 +588,7 @@ export class ScoutGame {
       if (repeat) {
         // no progress line for a repeat
       } else if (n >= SCOUT_LABELS.length) {
-        this.say(SCOUT_LINES.done);
+        this.saySeries(SCOUT_LINES.done);
         this.phase = "done";
         this.offer = null;
       } else {
@@ -596,34 +598,6 @@ export class ScoutGame {
       return;
     }
     this.decline(answer === "rude" ? "rude" : "no");
-  }
-
-  /** Booth: yes -> fact; no / rude -> a short reply. Either way, then the direction to the next station. */
-  private boothAnswer(label: ScoutLabel, answer: ScoutAnswer, at?: number): void {
-    const now = this.now();
-    if (answer === "yes") {
-      this.skipped.delete(label);
-      if (!this.found.includes(label)) this.found.push(label);
-      this.sayFact(label);
-      const heardAt = typeof at === "number" && Number.isFinite(at) && Math.abs(now - at) < 30_000 ? Math.min(at, now) : now;
-      this.latency("answer_to_fact", this.now() - heardAt);
-    } else {
-      if (!this.found.includes(label)) this.skipped.set(label, now);
-      this.say(answer === "rude" ? SCOUT_BOOTH_LINES.rude : SCOUT_BOOTH_LINES.no);
-    }
-    const i = this.order.indexOf(label);
-    this.station = (i >= 0 ? i : this.station) + 1;
-    const next = this.next();
-    if (next) {
-      this.sayIf(SCOUT_BOOTH_LINES.next(next));
-      this.phase = "telling";
-    } else {
-      this.sayIf(SCOUT_BOOTH_LINES.done);
-      this.phase = "done";
-      this.offer = null;
-    }
-    this.lastSeenNext = now;
-    this.changed();
   }
 
   private decline(why: "no" | "rude" | "silence"): void {
@@ -652,6 +626,17 @@ export class ScoutGame {
   }
 
   /** A fact is one or two lines: scout_fact_<label>, then scout_fact_<label>_2 when it exists. */
+  /** `base`, then `base_2`, `base_3`: every one that exists (multi-line intro and finale). */
+  private saySeries(base: string): void {
+    for (const id of [base, `${base}_2`, `${base}_3`]) this.sayIf(id);
+  }
+
+  /** One of scout_any_q_1..3 (taking turns among those that exist), after a fact in practice and booth. */
+  private sayAnyQ(): void {
+    const ids = SCOUT_LINES.anyQ.filter((id) => this.lines.get(id)?.text);
+    if (ids.length) this.say(ids[this.anyQTurn++ % ids.length]!);
+  }
+
   private sayFact(label: ScoutLabel): void {
     this.say(SCOUT_LINES.fact(label));
     this.sayIf(`${SCOUT_LINES.fact(label)}_2`);
