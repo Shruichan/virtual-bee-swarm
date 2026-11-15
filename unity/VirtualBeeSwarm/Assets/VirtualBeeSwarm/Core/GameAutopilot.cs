@@ -412,6 +412,14 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBSAutopilot] " + typeof(T).Name + ": picking after " + pickDelaySeconds.ToString("0.0") + " s; hint showing = " +
                           (sd != null && sd.Hinting));
             }
+            if (VirtualBeeSwarm.HandsOn.HandsOnDirector.AutoDrives) // HANDSON hook: the autopilot does the hand steps
+            {
+                yield return VirtualBeeSwarm.HandsOn.HandsOnDirector.Instance.AutoPlay(st, MistakeAt(st.Station) ? wrong : null);
+                yield return WaitFor(() => st.Solved, typeof(T).Name + " solved by hand");
+                var problem = VirtualBeeSwarm.HandsOn.HandsOnDirector.Instance.AutoProblem;
+                Check(problem == null, typeof(T).Name + " hands-on: " + problem);
+                yield break;
+            }
             if (MistakeAt(st.Station))
             {
                 st.Choose(wrong);
