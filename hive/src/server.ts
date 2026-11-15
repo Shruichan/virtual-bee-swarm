@@ -1255,7 +1255,8 @@ export function startHive(opts: HiveOptions): Hive {
   const latestListen = new WeakMap<Client, number>();
   const questAskDialogues = new Map<string, { expires: number; remaining: number }>();
   const ASK_DIALOGUE_MS = 20_000, ASK_DIALOGUE_QUESTIONS = 3;
-  const wakePrefix = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu;
+  // Lenient: Whisper writes "Hey, Beeswax", "Hi bees wax", "Hey Bee's Wax", "Okay beeswax", "Hey bee wax"...
+  const wakePrefix = /^\s*["“']?(?:(?:hey|hi|hay|hello|ok|okay|yo|oi)[\s,.!?]+)?(?:bee|be|b)(?:['’]?s|z)?[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu;
   const strayWarned = new Set<string>();
   let listenSeq = 0;
 
@@ -1402,7 +1403,9 @@ export function startHive(opts: HiveOptions): Hive {
       const match = wakePrefix.exec(text);
       const now = Date.now();
       const known = askDialogue ? questAskDialogues.get(ws.data.id) : undefined;
-      const remaining = match ? ASK_DIALOGUE_QUESTIONS :
+      // Holding the pinch to talk is intent enough: a real question counts even if the wake words were misheard.
+      const heldQuestion = wakePhrase && (/^\s*(?:what|what's|whats|why|how|where|when|who|which|can|could|do|does|did|is|are|will|would|tell|show|explain)\b/i.test(text) || /\?\s*$/.test(text));
+      const remaining = match || heldQuestion ? ASK_DIALOGUE_QUESTIONS :
         !wakePhrase && known && listen.startedAt <= known.expires ? known.remaining : 0;
       if (match) text = match[1]!.trim();
       const hasQuestion = /[\p{L}\p{N}]/u.test(text);
