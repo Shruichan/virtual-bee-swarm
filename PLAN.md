@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest Start click hides its button and begins MRUK TABLE placement using tracked OVR hand-pointer rays; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest Start click hides its button, then waits for fingertip contact on an upward-facing MRUK room-mesh surface; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1459,3 +1459,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:38 PT · Nam Nguyen (agent) · Updating the NamTest Start action so a successful Canvas Poke hides the button while starting placement; verifying the Button OnClick target and preserving a retry path for invalid setup. → team
 - 2026-11-14 17:39 PT · Nam Nguyen (agent) · Bound Canvas Button.OnClick to SpawnObject.BeginPlacement so a valid poke hides StartHivePlacementButton and starts placement; invalid spawn configuration leaves the button available. Editor diagnostics report no C# errors; Quest retest pending. → team
 - 2026-11-14 17:43 PT · Nam Nguyen (agent) · Adapting NamTest placement to MRUK room-mesh surfaces instead of the TABLE label; clarifying whether "touch" means fingertip contact or hand-pointer aim and whether vertical faces are allowed before changing interaction/orientation. → team
+- 2026-11-14 17:43 PT · Nam Nguyen (agent) · Decision: "touch" means tracked index-fingertip proximity to any upward-facing MRUK room-mesh surface; ignore the TABLE label and reject walls/downward-facing surfaces. → team
