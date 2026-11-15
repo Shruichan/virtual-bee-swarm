@@ -97,9 +97,6 @@ const DASHBOARD = `<!doctype html>
   #slidetag { top: 1rem; right: 1rem; padding: .45rem .9rem; border-radius: 999px; background: rgba(195, 155, 255, .9); color: #1b0f2e;
     font-weight: 800; font-size: .9rem; display: none; }
   #slidetag.on { display: block; }
-  #micbtn { top: 1rem; right: 1rem; display: none; background: rgba(0,0,0,.6); color: #fff; }
-  #micbtn.on { display: block; }
-  #slidetag.on ~ #micbtn { top: 3.6rem; }
   #guess { left: 1rem; bottom: 1rem; display: flex; align-items: center; gap: 1rem; padding: .7rem 1.3rem .7rem .8rem; border-radius: 1rem;
     background: rgba(10, 7, 3, .8); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px); max-width: calc(100% - 2rem); }
   #guess .ring { --p: 0; width: 3.8rem; height: 3.8rem; border-radius: 50%; flex: none; display: grid; place-items: center;
@@ -390,7 +387,6 @@ const DASHBOARD = `<!doctype html>
       <div id="nostream"><div><div class="hexbig"><i></i></div><h2>Waiting for the glasses stream</h2><p id="nsmsg">Connecting...</p><p id="nshelp"></p></div></div>
       <div class="ov" id="livetag"><i></i><span id="livetxt">Glasses camera</span></div>
       <div class="ov" id="slidetag"></div>
-      <button class="ov ghost" id="micbtn">Glasses mic: off</button>
       <div class="ov none" id="guess"><div class="ring"><b class="num" id="gpct">0%</b></div><div class="what"><small>The AI sees</small><span id="gname">-</span></div></div>
       <div class="ov" id="latro" title="Video: WebRTC network + jitter buffer + decode, measured by this browser (from MediaMTX on). AI: from the vision worker reading the frame to its result on this screen. For true glass-to-screen delay press T and point the glasses at the clock."><small>Delay on this laptop</small><div><span>Video playback</span><b id="lvid" class="none">-</b></div><div><span>Frame &rarr; AI result</span><b id="lai" class="none">-</b></div></div>
       <div id="found"><div class="dim"></div><div class="rays"></div><div class="box"><div class="kicker">Bee fact found!</div><div class="obj" id="fobj">-</div><div class="sub num" id="fsub"></div></div></div>
@@ -704,7 +700,7 @@ const DASHBOARD = `<!doctype html>
     if (mirror) enqueue(ev);
   }
 
-  var mirror = false, actx = null, analyser = null, freq = null, queue = [], cur = null;
+  var mirror = false /* always off on load: only the booth screen that clicks it plays sound */, actx = null, analyser = null, freq = null, queue = [], cur = null;
   var audio = new Audio(); audio.preload = "auto";
   function ensureGraph() {
     if (actx) { if (actx.state === "suspended") actx.resume(); return; }
@@ -719,6 +715,7 @@ const DASHBOARD = `<!doctype html>
   }
   function note(t) { $("audnote").textContent = t || ""; }
   function enqueue(ev) {
+    if (!mirror) return;
     var local = "/scout/audio/" + encodeURIComponent(ev.line_id) + ".mp3?" + TQ;
     var urls = [local];
     if (ev.audio_url && ev.audio_url.indexOf("/scout/audio/" + ev.line_id) < 0) urls.push(ev.audio_url);
@@ -732,6 +729,7 @@ const DASHBOARD = `<!doctype html>
     load();
   }
   function load() {
+    if (!mirror) { queue = []; cur = null; return; } // mirror off = this page makes no sound at all
     audio.src = cur.urls[cur.n];
     note("playing: " + (lineKind(cur.id) || cur.id));
     var p = audio.play(); if (p && p.catch) p.catch(function () {});
@@ -1039,7 +1037,6 @@ const DASHBOARD = `<!doctype html>
     var p = pc = new RTCPeerConnection();
     var ms = new MediaStream();
     p.addTransceiver("video", { direction: "recvonly" });
-    p.addTransceiver("audio", { direction: "recvonly" });
     p.ontrack = function (e) {
       ms.addTrack(e.track); video.srcObject = ms;
     };
@@ -1070,13 +1067,9 @@ const DASHBOARD = `<!doctype html>
     var t = video.currentTime, now = Date.now();
     if (t !== lastT && video.readyState >= 2) { lastT = t; lastMove = now; if (!playing) setPlaying(true); }
     else if (playing && now - lastMove > 5000) { setPlaying(false); retry(500); }
-    if (pc && playing) pc.getStats().then(function (st) { // offer the glasses mic only if audio actually arrives
-      var audioIn = false;
-      st.forEach(function (r) { if (r.type === "inbound-rtp" && r.kind === "audio" && r.bytesReceived > 0) audioIn = true; });
-      $("micbtn").className = "ov ghost" + (audioIn ? " on" : "");
-    }).catch(function () {});
   }, 1000);
-  $("micbtn").addEventListener("click", function () { video.muted = !video.muted; $("micbtn").textContent = "Glasses mic: " + (video.muted ? "off" : "on"); });
+  video.muted = true; video.volume = 0; // the stream is picture only here: never sound from the video
+  video.addEventListener("volumechange", function () { if (!video.muted || video.volume) { video.muted = true; video.volume = 0; } });
   if (iframeMode) {
     video.remove();
     var fr = el("iframe"); fr.src = playerUrl + "?controls=false&muted=true&autoplay=true"; fr.allow = "autoplay";
