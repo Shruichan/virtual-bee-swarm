@@ -5,6 +5,7 @@
 // prompt for it (custom_prompt), or null to refuse (Beeswax then says the refusal line).
 import Anthropic from "@anthropic-ai/sdk";
 import { INTENTS, WHATIF_TOPICS, type BeatName, type IntentName, type RouterOutput, type WhatIfTopic } from "./protocol";
+import { noteFailure, noteOk } from "./services";
 
 type CreateParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
 type BetaMessage = Anthropic.Beta.Messages.BetaMessage;
@@ -518,6 +519,7 @@ export async function route(text: string, ctx: RouteContext, opts: { timeoutMs?:
   });
   try {
     const { parsed, note, cacheRead, served } = await Promise.race([callModel(said, safeCtx, model, timeoutMs, ac.signal), deadline]);
+    noteOk("claude");
     const r: RouteResult = { ...parsed, ms: ms(), path: "claude", ...(note ? { error: note } : {}) };
     const custom = r.topic === "custom" ? ` prompt=${r.custom_prompt ? JSON.stringify(r.custom_prompt.slice(0, 80)) : "REFUSED"}` : "";
     console.log(
@@ -526,6 +528,7 @@ export async function route(text: string, ctx: RouteContext, opts: { timeoutMs?:
     return r;
   } catch (e) {
     const code = errCode(e);
+    if (!(e instanceof RouterError)) noteFailure("claude", e); // timeouts / refusals / bad output are ours, not the service's
     // The API refusing a "what if ..." is a refused custom what-if: Beeswax says his refusal line, not a shrug.
     if (code === "refusal" && isWhatIfPhrase(said)) {
       const r: RouteResult = { intent: "what_if", topic: "custom", answer: null, custom_prompt: null, ms: ms(), path: "claude", error: code };

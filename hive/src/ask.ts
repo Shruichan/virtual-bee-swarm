@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import raw from "../lines/ask.json";
 import { OFF_LIST_ANSWER, VETTED_FACTS, isWhatIfPhrase, keywordRoute, normalize } from "./router";
 import type { BeatName } from "./protocol";
+import { noteFailure, noteOk } from "./services";
 
 type CreateParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
 type BetaMessage = Anthropic.Beta.Messages.BetaMessage;
@@ -606,6 +607,7 @@ export async function answer(
   try {
     const { msg, which } = await hedgedCreate(buildAskRequest(model, askUserText(said, ctx)));
     warmedAt = Date.now();
+    noteOk("claude");
     if (msg.stop_reason === "refusal") {
       console.warn(`[ask] ${model} ${ms()}ms refused by the API (${msg.stop_details?.category ?? "?"}) ${JSON.stringify(said.slice(0, 60))}`);
       return { kind: "refuse", line_id: REFUSE_LINE, ask_id: null, text: "", path: "claude", ms: ms(), fact_ids: [], error: "refusal" };
@@ -623,6 +625,7 @@ export async function answer(
     return local(r);
   } catch (e) {
     const code = errCode(e);
+    if (!(e instanceof AskError)) noteFailure("claude", e); // our own bad_output / timeout codes aren't a service problem
     console.warn(`[ask] ${model} ${ms()}ms STALL (${code}): ${errText(e)}`);
     return local(fromCanned("ask_stall", "stall", "claude", ms(), code));
   }

@@ -4,6 +4,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+import { noteFailure, noteOk } from "./services";
 
 export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
@@ -139,6 +140,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
   }
   if (!elevenLabsAvailable()) {
     console.warn("[tts] unavailable (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID unset)");
+    noteFailure("elevenlabs_tts", new Error("not configured"));
     return;
   }
   const start = performance.now();
@@ -168,7 +170,9 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
     }
     if (ac.signal.aborted) throw new Error(`TTS exceeded ${ttsLimits.totalMs} ms`);
     console.log(`[tts] pcm ${bytes} bytes in ${Math.round(performance.now() - start)}ms`);
+    if (bytes > 0) noteOk("elevenlabs_tts");
   } catch (e) {
+    noteFailure("elevenlabs_tts", e);
     console.warn(`[tts] pcm stopped after ${bytes} bytes: ${errText(e)}`);
     if (bytes > 0) throw e;
   } finally {
