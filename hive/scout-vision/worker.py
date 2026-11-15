@@ -5,9 +5,11 @@
     uv run python worker.py --source data/test.mp4 --print                  # a video file, paced in real time
     uv run python worker.py --source webcam:0 --print
     uv run python worker.py --source data/test/beehive --print              # an image folder
+    uv run python worker.py --match detect/card_images --print              # SIFT card matcher drives the scores (train/)
+    uv run python worker.py --match detect/card_images --ocr --no-markers   # + card-name OCR (Apple Vision), fused
 
 API (CORS *):  GET /health   POST /enrol {label, seconds}   POST /clear {label}   POST /reload
-               GET /slides.json   GET /img/<label>/<file>
+               GET /slides.json   GET /img/<label>/<file>   GET /debug/recent   GET /debug/img/<file>  (--match)
 """
 
 from __future__ import annotations
@@ -36,8 +38,10 @@ from scout_vision.recognizer import (BACKGROUND, CLASSES, DEFAULT_BG_FLOOR, DEFA
 from scout_vision.sources import Source
 
 from detect import ScoutTracker, scores_from_boxes  # printed station-card tags (AprilTag 25h9), detect/
+from train.fusion import CardScout  # printed cards: SIFT picture matcher + card-name OCR, train/
 
 TEST = ROOT / "data" / "test"
+DEBUG = ROOT / "debug"  # --match: ring of the last 50 frames with card evidence (gitignored)
 CREDITS = ROOT / "data" / "web" / "credits.csv"
 
 
@@ -99,6 +103,19 @@ class Worker:
         self.ema_at = 0.0
         self.detector = load_detector(args.detector) if args.detector else None
         self.markers = None if args.no_markers else ScoutTracker()
+        self.scout = None
+        if args.match:
+            self.scout = CardScout(args.match, ocr=args.ocr, ocr_level=args.ocr_level, sift_alone=args.sift_alone,
+                                   vote_need=args.vote_need, vote_n=args.vote_n, debug_dir=DEBUG)
+            print(f"[match] refs {self.scout.matcher.files}  ocr={'on' if args.ocr else 'off'}  sift alone >= {args.sift_alone} inliers",
+                  file=sys.stderr, flush=True)
+
+    def reload_matcher(self) -> dict:
+        if self.scout is None:
+            return {}
+        files = self.scout.reload()  # picks up replaced <label>.* pictures
+        print(f"[match] reloaded {files}", file=sys.stderr, flush=True)
+        return files
 
     def frame_image(self, rgb) -> Image.Image:
         return center_crop(Image.fromarray(rgb), self.args.crop)
@@ -153,6 +170,16 @@ class Worker:
                 top, scores = scores_from_boxes(mboxes)
                 self.ema, self.ema_at = scores, at
                 return top, scores, [b.to_json() for b in mboxes]
+        if self.scout is not None:
+            # card-name OCR + SIFT picture match, fused (train/fusion.py); a label needs 3 of the last 5 frames.
+            try:
+                top, scores, found = self.scout.process(rgb, at)
+            except Exception as e:  # noqa: BLE001 - never let the matcher stop the worker
+                print(f"[match] {e}", file=sys.stderr, flush=True)
+                top, scores, found = [{"label": BACKGROUND, "score": 1.0}], {c: 0.0 for c in CLASSES} | {BACKGROUND: 1.0}, []
+            if found or not self.args.match_fallback:
+                self.ema, self.ema_at = scores, at
+                return top, scores, found
         h, w = rgb.shape[:2]
         det = []
         if self.detector is not None:
@@ -291,6 +318,13 @@ def make_handler(worker: Worker):
                             s["credit"] = c
                         slides.append(s)
                 return self._json(200, slides)
+            if path == "/debug/recent":
+                host = self.headers.get("Host") or f"127.0.0.1:{worker.args.port}"
+                rows = worker.scout.recent() if worker.scout else []
+                return self._json(200, [r | ({"img_url": f"http://{host}/debug/img/{r['img']}"} if r.get("img") else {}) for r in rows])
+            m = re.fullmatch(r"/debug/img/([0-9]+\.jpg)", path)
+            if m and (DEBUG / m.group(1)).is_file():
+                return self._send(200, (DEBUG / m.group(1)).read_bytes(), "image/jpeg")
             m = re.fullmatch(r"/img/([a-z_]+)/([A-Za-z0-9_.-]+\.jpg)", path)
             if m and m.group(1) in CLASSES:
                 p = TEST / m.group(1) / m.group(2)
@@ -302,7 +336,7 @@ def make_handler(worker: Worker):
             path = urlparse(self.path).path
             body = self._body()
             if path == "/reload":
-                return self._json(200, {"ok": True, "refs": worker.rec.reload()})
+                return self._json(200, {"ok": True, "refs": worker.rec.reload(), "match": worker.reload_matcher()})
             if path in ("/enrol", "/clear"):
                 label = body.get("label")
                 if label not in CLASSES:
@@ -337,6 +371,17 @@ def main() -> None:
     ap.add_argument("--detector", default=os.environ.get("SCOUT_DETECTOR"), help="module:function returning boxes")
     ap.add_argument("--no-markers", action="store_true", default=os.environ.get("SCOUT_MARKERS", "1") == "0",
                     help="disable the printed station-card tags (detect/); SCOUT_MARKERS=0 does the same")
+    ap.add_argument("--match", default=os.environ.get("SCOUT_MATCH"),
+                    help="folder with one <label>.jpg/png picture per class: the SIFT card matcher (train/matcher.py) drives top/scores/boxes")
+    ap.add_argument("--match-fallback", action="store_true", default=os.environ.get("SCOUT_MATCH_FALLBACK") == "1",
+                    help="with --match: use the DINOv2 classifier on frames where no card matched (default: background)")
+    ap.add_argument("--ocr", action="store_true", default=os.environ.get("SCOUT_OCR") == "1",
+                    help="with --match: read the card names (Apple Vision OCR); a full name read beats the picture matcher")
+    ap.add_argument("--ocr-level", default=os.environ.get("SCOUT_OCR_LEVEL", "accurate"), choices=["fast", "accurate"])
+    ap.add_argument("--sift-alone", type=int, default=int(os.environ.get("SCOUT_SIFT_ALONE", 25)),
+                    help="with --match: inliers the picture matcher needs to fire without an OCR read")
+    ap.add_argument("--vote-need", type=int, default=3, help="--match: frames a class must appear in ...")
+    ap.add_argument("--vote-n", type=int, default=5, help="... out of the last this many, before its score is reported high")
     ap.add_argument("--loop", action="store_true", help="loop a file/folder source")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds per image (folder source)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SCOUT_VISION_PORT", 8242)))
