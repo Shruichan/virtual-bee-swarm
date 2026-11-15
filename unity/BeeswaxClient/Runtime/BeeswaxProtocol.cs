@@ -867,9 +867,9 @@ namespace Beeswax
     // ---------------------------------------------------------------- glasses HTTP API + model output shapes
     // Not used by the Quest; mirrored so this file stays one-to-one with protocol.ts.
 
-    [Serializable] public class PressRequest { public double pressed_at; public string button = ""; public string press_type = ""; }
+    [Serializable] public class PressRequest { public double pressed_at; public string button = ""; public string press_type = ""; public bool field_guide; }
     [Serializable] public class PressResponse { public bool allowed; public string scan_id = ""; public string line_id = ""; }
-    [Serializable] public class ScanRequest { public string scan_id = ""; public string photo_url = ""; public string heard = ""; public double pressed_at; }
+    [Serializable] public class ScanRequest { public string scan_id = ""; public string photo_url = ""; public string heard = ""; public double pressed_at; public bool field_guide; }
     [Serializable]
     public class ScanResponse
     {

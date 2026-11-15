@@ -58,6 +58,7 @@ export interface JudgeInputLike {
   mime?: string;
   heard?: string;
   beat: BeatName;
+  fieldGuide?: boolean;
   memory: { scanned: Item[] };
 }
 export interface JudgeResultLike extends DirectorOutput { ms: number; model: string; fallback: boolean }
