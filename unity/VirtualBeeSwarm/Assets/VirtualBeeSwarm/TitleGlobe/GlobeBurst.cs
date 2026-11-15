@@ -12,7 +12,8 @@ namespace VirtualBeeSwarm.Title
         readonly Material _petalMat, _pollenMat;
         readonly Texture2D _petalTex, _dotTex;
 
-        public GlobeBurst(Transform parent)
+        /// <param name="queue">Render queue for both materials (-1: the default transparent one).</param>
+        public GlobeBurst(Transform parent, int queue = -1)
         {
             _petalTex = Petal(32, 48);
             _dotTex = Dot(32);
@@ -20,6 +21,7 @@ namespace VirtualBeeSwarm.Title
             _petalMat.mainTexture = _petalTex;
             _pollenMat = GameMaterials.Create("VBS_GlobePollen", Color.white, GameMaterials.Blend.Additive, vertexColors: true, instancing: false, doubleSided: true);
             _pollenMat.mainTexture = _dotTex;
+            if (queue >= 0) _petalMat.renderQueue = _pollenMat.renderQueue = queue;
 
             var petalColors = new Gradient();
             petalColors.SetKeys(

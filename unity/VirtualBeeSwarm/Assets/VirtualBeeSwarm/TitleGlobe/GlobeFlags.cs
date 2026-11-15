@@ -9,8 +9,9 @@ namespace VirtualBeeSwarm.Title
     /// <summary>
     /// title.globe (tuning.json, default on): the Orbis globe beside the title logo, and the dive into it on START.
     /// title.globeSize: its diameter in metres (default 0.42). Needs title.on.
-    /// title.wall (default on): inside the globe, the documentary wall of scrolling bee monitors (TitleWall); off = the
-    /// inside-out bee flight. Env VBS_TITLE_WALL (0/1) wins. Comfort mode never wraps the player, so never shows it.
+    /// title.wall (default on): the load-in screen, an opaque documentary wall of scrolling bee monitors round the player
+    /// at app start, on headset-on and on a group reset in pre (LoadWall + TitleWall); off = straight into the title.
+    /// Env VBS_TITLE_WALL (0/1) wins. It needs neither title.on nor title.globe.
     /// Env VBS_TITLE_GLOBE (0/1) wins, then StreamingAssets/tuning.json off-Android, then persistentDataPath/tuning.json.
     /// </summary>
     public static class GlobeFlags
