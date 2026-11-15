@@ -4,6 +4,7 @@ import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
+const LIVE_VOICE_SPEED = 0.95;
 
 /** Timeouts (ms) and the text cap. Mutable so tests can shorten them. */
 export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, maxChars: 500 };
@@ -85,7 +86,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
     const { client, voiceId } = env();
     const request = client.textToSpeech.stream(
       voiceId,
-      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000" },
+      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000", voiceSettings: { speed: LIVE_VOICE_SPEED } },
       { abortSignal: ac.signal, maxRetries: 1, timeoutInSeconds: ttsLimits.firstByteMs / 1000 },
     );
     const stream = await withTimeout(request, ttsLimits.firstByteMs, "TTS response");
@@ -95,6 +96,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
       const even = buf.length - (buf.length % 2);
       carry = even < buf.length ? buf.slice(even) : null;
       if (even > 0) {
+        if (bytes === 0) console.log(`[tts] first pcm in ${Math.round(performance.now() - start)}ms`);
         bytes += even;
         yield buf.subarray(0, even);
       }
@@ -113,7 +115,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
 /** Whole-file render (used by ttsMp3 and the pre-render script). Throws on failure or timeout. */
 export async function ttsBytes(
   text: string,
-  opts: { format?: ConvertFormat; model?: string; voiceId?: string; timeoutMs?: number } = {},
+  opts: { format?: ConvertFormat; model?: string; voiceId?: string; timeoutMs?: number; speed?: number } = {},
 ): Promise<Uint8Array> {
   const t = clean(text);
   if (!t) throw new Error("TTS: empty text");
@@ -123,7 +125,12 @@ export async function ttsBytes(
   try {
     const request = client.textToSpeech.convert(
       opts.voiceId ?? voiceId,
-      { text: t, modelId: opts.model ?? TTS_MODEL, outputFormat: opts.format ?? "mp3_44100_64" },
+      {
+        text: t,
+        modelId: opts.model ?? TTS_MODEL,
+        outputFormat: opts.format ?? "mp3_44100_64",
+        voiceSettings: opts.speed === undefined ? undefined : { speed: opts.speed },
+      },
       { abortSignal: ac.signal, maxRetries: 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
     );
     const stream = await withTimeout(request, opts.timeoutMs ?? ttsLimits.totalMs, "TTS response");
@@ -143,5 +150,5 @@ export async function ttsBytes(
 
 /** A whole mp3 of the line (for the glasses' audio_url). Rejects when TTS is unavailable or fails. */
 export async function ttsMp3(text: string): Promise<Uint8Array> {
-  return ttsBytes(text, { format: "mp3_44100_64" });
+  return ttsBytes(text, { format: "mp3_44100_64", speed: LIVE_VOICE_SPEED });
 }
