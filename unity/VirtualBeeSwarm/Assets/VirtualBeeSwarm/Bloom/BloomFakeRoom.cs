@@ -77,6 +77,7 @@ namespace VirtualBeeSwarm.Bloom
                 half = new Vector2(Depth * 0.5f, h * 0.5f),
             });
             var rot = Quaternion.LookRotation(-n, Vector3.up);
+            if (!MeadowLayout.Active) // meadow: no stand-in pillars (they showed up as grey slabs in the room at the escape)
             for (int side = -1; side <= 1; side += 2)
             {
                 Vector3 pc = foot + right * (side * PillarAlong) + n * (PillarOut + PillarSize * 0.5f) + up * (h * 0.5f);

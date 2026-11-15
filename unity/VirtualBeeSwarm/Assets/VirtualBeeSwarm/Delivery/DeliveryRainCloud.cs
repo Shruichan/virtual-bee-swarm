@@ -81,7 +81,43 @@ namespace VirtualBeeSwarm
             origin.y += height;
             if (Bloom.MeadowLayout.Active)
                 origin.y = Mathf.Max(origin.y, Bloom.MeadowLayout.RoofY + 0.15f);
+            // never through the roof: the cloud's lowest point clears the hive's real top (ridge finial) by 12 cm
+            if (hiveRoot != null && cloud != null && TopY(hiveRoot, out float top) && BottomBelowPivot(cloud, out float below))
+                origin.y = Mathf.Max(origin.y, top + 0.12f + below);
             return origin;
+        }
+
+        /// <summary>Highest point of the hive's visible meshes (works for any rig scale).</summary>
+        static bool TopY(Transform root, out float top)
+        {
+            top = float.MinValue;
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (!r.enabled) continue;
+                var b = r.bounds;
+                if (b.size.y > 3f) continue; // not a hive part
+                top = Mathf.Max(top, b.max.y);
+            }
+            return top > float.MinValue;
+        }
+
+        /// <summary>How far the cloud's meshes reach below its pivot (world m), from the meshes (it may still be hidden).</summary>
+        static bool BottomBelowPivot(Transform cloud, out float below)
+        {
+            float min = float.MaxValue;
+            foreach (var mf in cloud.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null) continue;
+                var b = mf.sharedMesh.bounds;
+                var m = mf.transform.localToWorldMatrix;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                    min = Mathf.Min(min, m.MultiplyPoint3x4(c).y);
+                }
+            }
+            below = min < float.MaxValue ? Mathf.Max(0f, cloud.position.y - min) : 0f;
+            return min < float.MaxValue;
         }
 
         public void Stop()
