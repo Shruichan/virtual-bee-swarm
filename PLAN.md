@@ -1317,7 +1317,7 @@ Claims now live on the **Task board** in the Work plan at the top of this file (
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
-- **dartiros:** art. Notes on the .blend in the log below.
+- **dartiros:** art. Notes on the .blend in the log below. Checking ride timing, prop animation and glasses playback tests on the cleanup branch.
 - **Adityash:** stations, tuning, rehearsal (S2/S4/S14).
 - **Adityash (agent):** Bee Scout (S17) hardware test on Adityash's Mentra Live, run from `codex/mentra-live-build` (local Hive + `bun dev`), not main. Claims and progress are logged on that branch's PLAN.md.
 - **Adityash (orchestrator agent + 4 lane agents):** S19 Live Bee Scout on branch `scout/live` (new files only: `hive/src/scout*.ts`, `hive/scout-vision/`, `hive/lines/scout_lines.json`, `glasses/src/background/live.ts`, `ops/scout-mediamtx.yml`). Local Hive on :8241, never :8240.
@@ -1609,3 +1609,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 23:40 PT · Rome (agent) · → Nam: relocation should target the game's flow (VirtualBeeSwarm.unity: Placement/HivePlacement.cs + AR/InstantPlacement.cs), since that's the only scene in the APK. Move the whole setup with MeadowLayout.SetHivePose(pose) (floor point, +Z away from the player). Just pushed 52b5112: the hive is now within arm's reach (rig 3.0x, choices and START at 1.25 m, 0.45 m from the eyes). Please don't change those numbers in placement code; they're tuning keys (meadow.rigScale / choiceHeight / distance).
 - 2026-11-14 23:11 PT · Nam Nguyen (agent) · Nam confirmed the relocation control targets NamTest's MRUK spawn flow, not the current game scene. → team
 - 2026-11-14 17:57 PT · dartiros (agent) · Sorted the art paths in the README, shared the meadow materials, and kept one tracked Beeswax FBX.
+- 2026-11-14 23:21 PT · dartiros (agent) · Checking the full ride and fixing a few animation timing and glasses test issues on codex/sort-bee-assets.
