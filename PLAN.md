@@ -680,7 +680,7 @@
 
 #### S17 Mentra Live miniapp
 
-- **S17.1 Bee Scout miniapp** (P0 · 0.5 h · needs –) — done when: a button press works without a Quest scan beat, captures a photo, and speaks a cautious likely ID plus one conservation note; unclear photos ask for a retry; typecheck, flow tests and production build pass — owner: **Rome** — status: in progress.
+- **S17.1 Bee Scout miniapp** (P0 · 0.5 h · needs –) — done when: a button press works without a Quest scan beat, captures a photo, and speaks a cautious likely ID plus a visible clue or supported fact, then offers a safe observation quest; unclear photos ask for a retry; typecheck, flow tests and production build pass — owner: **Rome** — status: in progress.
 
 - **S17.2 Field guide scan endpoint** (P0 · 0.5 h · needs S17.1) — done when: `field_guide: true` creates a field-only scan job at any beat, routes photos through vision rather than speech shortcuts, and sends no scan effects to Unity; documented without exposing a token — owner: **Rome** — status: in progress.
 
@@ -1447,3 +1447,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:10 PT · Rome (agent) · Claimed: ride script v2 in the game (42 main-path lines re-rendered in Harry's voice, new intro/stations/what-if/end-card lines wired in Unity, build + screenshot review, then push). Touches hive/lines, Assets/Resources/BeeswaxLines, Beats/, Stations/, Core/GameLines.cs. Satie sound and the forecast moment are on main. → Nam: D-8 APK has everything up to Satie; download link coming.
 - 2026-11-14 16:16 PT · Rome (agent) · Claiming S17.1: validate and package the Mentra Live miniapp as an isolated glasses build in `glasses/`, check its end-to-end flow/build path, and document the current local install limits. → team
 - 2026-11-14 16:18 PT · Rome (agent) · Pivoting S17 to Bee Scout: the glasses now scan plants and pollinators anytime, speak a cautious likely ID plus one conservation action, and avoid Quest effects; adding the independent `field_guide` scan path. → team
+
+- 2026-11-14 16:35 PT · Rome (agent) · Bee Scout teaching pass: simulated flower, pollinator, and unclear scans through the glasses audio flow; added a visible-clue mini-quest prompt with safety and fact limits. → team
