@@ -6,8 +6,8 @@ namespace VirtualBeeSwarm.Pals
 {
     /// <summary>
     /// The desktop path for Pals: a ghost right hand (PalHands) acts out each move so the real detectors run.
-    /// Off the headset only. Keys: F5 boop, F6 wave, F7 high-five, F8 palm up (again: close it), F10 waggle dance. Env
-    /// VBS_PALS_DEMO=1 plays boop, boop, wave, high-five, palm bees, the dance once in pre after SIGN HERE is handed over (captures: set
+    /// Off the headset only. Keys: F5 swat, F6 wave, F7 high-five, F8 palm up/close, F10 waggle dance, F11 pet. Env
+    /// VBS_PALS_DEMO=1 plays swat, pet, wave, high-five, palm bees, the dance once in pre after SIGN HERE is handed over (captures: set
     /// VBS_AUTOPILOT_PRE_IDLE so the autopilot waits ~20 s before signing). The autopilot itself never uses any of it.
     /// </summary>
     public class PalDemo : MonoBehaviour
@@ -26,6 +26,7 @@ namespace VirtualBeeSwarm.Pals
         {
             if (!PalHands.OffHeadset) return;
             if (GameInput.KeyDown(KeyCode.F5)) Run(Boop());
+            if (GameInput.KeyDown(KeyCode.F11)) Run(Pet());
             if (GameInput.KeyDown(KeyCode.F6)) Run(Wave());
             if (GameInput.KeyDown(KeyCode.F7)) Run(HighFive());
             if (GameInput.KeyDown(KeyCode.F8)) Run(_palmHeld ? PalmClose() : PalmOpen());
@@ -48,10 +49,10 @@ namespace VirtualBeeSwarm.Pals
 
         IEnumerator Demo()
         {
-            Debug.Log("[VBS][Pals] demo: boop, boop, wave, high-five, palm bees");
+            Debug.Log("[VBS][Pals] demo: swat, pet, wave, high-five, palm bees");
             yield return Boop();
             yield return Wait(1.6f);
-            yield return Boop();
+            yield return Pet();
             yield return Wait(1.2f);
             yield return Wave();
             yield return Wait(1.0f);
@@ -106,6 +107,30 @@ namespace VirtualBeeSwarm.Pals
             yield return Move(far, near, dir, normal, 0.22f, tipAt: true);
             yield return Wait(0.12f);
             yield return Move(near, far, dir, normal, 0.3f, tipAt: true);
+            hands.GhostDown();
+        }
+
+        public IEnumerator Pet()
+        {
+            var hands = PalHands.Instance;
+            if (hands == null || _bw == null) yield break;
+            Frame(out var eye, out _, out var right);
+            Vector3 inward = (Centre() - eye).normalized;
+            Vector3 normal = Vector3.ProjectOnPlane(Vector3.down, inward).normalized;
+            float radius = PalBeeswax.Radius() * 0.75f + 0.015f;
+            Vector3 near = Centre() - inward * (radius * 0.65f);
+            Vector3 far = Centre() - inward * (radius + 0.12f);
+            yield return Move(Rest(), far, inward, normal, 0.45f, tipAt: true);
+            yield return Move(far, near, inward, normal, 0.65f, tipAt: true);
+            float start = Time.time;
+            while (Time.time - start < 1f)
+            {
+                float phase = (Time.time - start) * Mathf.PI * 3f;
+                float stroke = Mathf.Sin(phase) * Mathf.Min(radius * 0.4f, 0.05f);
+                var tip = Centre() - inward * (radius * 0.65f) + right * stroke;
+                hands.Ghost(tip - PalHands.GhostTip(Vector3.zero, normal, inward), normal, inward);
+                yield return null;
+            }
             hands.GhostDown();
         }
 

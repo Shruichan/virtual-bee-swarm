@@ -334,15 +334,14 @@ namespace VirtualBeeSwarm.Bloom
             var rocket = anchor.Find("HONEYMOON-1");
             if (rocket != null && MeadowTuning.RocketX > 0f)
             {
-                // beside the hive and a step behind it, so from the player's spot it stands whole in view: not cut off at
-                // the edge of the view, not behind the hive's roof corner, nose under eye height
+                // Beside the hive and slightly forward so the hive does not hide the small rocket.
                 var lp = rocket.localPosition;
                 rocket.localPosition = new Vector3(Mathf.Sign(lp.x == 0f ? 1f : lp.x) * MeadowTuning.RocketX / Scale, lp.y, MeadowTuning.RocketZ / Scale);
                 parts.Add("rocket at " + MeadowTuning.RocketX.ToString("0.00", C) + " m right, " + MeadowTuning.RocketZ.ToString("0.00", C) + " m back");
             }
             if (rocket != null && MeadowTuning.RocketHeight > 0.1f && WorldBounds(rocket, out var rb) && rb.size.y > 0.05f)
             {
-                float f = Mathf.Clamp(MeadowTuning.RocketHeight / rb.size.y, 0.5f, 4f);
+                float f = Mathf.Clamp(MeadowTuning.RocketHeight / rb.size.y, 0.08f, 4f);
                 rocket.localScale *= f;
                 Remeasure(rocket);
                 parts.Add("rocket " + rb.size.y.ToString("0.00", C) + " -> " + (rb.size.y * f).ToString("0.00", C) + " m");

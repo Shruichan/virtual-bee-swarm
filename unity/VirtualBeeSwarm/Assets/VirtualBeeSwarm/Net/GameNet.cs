@@ -25,6 +25,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace VirtualBeeSwarm
@@ -272,6 +273,7 @@ namespace VirtualBeeSwarm
                 {
                     _boundVoice.OnLineStarted -= HandleLineStarted;
                     _boundVoice.CanSpeakAskCaption = null;
+                    _boundVoice.PreloadedAnswerId = null;
                 }
                 _boundVoice = voice;
                 _voiceSource = voice != null ? voice.GetComponent<AudioSource>() : null;
@@ -279,6 +281,7 @@ namespace VirtualBeeSwarm
                 {
                     voice.OnLineStarted += HandleLineStarted;
                     voice.CanSpeakAskCaption = ShouldSpeakDeviceCaption;
+                    voice.PreloadedAnswerId = PreloadedAnswerId;
                 }
             }
             if (orbis != _boundOrbis)
@@ -317,6 +320,7 @@ namespace VirtualBeeSwarm
             {
                 _boundVoice.OnLineStarted -= HandleLineStarted;
                 _boundVoice.CanSpeakAskCaption = null;
+                _boundVoice.PreloadedAnswerId = null;
             }
             _boundVoice = null;
             if (_boundOrbis != null)
@@ -401,10 +405,47 @@ namespace VirtualBeeSwarm
                 if (wake) _askQuestionsLeft = MaxAskQuestions;
                 _askQuestionsLeft = Mathf.Max(0, _askQuestionsLeft - 1);
                 _askFollowUpUntil = Time.realtimeSinceStartup + AskFollowUpSeconds;
-                TranscriptReceived?.Invoke(wake ? question : t.text, true);
+                string accepted = wake ? question : t.text;
+                TranscriptReceived?.Invoke(accepted, true);
+                TryShowAskClip(accepted);
                 return;
             }
             TranscriptReceived?.Invoke(t.text, t.final);
+        }
+
+        static readonly Regex AskShowRequest = new Regex(
+            @"^(?:(?:can|could|would|will) you[ ,]+|please[ ,]+|now[ ,]+)*show (?:me|us)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        void TryShowAskClip(string question)
+        {
+            if (_lastBeat != GameBeat.Map || orbis == null || string.IsNullOrWhiteSpace(question) ||
+                !AskShowRequest.IsMatch(question.Trim())) return;
+            string scene = AskClipScene(question);
+            if (!orbis.PreviewClip(scene, 8f)) return;
+            var line = GameLines.RoomPalShowMe;
+            if (voice != null)
+            {
+                // The preview answered this turn. Drop the legacy server's union-break line or duplicate pointer.
+                voice.SuppressAskReplies = true;
+                voice.SuppressNextFromBus(line.id);
+                _deviceAskReplyPending = true;
+                voice.Play(line.id, line.caption, allowDeviceSpeech: true);
+            }
+            else Say(line);
+            Debug.Log("[VBS][Ask] window preview " + scene);
+        }
+
+        static string AskClipScene(string text)
+        {
+            if (Regex.IsMatch(text, @"\b(?:moon|earth from space)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.Moon;
+            if (Regex.IsMatch(text, @"\b(?:snow|winter|ice|frost)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WhatIfWinter;
+            if (Regex.IsMatch(text, @"\b(?:rain|storm|downpour)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WhatIfRain;
+            if (Regex.IsMatch(text, @"\b(?:fire|wildfire|burning)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WhatIfFire;
+            if (Regex.IsMatch(text, @"\b(?:pesticide|spray|spraying)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WhatIfSpray;
+            if (Regex.IsMatch(text, @"\b(?:wasp|wasps|hornet|hornets)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WaspsRaid;
+            if (Regex.IsMatch(text, @"\b(?:flower|flowers|garden|lavender|pollination)\b", RegexOptions.IgnoreCase)) return GameIds.Scene.WhatIfFlowers;
+            return GameIds.Scene.FullBloom;
         }
 
         void HandleIntent(Beeswax.Intent i)
@@ -456,6 +497,13 @@ namespace VirtualBeeSwarm
         GameBeat? _lastBeat;
         bool _askUtterance, _wakeUtterance;
         bool _deviceAskReplyPending;
+
+        static string PreloadedAnswerId(string caption)
+        {
+            foreach (var answer in Ask.AskLines.Chips)
+                if (string.Equals(answer.caption, caption, StringComparison.Ordinal)) return answer.id;
+            return null;
+        }
 
         // The Quest's on-device speech engine is a different voice from Beeswax's recorded and live ElevenLabs voice.
         // dartiros wants one consistent voice, so it's opt-in now: VBS_DEVICE_SPEECH=1 turns it back on. Off, a failed
@@ -597,6 +645,10 @@ namespace VirtualBeeSwarm
         {
             float t0 = Time.realtimeSinceStartup;
             var ids = GameLines.ClipIds();
+            int scriptLineCount = ids.Length;
+            Array.Resize(ref ids, scriptLineCount + Ask.AskLines.Chips.Length);
+            for (int i = 0; i < Ask.AskLines.Chips.Length; i++)
+                ids[scriptLineCount + i] = Ask.AskLines.Chips[i].id;
             var requests = new ResourceRequest[ids.Length];
             for (int i = 0; i < ids.Length; i++) requests[i] = Resources.LoadAsync<AudioClip>(VoiceFolder + "/" + ids[i]);
             var missing = new List<string>();
@@ -612,6 +664,13 @@ namespace VirtualBeeSwarm
             }
             float until = Time.realtimeSinceStartup + preloadDecodeTimeoutSeconds;
             while (Time.realtimeSinceStartup < until && AnyClipDecoding()) yield return null;
+            // Do the PCM envelope work here, one bundled answer per frame, rather than at first playback.
+            for (int i = scriptLineCount; i < ids.Length; i++)
+            {
+                var clip = requests[i].asset as AudioClip;
+                if (voice != null) voice.WarmEnvelope(clip);
+                yield return null;
+            }
             int loaded = 0, failed = 0, pending = 0;
             foreach (var c in _voiceClips)
             {
@@ -744,6 +803,7 @@ namespace VirtualBeeSwarm
             _askQuestionsLeft = 0;
             _askFollowUpUntil = 0f;
             ResetVoiceWakeGate();
+            orbis?.ClearClipPreview();
             if (voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
         }
 

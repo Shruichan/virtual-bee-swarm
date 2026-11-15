@@ -184,11 +184,9 @@ namespace VirtualBeeSwarm.Juice
             if (t.name.IndexOf("Score", StringComparison.OrdinalIgnoreCase) < 0) return;
             _cardDone = true;
             AddPunch(t, false, 0.3f);
-            var cam = Camera.main;
-            Vector3 c = ItemCenter(t);
-            Vector3 toHead = cam != null ? (cam.transform.position - c).normalized : Vector3.back;
-            _fx.Burst(c + toHead * 0.03f, 26, GoldBee, 1.2f, 0.6f, 0.014f, 1f, 0.5f, 3f);
-            _fx.Ring(c + toHead * 0.04f, toHead, 22, White, 1.6f, 0.4f, 0.012f);
+            Vector3 origin = FeedbackOrigin(t, out Vector3 toHead);
+            _fx.Burst(origin, 26, GoldBee, 1.2f, 0.6f, 0.014f, 1f, 0.5f, 3f);
+            _fx.Ring(origin, toHead, 22, White, 1.6f, 0.4f, 0.012f);
             if (_marquee != null) _marquee.Chase(new Color(1f, 0.95f, 0.66f, 1f), 0.7f, 2f);
             Debug.Log("[VBS][Juice] score card landed: reveal");
         }
@@ -242,7 +240,7 @@ namespace VirtualBeeSwarm.Juice
             if (beat < GameBeat.Smoker || beat >= GameBeat.Escape) return;
             Picks++;
             FindWorld();
-            Vector3 origin = prop != null ? ItemCenter(prop) : FallbackOrigin();
+            Vector3 origin = prop != null ? FeedbackOrigin(prop, out _) : FallbackOrigin();
             int slot = beat == GameBeat.Smoker ? 0 : beat == GameBeat.Feed ? 1 : beat == GameBeat.Wasps ? 2 : beat == GameBeat.Heat ? 3 : -1;
             Debug.Log("[VBS][Juice] " + (right ? "right" : "wrong") + " pick at " + beat + (prop != null ? " on " + prop.name : " (no prop: hive door)"));
 
@@ -280,11 +278,28 @@ namespace VirtualBeeSwarm.Juice
             if (_bw != null) _bw.Pick(right);
         }
 
-        static Vector3 ItemCenter(Transform t)
+        static Vector3 FeedbackOrigin(Transform t, out Vector3 toHead)
         {
+            const float surfaceGap = 0.045f;
             var di = t.GetComponent<DeliveryItem>();
-            if (di != null && di.measured) return t.TransformPoint(di.localBounds.center);
-            return t.position + Vector3.up * 0.05f;
+            var cam = Camera.main;
+            bool measured = di != null && di.measured;
+            Vector3 center = measured ? t.TransformPoint(di.localBounds.center) : t.position + Vector3.up * 0.05f;
+            toHead = cam != null ? (cam.transform.position - center).normalized : Vector3.back;
+            if (toHead == Vector3.zero) toHead = -cam.transform.forward;
+            if (!measured) return center + toHead * surfaceGap;
+
+            // Intersect from the center along the viewer ray so sparks start outside the model.
+            Vector3 localRay = t.InverseTransformVector(toHead);
+            Vector3 extents = di.localBounds.extents;
+            float inverseDistance = Mathf.Max(
+                Mathf.Abs(localRay.x) / Mathf.Max(extents.x, 0.001f),
+                Mathf.Max(Mathf.Abs(localRay.y) / Mathf.Max(extents.y, 0.001f),
+                          Mathf.Abs(localRay.z) / Mathf.Max(extents.z, 0.001f)));
+            float distance = inverseDistance > 0f ? 1f / inverseDistance : 0f;
+            // Keep the burst in the play area if the player leans into the bounds.
+            if (cam != null) distance = Mathf.Min(distance, Mathf.Max(0f, Vector3.Distance(center, cam.transform.position) - 0.15f));
+            return center + toHead * (distance + surfaceGap);
         }
 
         Vector3 FallbackOrigin()
@@ -391,10 +406,8 @@ namespace VirtualBeeSwarm.Juice
                 var t = _hitT;
                 _hitT = null;
                 AddPunch(t, false, 0.22f);
-                var cam = Camera.main;
-                Vector3 c = ItemCenter(t);
-                Vector3 toHead = cam != null ? (cam.transform.position - c).normalized : Vector3.back;
-                _fx.Ring(c + toHead * 0.07f, toHead, 16, _hitApproved ? InkApproved : InkGrievance, 1.1f, 0.32f, 0.011f);
+                Vector3 origin = FeedbackOrigin(t, out Vector3 toHead);
+                _fx.Ring(origin, toHead, 16, _hitApproved ? InkApproved : InkGrievance, 1.1f, 0.32f, 0.011f);
             }
             if (_dimReleaseAt > 0f && now >= _dimReleaseAt) { _dimReleaseAt = -9f; PassthroughDim.Release(DimKey, 0.4f); }
 

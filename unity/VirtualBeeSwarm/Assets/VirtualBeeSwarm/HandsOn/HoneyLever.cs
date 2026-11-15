@@ -29,6 +29,8 @@ namespace VirtualBeeSwarm.HandsOn
         public Vector3 HeadPosition => _head.position;
         internal Transform VisualRoot { get; private set; }
 
+        void RefreshVisibility() => gameObject.SetActive(_live || VisualRoot.gameObject.activeSelf || _pad.gameObject.activeSelf);
+
         public bool Live
         {
             get => _live;
@@ -57,6 +59,7 @@ namespace VirtualBeeSwarm.HandsOn
                 }
                 if (_capsule != null) _capsule.enabled = value;
                 if (_ball != null) _ball.enabled = value;
+                RefreshVisibility();
                 Debug.Log("[VBS][HandsOn] lever " + (value ? "live" : "locked"));
             }
         }
@@ -147,6 +150,7 @@ namespace VirtualBeeSwarm.HandsOn
             lever.Paint();
             visual.localScale = Vector3.one * 0.001f;
             visual.gameObject.SetActive(false);
+            lever.RefreshVisibility();
             return lever;
         }
 
@@ -159,6 +163,7 @@ namespace VirtualBeeSwarm.HandsOn
             _pad.localScale = Vector3.one;
             if (_pad.gameObject.activeSelf != on) _pad.gameObject.SetActive(on);
             if (!on) _pad.localPosition = _cradleHome;
+            RefreshVisibility();
         }
 
         // ------------------------------------------------------------ grab (IGameGrabTarget)
@@ -213,6 +218,7 @@ namespace VirtualBeeSwarm.HandsOn
         {
             StopSim();
             Held = false;
+            _angle = _target = _vel = 0f;
         }
 
         // ------------------------------------------------------------ motion
@@ -240,6 +246,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _flashAt = -1f;
                 _flash.gameObject.SetActive(false);
                 Apply();
+                RefreshVisibility();
                 return;
             }
             if (Held || _sim != null)

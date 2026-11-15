@@ -52,7 +52,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomPreNudge = new GameLine("room_pre_nudge", "Poke it with one finger. That's how you'll pick everything today."); // room | pre | pre, hint, poke
         public static readonly GameLine RoomPreSigned = new GameLine("room_pre_signed", "Signed. Crew, cut the window!"); // room | pre | pre, signed, window
         public static readonly GameLine RoomHookCarry = new GameLine("room_hook_carry", "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract."); // room | hook | hook, delivery, fact:drones
-        public static readonly GameLine RoomHook1 = new GameLine("room_hook_1", "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon."); // room | meet | meet, load-bearing, stakes
+        public static readonly GameLine RoomHook1 = new GameLine("room_hook_1", "Save our hive, or the swarms take Earth. That rocket is our backup plan."); // room | meet | meet, load-bearing, stakes
         public static readonly GameLine RoomHook2 = new GameLine("room_hook_2", "Your evacuation rocket. Honeymoon One. We booked you a window seat."); // room | meet | meet, rocket, stakes
         public static readonly GameLine RoomMeet1 = new GameLine("room_meet_1", "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee."); // room | meet | meet, fact:species
         public static readonly GameLine RoomMeetRole = new GameLine("room_meet_role", "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper."); // room | meet | meet, load-bearing, role
@@ -65,7 +65,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomSmokerSwat = new GameLine("room_smoker_swat", "You SWATTED a union member?! Squish one bee and her alarm smell calls the whole shift."); // room | smoker | station:smoker, choice:swat, wrong, fact:alarm
         public static readonly GameLine RoomSmokerSprayWater = new GameLine("room_smoker_spray_water", "Water? Now they're wet AND still buzzing mad. Smoke masks the alarm smell."); // room | smoker | station:smoker, choice:spray_water, wrong, fact:alarm
         public static readonly GameLine RoomSmokerSmoker = new GameLine("room_smoker_smoker", "Ahh. Smoke covers our alarm smell and makes us fill up on honey. The alarm? Smells like bananas."); // room | smoker | station:smoker, choice:smoker, correct, fact:smoke
-        public static readonly GameLine RoomSmokerBanana = new GameLine("room_smoker_banana", "Don't go bananas near my hive. And don't eat a banana, either."); // room | smoker | station:smoker, joke, cut-if-behind
+        public static readonly GameLine RoomSmokerBanana = new GameLine("room_smoker_banana", "Don't turn into a banana."); // room | smoker | station:smoker, joke, cut-if-behind
         public static readonly GameLine RoomSmokerHand = new GameLine("room_smoker_hand", "They're calm. Hold out your hand. These ones are virtual. Real ones? Bee-hold, but don't touch."); // room | smoker | station:smoker, optional, palm, fact:sting
         public static readonly GameLine RoomFeedIntro = new GameLine("room_feed_intro", "Problem two. Speaking of honey, any left? Now lift the hive."); // room | feed | station:feed, prompt, load-bearing
         public static readonly GameLine RoomLiftLight = new GameLine("room_lift_light", "Light, right? That's bad. Full hives are heavy with honey. The movers were being dramatic."); // room | feed | station:feed, lift, load-bearing, fact:heft
@@ -76,7 +76,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomFeedStoreHoney = new GameLine("room_feed_store_honey", "...Honey. From a STORE. It can carry foulbrood. Its spores last decades. Fine on toast, deadly in a hive."); // room | feed | station:feed, choice:store_honey, wrong, fact:foulbrood
         public static readonly GameLine RoomFeedSugarSyrup = new GameLine("room_feed_sugar_syrup", "Sugar syrup. Sweet. Beekeepers lift the hive to check for food, then feed syrup."); // room | feed | station:feed, choice:sugar_syrup, correct, fact:heft
         public static readonly GameLine RoomFeedWhy = new GameLine("room_feed_why", "Why avoid store honey? It can carry foulbrood spores. Fine on toast, deadly in a hive."); // room | feed | station:feed, fact:foulbrood
-        public static readonly GameLine RoomWaspsArrive = new GameLine("room_wasps_arrive", "Uh oh. Problem three: wasps made a beeline for the syrup."); // room | wasps | station:wasps, load-bearing, arrive
+        public static readonly GameLine RoomWaspsArrive = new GameLine("room_wasps_arrive", "Bees feed their young pollen. Many wasps bring bugs. These want syrup."); // room | wasps | station:wasps, load-bearing, arrive
         public static readonly GameLine RoomWaspsBatoff = new GameLine("room_wasps_batoff", "Guard duty! Bounce 'em, don't squish 'em. A squished wasp's alarm scent calls in her nestmates."); // room | wasps | station:wasps, batoff, fact:alarm_pheromone
         public static readonly GameLine RoomWaspsBatoffNice = new GameLine("room_wasps_batoff_nice", "Look at you, bouncing. Real guard bees check everyone at the door and shove intruders out."); // room | wasps | station:wasps, batoff, fact:guard_bees
         public static readonly GameLine RoomWaspsBatoffDoor = new GameLine("room_wasps_batoff_door", "One made it to the door! Guards are on her. Shoving's in the job description."); // room | wasps | station:wasps, batoff
@@ -172,8 +172,8 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomPalShowMe = new GameLine("room_pal_show_me", "Motion carried. Eyes on the window."); // room | - | pals, show_me, window
 
         // ------------------------------------------------------------ local only: the game plays these, lines.json doesn't have them
-        // (no clip: caption only). Add them to hive/lines/lines.json + render them, and they come from there.
-        public static readonly GameLine RoomFeedLiftHint = new GameLine("room_feed_lift_hint", "Grab it and lift. Union rules allow it.");
+        public static readonly GameLine RoomFeedLiftHint = new GameLine("room_feed_lift_hint", "Grab the hive and rock it back and forth. Feel how heavy it is.");
+        public static readonly GameLine RoomFeedRockRetry = new GameLine("room_feed_rock_retry", "Hold on. Pick it back up and give it a rock. We still need to feel how heavy it is.");
 
         // ------------------------------------------------------------ the names the beats use (BeeswaxVoiceTools.Aliases)
         public static readonly GameLine PreStart = RoomPre; // pre: place the hive, START
@@ -183,7 +183,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine Meet = RoomMeet2;
         public static readonly GameLine SmokerPrompt = RoomSmokerIntro; // = stations.json smoker.intro_line
         public static readonly GameLine FeedPrompt = RoomFeedIntro; // = stations.json feed.intro_line
-        public static readonly GameLine FeedLiftHint = RoomFeedLiftHint; // the player hasn't lifted the hive yet
+        public static readonly GameLine FeedLiftHint = RoomFeedLiftHint; // the player is checking the hive's weight
         public static readonly GameLine FeedTooLight = RoomFeedTip; // after the lift
         public static readonly GameLine FeedChoose = RoomFeedPrompt;
         public static readonly GameLine WaspsPrompt = RoomWaspsIntro; // = stations.json wasps.intro_line
@@ -248,7 +248,7 @@ namespace VirtualBeeSwarm
             RoomPalDance, RoomPalShowMe,
         };
 
-        static readonly GameLine[] LocalLines = { RoomFeedLiftHint };
+        static readonly GameLine[] LocalLines = { RoomFeedLiftHint, RoomFeedRockRetry };
 
         /// <summary>Every line: lines.json order, then the local-only ones. Allocates.</summary>
         public static GameLine[] All()
@@ -259,15 +259,16 @@ namespace VirtualBeeSwarm
             return all;
         }
 
-        /// <summary>The ids that have (or should have) a clip in Resources/BeeswaxLines: every lines.json line, in file order. Allocates.</summary>
+        /// <summary>The prerecorded line ids, in file order followed by local gameplay prompts.</summary>
         public static string[] ClipIds()
         {
-            var ids = new string[FileLines.Length];
-            for (int i = 0; i < ids.Length; i++) ids[i] = FileLines[i].id;
+            var ids = new string[FileLines.Length + LocalLines.Length];
+            for (int i = 0; i < FileLines.Length; i++) ids[i] = FileLines[i].id;
+            for (int i = 0; i < LocalLines.Length; i++) ids[FileLines.Length + i] = LocalLines[i].id;
             return ids;
         }
 
-        /// <summary>A line the game plays that lines.json doesn't have (caption only).</summary>
+        /// <summary>A line owned by the game rather than the Hive line catalog.</summary>
         public static bool IsLocalOnly(string id)
         {
             for (int i = 0; i < LocalLines.Length; i++)

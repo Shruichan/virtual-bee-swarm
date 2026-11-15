@@ -25,7 +25,7 @@ namespace VirtualBeeSwarm
         public static GameLine LiftLight => Get("room_lift_light", "Light, right? That's bad. Full hives are heavy with honey. The movers were being dramatic.");
         public static GameLine HintFeed => Get("room_hint_feed", "Off the record? You don't know where store honey's been.");
         public static GameLine FeedWhy => Get("room_feed_why", "Why not store honey? It can carry foulbrood spores. Fine on toast, deadly in a hive.");
-        public static GameLine WaspsArrive => Get("room_wasps_arrive", "Uh oh. Problem three: wasps made a beeline for the syrup.");
+        public static GameLine WaspsArrive => Get("room_wasps_arrive", "Bees feed their young pollen. Many wasps bring bugs. These want syrup.");
         public static GameLine HintWasps => Get("room_hint_wasps", "Off the record? Think castle. Big gate or small gate?");
         public static GameLine WaspsStinger => Get("room_wasps_stinger", "I wasn't hiding. Drones can't sting. A stinger's a modified egg-laying tube. Girls only.");
         public static GameLine HintHeat => Get("room_hint_heat", "Off the record? Bees can't swim. Where would a bee stand to drink?");

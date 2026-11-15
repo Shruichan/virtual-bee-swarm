@@ -10,7 +10,7 @@ namespace VirtualBeeSwarm
     /// GroupResetDone, GameNet.VoiceLineStarted (line id + caption) and HiveBody.Lifted. Every prop plays its own Blender
     /// clip on a Legacy Animation (ArtAnim style) and logs "[VBS][NewProps] &lt;prop&gt; &lt;clip&gt; (&lt;why&gt;)".
     ///   BadgeAct     union badge pinned on Beeswax's chest (his rig's Body bone); Settle wiggle on his union lines
-    ///   BenchAct     the beekeeper who quit left a bench on the table: frame rest, queen cage, sample tray, hive tool;
+    ///   BenchAct     in tabletop mode, the beekeeper left a frame rest, queen cage, sample tray, and hive tool;
     ///                tool + comb frame on the hive lift and at the escape, cage cork on "queen", samples on "honey"
     ///   NectarAct    right feed pick (room_feed_sugar_syrup): three nectar drops fall into the hive
     ///   QueenAct     escape: the queen rises out of the open hive and hovers (she's safe); back inside at T-0
@@ -79,7 +79,7 @@ namespace VirtualBeeSwarm
 
             var report = new List<string>();
             Add<BadgeAct>(report);
-            Add<BenchAct>(report);
+            if (!Bloom.MeadowLayout.Active) Add<BenchAct>(report);
             Add<NectarAct>(report);
             Add<QueenAct>(report);
             Add<MoonFlagAct>(report);

@@ -19,6 +19,9 @@ namespace VirtualBeeSwarm.HandsOn
         int _count;
         float _shownAt = -10f;
         const float ShowGuardSeconds = 0.3f;
+        const float MinReachDistance = 0.58f;
+        Vector3 _unadjustedPosition;
+        bool _positionAdjusted;
 
         public bool Visible => gameObject.activeSelf;
         public int Count => _count;
@@ -57,12 +60,51 @@ namespace VirtualBeeSwarm.HandsOn
                 t.transform.localRotation = Quaternion.Euler(35f, 0f, 0f);
                 t.Set(choices[i], labels[i], crossed(choices[i]), i + 1);
             }
-            if (!gameObject.activeSelf) { _shownAt = Time.time; gameObject.SetActive(true); }
+            if (!gameObject.activeSelf)
+            {
+                _shownAt = Time.time;
+                KeepOutOfPlayerSpace();
+                gameObject.SetActive(true);
+            }
         }
 
         public void Hide()
         {
             if (gameObject.activeSelf) gameObject.SetActive(false);
+            if (!_positionAdjusted) return;
+            transform.localPosition = _unadjustedPosition;
+            _positionAdjusted = false;
+        }
+
+        void KeepOutOfPlayerSpace()
+        {
+            if (Application.platform != RuntimePlatform.Android) return;
+            var head = HandsOnKit.Head;
+            if (head == null) return;
+
+            Vector3 start = transform.position;
+            Vector3 offset = Vector3.ProjectOnPlane(start - head.position, Vector3.up);
+            Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.5f) forward = Vector3.forward;
+            float distance = offset.magnitude;
+            float height = Mathf.Min(start.y, head.position.y - 0.34f);
+            if (distance >= MinReachDistance && Mathf.Approximately(height, start.y)) return;
+            Vector3 toward = distance > 0.10f && Vector3.Dot(offset, forward) > 0f ? offset / distance : forward;
+            Vector3 eyesOnBoardPlane = new Vector3(head.position.x, height, head.position.z);
+            Vector3 target = eyesOnBoardPlane + toward * Mathf.Max(MinReachDistance, distance);
+
+            var room = AR.ArRig.Instance != null ? AR.ArRig.Instance.Room : null;
+            if (room != null && distance < MinReachDistance && room.InsideFootprint(target, 0.10f))
+            {
+                Vector3 left = eyesOnBoardPlane + Quaternion.Euler(0f, -30f, 0f) * toward * MinReachDistance;
+                Vector3 right = eyesOnBoardPlane + Quaternion.Euler(0f, 30f, 0f) * toward * MinReachDistance;
+                if (!room.InsideFootprint(left, 0.10f)) target = left;
+                else if (!room.InsideFootprint(right, 0.10f)) target = right;
+                else target = new Vector3(start.x, height, start.z);
+            }
+            _unadjustedPosition = transform.localPosition;
+            _positionAdjusted = true;
+            transform.position = target;
         }
 
         public OrderTicket Ticket(string choice)

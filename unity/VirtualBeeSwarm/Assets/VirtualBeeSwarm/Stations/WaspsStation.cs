@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
 {
@@ -14,6 +15,10 @@ namespace VirtualBeeSwarm
         [SerializeField] int guardsAtSmallDoor = 2;
         [SerializeField] int guardsAtNormalDoor = 4;
 
+        HandsOnPrompt _arrivalWarning;
+        public bool WarningVisible => _arrivalWarning != null && _arrivalWarning.Visible;
+        public bool WaspsArrived => IsActive && _state != WaspState.Hidden;
+
         protected override GameLine Prompt => GameLines.WaspsPrompt;
         protected override GameLine Hint => RideLines.HintWasps;
 
@@ -26,6 +31,15 @@ namespace VirtualBeeSwarm
         /// </summary>
         protected override IEnumerator StationIntro()
         {
+            if (hive != null)
+            {
+                if (_arrivalWarning == null) _arrivalWarning = HandsOnPrompt.Build(transform, "Wasp warning", 0.0032f);
+                _arrivalWarning.Show("! WASPS INCOMING", hive.SwarmCenter, Vector3.up * 0.33f, 1.2f, HandsOnKit.Bad);
+                GameSound.Cue("countdown_beep", hive.transform);
+                yield return Wait(1.2f);
+                _arrivalWarning.Hide();
+            }
+            SetState(_window != null && hive != null ? WaspState.Arrive : WaspState.Buzz);
             yield return SayAndWait(RideLines.WaspsArrive, 0.8f, LineTime.Seconds(net, RideLines.WaspsArrive) + 1f);
             if (BatOff != null) yield return BatOff(this); // WASPBATOFF hook
             if (beeswax != null && hive != null)
@@ -72,7 +86,7 @@ namespace VirtualBeeSwarm
                 swarm.SetGuardCount(guardsAtNormalDoor);
                 swarm.SetMode(SwarmMode.Guard);
             }
-            SetState(_window != null && hive != null ? WaspState.Arrive : WaspState.Buzz);
+            SetState(WaspState.Hidden);
         }
 
         protected override IEnumerator ShowOutcome(string choice, bool correct)
@@ -103,12 +117,14 @@ namespace VirtualBeeSwarm
 
         protected override void OnStationExit()
         {
+            _arrivalWarning?.Hide();
             SetState(WaspState.Hidden);
             if (swarm != null) swarm.SetMode(SwarmMode.Calm);
         }
 
         protected override void OnStationReset()
         {
+            _arrivalWarning?.Hide();
             SetState(WaspState.Hidden);
             if (hive != null) hive.SetDoor(HiveBody.DoorSize.Normal);
         }

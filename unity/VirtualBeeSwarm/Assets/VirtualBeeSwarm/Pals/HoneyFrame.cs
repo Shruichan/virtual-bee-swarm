@@ -42,6 +42,8 @@ namespace VirtualBeeSwarm.Pals
         GameAutopilot _autopilot;
 
         public bool Active => _state != State.Off && _state != State.Done;
+        public bool Visible => _root != null && _root.gameObject.activeSelf;
+        public bool BlocksAsk => isActiveAndEnabled && (Visible || CanOfferAfterUnload);
         public bool Held => _state == State.Held;
         public bool Ready => _state == State.Waiting;
         public float Scraped => _scraped / (float)_caps.Length;
@@ -50,6 +52,8 @@ namespace VirtualBeeSwarm.Pals
         public Vector3 JarTop => _jar != null ? _jar.position + Vector3.up * 0.13f : Vector3.zero;
         public Vector3 Position => _frame != null ? _frame.position : Vector3.zero;
         static bool Demo => Environment.GetEnvironmentVariable("VBS_HONEY_DEMO") == "1";
+        bool CanOfferAfterUnload => !_offeredThisRun && _director != null && _director.Beat == GameBeat.Map &&
+            PalBeeswax.On && _map != null && (Demo || _autopilot == null || !_autopilot.Running);
 
         void Awake() => Instance = this;
 
@@ -81,14 +85,18 @@ namespace VirtualBeeSwarm.Pals
         void Update()
         {
             if (_director == null) return;
+            if (RideDirector.Instance != null && RideDirector.Instance.AskShown)
+            {
+                if (Visible) Hide("Ask Beeswax opened");
+                return;
+            }
             if (_state == State.Off)
             {
                 if (PalHands.OffHeadset && GameInput.KeyDown(KeyCode.F9) && _director.Beat > GameBeat.Hook) Offer("key F9");
-                else if (!_offeredThisRun && _director.Beat == GameBeat.Map && PalBeeswax.On)
+                else if (CanOfferAfterUnload)
                 {
-                    bool auto = _autopilot != null && _autopilot.Running;
                     if (Demo) Offer("demo");
-                    else if (!auto && _map != null && _map.UnloadDone && (_net == null || !_net.IsSpeaking)) Offer("unload done");
+                    else if (_map.UnloadDone && (_net == null || !_net.IsSpeaking)) Offer("unload done");
                 }
                 return;
             }
@@ -97,10 +105,11 @@ namespace VirtualBeeSwarm.Pals
 
         public void Offer(string why)
         {
+            if (RideDirector.Instance != null && RideDirector.Instance.AskShown) return;
+            _offeredThisRun = true;
             var hive = FindAnyObjectByType<HiveBody>();
             if (hive == null || !hive.isActiveAndEnabled) return;
             Build();
-            _offeredThisRun = true;
             Transform head = Head();
             Vector3 eye = head != null ? head.position : Vector3.up * 1.5f;
             var del = BeeDelivery.Instance;
@@ -174,6 +183,7 @@ namespace VirtualBeeSwarm.Pals
                 case State.Waiting:
                     _frame.SetPositionAndRotation(_frame.position + Vector3.up * (Mathf.Sin(t * 1.6f) * 0.0006f), _frameRot);
                     TryGrab(hands);
+                    if (_state == State.Waiting && since >= 7f) Hide("left untouched");
                     break;
                 case State.Held:
                     Held_(hands);
@@ -184,7 +194,7 @@ namespace VirtualBeeSwarm.Pals
                     float k = Mathf.Clamp01(since / 1.4f);
                     _frame.SetPositionAndRotation(Vector3.Lerp(_frame.position, _from, Mathf.SmoothStep(0f, 1f, k) * 0.2f), _frameRot);
                     _frame.localScale = Vector3.one * (1f - k * k);
-                    if (k >= 1f) { _frame.gameObject.SetActive(false); Set(State.Off); _state = State.Off; }
+                    if (k >= 1f) Hide("jar filled");
                     break;
                 }
             }

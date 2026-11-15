@@ -124,7 +124,7 @@ namespace VirtualBeeSwarm.Theme
             }
             Debug.Log("[VBS][Stickers] union card ready (" + (_anchor != null ? "on " + _anchor.name : "no TableAnchor") + "), stations " +
                       Count(_stations) + "/4, timeout flag " + (_timeoutField != null ? "found" : "by line id"));
-            if (_director != null && _director.Beat >= GameBeat.Smoker && _director.Beat <= GameBeat.Map) ShowCard("joined at " + GameIds.BeatName(_director.Beat));
+            if (_director != null && _director.Beat >= GameBeat.Smoker && _director.Beat < GameBeat.Escape) ShowCard("joined at " + GameIds.BeatName(_director.Beat));
         }
 
         static int Count(StationBase[] a) { int n = 0; foreach (var s in a) if (s != null) n++; return n; }
@@ -171,7 +171,8 @@ namespace VirtualBeeSwarm.Theme
             _choosingSince = -1f;
             _wasChoosing = false;
             if (beat == GameBeat.Pre) { ResetRun(); return; }
-            if (beat >= GameBeat.Smoker && beat <= GameBeat.Map) ShowCard(GameIds.BeatName(beat));
+            if (beat >= GameBeat.Smoker && beat < GameBeat.Escape) ShowCard(GameIds.BeatName(beat));
+            else if (beat >= GameBeat.Escape) _card.Show(false);
             if (beat == GameBeat.Escape)
             {
                 _escapeAt = Time.time;
