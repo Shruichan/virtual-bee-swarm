@@ -785,6 +785,9 @@ MonoBehaviour:
   framesPath: /orbis/frames
   connectOnStart: 1
   staleSeconds: 8
+  sceneChangeStaleSeconds: 2.5
+  cutStaleSeconds: 1
+  sceneChangeWatchSeconds: 10
   maxDecodesPerSecond: 24
   relayStatus: 1
   targetRenderer: {fileID: 0}
@@ -824,6 +827,7 @@ MonoBehaviour:
   glowColor: {r: 1, g: 0.8, b: 0.35, a: 0.5}
   growScale: 1.5
   moonScale: 2.4
+  flareSeconds: 1.5
 --- !u!1 &95970788
 GameObject:
   m_ObjectHideFlags: 0
@@ -35939,6 +35943,7 @@ MonoBehaviour:
   maxTiltDegrees: 28
   liftThreshold: 0.03
   liftKey: 103
+  lidSwing: 170
 --- !u!4 &1792994611
 Transform:
   m_ObjectHideFlags: 0
