@@ -1,0 +1,17 @@
+{
+    "name": "VirtualBeeSwarm.UiTheme",
+    "rootNamespace": "VirtualBeeSwarm.Theme",
+    "references": [
+        "VirtualBeeSwarm",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
