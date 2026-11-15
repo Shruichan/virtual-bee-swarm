@@ -106,6 +106,7 @@ namespace VirtualBeeSwarm
             _retryUntil = -1f;
             _retrySpokenAt = -100f;
             if (swarm != null) swarm.SetMode(SwarmMode.Calm);
+            BuildEmptyHive(); // [polish] made hidden now, so the theme has restyled it before it shows (it popped in plain, then jumped)
         }
 
         /// <summary>Let the player feel the weight, then explain the empty hive before the feeding choices arrive.</summary>
@@ -227,10 +228,8 @@ namespace VirtualBeeSwarm
             t.position = target;
         }
 
-        void ShowEmptyHive()
+        void BuildEmptyHive()
         {
-            var camera = Camera.main;
-            if (hive == null || camera == null) return;
             if (_emptyCard == null)
             {
                 _emptyCard = new GameObject("Empty hive label").transform;
@@ -252,11 +251,19 @@ namespace VirtualBeeSwarm
                 label.fontSize = 48;
                 label.characterSize = 0.01f;
                 label.color = new Color(1f, 0.94f, 0.76f);
+                _emptyCard.gameObject.SetActive(false);
             }
+        }
+
+        void ShowEmptyHive()
+        {
+            var camera = Camera.main;
+            if (hive == null || camera == null) return;
+            BuildEmptyHive();
             var eyes = camera.transform;
             Vector3 front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
-            Vector3 position = eyes.position + front * 0.65f - Vector3.up * 0.17f;
+            Vector3 position = eyes.position + front * 0.8f - Vector3.up * 0.3f; // [polish] was 0.65 / 0.17: out of the face, down by the hive
             _emptyCard.SetPositionAndRotation(position, Quaternion.LookRotation(position - eyes.position, Vector3.up));
             _emptyCard.gameObject.SetActive(true);
         }
