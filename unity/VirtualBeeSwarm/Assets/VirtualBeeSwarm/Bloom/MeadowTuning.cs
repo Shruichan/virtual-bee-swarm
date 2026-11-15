@@ -18,10 +18,10 @@ namespace VirtualBeeSwarm.Bloom
     ///   meadow.walls        true   vines, climbing flowers and leaves on the walls all ride long (short while sick)
     ///   meadow.rig          true   no table: the whole hive rig (TableAnchor) is scaled up and stands on the floor
     ///                              (off: the old table layout, untouched). Alias: meadow.stand
-    ///   meadow.rigScale     3.5    how much bigger the rig is (the hive body is then ~0.3-1.2 m above the floor)
+    ///   meadow.rigScale     3.0    how much bigger the rig is (the hive body is then ~0.3-1.2 m above the floor)
     ///   meadow.hiveStand    0.3    m, the hive stand (legs) under the hive box
-    ///   meadow.choiceHeight 1.05   m above the floor of the price-tag choices (on garden stakes) and START
-    ///   meadow.distance     0.5    m from the player's eyes to the choice row at the automatic start placement
+    ///   meadow.choiceHeight 1.25   m above the floor of the price-tag choices (on garden stakes) and START
+    ///   meadow.distance     0.45   m from the player's eyes to the choice row at the automatic start placement
     ///   meadow.yard         0.7    plant height kept in the mown yard round the hive and its props (0..1)
     ///   meadow.roomBees     300    bees working the flowers on the floor AND the wall vines all over the room (0..600, low-poly bee)
     ///   meadow.rocketHeight 1.7    m, the rocket's height beside the hive (0 = rig scale only)
@@ -45,10 +45,10 @@ namespace VirtualBeeSwarm.Bloom
         public static bool Bees = true;
         public static bool Walls = true;
         public static bool Rig = true;
-        public static float RigScale = 3.5f;
+        public static float RigScale = 3.0f;
         public static float HiveStand = 0.3f;
-        public static float ChoiceHeight = 1.05f;
-        public static float Distance = 0.5f;
+        public static float ChoiceHeight = 1.25f;
+        public static float Distance = 0.45f;
         public static float Yard = 0.7f;
         public static int RoomBees = 300;
         public static float RocketHeight = 1.7f, WindowWidth = 1.8f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
@@ -77,10 +77,10 @@ namespace VirtualBeeSwarm.Bloom
             Bees = true;
             Walls = true;
             Rig = true;
-            RigScale = 3.5f;
+            RigScale = 3.0f;
             HiveStand = 0.3f;
-            ChoiceHeight = 1.05f;
-            Distance = 0.5f;
+            ChoiceHeight = 1.25f;
+            Distance = 0.45f;
             Yard = 0.7f;
             RoomBees = 300;
             RocketHeight = 1.7f;
