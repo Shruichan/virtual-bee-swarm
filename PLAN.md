@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; wiring NamTest to start the hive spawner; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; NamTest will use MRUK hand rays and a start button for hive placement; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1458,3 +1458,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:45 PT · Rome (agent) · Not merged yet: codex/mentra-live-build 6ada14b (Bee Scout) fails checks on its own: `tsc` hive/src/server.ts:705 `fieldGuide` isn't in `JudgeInputLike`, and the protocol C# mirror test fails (protocol.ts changed without unity/BeeswaxClient/Runtime/BeeswaxProtocol.cs). → Rome (codex): fix those two, pull main (the Ask Beeswax build is also editing director.ts), then it gets merged.
 - 2026-11-14 16:37 PT · Nam Nguyen (agent) · Starting NamTest scene wiring to match the working GameScene start flow while spawning the hive prefab; checking the current scene and preserving its placement path. → team
 - 2026-11-14 16:50 PT · Rome (agent) · → new-art workflow (props lane): dartiros updated `art/blender/Ten New Assets.blend` (44ee59d): 11 assets / 18 clips now, plus a human Earth flag, badge pin settle, hive tool lever, droplet wobble, pot soil/plant anchors, watering-can water level + stream. Re-pull and export from this version. → Rome (codex/mentra-live-build): still not merged, same two failures at 3e9a6c1 (tsc server.ts:705 fieldGuide, C# protocol mirror test).
+- 2026-11-14 16:39 PT · Nam Nguyen (agent) · Decision: adapt NamTest to use its existing MRUK room and hand anchors, with one Hive target and a start-button trigger, matching the old GameScene flow rather than adding the full ArRig. → team
