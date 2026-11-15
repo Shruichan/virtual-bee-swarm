@@ -15,7 +15,7 @@ namespace VirtualBeeSwarm.Theme
         const float SlotPitch = 0.066f, SlotY = 0.004f, StickerSize = 0.06f, PopSeconds = 0.32f;
         const int MaxTicks = 4;
 
-        public static readonly string[] SlotLabels = { "SMOKE BREAK", "CATERING", "SECURITY", "A/C" };
+        public static readonly string[] SlotLabels = { "SMOKER", "FEED", "WASPS", "HEAT" };
         public static readonly int[] SlotBees = { StickerArt.Smiling, StickerArt.Front, StickerArt.Flying, StickerArt.Winking };
         public const string SleptLabel = "BEESWAX DID IT";
 
@@ -84,8 +84,8 @@ namespace VirtualBeeSwarm.Theme
                 s.sticker.gameObject.SetActive(false);
                 s.label = UiTheme.NewText(_body, "Label" + i, SlotLabels[i], 7.6f, UiTheme.Brown, new Vector2(SlotPitch + 0.004f, 0.012f), wrap: false);
                 s.label.enableAutoSizing = true;
-                s.label.fontSizeMax = 7.6f;
-                s.label.fontSizeMin = 5f;
+                s.label.fontSizeMax = 9f;
+                s.label.fontSizeMin = 7.2f;
                 s.label.transform.localPosition = new Vector3(x, SlotY - 0.039f, z);
                 for (int k = 0; k < MaxTicks; k++)
                 {
@@ -99,7 +99,7 @@ namespace VirtualBeeSwarm.Theme
                 _slots[i] = s;
             }
 
-            var foot = UiTheme.NewText(_body, "Foot", "DUES PAID IN HONEY", 6.5f, UiTheme.Amber, new Vector2(Width - 0.03f, 0.01f), wrap: false);
+            var foot = UiTheme.NewText(_body, "Foot", "DUES PAID IN HONEY", 8.5f, UiTheme.Brown, new Vector2(Width - 0.03f, 0.012f), wrap: false);
             foot.transform.localPosition = new Vector3(0f, -top + 0.0125f, z);
         }
 
