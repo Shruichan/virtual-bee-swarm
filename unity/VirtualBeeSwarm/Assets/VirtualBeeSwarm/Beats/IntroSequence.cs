@@ -6,22 +6,10 @@ using VirtualBeeSwarm.Stakes;
 namespace VirtualBeeSwarm
 {
     /// <summary>
-    /// pre (fitting: place the hive; START), hook (the threat and the rocket) and meet (Beeswax flies to his spot).
-    /// Entering pre also puts every world object back to its start state, so group.reset / Shift+R give a clean run.
-    ///
-    /// v3.1 with deliveries on/swirl (V14):
-    ///   pre   a crew of 4 bees parks the SIGN HERE clipboard 0.45 m ahead of the head, 0.1 m below eye level (again
-    ///         whenever the headset is put back on). Poke / pinch / click it, or N / Space, to start. Nobody signs
-    ///         within 6 s of it landing: room_pre, once. Beeswax waits inside the hive (hidden, caption at the clipboard).
-    ///   hook  the clipboard is stamped APPROVED and flown out; 20 bees cut the window ring, the window opens, the hive
-    ///         leaves on 6 bee chains and Beeswax starts the threat from inside it (the dark swarm pours on "angry
-    ///         swarms", StakesDirector), the hive lands, Beeswax squeezes out of the door, shakes off and flies up to his
-    ///         mark; the rocket is flown in on room_hook_2. Deliveries overlap the lines, so the hook runs about as
-    ///         long as with deliveries off; no line is ever cut (each one holds for its clip).
-    /// delivery.mode off: today's START button, the hive and rocket in place, Beeswax on the rocket perch.
-    /// Ride script v2 (staging): pre = room_pre as the clipboard parks, room_pre_nudge 6 s later (every 10 s), and
-    /// room_pre_signed on the poke. hook = the ring, the window opens on the faded meadow, the hive flies in on its chains
-    /// over room_hook_carry (from inside the box) and lands near "contract". meet = he squeezes out on room_meet_1,
+    /// An unnamed worker bee delivers SIGN HERE. Signing sends the clipboard back and starts the ring cut.
+    /// The crew flies the hive through the window while Beeswax speaks from inside. He emerges after it lands.
+    /// With deliveries off, START begins the same introduction with the hive and rocket already in place.
+    /// The meet starts with room_meet_1, followed by
     /// room_meet_role, room_forecast (peaceful Paris on "future"), room_hook_1 (pour + cut on "angry swarms"),
     /// room_hook_2 (the rocket comes through as it starts), room_meet_2 (on "Four minutes": the band thins, the dim
     /// eases, the window goes back to the meadow, he drops to the hive door).
@@ -53,12 +41,9 @@ namespace VirtualBeeSwarm
         [SerializeField] float clipboardDelay = 0.6f;
         [SerializeField] float clipboardAhead = 0.45f;
         [SerializeField] float clipboardBelowEye = 0.1f;
+        [SerializeField] float clipboardYaw = 25f;
         [Tooltip("Top leans away from the player (degrees).")]
         [SerializeField] float clipboardTilt = 15f;
-        [SerializeField] int clipboardCrew = 4;
-        [Tooltip("v2: room_pre_nudge when nobody signs this long after room_pre (then every nudgeRepeatSeconds).")]
-        [SerializeField] float nudgeAfterSeconds = 6f;
-        [SerializeField] float nudgeRepeatSeconds = 10f;
         [Tooltip("The APPROVED stamp shows this long before the crew flies the clipboard out.")]
         [SerializeField] float stampHoldSeconds = 0.45f;
 
@@ -86,10 +71,8 @@ namespace VirtualBeeSwarm
         GameDirector _beats;
 
         // pre
-        float _clipParkedAt = -1f, _preStartedAt, _presenceAt = -1f;
-        bool _stamped, _preSaid, _signedSaid;
-        float _nextNudgeAt = -1f;
-        int _nudges;
+        float _clipParkedAt = -1f, _clipOutOfReachAt = -1f, _preStartedAt, _presenceAt = -1f;
+        bool _stamped;
         int _presence = -1; // -1 unknown (desktop, no sensor), 0 off, 1 on
         TextMesh _instructions;
         string _instructionsText;
@@ -203,11 +186,9 @@ namespace VirtualBeeSwarm
         {
             if (!IsActive || ActiveBeat != GameBeat.Pre || director == null) return;
             Log("SIGN HERE signed (" + how + ") " + (Time.time - _preStartedAt).ToString("0.0") + " s into pre" +
-                (_clipParkedAt >= 0f ? ", " + (Time.time - _clipParkedAt).ToString("0.0") + " s after it landed" : "") +
-                (_nudges > 0 ? ", after " + _nudges + " room_pre_nudge" : ""));
+                (_clipParkedAt >= 0f ? ", " + (Time.time - _clipParkedAt).ToString("0.0") + " s after it landed" : ""));
             clip.Arm(false);
             if (delivery != null) { delivery.Stamp(clip.transform, true); _stamped = true; }
-            SaySigned();
             director.Next("sign here");
         }
 
@@ -276,7 +257,7 @@ namespace VirtualBeeSwarm
                 startButton.SetInteractable(true);
             }
             if (_instructions != null)
-                _instructions.text = clip && _instructionsText != null ? _instructionsText.Replace("Press START", "Sign here") : _instructionsText;
+                _instructions.text = clip ? "Poke SIGN HERE to accept delivery." : _instructionsText;
         }
 
         void ResetWorld()
@@ -292,9 +273,7 @@ namespace VirtualBeeSwarm
             if (swarm != null) swarm.ResetSwarm();
             if (embers != null) embers.ResetFx();
             _clipParkedAt = -1f;
-            _stamped = _preSaid = _signedSaid = false;
-            _nextNudgeAt = -1f;
-            _nudges = 0;
+            _stamped = false;
             _presence = -1;
             _presenceAt = -1f;
             if (signHere != null)
@@ -333,12 +312,11 @@ namespace VirtualBeeSwarm
             while (true)
             {
                 var t = signHere.transform;
-                if (_clipParkedAt < 0f && t.gameObject.activeInHierarchy && !delivery.IsFlying(t) && !Title.TitleDirector.Bringing(t))
+                if (_clipParkedAt < 0f && t.gameObject.activeInHierarchy && !delivery.IsFlying(t))
                 {
                     _clipParkedAt = Time.time;
                     signHere.Arm(true);
-                    Log("SIGN HERE parked " + (Time.time - _preStartedAt).ToString("0.0") + " s into pre (crew " +
-                        clipboardCrew + ", " + Vector3.Distance(t.position, HeadPosition()).ToString("0.00") + " m from the head)");
+                    Log("SIGN HERE parked " + (Time.time - _preStartedAt).ToString("0.0") + " s into pre (" + Vector3.Distance(t.position, HeadPosition()).ToString("0.00") + " m from the head)");
                 }
                 if (Time.time >= _presenceAt)
                 {
@@ -346,29 +324,13 @@ namespace VirtualBeeSwarm
                     int p = ReadPresence();
                     if (p == 1 && _presence == 0) PlaceClipboard("headset on"); // OVRManager.HMDMounted, without the Meta SDK
                     _presence = p;
-                }
-                bool quiet = net == null || !net.IsSpeaking;
-                if (!_preSaid && _clipParkedAt >= 0f && _presence != 0)
-                {
-                    // v2: room_pre the moment the clipboard parks (voice off-stage: Beeswax is still inside the hive)
-                    _preSaid = true;
-                    Log("room_pre: the clipboard parked");
-                    if (net != null) net.Say(GameLines.PreStart);
-                    _nextNudgeAt = -1f;
-                }
-                else if (_preSaid && quiet && _presence != 0)
-                {
-                    if (_nextNudgeAt < 0f) _nextNudgeAt = Time.time + (_nudges == 0 ? nudgeAfterSeconds : nudgeRepeatSeconds);
-                    else if (Time.time >= _nextNudgeAt)
+                    if (_clipParkedAt >= 0f && p != 0 && Vector3.Distance(t.position, HeadPosition()) > 1.1f)
                     {
-                        _nudges++;
-                        _nextNudgeAt = -1f;
-                        var nudge = RideLines.PreNudge;
-                        Log(nudge.id + " #" + _nudges + ": nobody signed");
-                        if (net != null) net.Say(nudge);
+                        if (_clipOutOfReachAt < 0f) _clipOutOfReachAt = Time.time;
+                        else if (Time.time - _clipOutOfReachAt > 1.5f) PlaceClipboard("player moved");
                     }
+                    else _clipOutOfReachAt = -1f;
                 }
-                else if (!quiet) _nextNudgeAt = -1f; // the timer counts from the end of the last line
                 yield return null;
             }
         }
@@ -381,17 +343,17 @@ namespace VirtualBeeSwarm
             Vector3 fwd = head != null ? head.forward : Vector3.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
-            fwd.Normalize();
+            fwd = Quaternion.Euler(0f, clipboardYaw, 0f) * fwd.normalized;
             float h = SignHereClipboard.Height * Mathf.Abs(signHere.transform.lossyScale.y);
-            // board centre 0.45 m ahead and 0.1 m below the eye; pivot = bottom edge centre
+            // Offset the clipboard from the title and keep its bottom-edge pivot in reach.
             Vector3 centre = eye + fwd * clipboardAhead - Vector3.up * clipboardBelowEye;
             Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(clipboardTilt, 0f, 0f);
             Vector3 pivot = centre - rot * Vector3.up * (h * 0.5f);
             signHere.Arm(false);
-            _clipParkedAt = -1f;
-            if (Title.TitleDirector.Carry(signHere, why)) return; // title.on: Beeswax brings it himself, his caption stays over him
-            delivery.Park(signHere.transform, new Pose(pivot, rot), clipboardCrew);
-            if (beeswax != null) beeswax.SetCaptionAnchor(signHere.transform, h + 0.05f);
+            _clipParkedAt = _clipOutOfReachAt = -1f;
+            var item = delivery.Register(signHere.transform);
+            item.crewOverride = 1;
+            delivery.Park(signHere.transform, new Pose(pivot, rot));
             Log("SIGN HERE on its way (" + why + ")");
         }
 
@@ -414,19 +376,10 @@ namespace VirtualBeeSwarm
             var t = signHere.transform;
             if (!_stamped) { delivery.Stamp(t, true); _stamped = true; } // started by N / Space / the Board
             yield return Wait(stampHoldSeconds);
-            if (!Title.TitleDirector.TakeAway(t)) delivery.Return(t); // title.on: Beeswax flies it out himself
+            delivery.Return(t);
         }
 
         // ------------------------------------------------------------ hook
-        /// <summary>room_pre_signed once per run: on the poke, or at the start of the hook when START came another way.</summary>
-        void SaySigned()
-        {
-            if (_signedSaid || net == null) return;
-            _signedSaid = true;
-            if (_preSaid || net.IsSpeaking) net.StopVoice(); // cut room_pre / a nudge (playing or queued): the signature is the answer
-            net.Say(RideLines.PreSigned);
-        }
-
         IEnumerator Hook()
         {
             _hookStartedAt = Time.time;
@@ -435,7 +388,6 @@ namespace VirtualBeeSwarm
             bool flyHive = delivering && !IsDelivered(hive.transform);
             Log("start (delivery " + BeeDelivery.ModeName(BeeDelivery.Mode) + (Forecasting ? ", forecast in meet" : "") + ")");
             if (UseClipboard && signHere.gameObject.activeSelf) StartCoroutine(ClipboardAway());
-            if (UseClipboard) SaySigned(); // started by N / Space / the Board: "Crew, cut the window!" still opens it
             var carry = RideLines.HookCarry;
 
             if (flyHive)

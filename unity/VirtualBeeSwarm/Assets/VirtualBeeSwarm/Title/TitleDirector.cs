@@ -8,19 +8,8 @@ namespace VirtualBeeSwarm.Title
     ///   the logo  floats about a metre ahead at chest-to-eye height (over the table when that is in front of the
     ///             player), life-size, in layers a few cm apart, Daniel's sticker bees flying loops around it, swarm bees
     ///             drifting by; a bed of flowers and grass sways on the table or floor under it, with bees visiting.
-    ///   Beeswax   hovers beside the logo with the SIGN HERE clipboard, then flies up to the player and holds it out
-    ///             (never nearer than 0.5 m to the eyes, off to the right so the logo stays readable) and says room_pre.
-    ///             IntroSequence still arms the clipboard, plays its nudge and stamps it APPROVED.
-    ///   signed    Beeswax nods, the logo's bees scatter, the logo flies out through where the window opens (0.6 s), the
-    ///             flowers tuck away, and Beeswax follows it out with the clipboard, into the hive the crew is about to
-    ///             carry in (HideInside): the hook runs as it always did.
-    ///   reset     back to pre: everything comes back.
-    /// With deliveries off there is no clipboard (START button): the logo, flowers and bees only.
-    ///
-    /// Installs itself into any scene with a GameDirector. Beeswax's root has one owner at a time: while the title has
-    /// him, he rides a seat this script moves (BeeswaxController.AttachTo); it gives him back with HideInside, or on a
-    /// jump past the hook with SnapTo(HomePoint). IntroSequence asks three things: <see cref="Carry"/>,
-    /// <see cref="Bringing"/>, <see cref="TakeAway"/>.
+    ///   signed  the logo's bees scatter and the logo flies toward the opening window.
+    /// The intro runs the clipboard delivery independently of the title.
     /// </summary>
     [DefaultExecutionOrder(-25)]
     public class TitleDirector : MonoBehaviour
@@ -30,10 +19,7 @@ namespace VirtualBeeSwarm.Title
         public static TitleDirector Instance { get; private set; }
 
         [SerializeField] GameDirector director;
-        [SerializeField] GameNet net;
-        [SerializeField] BeeswaxController beeswax;
         [SerializeField] BeeDelivery delivery;
-        [SerializeField] HiveBody hive;
         [SerializeField] TitleArt art;
 
         [Header("Logo")]
@@ -52,31 +38,16 @@ namespace VirtualBeeSwarm.Title
         [SerializeField] float popSeconds = 0.6f;
         [SerializeField] float flyOffSeconds = 0.6f;
 
-        [Header("Beeswax and the clipboard")]
-        [Tooltip("He stays beside the logo this long before he comes over.")]
-        [SerializeField] float idleSeconds = 1.6f;
-        [Tooltip("The clipboard's centre in front of the eyes (m) and below them (m).")]
-        [SerializeField] float holdAhead = 0.53f;
-        [SerializeField] float holdBelowEye = 0.13f;
-        [Tooltip("Off to the player's right (degrees), so the logo stays in view.")]
-        [SerializeField] float holdYaw = 27f;
-        [SerializeField] float clipboardTilt = 15f;
-        [SerializeField] float flySpeed = 0.95f;
-        [Tooltip("room_pre this long after he arrives (unless that line already started).")]
-        [SerializeField] float sayAfterSeconds = 0.35f;
         [Tooltip("Nothing of the title comes nearer to the eyes than this (m).")]
         [SerializeField] float keepClear = 0.5f;
         [SerializeField] bool log = true;
 
         enum Phase { Hidden, Showing, Leaving }
-        enum Bee { None, AtLogo, Coming, Holding, Leaving }
 
         Phase _phase = Phase.Hidden;
         TitleLogo _logo;
         TitleMeadow _meadow;
-        IntroSequence _intro;
         FutureWindow _window;
-        BeeswaxRig _rig;
         bool _subscribed, _built;
 
         // placement
@@ -85,16 +56,6 @@ namespace VirtualBeeSwarm.Title
         bool _placed, _onTable;
         float _shownAt, _leftAt = -1f, _nextCheck, _hiddenCheckAt;
         Vector3 _flyFrom, _flyTo;
-
-        // Beeswax + the clipboard
-        Bee _bee = Bee.None;
-        Transform _seat;
-        SignHereClipboard _clip;
-        Vector3 _clipRest = Vector3.one;
-        Quaternion _clipRot = Quaternion.identity;
-        Vector3 _from, _to, _via;
-        float _moveStart, _moveSeconds, _arrivedAt = -1f, _departAt = -1f, _farSince = -1f;
-        bool _wantCome, _preSaid, _preHeard, _looked;
 
         // the pre text ("Put the hive on the real table ...") moves under the logo while the title shows
         Transform _text, _textBack;
@@ -106,17 +67,6 @@ namespace VirtualBeeSwarm.Title
 
         bool Delivering => delivery != null && BeeDelivery.Mode != DeliveryMode.Off;
         Transform Head => delivery != null ? delivery.Head : Camera.main != null ? Camera.main.transform : null;
-
-        // ------------------------------------------------------------------ IntroSequence asks
-        /// <summary>pre: should Beeswax bring the clipboard (title.on) instead of a crew of bees? Starts it if so.</summary>
-        public static bool Carry(SignHereClipboard clip, string why) => Instance != null && Instance.CarryNow(clip, why);
-        /// <summary>The clipboard is still on its way to the player in Beeswax's hands (not signable yet).</summary>
-        public static bool Bringing(Transform clip) =>
-            Instance != null && Instance._clip != null && Instance._clip.transform == clip && Instance._bee != Bee.Holding && Instance._bee != Bee.None;
-        /// <summary>Signed and stamped: Beeswax flies it out himself. False = nobody is holding it (send a crew).</summary>
-        public static bool TakeAway(Transform clip) => Instance != null && Instance.TakeAwayNow(clip);
-        /// <summary>The title is up (pre, title.on).</summary>
-        public static bool Showing => Instance != null && Instance._phase == Phase.Showing;
 
         // ------------------------------------------------------------------ install
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -141,22 +91,14 @@ namespace VirtualBeeSwarm.Title
             }
             Instance = this;
             if (director == null) director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
-            if (net == null) net = GameNet.Instance != null ? GameNet.Instance : FindAnyObjectByType<GameNet>();
-            if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
             if (delivery == null) delivery = BeeDelivery.Instance != null ? BeeDelivery.Instance : FindAnyObjectByType<BeeDelivery>();
-            if (hive == null) hive = FindAnyObjectByType<HiveBody>(FindObjectsInactive.Include);
-            _intro = FindAnyObjectByType<IntroSequence>();
             _window = FindAnyObjectByType<FutureWindow>(FindObjectsInactive.Include);
-            if (beeswax != null) _rig = beeswax.GetComponentInChildren<BeeswaxRig>(true);
-            _seat = new GameObject("TitleBeeswaxSeat").transform;
-            _seat.SetParent(transform, false);
         }
 
         void OnEnable()
         {
             if (Instance != this) return;
             if (director != null) director.BeatChanged += HandleBeat;
-            if (net != null) net.VoiceLineStarted += HandleVoiceLine;
             _subscribed = true;
         }
 
@@ -171,7 +113,6 @@ namespace VirtualBeeSwarm.Title
             if (!_subscribed) return;
             _subscribed = false;
             if (director != null) director.BeatChanged -= HandleBeat;
-            if (net != null) net.VoiceLineStarted -= HandleVoiceLine;
             HideNow("disabled");
         }
 
@@ -236,16 +177,8 @@ namespace VirtualBeeSwarm.Title
             else if (_phase == Phase.Leaving && beat != GameBeat.Hook) HideNow("jump to " + GameIds.BeatName(beat));
         }
 
-        void HandleVoiceLine(GameNet.VoiceLineInfo info)
-        {
-            if (_phase == Phase.Showing && info.id == GameLines.PreStart.id) _preHeard = true;
-        }
-
         void Show(string why)
         {
-            // a reset took Beeswax and the clipboard back already (IntroSequence.ResetWorld)
-            _bee = Bee.None;
-            _clip = null;
             if (!TitleFlags.On || !Build())
             {
                 _phase = Phase.Hidden;
@@ -253,8 +186,8 @@ namespace VirtualBeeSwarm.Title
             }
             _phase = Phase.Showing;
             _shownAt = Time.time;
-            _leftAt = _departAt = _arrivedAt = _farSince = -1f;
-            _placed = _wantCome = _preSaid = _preHeard = _looked = false;
+            _leftAt = -1f;
+            _placed = false;
             _logo.SetScatter(0f);
             _logo.Show(false);
             _meadow.Hide();
@@ -269,19 +202,17 @@ namespace VirtualBeeSwarm.Title
             _flyFrom = _logoPos;
             _flyTo = WindowPoint();
             RestoreText();
-            if (_bee != Bee.None && _bee != Bee.Leaving && _rig != null) _rig.Play("Yes Nod", "the title: signed");
-            Log("signed: the logo flies out through the window" + (_bee != Bee.None ? ", Beeswax follows with the clipboard" : ""));
+            Log("signed: the logo flies toward the window");
         }
 
-        /// <summary>Everything off now, Beeswax handed back (a jump past the hook, title switched off).</summary>
+        /// <summary>Hide the title when the intro is skipped or the title is switched off.</summary>
         void HideNow(string why)
         {
-            if (_phase == Phase.Hidden && _bee == Bee.None) return;
+            if (_phase == Phase.Hidden) return;
             _phase = Phase.Hidden;
             if (_logo != null) _logo.Show(false);
             if (_meadow != null) _meadow.Hide();
             RestoreText();
-            if (_bee != Bee.None) ReleaseBeeswax(false);
             Log("down (" + why + ")");
         }
 
@@ -414,7 +345,6 @@ namespace VirtualBeeSwarm.Title
                 Place(head, true);
                 _logo.Show(true);
                 PlaceText();
-                if (Delivering && beeswax != null && _intro != null && _intro.SignHereShown) TakeBeeswax();
             }
 
             float shown = Mathf.Clamp01((t - _shownAt - 0.15f) / popSeconds), scale = 1f, leave = 0f;
@@ -439,7 +369,7 @@ namespace VirtualBeeSwarm.Title
                 scale = Mathf.Lerp(1f, 0.08f, e);
                 rot = rot * Quaternion.Euler(0f, 0f, -200f * e);
                 if (k >= 1f) _logo.Show(false);
-                if (leave >= 1f && _bee == Bee.None)
+                if (leave >= 1f)
                 {
                     _phase = Phase.Hidden;
                     _meadow.Hide();
@@ -449,21 +379,6 @@ namespace VirtualBeeSwarm.Title
             }
             if (_logo.Root.gameObject.activeSelf) _logo.Tick(pos, rot, shown, scale, t, head.position);
             _meadow.Tick(t, Time.deltaTime, pos, _right, _away, head.position, leave, keepClear + 0.08f, gameObject.layer);
-            if (_bee != Bee.None) MoveBeeswax(head, t);
-        }
-
-        void LateUpdate()
-        {
-            if (_bee == Bee.None || _clip == null) return;
-            if (!_clip.gameObject.activeSelf) return; // someone took it (IntroSequence on a jump or a reset)
-            // it hangs in front of him, top edge just under his chin, facing the player
-            Quaternion rot = _bee == Bee.Leaving ? _clipRot : Quaternion.LookRotation(-Flat(_seat.forward, Vector3.back), Vector3.up) *
-                             Quaternion.Euler(clipboardTilt + Mathf.Sin(Time.time * 1.9f) * 2f, 0f, Mathf.Sin(Time.time * 1.3f) * 1.5f);
-            _clipRot = rot;
-            float h = SignHereClipboard.Height * Mathf.Abs(_clip.transform.lossyScale.y);
-            Vector3 top = _seat.position + Flat(_seat.forward, Vector3.back) * 0.035f - Vector3.up * 0.055f;
-            if (_bee == Bee.Leaving) top = _seat.position - Vector3.up * 0.055f;
-            _clip.transform.SetPositionAndRotation(top - rot * Vector3.up * h, rot);
         }
 
         void PlaceText()
@@ -506,215 +421,6 @@ namespace VirtualBeeSwarm.Title
             tex.SetPixels32(px);
             tex.Apply(false, true);
             return tex;
-        }
-
-        // ------------------------------------------------------------------ Beeswax
-        Vector3 SidePoint() => _logoGoal + _right * (canvasWidth * 0.5f + 0.07f) + Vector3.up * 0.03f - _away * 0.06f;
-
-        void TakeBeeswax()
-        {
-            if (beeswax == null || _bee != Bee.None) return;
-            beeswax.EmergeNow(null); // out of the hive he waits in (IntroSequence.ResetWorld); visible, where he is
-            Vector3 p = SidePoint();
-            Transform head = Head;
-            _seat.SetPositionAndRotation(p, FaceHead(p, head));
-            beeswax.AttachTo(_seat);
-            beeswax.SetCaptionAnchor(null);
-            _bee = Bee.AtLogo;
-            Log("Beeswax beside the logo");
-        }
-
-        Quaternion FaceHead(Vector3 from, Transform head)
-        {
-            Vector3 to = head != null ? head.position - from : -_away;
-            return to.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(to, Vector3.up) : Quaternion.identity;
-        }
-
-        bool CarryNow(SignHereClipboard clip, string why)
-        {
-            if (_phase != Phase.Showing || clip == null || beeswax == null || delivery == null || !TitleFlags.On) return false;
-            if (_bee == Bee.None)
-            {
-                if (!_placed)
-                {
-                    Transform head = Head;
-                    if (head == null) return false;
-                    Place(head, true);
-                    _logo.Show(true);
-                }
-                TakeBeeswax();
-                if (_bee == Bee.None) return false;
-            }
-            if (_clip != clip)
-            {
-                _clip = clip;
-                delivery.Register(clip.transform); // so Stamp / Release know it, as when a crew parks it
-                _clipRest = clip.transform.localScale;
-                if (!clip.gameObject.activeSelf) clip.gameObject.SetActive(true);
-            }
-            if (why != "pre")
-            {
-                // the headset went back on: the player may be somewhere else now
-                Transform h = Head;
-                if (h != null) Place(h, true);
-            }
-            _wantCome = true;
-            _preSaid = false;
-            if (_bee == Bee.Holding) { _bee = Bee.AtLogo; _shownAt = Mathf.Min(_shownAt, Time.time - idleSeconds); } // headset back on: come again
-            Log("Beeswax has the clipboard (" + why + ")");
-            return true;
-        }
-
-        bool TakeAwayNow(Transform clip)
-        {
-            if (_clip == null || _clip.transform != clip || _bee == Bee.None) return false;
-            if (_bee != Bee.Leaving) Depart();
-            return true;
-        }
-
-        void Depart()
-        {
-            _bee = Bee.Leaving;
-            _departAt = Time.time;
-            _from = _seat.position;
-            _to = WindowPoint();
-            Transform head = Head;
-            Vector3 mid = (_from + _to) * 0.5f + Vector3.up * 0.12f;
-            if (head != null)
-            {
-                Vector3 off = mid - head.position;
-                if (off.magnitude < keepClear + 0.2f) mid = head.position + off.normalized * (keepClear + 0.2f);
-            }
-            _via = mid;
-            _moveSeconds = flyOffSeconds;
-        }
-
-        Pose HoldPose(Transform head)
-        {
-            Vector3 eye = head.position;
-            Vector3 dir = Quaternion.Euler(0f, holdYaw, 0f) * Flat(head.forward, _away);
-            Vector3 centre = eye + dir * holdAhead - Vector3.up * holdBelowEye;
-            float h = _clip != null ? SignHereClipboard.Height * Mathf.Abs(_clip.transform.lossyScale.y) : SignHereClipboard.Height;
-            Quaternion rot = Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(clipboardTilt, 0f, 0f);
-            Vector3 top = centre + rot * Vector3.up * (h * 0.5f);
-            // his seat: just above the top edge, a little behind it
-            Vector3 seat = top + Vector3.up * 0.055f + dir * 0.035f;
-            Vector3 off = seat - eye;
-            if (off.magnitude < keepClear + 0.06f) seat = eye + off.normalized * (keepClear + 0.06f);
-            return new Pose(seat, FaceHead(seat, head));
-        }
-
-        void MoveBeeswax(Transform head, float t)
-        {
-            switch (_bee)
-            {
-                case Bee.AtLogo:
-                {
-                    Vector3 p = SidePoint() + Vector3.up * (Mathf.Sin(t * 1.1f) * 0.012f);
-                    _seat.SetPositionAndRotation(Vector3.Lerp(_seat.position, p, 1f - Mathf.Exp(-5f * Time.deltaTime)), FaceHead(p, head));
-                    if (!_looked && t - _shownAt > 0.7f && _rig != null) { _looked = true; _rig.Play("Look Around", "the title: beside the logo"); }
-                    if (_wantCome && _phase == Phase.Showing && t - _shownAt >= idleSeconds)
-                    {
-                        _bee = Bee.Coming;
-                        _from = _seat.position;
-                        _to = HoldPose(head).position;
-                        _via = (_from + _to) * 0.5f + Vector3.up * 0.06f;
-                        _moveStart = t;
-                        _moveSeconds = Mathf.Clamp(Vector3.Distance(_from, _to) / flySpeed, 0.6f, 1.6f);
-                        if (_rig != null) _rig.Play("Curious Tilt", "the title: off to the player");
-                    }
-                    break;
-                }
-                case Bee.Coming:
-                {
-                    float k = Mathf.Clamp01((t - _moveStart) / _moveSeconds);
-                    float e = k * k * (3f - 2f * k);
-                    _to = Vector3.Lerp(_to, HoldPose(head).position, 1f - Mathf.Exp(-3f * Time.deltaTime)); // the head moves while he comes
-                    Vector3 p = Bezier(_from, _via, _to, e);
-                    _seat.SetPositionAndRotation(p, FaceHead(p, head));
-                    if (k >= 1f)
-                    {
-                        _bee = Bee.Holding;
-                        _arrivedAt = t;
-                        _farSince = -1f;
-                        Log("Beeswax holds out the clipboard, " + Vector3.Distance(head.position, p).ToString("0.00") + " m from the eyes");
-                    }
-                    break;
-                }
-                case Bee.Holding:
-                {
-                    Vector3 p = _to + Vector3.up * (Mathf.Sin(t * 1.3f) * 0.006f);
-                    _seat.SetPositionAndRotation(p, Quaternion.Slerp(_seat.rotation, FaceHead(p, head), 1f - Mathf.Exp(-6f * Time.deltaTime)));
-                    // not before the clips are in memory (PreloadVoice, started as pre began): no hitch, no caption-only line
-                    if (!_preSaid && t - _arrivedAt >= sayAfterSeconds && (net == null || net.VoicePreloadDone || t - _arrivedAt > 8f))
-                    {
-                        _preSaid = true;
-                        if (!_preHeard && net != null && _phase == Phase.Showing) net.Say(GameLines.PreStart);
-                    }
-                    // the player walked off: bring it over again (IntroSequence re-arms it when he arrives)
-                    float far = Vector3.Distance(head.position, _to);
-                    if (far > 1.1f && _phase == Phase.Showing)
-                    {
-                        if (_farSince < 0f) _farSince = t;
-                        else if (t - _farSince > 1.5f && (net == null || !net.IsSpeaking))
-                        {
-                            _bee = Bee.Coming;
-                            _from = _seat.position;
-                            _to = HoldPose(head).position;
-                            _via = (_from + _to) * 0.5f + Vector3.up * 0.06f;
-                            _moveStart = t;
-                            _moveSeconds = Mathf.Clamp(Vector3.Distance(_from, _to) / flySpeed, 0.6f, 1.6f);
-                        }
-                    }
-                    else _farSince = -1f;
-                    break;
-                }
-                case Bee.Leaving:
-                {
-                    float k = Mathf.Clamp01((t - _departAt) / _moveSeconds);
-                    float e = k * k;
-                    Vector3 p = Bezier(_from, _via, _to, e);
-                    Vector3 ahead = Bezier(_from, _via, _to, Mathf.Min(1f, e + 0.05f)) - p;
-                    _seat.SetPositionAndRotation(p, ahead.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(ahead, Vector3.up) : _seat.rotation);
-                    if (_clip != null) _clip.transform.localScale = _clipRest * Mathf.Lerp(1f, 0.35f, Mathf.Clamp01((k - 0.5f) / 0.5f));
-                    if (k >= 1f) ReleaseBeeswax(true);
-                    break;
-                }
-            }
-            // signed, but nobody asked for the clipboard to go (it was hidden under us): leave anyway
-            if (_phase == Phase.Leaving && _bee != Bee.Leaving && _bee != Bee.None && t - _leftAt > 0.8f) Depart();
-        }
-
-        static Vector3 Bezier(Vector3 a, Vector3 b, Vector3 c, float t)
-        {
-            float u = 1f - t;
-            return a * (u * u) + b * (2f * u * t) + c * (t * t);
-        }
-
-        /// <summary>
-        /// Hand Beeswax back. intoHive: he left through the window, so he is in the hive the crew flies in next (the
-        /// hook has him climb out of its door). Otherwise (a jump, the title switched off) he is simply at his mark.
-        /// </summary>
-        void ReleaseBeeswax(bool intoHive)
-        {
-            var was = _bee;
-            _bee = Bee.None;
-            if (_clip != null)
-            {
-                _clip.transform.localScale = _clipRest;
-                if (intoHive && delivery != null) delivery.Release(_clip.transform, hide: true);
-            }
-            _clip = null;
-            if (beeswax == null) return;
-            bool inPre = director != null && director.Beat == GameBeat.Pre;
-            if (intoHive && Delivering && hive != null) beeswax.HideInside(hive.DoorPoint);
-            else if (inPre && Delivering && hive != null) beeswax.HideInside(hive.DoorPoint); // title off mid-pre: wait in the hive, as without it
-            else
-            {
-                beeswax.Detach();
-                if (beeswax.HomePoint != null) beeswax.SnapTo(beeswax.HomePoint);
-            }
-            Log("Beeswax handed back (" + (intoHive ? "into the hive" : inPre ? "waits in the hive" : "at his mark") + ", was " + was + ")");
         }
 
         void Log(string msg)

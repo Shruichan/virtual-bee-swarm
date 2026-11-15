@@ -23,6 +23,8 @@ uv run --env-file ../.env python relay.py          # live when REACTOR_API_KEY i
 Fake mode serves a moving honeycomb with the stage number, scene id and a wall clock (to eyeball latency),
 with a 1 s "GPU wait" and a 1.5 s first-frame delay so client state handling gets exercised.
 
+Set `ORBIS_RELAY_URL=http://127.0.0.1:8241` in the Hive's `.env`. The Hive starts in `clips` mode unless `ORBIS_WANT` sets a different initial mode. Use **LIVE** on the Beat Board to start the stream on the current scene. Quest requests the Moon scene at liftoff. In a Board-only rehearsal, entering T-0 provides that cue.
+
 | Env | Default | |
 |---|---|---|
 | `REACTOR_API_KEY` | (unset = fake) | read from the environment only, never written anywhere |

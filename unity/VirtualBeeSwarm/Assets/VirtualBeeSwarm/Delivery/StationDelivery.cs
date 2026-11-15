@@ -395,7 +395,7 @@ namespace VirtualBeeSwarm
         }
 
         /// <summary>Same frame as the poke / choice.request / timeout pick: stamp it; a right pick lands first (except feed).</summary>
-        public void OnChoiceMade(string choice, bool correct)
+        public void OnChoiceMade(string choice, bool correct, bool setupByHand = false)
         {
             Resolve();
             RestoreAll();
@@ -405,7 +405,10 @@ namespace VirtualBeeSwarm
             if (i < 0) return;
             if (!_parked) ParkChoices(); // picked before the arc (key, operator): the others still come and go
             if (!StampArt(i, correct)) Delivery.Stamp(_item[i], correct);
-            if (correct && rightLandsFirst) LandRight(i);
+            if (!correct) return;
+            // The smoker is pumped at the lever and the crew still takes it from there to its stand.
+            bool alreadyPlaced = setupByHand && station != GameStation.Smoker && spot != null && _item[i].gameObject.activeInHierarchy;
+            if (alreadyPlaced || rightLandsFirst) LandRight(i, alreadyPlaced);
         }
 
         /// <summary>The station's ShowOutcome coroutine finished: wrong = the repo crew hauls it out; right (feed) = set down now.</summary>
@@ -423,12 +426,14 @@ namespace VirtualBeeSwarm
             else if (!_rightSent) LandRight(i);
         }
 
-        void LandRight(int i)
+        void LandRight(int i, bool alreadyPlaced = false)
         {
             if (_rightSent) return;
             _rightSent = true;
             string id = _choice[i];
             Delivery.Deliver(_item[i], spot, DeliveryStyle.Crown, 0, () => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down"));
+            // Complete the placement and notify listeners without another visible flight.
+            if (alreadyPlaced) Delivery.Finish(_item[i]);
             for (int k = 0; k < _n; k++)
             {
                 if (k == i || _gone[k]) continue;

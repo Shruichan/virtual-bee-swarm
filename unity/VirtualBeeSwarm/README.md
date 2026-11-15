@@ -1,11 +1,10 @@
 # Virtual Bee Swarm (Unity project)
 
-The Quest 3 / 3S mixed-reality app for Virtual Bee Swarm ("Save the Hive", `PLAN.md` → Concept v3). One Unity
-project, one scene: `Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity`, built from code. It has the Meta camera rig with passthrough, hand tracking,
-the whole game loop with placeholder art, and the Hive client (bus, Beeswax's voice, voice input, stations, the
-meadow window, the hum detector).
+The Quest 3 / 3S mixed-reality app for HONEYMOON. A worker bee brings a clipboard. Sign it to start the hive delivery,
+meet Beeswax, and take on four jobs before the rocket leaves for the Moon. The generated Unity scene combines Meta
+passthrough and hand tracking with the meadow, authored art, and the Hive client for voice and the future window.
 
-- How the gameplay code fits together, and every placeholder the art replaces: [`Assets/VirtualBeeSwarm/README-gameplay.md`](Assets/VirtualBeeSwarm/README-gameplay.md)
+- [Gameplay flow, systems, and art slots](Assets/VirtualBeeSwarm/README-gameplay.md)
 - Hive client (token, hosts, voice, window clips): [`../BeeswaxClient/README.md`](../BeeswaxClient/README.md)
 
 **`VirtualBeeSwarm.unity` is a build output** (`PLAN.md` house rules). It's git-ignored, the scene builder
@@ -17,12 +16,12 @@ art prefabs instead. Only its `.meta` is in git: the builder keeps that GUID, so
 1. Unity **6000.2.9f1** with **Android Build Support** (OpenJDK, Android SDK & NDK). The project is saved with
    6000.2.9f1. 6000.3 LTS also opens it, but it upgrades the project and reimports everything. Only switch if the
    whole team switches, and don't commit `ProjectSettings/ProjectVersion.txt` otherwise.
-2. Keep `unity/BeeswaxClient` next to this folder: `Packages/manifest.json` loads it as `file:../../BeeswaxClient`.
-3. Unity Hub → Add → `unity/VirtualBeeSwarm`. The first import downloads the Meta packages (npm.developer.oculus.com)
-   and NativeWebSocket (git), so allow a few minutes.
-4. The first time the editor opens the project it builds `Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm.unity`
-   (`Editor/SceneAutoBuild.cs`, only when the file is missing). Open it and press Play. Without a headset the desktop camera takes over and
-   shows a fake table (keys below). Press **F2** and the autopilot plays the whole show.
+2. Keep `unity/BeeswaxClient` next to this folder. `Packages/manifest.json` loads it as `file:../../BeeswaxClient`.
+3. Unity Hub → Add → `unity/VirtualBeeSwarm`. The first import resolves the Meta packages and the vendored
+   NativeWebSocket client.
+4. The editor generates the scene on first open if it is missing. After pulling changes, run **Virtual Bee Swarm →
+   Build Scene** to refresh it, then press Play. The desktop camera shows the floor meadow without a headset.
+   Press **F2** to run the show.
 5. **Token** (to talk to the Hive): ask Rome for `HIVE_TOKEN`, then put it alone on one line in
    `Assets/Resources/beeswax_token.txt`. That file is git-ignored (this repo is public), so never `git add -f` it.
    Without it everything still works offline: local lines, timers and fallbacks. In the editor the `HIVE_TOKEN`
@@ -39,7 +38,7 @@ Hosts are tried in order: `wss://beeswax-venue.drori.dev` (the venue laptop on d
 | `OVRCameraRig` | Copied from the rig template `Scenes/RigTemplate.unity`: passthrough underlay, mic and scene (USE_SCENE) permission requests at startup (v3.1 V1), boundary per the toggle (off by default), floor-level origin, an `OVRHand` + `OVRSkeleton` per hand (no hand mesh, so the real hands show). |
 | `Beeswax (client)` | `BeeswaxBus`, `BeeswaxStations`, `HumDetector`, `BeeswaxVoiceInput`, `LatencyReporter`. No token in the scene. |
 | `GameRig/Systems` | `GameNet` (the only code that calls the client), `GameDirector` (the beat clock), debug HUD, autopilot, `Beats/` (intro, hornet, what-if, escape, T-0, map). |
-| `GameRig/TableAnchor` | Everything on the table: hive + hexagons, HONEYMOON-1, the meadow window (`OrbisWindow` + embers), Beeswax (`BeeswaxRoomVoice` + `AudioSource`), the four stations, thermometer, score card, map, Moon. `HivePlacement` on the base plate moves it. |
+| `GameRig/TableAnchor` | Placement anchor for the hive, stations, Beeswax, rocket, and ending props. `MeadowLayout` scales it and sets it on the floor. `ArRig` can mount the window on a real wall. |
 | `GameRig/Input` | `OvrHandPoseSource` (hands + Touch controllers), `XRControllerHandSource` (fallback), `OvrPassthroughDimmer` (Moon), pointers, fingertips. |
 | `GameRig/DesktopCamera`, `DesktopOnly` | Desktop testing only. They switch themselves off in the headset. |
 
@@ -54,14 +53,16 @@ materials and meshes are kept.
 
 ## In the headset
 
-- On start the hive rig appears ~55 cm in front of you. Put it on the real table in `pre`: **grab the translucent
-  base plate** (pinch next to it, or point and pinch) and drop it, or **pinch the table's front edge twice** (left,
-  then right). Then poke **START**.
-- Poke buttons with a fingertip, or point and pinch (with controllers: trigger). Grab means pinching next to the
-  thing. A **fist** (with controllers: grip) balls the hornet. Talk by holding a pinch in the what-if beat (with
-  controllers: B/Y in any voice beat).
-- If the Hive is down, everything still finishes on local timers. In the what-if beat, a press and release counts
-  as the question. With no input at all, Beeswax starts the fire 9 s after his prompt and puts it out 8 s later.
+- Start in an open patch of floor. The hive rig places itself in front of you and the meadow fills the room. To move
+  the rig before signing, aim at clear floor and pinch. The table layout is available with `meadow.rig=false`.
+- Poke **SIGN HERE** when the worker bee brings it. A fingertip poke, a hand ray and pinch, or a controller trigger
+  activates a ticket. Pinch to grab a prop, or use the ray and pinch.
+- Use **ORDER UP** to order a smoker and pump it with the honey-dipper lever. Lift the hive and pour syrup into the
+  feeder. Fit the entrance reducer, then set down the pebble dish and pull the lever to fill it.
+- Hold a pinch to ask the future window a **what if**, or use B/Y on a controller. Ask about a fire, then say
+  **put it out**. Beeswax demonstrates and clears the fire if the player stays quiet, including when the Hive is down.
+- After the hive is saved, pull the lever to launch the rocket. The Moon appears at liftoff. The map and final
+  contract show after landing.
 
 ## Desktop keys (editor, no headset)
 
@@ -70,7 +71,8 @@ materials and meshes are kept.
 | N or Space | next beat (START in pre) |
 | B | previous beat |
 | Shift+R | reset to pre |
-| 1 / 2 / 3 | pick a station choice (or click the buttons) |
+| 1 / 2 / 3 | order a station choice (or click a ticket) |
+| X / Y | carry a prop through its setup / pull the honey-dipper lever |
 | G (hold) | lift/tip the hive (feed station), or drag it with the mouse |
 | C | place the rig in front of the camera |
 | H (hold) | fist (hornet ball) |
@@ -79,7 +81,7 @@ materials and meshes are kept.
 | F / P | what-if: "what if a fire starts?" / "put it out!" (offline/operator backup) |
 | K | hornet: auto / always / never |
 | O | force offline on/off |
-| F2 | autopilot: plays the whole show (wrong choice first at each station; the hornet is cut in v3.1, K brings it back) |
+| F2 | autopilot plays the show (K enables the optional hornet) |
 | F1 | debug HUD |
 | Right mouse + WASD, Q/E | look and move |
 
@@ -140,11 +142,10 @@ The rules are in `PLAN.md` (FBX in meters, Y-up, ≤1024 px textures, tri budget
 - Models go in `Assets/VirtualBeeSwarm/Art/<Name>/`, and prefabs made from them go in `Assets/VirtualBeeSwarm/Prefabs/`.
 - FBX imports as is. **GLB needs the glTFast package** (`com.unity.cloud.gltfast`), which isn't installed, so ask
   for FBX or add the package.
-- Swaps go into `Art/<Slot>/<Slot>.prefab`, never into the scene (it's regenerated, so hand edits are lost). Until the
-  builder loads art slots (`PLAN.md` S11.2), the builder makes primitives. Keep the named transforms and the
-  component fields from this table:
+- Put art swaps in `Art/<Slot>/<Slot>.prefab`. The builder loads authored slots and uses primitives for missing art.
+  Keep the named transforms and component fields below.
 
-| Placeholder | Keep / wire |
+| Art slot | Keep / wire |
 |---|---|
 | `TableAnchor/Hive/LiftRoot/Body, Roof, Stand` | `HiveBody.bodyRenderers` (tinted when sick), `liftRoot`, `Door` (scale.x = door width), `DoorPoint`, `SwarmCenter`, `HeatGlow` |
 | `.../Hexagons/Hex1-4` | `HexagonPanel.hexagons` (smoker, feed, wasps, heat) |
@@ -172,9 +173,8 @@ use a `_BaseColor`/`_Color` property block.
 
 ## Autopilot and smoke test
 
-- **F2** in Play mode plays the whole show: START, every station (wrong choice first), lifting the hive, the hornet
-  ball + hum, the fire and putting it out, escape, T-0 and the map, then a reset. Use it to rehearse, to film, or to
-  check a change didn't break the loop.
+- **F2** in Play mode runs from SIGN HERE through the stations, wildfire, rescue, launch, and final contract.
+  Set `VBS_AUTOPILOT_HANDSON=1` before launch to exercise the prop setup and lever in the desktop run.
 - Headless smoke test (silent: audio is switched off for that build only). It needs the active target to be desktop;
   once the project is on Android, use F2 instead:
 
@@ -187,7 +187,7 @@ grep VBSAutopilot smoke-run.log       # ... PASS, exit 0
 `SMOKE_ONLINE=1` runs it against the Hive (no mic; the token comes from the token file). Other options are listed
 in the comment at the top of `Editor/GameSmokeBuild.cs`.
 
-**Verified on the build machine after the rename (2026-11-14 ~05:30 PT, pop-os, Linux editor, desktop target):**
+**Earlier build-machine checks (2026-11-14, pop-os):**
 - Batch compile: 0 errors, 0 warnings. All VirtualBeeSwarm assemblies compiled: runtime, Editor, Meta, Meta.Editor,
   Setup.Editor and Tests. All five game assemblies also compile with `UNITY_ANDROID` (csc, Android defines).
 - Scene build: 643 components, 0 missing scripts, 10/10 beats, 1 OVRCameraRig, hands wired. The scene keeps GUID
@@ -205,9 +205,8 @@ in the comment at the top of `Editor/GameSmokeBuild.cs`.
 
 ## Known gaps
 
-- **Built to an APK, never run on a headset.** First D APK: `VirtualBeeSwarm-D-4-20261114-0630.apk` (79 MB, pop-os copy A,
-  2026-11-14 06:30 PT). The cold build took 192 s, a warm rebuild about 30 s. The aapt2 check passed, it's signed with
-  the shared debug key, and the token is inside. Booting on the Quest is S1.18.
+- The current floor-first layout still needs headset checks for placement, hand and controller reach, passthrough,
+  push-to-talk, video playback, and frame rate. The desktop smoke test uses simulated inputs.
 - Build warnings that matter on the Quest:
   - Unity: "Active Input Handling is set to Both, this is unsupported on Android and might cause issues with input and
     application performance". Both is deliberate (OVRInput and the Input System), but if input acts up on device,
@@ -218,25 +217,8 @@ in the comment at the top of `Editor/GameSmokeBuild.cs`.
 - Meta's DevAgent build hook writes the build machine's LAN IP and an agent-bridge access token into
   `Assets/Resources/DevAgentSettings.asset` (tracked). `GameBuild` clears them after every build. Building from the
   editor's own Build Profiles window doesn't, so check that file before committing.
-- Untested on device: hands, controllers, pinch and fist thresholds, table placement, passthrough and the Moon
-  dimming, frame rate, the real mic, push-to-talk and the hum.
-- The custom unlit shader and the `TextMesh` captions haven't been checked in both eyes (single-pass instanced). If
-  either looks wrong, switch to URP/Unlit and TextMeshPro.
-- Placeholder art only. Voice: the first 77 renders are in, but `lines.json` was being rewritten while they were
-  imported (S8.2, 05:40 PT), so some lines have no clip yet and some clips were rendered from older text: the voice
-  **Check** lists both. No window fallback clips (the pane shows tinted noise until clips or the live Orbis stream
-  arrive). Video playback hasn't been seen on Quest. Until the clips are in,
-  every window scene change logs a red `VideoPlayer cannot play url .../StreamingAssets/<scene>.mp4` error (the
-  client's `OrbisWindow` looks for `<scene>.mp4` by name). It's harmless.
-- `wss://beeswax-venue.drori.dev` was down at test time, so the bus fell back to `wss://beeswax.drori.dev`.
-- Timing from the gameplay review:
-  - The 9 s and 8 s offline fire timers need tuning on device.
-  - The "Louder!" line pauses the hum thermometer.
-  - The Hive switches the window to the Moon about 10 s before the launch (a Hive-side fix).
-  - The Moon sits 2.3 m past the table and may end up inside a wall.
-  - The meet beat runs about 16 s against a 22 s limit.
-- `-executeMethod VirtualBeeSwarm.Tests.GameSmokeRunner.Run` (the same run in editor play mode) passes headless. The
-  NUnit version in the Test Runner fails on any error log, so it fails on the Linux editor's Meta native-plugin errors
-  and on the missing window clips below.
-- The desktop smoke player logs Meta native-plugin errors every frame (no OVRPlugin/MRUK on Linux). They're
-  expected and ignored there. They don't happen on Quest.
+- Check custom shaders and captions in both eyes on the Quest.
+- Window playback uses live Orbis or the recorded clips under `Assets/StreamingAssets`. If a scene has neither
+  source, the local pane shows its scene colors and tinted noise.
+- `-executeMethod VirtualBeeSwarm.Tests.GameSmokeRunner.Run` runs the editor play-mode checks. The standalone
+  smoke test above and the editor runner have different native-plugin and graphics paths.

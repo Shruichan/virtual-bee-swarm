@@ -68,6 +68,14 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < all.Length && _dimmer == null; i++) _dimmer = all[i] as IPassthroughDimmer;
         }
 
+        void OnEnable() { if (net != null) net.HiveWelcomed += RestoreLaunchScene; }
+        void OnDisable() { if (net != null) net.HiveWelcomed -= RestoreLaunchScene; }
+
+        void RestoreLaunchScene()
+        {
+            if (IsActive) net.RequestScene(_launched && !_landed ? GameIds.Scene.Moon : GameIds.Scene.FullBloom, sendToHive: true);
+        }
+
         protected override void OnEnter(GameBeat beat)
         {
             _launched = _landed = false;
@@ -181,8 +189,7 @@ namespace VirtualBeeSwarm
                 beeswax.GoPresent();
             }
             SetActive(moon, false);
-            if (window != null) window.NormalSize();
-            if (net != null) net.RequestScene(GameIds.Scene.FullBloom, sendToHive: true);
+            RestoreMeadow();
             float undimStart = Time.time;
             float dim0 = _dim;
             while (Time.time - undimStart < 1f)
@@ -235,14 +242,20 @@ namespace VirtualBeeSwarm
             SetDim(0f);
             SetActive(flame, false);
             SetActive(moon, false);
-            if (rocket != null)
+            if (rocket != null && !rocket.gameObject.activeSelf) rocket.gameObject.SetActive(true);
+            if (_launched && !_landed)
             {
-                if (!rocket.gameObject.activeSelf) rocket.gameObject.SetActive(true);
-                if (_launched && !_landed) PutRocketDown(); // skipped mid-flight: don't leave it hanging in the air
+                if (rocket != null) PutRocketDown();
+                RestoreMeadow();
             }
-            if (window != null && _launched && !_landed) window.NormalSize();
             if (beeswax != null) { beeswax.Detach(); beeswax.SetVisible(true); }
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
+        }
+
+        void RestoreMeadow()
+        {
+            if (window != null) window.NormalSize();
+            if (net != null) net.RequestScene(GameIds.Scene.FullBloom, sendToHive: true);
         }
 
         void PutRocketDown()
