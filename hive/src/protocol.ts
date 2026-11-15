@@ -231,7 +231,7 @@ export interface ChoiceMade { type: "choice.made"; station: Station; choice: Cho
 
 /** Client (quest|glasses) → Hive: start/stop a voice utterance. Between them the client sends binary
  *  MIC_PCM16 frames (16 kHz mono). mode "ptt" = held button/pinch; "vad" = client-side voice detection. */
-export interface ListenStart { type: "listen.start"; source: "quest" | "glasses"; mode: "ptt" | "vad" }
+export interface ListenStart { type: "listen.start"; source: "quest" | "glasses"; mode: "ptt" | "vad"; wake_phrase?: boolean }
 export interface ListenEnd { type: "listen.end"; source: "quest" | "glasses"; cancel?: boolean }
 /** Hive → all: speech-to-text result. */
 export interface Transcript { type: "transcript"; text: string; final: boolean; source: "quest" | "glasses"; ms: number; stt: string }

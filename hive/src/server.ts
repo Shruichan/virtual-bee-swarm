@@ -404,6 +404,7 @@ interface Listen {
   n: number;
   source: VoiceSource;
   turn: VoiceTurn;
+  wakePhrase: boolean;
   mode: "ptt" | "vad";
   startedAt: number;
   chunks: Uint8Array[];
@@ -568,7 +569,7 @@ export function startHive(opts: HiveOptions): Hive {
       onChoiceRequest: (station, choice) => choiceRequest(station, choice),
       onFxForce: (name) => fxForce(name),
       onWhatIfForce: (m) => whatIfForce(m),
-      onListenStart: (ws, mode) => listenStart(ws, mode),
+      onListenStart: (ws, mode, wakePhrase) => listenStart(ws, mode, wakePhrase),
       onMic: (ws, pcm) => micFrame(ws, pcm),
       onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
       onClientClose: (ws) => finishListen(ws, "closed"),
@@ -1212,7 +1213,7 @@ export function startHive(opts: HiveOptions): Hive {
     return turn.group === state.group_id && (operator || turn.beatRevision === beatRevision);
   }
 
-  function listenStart(ws: Client, mode: "ptt" | "vad"): void {
+  function listenStart(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean): void {
     const id = ws.data.id;
     const old = listens.get(id);
     if (old) {
@@ -1229,6 +1230,7 @@ export function startHive(opts: HiveOptions): Hive {
       n,
       source: ws.data.role === "glasses" ? "glasses" : "quest",
       turn: captureVoiceTurn(),
+      wakePhrase,
       mode,
       startedAt: Date.now(),
       chunks: [],
@@ -1276,7 +1278,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     const pcm = concat(l.chunks, l.bytes & ~1);
     log(`listen ${ws.data.id}#${l.n}: ${(pcm.length / 32000).toFixed(2)} s of audio (${l.mode}, ${why})`);
-    void runVoice(pcm, l.source, ws, l.turn).catch((err) => log("voice pipeline error:", err));
+    void runVoice(pcm, l.source, ws, l.turn, l.wakePhrase).catch((err) => log("voice pipeline error:", err));
   }
 
   async function safeTranscribe(pcm: Uint8Array): Promise<SttResultLike> {
@@ -1327,7 +1329,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   /** Mic audio -> transcript -> intent -> act. Never throws. */
-  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client, turn: VoiceTurn): Promise<void> {
+  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client, turn: VoiceTurn, wakePhrase: boolean): Promise<void> {
     const t0 = Date.now();
     const isCurrent = () => voiceTurnIsCurrent(turn);
     if (!isCurrent()) return;
@@ -1335,7 +1337,17 @@ export function startHive(opts: HiveOptions): Hive {
     if (!isCurrent()) return;
     latency("voice.stt", stt.ms);
     bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
-    if (!stt.text) {
+    let text = stt.text;
+    if (wakePhrase && source === "quest" && (turn.beat === "map" || turn.beat === "field")) {
+      // The card shows the actual transcript, but only the question goes to the router, voice and window.
+      const match = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu.exec(text);
+      text = match?.[1]?.trim() ?? "";
+      if (!/[\p{L}\p{N}]/u.test(text)) {
+        observe("voice: Quest Ask needs Hey Beeswax followed by a question");
+        return;
+      }
+    }
+    if (!text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
       // ASK BEESWAX: a press with nothing in it gets "Didn't catch that" instead of silence (no Claude call).
       if (deps.ask && source === "quest" && stt.error !== "no_audio" && deps.ask.ASK_BEATS.includes(turn.beat) && bus.count("quest") > 0)
@@ -1343,7 +1355,7 @@ export function startHive(opts: HiveOptions): Hive {
       return;
     }
     // Glasses talking over the bus get their ear reply over the bus too.
-    const r = await understand(stt.text, source, t0, turn, (reply) => {
+    const r = await understand(text, source, t0, turn, (reply) => {
       if (reply.line_id || reply.audio_url || reply.caption) bus.say("ear", reply.line_id, { audio_url: reply.audio_url, caption: reply.caption });
     });
     if (r) log(`voice ${source}: stt ${stt.provider} ${Math.round(stt.ms)} ms, total ${Date.now() - t0} ms (${ws.data.id})`);

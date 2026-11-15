@@ -130,6 +130,31 @@ namespace VirtualBeeSwarm.Ask.Tests
         }
 
         [Test]
+        public void WakeQuestionRequiresTheNameAtTheStartAndAQuestionAfterwards()
+        {
+            Assert.AreEqual("why bananas?", AskFlow.WakeQuestion("Hey, Beeswax, why bananas?"));
+            Assert.AreEqual("why bananas?", AskFlow.WakeQuestion("Hey bee's wax — why bananas?"));
+            Assert.AreEqual("why bananas?", AskFlow.WakeQuestion(" HEY beeZwax… why bananas?"));
+            Assert.AreEqual("", AskFlow.WakeQuestion("Hey Beeswax?"));
+            Assert.AreEqual("", AskFlow.WakeQuestion("Please say Hey Beeswax to turn it on."));
+            Assert.AreEqual("", AskFlow.WakeQuestion("Hey Beeswaxian, why bananas?"));
+        }
+
+        [Test]
+        public void RejectedWakeGivesTheCueWithoutWaitingOrStamping()
+        {
+            var flow = Opened();
+            flow.TalkStarted(0f);
+            flow.TalkEnded(1f);
+            var cues = flow.WakeRejected(heardWords: true);
+            Assert.IsTrue(Has(cues, AskCue.Status | AskCue.BuzzOff));
+            Assert.AreEqual(AskFlow.StatusWakeMissing, flow.Status);
+            Assert.IsFalse(flow.ExpectingReply);
+            Assert.IsFalse(Has(flow.Tick(20f, false, false), AskCue.SayStall));
+            Assert.AreEqual(0, flow.Minutes);
+        }
+
+        [Test]
         public void FastTranscriptKeepsWaitingEvenWhenPendingWasNeverSampled()
         {
             var flow = Opened();

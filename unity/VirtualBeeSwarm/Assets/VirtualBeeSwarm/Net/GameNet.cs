@@ -94,6 +94,8 @@ namespace VirtualBeeSwarm
         public event Action<string, bool> TranscriptReceived;      // (text, final)
         public event Action<string, string, string> IntentReceived; // (name, topic or "", text)
         public event Action<bool> VoiceInputUnavailable;          // microphone permission granted?
+        public event Action VoiceWakeWait;
+        public event Action<bool> VoiceWakeRejected;              // was anything heard?
         public event Action<string, int, int> FxReceived;          // (name, delay_ms or -1, duration_ms or -1)
         public event Action<string> SceneChanged;                  // window scene (local request, or the Hive's orbis{scene})
         public event Action<float> OperatorHeat;                   // hum.set from the Board (0..1)
@@ -318,6 +320,7 @@ namespace VirtualBeeSwarm
 
         void HandleGroupReset(Beeswax.GroupReset g)
         {
+            ResetVoiceWakeGate();
             if (forceOffline) return;
             _hasPending = false;
             _localCaptionUntil = -1f;
@@ -348,12 +351,27 @@ namespace VirtualBeeSwarm
         void HandleTranscript(Beeswax.Transcript t)
         {
             if (forceOffline) return;
+            if (_wakeUtterance && t.final && t.source == Beeswax.Role.Quest)
+            {
+                _wakeUtterance = false;
+                var question = Ask.AskFlow.WakeQuestion(t.text);
+                if (question.Length == 0)
+                {
+                    // Older Hives may still answer a rejected turn. Ignore those replies until the next deliberate input.
+                    voiceInput?.CancelPendingTurn();
+                    if (voice != null) voice.SuppressAskReplies = true;
+                    VoiceWakeRejected?.Invoke(!string.IsNullOrWhiteSpace(t.text));
+                    return;
+                }
+                TranscriptReceived?.Invoke(question, true);
+                return;
+            }
             TranscriptReceived?.Invoke(t.text, t.final);
         }
 
         void HandleIntent(Beeswax.Intent i)
         {
-            if (forceOffline) return;
+            if (forceOffline || (voice != null && voice.SuppressAskReplies)) return;
             if (logEvents) Debug.Log("[VBS] <- intent " + i.name + " " + i.topic);
             IntentReceived?.Invoke(i.name, i.topic, i.text);
         }
@@ -380,7 +398,9 @@ namespace VirtualBeeSwarm
 
         void HandleLineStarted(string caption)
         {
-            ReportLine(voice != null ? voice.CurrentLineId : "", voice != null ? voice.CurrentTtsId : "", caption);
+            var id = voice != null ? voice.CurrentLineId : "";
+            if (id == GameLines.RoomMeetHeyBeeswax.id && voiceInput != null) voiceInput.CancelPendingTurn();
+            ReportLine(id, voice != null ? voice.CurrentTtsId : "", caption);
             LineStarted?.Invoke(caption);
         }
 
@@ -393,10 +413,15 @@ namespace VirtualBeeSwarm
 
         // ---------------------------------------------------------------- outbound
         GameBeat? _lastBeat;
+        bool _wakeUtterance;
         /// <summary>Unity is the only beat clock: report every beat change. The bus re-sends it after a reconnect.</summary>
         public void SendBeat(GameBeat beat, int? scoreSeconds = null)
         {
-            if (_lastBeat != beat) voiceInput?.CancelPendingTurn();
+            if (_lastBeat != beat)
+            {
+                voiceInput?.CancelPendingTurn();
+                ResetVoiceWakeGate();
+            }
             _lastBeat = beat;
             if (logEvents) Debug.Log("[VBS] beat " + (int)beat + " " + GameIds.BeatName(beat) + (Online ? "" : " (offline)"));
             if (forceOffline || _bound == null) return;
@@ -622,10 +647,25 @@ namespace VirtualBeeSwarm
         {
             if (Talking) return true;
             if (forceOffline || voiceInput == null || _bound == null) return false;
-            bool ok = voiceInput.BeginTalk();
+            bool wake = _lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field;
+            // Protect the instructional phrase even though it plays before the card is available.
+            if (IsSpeaking && (wake || (voice != null && voice.CurrentLineId == GameLines.RoomMeetHeyBeeswax.id)))
+            {
+                if (wake) VoiceWakeWait?.Invoke();
+                return false;
+            }
+            ResetVoiceWakeGate();
+            bool ok = voiceInput.BeginTalk(wake);
+            _wakeUtterance = ok && wake;
             if (ok && logEvents) Debug.Log("[VBS] talk start");
             if (!ok) VoiceInputUnavailable?.Invoke(Beeswax.BeeswaxMic.HasPermission);
             return ok;
+        }
+
+        public void ResetVoiceWakeGate()
+        {
+            _wakeUtterance = false;
+            if (voice != null) voice.SuppressAskReplies = false;
         }
 
         public void EndTalk(bool cancel = false)

@@ -62,6 +62,8 @@ namespace Beeswax
         public string CurrentLineId => _current?.lineId ?? "";
         public string CurrentTtsId => _current?.ttsId ?? "";
         public int QueuedCount => _queue.Count;
+        /// <summary>Skip unsolicited Ask replies from an older Hive that ignored the wake-phrase flag.</summary>
+        public bool SuppressAskReplies { get; set; }
 
         const int EnvelopeRate = 60; // amplitude frames per second for pre-rendered clips
 
@@ -197,6 +199,9 @@ namespace Beeswax
         void HandleSay(Say s)
         {
             if (s.channel != Channel.Room) return; // ear lines play only in the glasses
+            if (SuppressAskReplies && (s.line_id.Length == 0 || s.line_id.StartsWith("ask_", StringComparison.Ordinal) ||
+                s.line_id.StartsWith("room_ack", StringComparison.Ordinal) ||
+                s.line_id.StartsWith("room_whatif_", StringComparison.Ordinal) || s.line_id == "room_live_filler")) return;
             if (s.line_id.Length > 0) PlayFromBus(s.line_id, s.caption);
             else if (s.tts_id.Length > 0) { if (s.caption.Length > 0) _ttsCaptions[s.tts_id] = s.caption; }
             // Neither a clip nor a stream: the Hive's live voice is down, so Beeswax "says" the caption (reading time).
@@ -211,7 +216,7 @@ namespace Beeswax
 
         void HandleTtsStart(TtsStart t)
         {
-            if (t.tts_id.Length == 0 || _streams.ContainsKey(t.tts_id)) return;
+            if (SuppressAskReplies || t.tts_id.Length == 0 || _streams.ContainsKey(t.tts_id)) return;
             string caption = t.caption.Length > 0 ? t.caption : (_ttsCaptions.TryGetValue(t.tts_id, out var c) ? c : "");
             var line = new Line
             {
@@ -251,6 +256,7 @@ namespace Beeswax
 
         void HandleGroupReset(GroupReset _)
         {
+            SuppressAskReplies = false;
             _suppressUntil.Clear();
             StopAll();
         }

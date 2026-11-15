@@ -151,6 +151,7 @@ namespace Beeswax
         byte[] _frame = new byte[1280];
         int _frameFill;
         string _deliverMode = ListenMode.Ptt;
+        bool _deliverWakePhrase;
 
         // VAD
         float _floorDb = -60f, _vadOnset, _vadSilence, _vadSpeech;
@@ -202,7 +203,7 @@ namespace Beeswax
         /// Start an utterance (push-to-talk). Returns false only when there is no microphone/permission yet
         /// (the permission prompt is shown once). Works while the bus is reconnecting: audio is kept and sent later.
         /// </summary>
-        public bool BeginTalk() => Begin(ListenMode.Ptt);
+        public bool BeginTalk(bool wakePhrase = false) => Begin(ListenMode.Ptt, wakePhrase);
 
         /// <summary>Stop talking; the utterance is sent for transcription (after releaseTailSeconds).</summary>
         public void EndTalk()
@@ -312,7 +313,7 @@ namespace Beeswax
             }
         }
 
-        bool Begin(string listenMode)
+        bool Begin(string listenMode, bool wakePhrase = false)
         {
             if (_talking)
             {
@@ -334,6 +335,7 @@ namespace Beeswax
             _endSentAt = -1f;
             TalkModeName = listenMode;
             _deliverMode = listenMode;
+            _deliverWakePhrase = wakePhrase;
             _frames.Clear();
             _sent = 0;
             _streamOpen = false;
@@ -342,7 +344,13 @@ namespace Beeswax
             int frameBytes = Mathf.Clamp(frameMs, 10, 100) * Rate / 1000 * 2;
             if (_frame.Length != frameBytes) _frame = new byte[frameBytes];
             _frameFill = 0;
-            AppendPreroll();
+            if (wakePhrase)
+            {
+                // Do not send samples captured before the intentional hold, including Beeswax's prompt.
+                _prerollCount = _blkFill = 0;
+                _prerollUsed = 0f;
+            }
+            else AppendPreroll();
             SetDuck(true);
             Raise(OnTalkStarted, listenMode);
             Deliver(Time.realtimeSinceStartup);
@@ -391,7 +399,7 @@ namespace Beeswax
                     _streamOpen = false;
                     _sent = 0;
                 }
-                if (!_streamOpen && b.IsConnected && b.SendListenStart(_deliverMode)) { _streamOpen = true; _sent = 0; }
+                if (!_streamOpen && b.IsConnected && b.SendListenStart(_deliverMode, _deliverWakePhrase)) { _streamOpen = true; _sent = 0; }
                 if (_streamOpen)
                 {
                     while (_sent < _frames.Count && b.QueuedSendBytes < maxQueuedSendBytes)
