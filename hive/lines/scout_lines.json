@@ -11,9 +11,9 @@
   {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Uh oh, bug spray! This one is important. Would you like to learn more?"},
   {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "A bee hotel! Wild bees check in here. Would you like to learn more?"},
 
-  {"id": "scout_any_q_1", "kind": "ask", "text": "Got any questions? Bee my guest!"},
-  {"id": "scout_any_q_2", "kind": "ask", "text": "Curious about anything? Just ask me!"},
-  {"id": "scout_any_q_3", "kind": "ask", "text": "Any questions? I'm all ears. Well, all antennae."},
+  {"id": "scout_any_q_1", "kind": "any_q", "text": "Got any questions? Bee my guest!"},
+  {"id": "scout_any_q_2", "kind": "any_q", "text": "Curious about anything? Just ask me!"},
+  {"id": "scout_any_q_3", "kind": "any_q", "text": "Any questions? I'm all ears. Well, all antennae."},
 
   {"id": "scout_no_1", "kind": "no", "text": "Don't worry, I'll BEE right here if you need anything."},
   {"id": "scout_no_2", "kind": "no", "text": "No problem! Just buzz me if you change your mind."},
