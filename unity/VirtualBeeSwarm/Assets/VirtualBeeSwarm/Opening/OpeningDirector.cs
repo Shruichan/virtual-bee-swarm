@@ -234,7 +234,12 @@ namespace VirtualBeeSwarm.Opening
             float u = (Time.time - _waveFrom) / (_waveUntil - _waveFrom);
             float env = Mathf.Clamp01(u / 0.15f) * Mathf.Clamp01((1f - u) / 0.15f);
             float a = env * (110f + 28f * Mathf.Sin((Time.time - _waveFrom) * Mathf.PI * 2f * 2.2f));
-            if (_waveBone != null) _waveBone.rotation = Quaternion.AngleAxis(a, _bw.transform.forward) * _waveBone.rotation;
+            if (_waveBone != null)
+            {
+                Vector3 f = _bw.transform.forward, c = _bw.BodyTransform != null ? _bw.BodyTransform.position : _bw.transform.position;
+                float sign = Vector3.Dot(Quaternion.AngleAxis(30f, f) * Vector3.down, Vector3.ProjectOnPlane(_waveBone.position - c, f)) >= 0f ? 1f : -1f;
+                _waveBone.rotation = Quaternion.AngleAxis(a * sign, f) * _waveBone.rotation; // swung out to his side and up
+            }
             else if (_bw.BodyTransform != null) _bw.BodyTransform.rotation = Quaternion.AngleAxis(env * 12f * Mathf.Sin(Time.time * 14f), _bw.transform.forward) * _bw.BodyTransform.rotation;
         }
 
@@ -303,7 +308,7 @@ namespace VirtualBeeSwarm.Opening
 
         static Transform FindBone(Transform root, string name)
         {
-            if (root.name == name) return root;
+            if (root.name == name && root.gameObject.activeInHierarchy) return root;
             for (int i = 0; i < root.childCount; i++)
             {
                 var f = FindBone(root.GetChild(i), name);

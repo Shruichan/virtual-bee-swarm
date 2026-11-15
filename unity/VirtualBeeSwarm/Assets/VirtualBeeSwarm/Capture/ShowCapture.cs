@@ -228,6 +228,14 @@ namespace VirtualBeeSwarm.Capture
                     cam.transform.SetPositionAndRotation(widePos, Quaternion.LookRotation(wideLook - widePos, Vector3.up));
                     cam.fieldOfView = wideFov;
                 }
+                else if (v == "pal") // [Pals] up close on Beeswax and the ghost hand (Pals/PalCam)
+                {
+                    cam = new GameObject("PalCamera").AddComponent<Camera>();
+                    cam.CopyFrom(_pov);
+                    cam.tag = "Untagged";
+                    cam.fieldOfView = 50f;
+                    cam.gameObject.AddComponent<VirtualBeeSwarm.Pals.PalCam>();
+                }
                 else if (v == "top" || v == "corner") // meadow: straight down over the room / a high 3/4 view of the floor
                 {
                     cam = new GameObject(v == "top" ? "TopCamera" : "CornerCamera").AddComponent<Camera>();
