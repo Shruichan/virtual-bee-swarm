@@ -425,6 +425,15 @@ interface Understood { route: Routed; response: UtteranceResponse }
 const isWhatIfScene = (s: Scene) => s.startsWith("whatif_");
 /** The hook's forecast is a moment, not a place the window goes back to: never the base scene. */
 const isForecastScene = (s: Scene) => s.startsWith("forecast_");
+// Pals voice actions (Unity Pals/): "do a dance" -> the waggle dance (Unity dances when this line starts), and in Ask
+// Beeswax "show me ___" is a window request: the live scene stays up and he hands over the window instead of answering.
+export const PAL_DANCE_LINE = "room_pal_dance";
+export const PAL_SHOW_LINE = "room_pal_show_me";
+const DANCE_RX = /\bwaggle dance\b|\b(?:do|doing|does|show (?:me|us)|give (?:me|us)|bust|perform|teach (?:me|us)|see)\b[a-z' ]{0,24}\bdance\b|^(?:hey )?(?:beeswax,? )?(?:waggle )?dance\b/;
+const SHOW_ME_RX = /^(?:(?:hey )?beeswax,? )?(?:(?:can|could|would|will) you |please |now )*show (?:me|us)\b/;
+const palText = (s: string) => s.toLowerCase().replace(/[^a-z' ,]+/g, " ").replace(/\s+/g, " ").trim();
+export const isDanceRequest = (s: string) => DANCE_RX.test(palText(s));
+export const isShowMe = (s: string) => SHOW_ME_RX.test(palText(s));
 const cleanText = (s: unknown, max = 500) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 function concat(parts: Uint8Array[], total: number): Uint8Array {
@@ -1380,6 +1389,14 @@ export function startHive(opts: HiveOptions): Hive {
     rememberHeard(state, text);
     // Board commands can act in any beat. Player turns belong to the beat where they started.
     const beat = turn.beat;
+    if (beat !== "field" && (operator || VOICE_BEATS.includes(beat)) && isDanceRequest(text) && hasLine(PAL_DANCE_LINE)) {
+      return palLine(PAL_DANCE_LINE, "dance", text, source, operator, isCurrent);
+    }
+    // Ask Beeswax beats: "show me ___" goes to the window (nearest clip at once, a live Orbis scene when the stream is up),
+    // not to the what-if router; with nothing to show it falls through as before.
+    if (deps.ask?.ASK_BEATS.includes(beat) && beat !== "field" && isShowMe(text) && hasLine(PAL_SHOW_LINE) && (operator || bus.count("quest") > 0)) {
+      if (askWindow(text, isCurrent)) return palLine(PAL_SHOW_LINE, "show me (window)", text, source, operator, isCurrent);
+    }
     if (deps.ask?.wants(text, beat)) return askTurn(text, source, t0, turn, earReply, operator, isCurrent);
     const r = await safeRoute(text, { beat, recent });
     if (!isCurrent()) return null;
@@ -1414,6 +1431,15 @@ export function startHive(opts: HiveOptions): Hive {
     act(r, deliver, field, toRoom ? ttsAvailable() : true, text);
     latency(operator ? "board.total" : "voice.total", Date.now() - t0);
     return { route: r, response };
+  }
+
+  /** A Pals voice action: one fixed line to the room (Unity acts on its id), no router or Ask call. */
+  function palLine(id: string, what: string, text: string, source: VoiceSource, operator: boolean, isCurrent: () => boolean): Understood {
+    const route: Routed = { intent: "ask", topic: null, answer: null, ms: 0, path: "keyword" };
+    bus.broadcast({ type: "intent", name: "ask", topic: null, text, path: "keyword", ms: 0 });
+    observe(`${operator ? "operator" : `voice ${source}`}: "${text.slice(0, 80)}" -> ${what} (${id})`);
+    sayReply(lineReply(id), "room", operator ? undefined : isCurrent);
+    return { route, response: { intent: "ask", topic: null, line_id: id, audio_url: null, caption: lineText(id) } };
   }
 
   /** What-if, undo, ask, ack: say the line first, then change the window (the line covers the 2-4 s morph). */
