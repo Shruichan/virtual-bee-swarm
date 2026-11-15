@@ -466,6 +466,7 @@ namespace VirtualBeeSwarm.HandsOn
             if (_cur.Station == GameStation.Smoker)
             {
                 _pumps++;
+                if (_item != null) _item.GetComponentInChildren<ArtAnimProp>()?.PlayManualAction();
                 Vector3 from = _item != null && _item.gameObject.activeInHierarchy ? _item.position + Vector3.up * 0.12f : _lever.HeadPosition;
                 Puff(from, _hive.SwarmCenter.position, new Color(0.92f, 0.92f, 0.95f), 3);
                 GameSound.Cue("smoker_puff", _item != null ? _item : _lever.transform);
@@ -476,14 +477,18 @@ namespace VirtualBeeSwarm.HandsOn
             }
             else if (_cur.Station == GameStation.Heat && _sub == 1)
             {
-                Transform spot = _sd.Spot;
-                Puff(_lever.transform.position + Vector3.up * 0.05f, spot.position + Vector3.up * 0.03f, HandsOnKit.Water, 3);
-                GameSound.Cue("water_pump", spot);
-                _water.transform.SetPositionAndRotation(spot.position + Vector3.up * 0.022f, _table.rotation);
-                _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f);
-                _water.gameObject.SetActive(true);
+                FillDish(_sd.Spot);
                 Succeed("POOL'S OPEN.\nNO DIVING.");
             }
+        }
+
+        void FillDish(Transform spot)
+        {
+            Puff(_lever.transform.position + Vector3.up * 0.05f, spot.position + Vector3.up * 0.03f, HandsOnKit.Water, 3);
+            GameSound.Cue("water_spray", spot);
+            _water.transform.SetPositionAndRotation(spot.position + Vector3.up * 0.022f, _table.rotation);
+            _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f);
+            _water.gameObject.SetActive(true);
         }
 
         void HandleRefused()
@@ -526,7 +531,9 @@ namespace VirtualBeeSwarm.HandsOn
             Transform at = st.Station == GameStation.Smoker ? _lever.transform : _sd != null && _sd.Spot != null ? _sd.Spot : _lever.transform;
             _prompt.Show("CREW ASSIST", at, at == _lever.transform ? new Vector3(0f, 0.36f, -0.02f) : Vector3.up * 0.2f, 2f);
             _step = Step.Done;
-            ChooseCorrect(st, setupByHand: st.Station == GameStation.Heat && _sub == 1);
+            bool dishPlaced = st.Station == GameStation.Heat && _sub == 1;
+            if (dishPlaced) FillDish(_sd.Spot);
+            ChooseCorrect(st, setupByHand: dishPlaced);
         }
 
         static void ChooseCorrect(StationBase st, bool setupByHand)

@@ -219,6 +219,14 @@ namespace Beeswax
             if (_talking) Finish(EndReason.Cancelled, cancel: true);
         }
 
+        /// <summary>Discard the previous beat's voice input and clear its waiting indicator.</summary>
+        public void CancelPendingTurn()
+        {
+            Cancel();
+            DropDelivery();
+            _endSentAt = -1f;
+        }
+
         /// <summary>Open the mic now so the next BeginTalk has pre-roll and no start-up gap.</summary>
         public void WarmUp()
         {
