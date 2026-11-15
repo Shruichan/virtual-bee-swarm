@@ -692,6 +692,8 @@
 
 - **S18.3 Meadow environment mesh pack** (P2 · 0.5 h · needs –) — add Unity-importable flower, grass, and vine meshes under `art/generated-environment/`, without changing claimed Unity art slots — owner: **Rome** — status: done.
 
+- **S18.4 Pollinator habitat teaching props** (P2 · 0.5 h · needs –) — add lightweight, Unity-importable bee-water station and solitary-bee nesting-block meshes with a short audio-first lesson card; keep them outside dartiros's claimed Unity art slots — owner: **Rome** — status: in progress.
+
 ### Schedule
 
 **Sleep** (non-negotiable; everyone sets two alarms):
@@ -1465,3 +1467,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:05 PT · Rome (agent) · Started S18.3: adding standalone low-poly flower, grass, and flowering-vine models for optional AR meadow dressing under `art/generated-environment/`. → team
 
 - 2026-11-14 17:35 PT · Rome (agent) · S18.3 done: added `meadow_flowers`, `soft_grass_tuft`, and `flowering_vine` OBJ/MTL models with a rendered pack preview and import notes; kept all new assets outside the claimed Unity art slots. → team
+- 2026-11-14 17:50 PT · Rome (agent) · Claiming S18.4: making two small, low-poly habitat props that teach safe water and nesting basics, plus a concise audio-first lesson card; working in `art/generated-environment/` on a separate branch. → team
