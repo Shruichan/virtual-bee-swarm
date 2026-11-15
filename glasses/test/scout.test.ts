@@ -228,12 +228,16 @@ describe("Scout unit", () => {
     expect(sent).toEqual(["/scout/start"])
   })
 
-  test("wake word mirrors the Hive's; his own name in his own line is an echo", () => {
-    for (const w of ["Hey Beeswax, why", "hey bees wax", "Hey, bee's wax.", "hay beeswax", "A beeswax tell me", "hey beezwax", "Hey bees, why", "okay beeswax", "um so hey beeswax what", "Hey Bs wax"])
+  test("wake word mirrors the Hive's (greeting + name at the start); his own lines from any speaker are echoes", () => {
+    for (const w of ["Hey Beeswax, why", "hey bees wax", "Hey, bee's wax.", "hay beeswax", "A beeswax tell me", "hey beezwax", "Hey bees, why", "okay beeswax", "hello beeswax", "um so hey beeswax what", "Hey Bs wax"])
       expect([w, hasWake(w)]).toEqual([w, true])
-    for (const n of ["why do bees need pebbles", "the bees are cute", "what's that, hey beeswax?", "showing the transcript of what Beeswax was saying", "Hey B, hello?", "Hey, can you tell me a little bit more?", ""]) expect([n, hasWake(n)]).toEqual([n, false])
+    for (const n of ["why do bees need pebbles", "the bees are cute", "what's that, hey beeswax?", "showing the transcript of what Beeswax was saying", "Hey B, hello?", "Hey, can you tell me a little bit more?", "Beeswax, why?", "Beeswax found! This is a bee water dish.", "Just say Hey Beeswax and I'll BEE right there", ""])
+      expect([n, hasWake(n)]).toEqual([n, false])
     expect(isEchoOf("would you like to learn more", ["Bee fact found! Would you like to learn more?"])).toBe(true)
-    expect(isEchoOf("what is a bee hotel", ["This is a bee hotel."])).toBe(false)
+    const caps = ["Bee fact found!", "This is a bee water dish. Bees can't swim, so pebbles are their landing pads.", 'Got a question? Just say "Hey Beeswax" and I\'ll BEE right there!']
+    for (const e of ["Beeswax found! This is a bee water dish. Bees can't swim, so pebbles are their landing pads.", "Be fact found.", "Bee facts found!", "Hey Beeswax and I'll be right there"])
+      expect([e, isEchoOf(e, caps)]).toEqual([e, true])
+    expect(isEchoOf("Hey Beeswax, what is a bee water dish?", caps)).toBe(false) // the wearer's own call
 
     const s = new Scout({hive: {send: async () => true}, led: {turnOn: async () => ({}) as any}, log: () => {}})
     expect(s.callsBeeswax("why the honey")).toBe(false)
@@ -246,6 +250,10 @@ describe("Scout unit", () => {
     expect(s.callsBeeswax("Hey Beeswax")).toBe(false) // the tip line heard back while it plays
     s.noteDone('Questions? Just say "Hey Beeswax"!')
     expect(s.callsBeeswax("Hey Beeswax")).toBe(false) // ...and just after
+    // a line the Hive sent that played on the Mac (not yet, or never, in this ear) is still an echo
+    s.said({tts_id: "scout_fact_pebble_dish", caption: "This is a bee water dish. Bees can't swim, so pebbles are their landing pads."})
+    expect(s.callsBeeswax("Hey Beeswax and pebbles are their landing pads")).toBe(true) // a call it doesn't contain
+    expect(s.callsBeeswax("Beeswax found! This is a bee water dish.")).toBe(false)
   })
 
   test("LED failures are swallowed and it gives up after three", async () => {

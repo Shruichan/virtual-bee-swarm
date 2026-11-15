@@ -50,7 +50,7 @@ describe("routing (wake word only)", () => {
       ["Okay Beeswax, what's that", "what's that"],
       ["Hey Bs wax what is a bee hotel", "what is a bee hotel"],
       ["Hey, Bees Whacks! Why the pebbles?", "Why the pebbles?"],
-      ["Beeswax, why", "why"],
+      ["Hello Beeswax, why", "why"],
       ["um so hey beeswax the honey jar", "the honey jar"],
       ["Okay, so, hey Beeswax, what's foulbrood?", "what's foulbrood?"],
     ];
@@ -61,7 +61,7 @@ describe("routing (wake word only)", () => {
   });
 
   test("only the name (or the name and fillers) is a wake: ack, then wait for the question", () => {
-    for (const said of ["Hey Beeswax", "hey beeswax?", "Hay bees wax.", "okay beeswax um", "Hey Bee's Wax!", "Beeswax?", "hey bees"]) {
+    for (const said of ["Hey Beeswax", "hey beeswax?", "Hay bees wax.", "okay beeswax um", "Hey Bee's Wax!", "hi beeswax", "hey bees"]) {
       expect([said, kind(said)]).toEqual([said, "wake"]);
     }
   });
@@ -71,14 +71,46 @@ describe("routing (wake word only)", () => {
       "And then the other thing is that previously you were showing the transcript of what Beeswax was saying",
       "why is honey sticky, hey beeswax?",
       "I love beeswax candles",
-      "the kids asked hey beeswax a lot","why do bees need pebbles", "so by the way, where's the judge view?", "Version that you're showing me currently?", "Like this?", "Hey, can you tell me a little bit more?", "Hey B, hello?", "the bees are cute", "yes", "no thanks"]) {
-      expect([said, kind(said)]).toEqual([said, "game"]);
+      "the kids asked hey beeswax a lot",
+      "Beeswax, why is honey sticky?", // the bare name never wakes him
+      "Beeswax?",
+      "Beeswax found! This is a bee water dish. Bees can't swim, so pebbles are their landing pads.",
+      "Just say Hey Beeswax and I'll BEE right there",
+      "why do bees need pebbles", "so by the way, where's the judge view?", "Version that you're showing me currently?", "Like this?", "Hey, can you tell me a little bit more?", "Hey B, hello?", "the bees are cute", "yes", "no thanks"]) {
+      expect([said, ["game", "echo"].includes(kind(said))]).toEqual([said, true]); // never answered, never a wake
     }
   });
 
   test("after a bare wake, the next utterance is the question (not thanks / never mind / fillers)", () => {
     expect(routeUtterance("the honey jar", { classify: classifyAnswer, captions: [], awaitingQuestion: true })).toEqual({ kind: "ask", question: "the honey jar" });
     for (const s of ["never mind", "thanks", "um", "okay"]) expect([s, kind(s, [], true)]).toEqual([s, "game"]);
+  });
+
+  test("his own lines from any speaker (the Mac plays them later) are echoes: live transcripts", () => {
+    const caps = [
+      "Bee fact found!",
+      "This is a bee water dish. Bees can't swim, so pebbles are their landing pads.",
+      "On a hot day, bees haul home about eighty percent of their weight in water to cool the hive.",
+      'Walk up to one and look at it. Got a question? Just say "Hey Beeswax" and I\'ll BEE right there!',
+    ];
+    for (const said of [
+      "Beeswax found! This is a bee water dish. Bees can't swim, so pebbles are their landing pads.",
+      "Beeswax found!",
+      "Be fact found.",
+      "Bee facts found!",
+      "Bees can't swim so pebbles are their",
+      "On a hot day—",
+      "on a hot day bees haul home about eighty percent",
+      "Just say Hey Beeswax and I'll BEE right there",
+      "Hey Beeswax and I'll be right there",
+    ]) {
+      expect([said, kind(said, caps)]).toEqual([said, "echo"]);
+    }
+    expect(isEcho("Beeswax found something", [])).toBe(true); // his chime, even with no caption on file
+    // the wearer's own calls are not echoes, even when they share words with what he just said
+    expect(kind("Hey Beeswax, what is a bee water dish?", caps)).toBe("ask");
+    expect(kind("Hey Beeswax, why can't bees swim?", caps)).toBe("ask");
+    expect(routeUtterance("Hey Beeswax", { classify: classifyAnswer, captions: caps, playing: [] }).kind).toBe("wake");
   });
 
   test("'Hey Beeswax, yes' is still the game's yes", () => {

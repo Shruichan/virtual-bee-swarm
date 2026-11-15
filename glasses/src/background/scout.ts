@@ -44,51 +44,55 @@ const norm = (s: string) =>
 const SEP = "[\\s,.!?;:\\-–—]+"
 const NAME = "b(?:ee|e)?(?:['’]?s|z)?[\\s\\-]*(?:wax|wacks|whacks|wax's)"
 const LEAD = "(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|okay|ok|so|well|and|wait)" + SEP + ")*"
-/** Only at the START of the utterance (after fillers): "... what Beeswax was saying" never wakes him. */
+/** A greeting + the name, only at the START of the utterance (after fillers). The bare name never wakes him: STT
+ *  hears his chime "Bee fact found!" as "Beeswax found!", and "... what Beeswax was saying" is chatter. */
+const GREETING = "(?:hey|hay|hi|hello|okay|ok|a|yo)"
 const WAKE_RX = new RegExp(
-  `^[\\s,.!?;:\\-–—]*${LEAD}(?:(?:(?:hey|hay|hi|a|okay|ok|yo)${SEP})?${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
+  `^[\\s,.!?;:\\-–—]*${LEAD}(?:${GREETING}${SEP}${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
   "i",
 )
-const CALL_RX = new RegExp(`\\b(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i")
-const NAME_RX = new RegExp(`\\b${NAME}\\b`, "i")
+const CALL_RX = new RegExp(`\\b${GREETING}${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i")
+const EDGE_RX = /^[\s,.!?;:\-–—]+|[\s,.;:\-–—]+$/g
+const FILLER_ONLY_RX = /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|hey|hi|hello|okay|ok|please|there)\s*)*$/
 
-/** "Hey Beeswax" (and its speech-to-text spellings) anywhere in the utterance. */
+/** "Hey Beeswax" (greeting + name, and their speech-to-text spellings) at the start of the utterance. */
 export function hasWake(text: string): boolean {
   return WAKE_RX.test(String(text ?? ""))
 }
 
-const bigrams = (t: string) => {
-  const w = t.split(" ")
-  const out: string[] = []
-  for (let i = 0; i + 1 < w.length; i++) out.push(`${w[i]} ${w[i + 1]}`)
-  return out
+/** Only the call, nothing after it ("Hey Beeswax?"). */
+function bareWake(text: string): boolean {
+  const m = WAKE_RX.exec(String(text ?? ""))
+  return !!m && FILLER_ONLY_RX.test(norm(String(text).slice(m.index + m[0].length).replace(EDGE_RX, "")))
 }
 
-/** The mic heard Beeswax: the transcript sits inside a caption he spoke. `loose` when it names him and he just
- *  said his own name ("I'm Beeswax"): a rougher match, since STT spells his puns differently. */
-export function isEchoOf(text: string, captions: readonly string[], loose = false): boolean {
-  const t = norm(text)
-  const n = t ? t.split(" ").length : 0
+/** His chime as STT writes it ("Beeswax found", "Be fact found", "Bee facts found") -> one spelling. */
+const echoNorm = (s: string) => norm(s).replace(/\b(?:bee'?s ?wax|bees ?wax|bee ?facts?|be ?facts?|b ?facts?) found\b/g, "bee fact found")
+
+/** The mic heard Beeswax (glasses or Mac speakers): inside a caption, a shared run of 4+ words, or 60%+ of its words
+ *  his. An explicit "hey beeswax" his line doesn't contain is the wearer. Anything starting "beeswax found" is his chime. */
+export function isEchoOf(text: string, captions: readonly string[]): boolean {
+  if (/^(?:bee'?s ?wax|bees ?wax) found\b/.test(norm(text))) return true
+  const t = echoNorm(text)
+  const ws = t ? t.split(" ") : []
+  const n = ws.length
   if (n < 2) return false
+  const call = CALL_RX.test(text)
   return captions.some((cap) => {
-    const c = norm(cap)
-    if (!c) return false
+    const c = echoNorm(cap)
+    if (!c || (call && !CALL_RX.test(cap))) return false
     if (` ${c} `.includes(` ${t} `)) return true
-    if (loose && NAME_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
-      const words = new Set(c.split(" "))
-      const ws = t.split(" ")
-      if (ws.filter((w) => words.has(w)).length / ws.length >= 0.6) return true
-    }
-    if (n < 4) return false
-    const have = new Set(bigrams(c))
-    const pairs = bigrams(t)
-    return pairs.filter((p) => have.has(p)).length / pairs.length >= 0.85
+    for (let i = 0; i + 4 <= n; i++) if (` ${c} `.includes(` ${ws.slice(i, i + 4).join(" ")} `)) return true
+    if (n < 3) return false
+    const words = new Set(c.split(" "))
+    return ws.filter((w) => words.has(w)).length / n >= 0.6
   })
 }
 
 /** A line can come back as a transcript this long after it stops playing. */
 const ECHO_TAIL_MS = 2000
-/** A line that never reports its end stops counting after this long. */
+/** A line that never reports its end stops counting after this long; and any line said this recently counts,
+ *  wherever it played (the Mac's speakers play it later than the glasses). */
 const ECHO_MAX_MS = 30_000
 
 export interface ScoutDeps {
@@ -104,7 +108,8 @@ export interface ScoutDeps {
 export class Scout {
   private started = false
   private ledFailures = 0
-  private spoken: {text: string; until: number}[] = []
+  /** What Beeswax said: when it reached us, and until when it may still be playing in this ear. */
+  private spoken: {text: string; at: number; until: number}[] = []
   /** Already stopped the ear for this utterance (partials repeat). */
   private stoppedThisTurn = false
 
@@ -127,8 +132,8 @@ export class Scout {
   /** The ear started a line (echo guard). */
   noteSaid(caption: string): void {
     if (!caption) return
-    this.spoken.push({text: caption, until: Date.now() + ECHO_MAX_MS})
-    if (this.spoken.length > 12) this.spoken.shift()
+    this.spoken.push({text: caption, at: Date.now(), until: Date.now() + ECHO_MAX_MS})
+    if (this.spoken.length > 24) this.spoken.shift()
   }
 
   /** The ear finished (or cut) a line: it can echo only a moment longer. */
@@ -141,7 +146,11 @@ export class Scout {
   callsBeeswax(text: string): boolean {
     if (!hasWake(text)) return false
     const now = Date.now()
-    return !isEchoOf(text, this.spoken.filter((s) => now <= s.until).map((s) => s.text), true)
+    // a bare "Hey Beeswax" only against what plays in this ear now (his tips say "Just say Hey Beeswax", and that
+    // is when a kid says it back); anything longer against all he said in the last 30 s
+    const bare = bareWake(text)
+    const caps = this.spoken.filter((s) => now <= s.until || (!bare && now - s.at <= ECHO_MAX_MS)).map((s) => s.text)
+    return !isEchoOf(text, caps)
   }
 
   private stopFor(text: string, partial: boolean): void {
@@ -173,6 +182,10 @@ export class Scout {
   /** A `say` arrived on the bus: light the LED for the chime and the facts. */
   said(msg: ScoutSayLike): void {
     const id = scoutLineId(msg)
+    if (typeof msg.caption === "string" && msg.caption) {
+      this.spoken.push({text: msg.caption, at: Date.now(), until: 0}) // said (it may play on the Mac first)
+      if (this.spoken.length > 24) this.spoken.shift()
+    }
     if (id === "scout_chime") this.light({color: "orange", ontime: 300, offtime: 200, count: 4})
     else if (id?.startsWith("scout_fact_")) this.light({color: "green", ontime: 3000, offtime: 0, count: 1})
   }
