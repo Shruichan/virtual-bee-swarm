@@ -652,14 +652,40 @@ const SHOW = `<!doctype html>
     });
     c.className = text.length > 160 ? "xlong" : text.length > 95 ? "long" : "";
   }
+  // The Hive hands the glasses a whole sequence at once (intro 1-3, fact + follow-up) and the ear plays it in order.
+  // So captions queue here too: each stays up for about as long as it takes to say (the Hive's own estimate),
+  // then the next one shows. Ask answers skip the queue (the wake word cuts the ear) and grow in place.
+  var capQ = [], capTimer = null, lastEnq = "";
+  function sayMs(text) { return Math.round((text.length / 14.4) * 1000 + 300) + 300; }
+  function clearCaps() { capQ = []; clearTimeout(capTimer); capTimer = null; }
+  function pumpCaps() {
+    if (capTimer) return;
+    var ev = capQ.shift();
+    if (!ev) return;
+    showLine(ev);
+    capTimer = setTimeout(function () { capTimer = null; pumpCaps(); }, sayMs(String(ev.caption || "")));
+  }
   function onSay(ev) {
     lastActivity = Date.now();
     var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
-    if (id === "scout_teacher") { showTeacher(text); if (mirror) enqueue(ev); return; }
+    if (id !== lastEnq) { lastEnq = id; enqueue(ev); } // mirror audio (only when sound is on); a re-sent caption doesn't replay
+    if (id === "scout_teacher") { showTeacher(text); return; }
     if (id.indexOf("scout_done") === 0) celebrate(); // the finale lines play under "Bee Scout badge earned!"
-    if (!text) { enqueue(ev); return; } // a pure sound effect: nothing to show, plays only when sound is on
-    var b = $("bubble"), c = $("cap"), isAsk = id.indexOf("scout_ask_") === 0;
-    var update = isAsk && id === curLine; // an "Ask Beeswax" answer growing as it streams in
+    if (!text) return; // a pure sound effect: nothing to show
+    if (id.indexOf("scout_ask_") === 0) { clearCaps(); showLine(ev); return; }
+    if (id === "scout_intro_1") clearCaps(); // a new journey starts: drop what's left of the old one
+    capQ.push(ev);
+    var total = 0; capQ.forEach(function (e) { total += sayMs(String(e.caption || "")); });
+    while (capQ.length > 1 && total > 40000) total -= sayMs(String(capQ.shift().caption || "")); // never fall far behind the ear
+    pumpCaps();
+  }
+  var askBase = null;
+  function showLine(ev) {
+    var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
+    var b = $("bubble"), c = $("cap"), isAsk = id.indexOf("scout_ask_") === 0, update = false;
+    if (isAsk && askBase && id === askBase && curLine === askBase) update = true; // the same answer, caption grown
+    else if (isAsk && askBase && id.indexOf(askBase + "_") === 0 && curLine && curLine.indexOf(askBase) === 0) { update = true; text = curText + " " + text; } // its next sentence
+    else askBase = isAsk ? id : null;
     if (update && text === curText) return;
     if (!isAsk) endAsk();
     b.classList.remove("idle", "thinking");
@@ -667,10 +693,8 @@ const SHOW = `<!doctype html>
     if (update) { var a = wordList(curText), n = wordList(text); while (keep < a.length - 1 && a[keep] === n[keep]) keep++; }
     render(c, text, keep);
     b.scrollTop = b.scrollHeight; // a long answer: keep its newest words in view
-    if (!update && mirror) enqueue(ev);
     curLine = id; curText = text;
-    // Beeswax chatters for about as long as the line takes to say (~2.6 words a second)
-    var words = wordList(text).length - (update ? keep : 0), ms = Math.max(1500, words * 380);
+    var ms = sayMs(update ? text.slice(Math.min(text.length, curText.length)) || text : text);
     document.body.classList.add("speaking"); $("bxi").src = ASSETS + "beeswax-front.webp";
     clearTimeout(speakTimer);
     speakTimer = setTimeout(stopSpeaking, ms);
@@ -691,7 +715,7 @@ const SHOW = `<!doctype html>
     var t = String(ev.text || "").trim();
     if (!t) return;
     // a question outside an offer goes to "Ask Beeswax": question bubble above him, his answer follows
-    if (isQuestion(t) && ev.answer !== "yes" && ev.answer !== "no" && S.phase !== "offering") { showAsk(t); return; }
+    if (isQuestion(t) && ev.answer !== "yes" && ev.answer !== "no" && S.phase !== "offering") { clearCaps(); showAsk(t); return; }
     $("youq").textContent = quote(t);
     var y = $("you"); y.classList.remove("gone"); restart(y, "fresh");
     clearTimeout(youTimer); youTimer = setTimeout(hideYou, 15000);
@@ -744,7 +768,7 @@ const SHOW = `<!doctype html>
     showToday(0);
     clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
     bx.flash = null;
-    hideYou(); hideTeacher(); stopSpeaking(); goIdle(); clearCase();
+    clearCaps(); hideYou(); hideTeacher(); stopSpeaking(); goIdle(); clearCase();
   });
 
   function onState(st) {
