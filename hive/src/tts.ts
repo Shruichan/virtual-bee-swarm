@@ -8,10 +8,13 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { noteFailure, noteOk } from "./services";
+import { speakable } from "./speakable";
 
 export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
 const LIVE_VOICE_SPEED = 0.95;
+/** Calmer delivery (Rome, 04:00): steadier, not over-acted. Live speech and rendered clips use the same settings. */
+const CALM_VOICE = { stability: 0.6, style: 0 };
 
 /** Timeouts (ms) and the text cap. Mutable so tests can shorten them. */
 export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, maxChars: 500 };
@@ -64,8 +67,9 @@ function env(): { client: ElevenLabsClient; voiceId: string } {
   return { client: cached.client, voiceId };
 }
 
+/** The text ElevenLabs hears: speakable() (no CAPS, one "!", no "..."/staccato); captions keep the written line. */
 function clean(text: unknown): string {
-  return typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, ttsLimits.maxChars) : "";
+  return typeof text === "string" ? speakable(text.replace(/\s+/g, " ").trim()).slice(0, ttsLimits.maxChars) : "";
 }
 
 function errText(e: unknown): string {
@@ -127,7 +131,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
     const budgeted = reserveTts(t);
     const request = client.textToSpeech.stream(
       voiceId,
-      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000", voiceSettings: { speed: LIVE_VOICE_SPEED } },
+      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000", voiceSettings: { ...CALM_VOICE, speed: LIVE_VOICE_SPEED } },
       { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: ttsLimits.firstByteMs / 1000 },
     );
     const stream = await withTimeout(request, ttsLimits.firstByteMs, "TTS response");
@@ -173,7 +177,7 @@ export async function ttsBytes(
         text: t,
         modelId: opts.model ?? TTS_MODEL,
         outputFormat: opts.format ?? "mp3_44100_64",
-        voiceSettings: opts.speed === undefined ? undefined : { speed: opts.speed },
+        voiceSettings: { ...CALM_VOICE, speed: opts.speed ?? LIVE_VOICE_SPEED },
       },
       { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
     );
