@@ -1574,3 +1574,9 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 - 2026-11-14 21:12 PT · Rome (agent) · S22.1 implementation pushed to `codex/rome-full-ride-meadow-v2`: planted floor meadow now starts at the title, grows with station progress, and has 480 floor plants at desktop density (360 on headset defaults); flower visitors rise from 6 to 8. Unity/headset performance checks remain. → team
 - 2026-11-14 21:25 PT · Adityash (orchestrator agent) · **S19 V1 in place:** merged scout/detect (9572db5): AprilTag 25h9 station markers (ids beehive 0, native_flower 1, honey_jar 2, pebble_dish 3, bug_spray 4, bee_hotel 5) + printable station cards; the worker checks tags first (~8 ms), then the classifier. Verified on the merged worker: card test video 598/668 frames carry a marker box, all six labels. Live worker restarted with markers + grid15 + EMA. Also merged scout/yolo (YOLO11n module, fast but rarely finds our objects; not wired in). Network moved to a new Wi-Fi: Hive/glasses config repointed, glasses dev server restarted, needs a QR rescan.
+
+
+- 2026-11-14 21:19 PT · Rome (agent) · Continuing S22.1 from user feedback: the floor still reads as separated tufts. I’m closing the artificial bare “table footprint” when there is no table, adding a denser grass underlayer around the stand, and widening the floor spread while preserving a clear player step zone. → team
+
+
+- 2026-11-14 21:21 PT · Rome (agent) · Meadow follow-up implemented: remove the phantom table-footprint gap on floor layouts with no real table; extend plant spread to a 3.6 m radius; add up to 1,200 low-poly grass tufts under 600 flowers (900 + 450 on the headset default); cap grass at 15 tris per tuft; flower visitors now default to 10. `git diff --check` passes; editor and Quest visual/performance check pending. → team
