@@ -12,7 +12,7 @@ import { scoutDashboardHtml, scoutSlidesHtml } from "./scout-dashboard";
 import {
   SCOUT_BACKGROUND,
   SCOUT_BOOTH_LINES,
-  SCOUT_BOOTH_ORDER,
+  SCOUT_BOOTH_JUDGE_ORDER,
   SCOUT_BOOTH_TUNING,
   SCOUT_LABELS,
   SCOUT_LINES,
@@ -118,7 +118,7 @@ export class ScoutGame {
   private awaySince: number | null = null;
   private lookedAway = false;
   /** Booth: the station order, the index of the station Beeswax waits for, the last cue, the last sighting. */
-  private order: ScoutLabel[] = [...SCOUT_BOOTH_ORDER];
+  private order: ScoutLabel[] = [...SCOUT_BOOTH_JUDGE_ORDER];
   private station = 0;
   private lastCueAt = -Infinity;
   private lastSeenNext = 0;
@@ -163,7 +163,9 @@ export class ScoutGame {
   /** POST /scout/mode. Booth restarts at the first station (progress cleared, no intro). */
   setMode(mode: ScoutMode, order?: readonly ScoutLabel[]): void {
     const now = this.now();
+    // Booth defaults to the judge order (four stations); all six only when an order is passed.
     if (order && order.length) this.order = [...order];
+    else if (mode === "booth") this.order = [...SCOUT_BOOTH_JUDGE_ORDER];
     const was = this.mode;
     this.mode = mode;
     if (mode === "booth" || was === "booth") {
@@ -374,10 +376,10 @@ export class ScoutGame {
   }
 
   /** Which direction cue a box needs, or null when it is centered and big enough. */
-  private cueFor(b: ScoutBox): "left" | "right" | "closer" | "down" | null {
+  private cueFor(b: ScoutBox): "left" | "right" | "closer" | "up" | null {
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
-    if (cy < this.booth.topY) return "down";
+    if (cy < this.booth.topY) return "up"; // the camera aims ~15 deg below the gaze: top edge = lift the head
     if (cx < this.booth.leftX) return "left";
     if (cx > this.booth.rightX) return "right";
     if (b.w < this.booth.minW) return "closer";
