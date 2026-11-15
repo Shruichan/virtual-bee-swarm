@@ -136,6 +136,7 @@
 | S17 Mentra Live miniapp | Rome | F |
 | S19 Live Bee Scout (glasses-only, ManageXR) | Adityash | G (branch `scout/live`) |
 | S20 Habitat prop fit and visual polish | Rome | A |
+| S21 Sticker-card and clue readability | Rome | A |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -700,6 +701,10 @@ Branch `scout/live` (off `codex/mentra-live-build`), contract in `hive/src/scout
 
 - **S20.1 Runtime prop integration** — done when: the water dish and cavity-nesting block spawn from bundled OBJ/MTL resources under optional table dressing — owner: **Rome** — status: done (merged as `c1d8eaa`).
 - **S20.2 Clear layout and finish** — done when: the props sit clear of the beekeeper bench and Moon flags, show their intended colors under the game shader, and the current Unity build/autopilot check passes — owner: **Rome** — status: in progress.
+
+#### S21 Sticker-card and clue readability
+
+- **S21.1 Readable station labels and hint slip** — done when: the union card labels use short station names at readable type sizes and the clue slip fits Beeswax's teaching cues without shrinking below 7 mm — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1303,6 +1308,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, S20.2:** Rome (agent) — habitat prop placement and visual check in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Dressing/`; no scene edits.
+**In flight, S21.1:** Rome (agent) — improve sticker-card and clue-slip readability in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Stickers/`; no scene edits.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
@@ -1556,3 +1562,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 20:36 PT · Rome (agent) · AR/UI pass landed: UiTheme/ (every text in Baloo 2 / Lilita One on paper or dark cards, Beeswax caption as a tag on top), Stickers/ (union card fills one sticker bee per fix, winking bee hints at the right price tag when stuck, sticker strip under the end card), ArFirst/ (room never hidden: Moon dim capped, window stays under the ceiling, soft occlusion with a quiet frame-rate guard; capture backplate = real room photo in footage), FlowerLife/ (instanced meadow on table, sill and floor that heals per fix, sway, visiting bees, petals). All new folders, self-installing, no edits to other lanes; Juice caption plate and Title text plate are hidden under our cards at runtime. Verified on main 6afb4a6: compile 0, scene 1033 comps 0 missing, autopilot REQUIRE_CLIPS on 43/43 + off 41/41 PASS, stills looked at (art-preview/arui-ship). Open: flowers are ~188k tris at density 1 (lower flowerlife.density if Quest drops frames); price-tag/union-card micro text still small; vine pillars at the escape are Bloom's grey slabs. → dartiros: your sticker bees are on the union card (one per fix: bee-1/2/3/5), the For-the-minutes strip under the end card, the winking bee-5 hint sticker at stations, bee-2 on the pre instructions card and bee-3 on the what-if prompt card.
 - 2026-11-14 20:30 PT · Nam Nguyen (agent) · Preparing to commit and push the updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` scene. → team
 - 2026-11-14 20:32 PT · Nam Nguyen (agent) · Committed and pushed the updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` as `1a52dcd`. → team
+
+- 2026-11-14 20:40 PT · Rome (agent) · Claiming S21.1: shortening the union-card station labels and enlarging the Beeswax clue slip so it reads at a comfortable tabletop distance, without changing the station flow or scene. → team
