@@ -104,7 +104,8 @@ namespace VirtualBeeSwarm
                 ShowMarkers(false, false);
             }
             if (_autoPlacePending) TryAutoPlace();
-            if (!Allowed) { _points = 0; return; }
+            if (!Allowed) { _points = 0; _follow = false; return; } // pre is over (signed): stay put for the ride
+            if (_follow && !Holding) FollowHead();
 
             if (GameInput.KeyDown(placeInFrontKey)) PlaceInFrontOfCamera();
 
@@ -166,6 +167,7 @@ namespace VirtualBeeSwarm
         /// <summary>Aim and pinch (v3.1 V7, AR/ArRig): the rig goes exactly to this pose, saved for the session.</summary>
         public void PlaceAt(Pose pose)
         {
+            _follow = false; // the player put it somewhere on purpose: stop following them
             pose = Bloom.MeadowLayout.Grounded(pose); // meadow: no table, the rig stands on the floor
             rigAnchor.SetPositionAndRotation(pose.position, pose.rotation);
             Save();
@@ -205,7 +207,59 @@ namespace VirtualBeeSwarm
             if (Time.unscaledTime - _headTrackedSince < headsetSettleSeconds) return;
             _autoPlacePending = false;
             PlaceInFront(headsetDistance, headsetBelowEyes);
+            StartFollowing(head);
             Debug.Log("[VBS] rig placed in front of the player; drop it on the real table (grab the plate, or pinch the edge twice)");
+        }
+
+        // ------------------------------------------------------------ follow the player until they sign (dartiros)
+        [Header("Follow until signed (headset, auto placement only)")]
+        [Tooltip("The auto-placed setup re-places in front of the player when they walk or turn before signing SIGN HERE. " +
+                 "Stops for good on a manual placement (aim + pinch, grab, two points) and when pre ends (signed).")]
+        [SerializeField] bool followUntilSigned = true;
+        [SerializeField] float followMoveMeters = 0.6f;
+        [SerializeField] float followTurnDegrees = 40f;
+        [Tooltip("Re-place only once the player has held still this long (no sliding while they walk).")]
+        [SerializeField] float followSettleSeconds = 1.0f;
+        bool _follow;
+        Vector3 _followFrom, _followFwd, _lastHeadPos, _lastHeadFwd;
+        float _stillSince = -1f;
+
+        static Vector3 Flat(Vector3 v)
+        {
+            v.y = 0f;
+            return v.sqrMagnitude > 1e-6f ? v.normalized : Vector3.zero;
+        }
+
+        void StartFollowing(Transform head)
+        {
+            _follow = followUntilSigned && head != null;
+            if (!_follow) return;
+            _followFrom = _lastHeadPos = head.position;
+            _followFwd = _lastHeadFwd = Flat(head.forward);
+            _stillSince = -1f;
+        }
+
+        void FollowHead()
+        {
+            var head = Head();
+            if (head == null || !UnityEngine.XR.XRSettings.isDeviceActive) return;
+            Vector3 p = head.position, f = Flat(head.forward);
+            if (f == Vector3.zero) return;
+            float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-3f);
+            bool moving = (p - _lastHeadPos).magnitude / dt > 0.25f || Vector3.Angle(f, _lastHeadFwd) / dt > 35f;
+            _lastHeadPos = p;
+            _lastHeadFwd = f;
+            Vector3 d = p - _followFrom;
+            d.y = 0f;
+            bool away = d.magnitude > followMoveMeters || Vector3.Angle(f, _followFwd) > followTurnDegrees;
+            if (!away || moving) { _stillSince = away ? Time.unscaledTime : -1f; return; }
+            if (_stillSince < 0f) _stillSince = Time.unscaledTime;
+            if (Time.unscaledTime - _stillSince < followSettleSeconds) return;
+            PlaceInFront(headsetDistance, headsetBelowEyes);
+            _followFrom = p;
+            _followFwd = f;
+            _stillSince = -1f;
+            Debug.Log("[VBS] rig follows the player (moved or turned before signing)");
         }
 
         void Save()

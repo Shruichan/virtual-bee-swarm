@@ -33,6 +33,8 @@ namespace VirtualBeeSwarm
         [SerializeField] GameDirector director;
         [Tooltip("Volume multiplier while Beeswax speaks.")]
         [SerializeField, Range(0f, 1f)] float duckUnderVoice = 0.3f;
+        [Tooltip("While the player holds the mic: quiet, not off.")]
+        [SerializeField, Range(0f, 1f)] float duckWhilePlayerTalks = 0.2f;
         [SerializeField] float duckDownSeconds = 0.25f;
         [SerializeField] float duckUpSeconds = 1.2f;
         [Tooltip("Fade for the Moon and for switching on/off.")]
@@ -153,13 +155,16 @@ namespace VirtualBeeSwarm
         {
             float dt = Time.unscaledDeltaTime;
             bool speaking = net != null && net.IsSpeaking;
-            bool mic = net != null && (net.Talking || net.AwaitingReply);
+            bool talking = net != null && net.Talking;
+            bool waiting = net != null && net.AwaitingReply;
             bool hornet = director != null && director.Beat == GameBeat.Hornet;
 
             float target = 1f;
             string state = "playing";
             if (_moon) { target = 0f; state = "off (T-0 Moon)"; }
-            else if (mic) { target = 0f; state = "off (player talking)"; }
+            // dartiros: quieter while the player asks, never silent (the bed is ~0.16 to begin with, so the mic barely hears it)
+            else if (talking) { target = duckWhilePlayerTalks; state = "quiet (player talking)"; }
+            else if (waiting) { target = duckUnderVoice; state = "quiet (waiting for Beeswax)"; }
             else if (hornet) { target = 0f; state = "off (hornet: the hum detector listens)"; }
             else if (speaking) { target = duckUnderVoice; state = "ducked"; }
 

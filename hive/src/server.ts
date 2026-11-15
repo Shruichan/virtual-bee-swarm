@@ -5,6 +5,8 @@ import type { Server } from "bun";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { hostname } from "node:os";
+import { readFileSync as readManifest } from "node:fs";
+import { resolve as pathResolve } from "node:path";
 import sharp from "sharp";
 import {
   BEATS,
@@ -46,6 +48,7 @@ import { Bus, checkToken, log, withTimeout, type Client, type ClientData } from 
 import { beatName, createState, grievances, recordChoice, remember, rememberHeard, saveScore, scoreText, type GroupState } from "./state";
 import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
+import { checkElevenLabsCredits, checkVoiceConsistency, creditsStatus, serviceAlerts } from "./services";
 import { monitorHtml } from "./monitor";
 import type * as AskModule from "./ask";
 import type * as WindowModule from "./window";
@@ -1878,6 +1881,9 @@ export function startHive(opts: HiveOptions): Hive {
       tts: ttsAvailable(),
       stt: sttStatus(),
       lines: Object.keys(deps.lines).length,
+      // what's failing (credits, keys, internet) with the fix, and ElevenLabs credits left (services.ts)
+      alerts: serviceAlerts(),
+      credits: creditsStatus(),
       uptime_s: Math.round((Date.now() - startedAt) / 1000),
     }),
   );
@@ -2001,6 +2007,21 @@ export function startHive(opts: HiveOptions): Hive {
   else void warmUp("start");
   // ASK BEESWAX's canned answers are spoken from memory: render them once (about 750 characters, no new clips).
   if (deps.ask && ttsAvailable() && process.env.ASK_WARM_AUDIO === "1") void deps.ask.warmAudio((t) => deps.ttsPcm(t));
+  // ElevenLabs credits left, at start and every 5 min (free endpoint; never under bun test)
+  const creditCheck = () => void checkElevenLabsCredits(process.env.ELEVENLABS_API_KEY);
+  const creditPoll = process.env.NODE_ENV === "test" ? null : setInterval(creditCheck, 5 * 60_000);
+  if (creditPoll) {
+    creditCheck();
+    // one Beeswax voice: the live voice must be the recorded lines' voice (the Unity line manifest says which)
+    let recorded: string | null = null;
+    try {
+      const m = JSON.parse(readManifest(pathResolve(import.meta.dir, "../../unity/VirtualBeeSwarm/Assets/Resources/BeeswaxLines/_manifest.json"), "utf8"));
+      recorded = typeof m?.voice_id === "string" ? m.voice_id : null;
+    } catch {
+      recorded = null; // no Unity checkout next to the Hive: nothing to compare
+    }
+    log(`voice: ${checkVoiceConsistency(process.env, recorded)} (recorded lines: ${recorded ?? "unknown"})`);
+  }
   // The relay changes state on its own too (first frame, failure, idle stop), so poll it.
   const orbisPoll = relayUrl ? setInterval(() => void relay("/orbis/status"), opts.orbisPollMs ?? 3000) : null;
 
@@ -2015,6 +2036,7 @@ export function startHive(opts: HiveOptions): Hive {
       if (warmTimer) clearTimeout(warmTimer);
       warmTimer = null;
       if (orbisPoll) clearInterval(orbisPoll);
+      if (creditPoll) clearInterval(creditPoll);
       for (const l of listens.values()) clearTimeout(l.watchdog);
       listens.clear();
       bus.stop();
