@@ -360,12 +360,6 @@ namespace VirtualBeeSwarm
                 if ((q2 - q).sqrMagnitude > 1e-8f) { Clamp("lean", "distance-hard", Vector3.Distance(q2, q)); q = q2; }
                 off = q - p;
             }
-            if (free)
-            {
-                Vector3 clear = ClearSolids(p + off);
-                if (_hasEye) clear = MotionGovernor.KeepDistance(clear, _ctx, MotionGovernor.HardCentre);
-                off = clear - p;
-            }
             _offPrev = off;
             _b.BodyOffset = transform.InverseTransformVector(off);
             Vector3 r = s.rot * k;
@@ -443,7 +437,7 @@ namespace VirtualBeeSwarm
             }
             _lastDriveFrame = Time.frameCount;
 
-            Vector3 g = ClearSolids(Govern(goal));
+            Vector3 g = Govern(goal);
             Vector3 p = transform.position - _govOff;
             if (b.GoalTransform != null) _lastGoalT = b.GoalTransform;
             if (_fl == null && !b.Arrived)
@@ -493,8 +487,6 @@ namespace VirtualBeeSwarm
                 if ((d1 - p).sqrMagnitude > 1e-8f) { Clamp("root", "distance-hard", Vector3.Distance(d1, p)); _govOff += d1 - p; p = d1; }
             }
             else _govOff = Vector3.zero;
-            p = ClearSolids(p);
-            if (_hasEye) p = MotionGovernor.KeepDistance(p, _ctx, MotionGovernor.HardCentre);
             transform.position = p;
             if (arrived && _parkedSince < 0f) _parkedSince = Time.time;
             if (_fl != null) _parkedSince = -1f;
@@ -584,50 +576,20 @@ namespace VirtualBeeSwarm
 
         readonly Dictionary<Transform, Renderer[]> _rendererCache = new Dictionary<Transform, Renderer[]>();
 
-        readonly List<Bounds> _solidBounds = new List<Bounds>(5);
-        int _solidFrame = -1;
-
-        Vector3 ClearSolids(Vector3 p)
+        bool DiscOf(Transform t, float extra, string name, out MotionGovernor.Disc d)
         {
-            // Climbing, perching and the wasp-beat hide intentionally touch the set.
-            if (!Free || Beat == GameBeat.Pre || _hiding || _entrancePending || IsPerch(_b.GoalTransform) ||
-                (_fl != null && (_fl.kind == "entrance" || _fl.kind == "duck" || _fl.kind == "creep")))
-                return p;
-
-            if (_solidFrame != Time.frameCount)
-            {
-                _solidFrame = Time.frameCount;
-                _solidBounds.Clear();
-                if (_hive != null && TryVisualBounds(_hive.transform, out var hive)) _solidBounds.Add(hive);
-                if (_st != null && _del != null && _del.Active && !_st.Solved && (_del.Parked || _st.Choosing))
-                    for (int i = 0; i < _del.Count; i++)
-                        if (TryVisualBounds(_del.Item(i), out var prop)) _solidBounds.Add(prop);
-            }
-            foreach (var solid in _solidBounds)
-                p = MotionGovernor.KeepAboveSolid(p, solid, MotionGovernor.BodyRadius);
-            return p;
-        }
-
-        bool TryVisualBounds(Transform t, out Bounds b)
-        {
-            b = default;
+            d = default;
             if (t == null || !t.gameObject.activeInHierarchy) return false;
-            if (!_rendererCache.TryGetValue(t, out var rs)) { rs = t.GetComponentsInChildren<Renderer>(true); _rendererCache[t] = rs; }
+            if (!_rendererCache.TryGetValue(t, out var rs)) { rs = t.GetComponentsInChildren<Renderer>(false); _rendererCache[t] = rs; }
             bool any = false;
+            Bounds b = default;
             for (int i = 0; i < rs.Length; i++)
             {
                 var r = rs[i];
                 if (r == null || !r.enabled || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer) continue;
                 if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
             }
-            return any;
-        }
-
-        bool DiscOf(Transform t, float extra, string name, out MotionGovernor.Disc d)
-        {
-            d = default;
-            if (t == null || !t.gameObject.activeInHierarchy) return false;
-            if (!TryVisualBounds(t, out var b)) b = new Bounds(t.position, Vector3.one * 0.1f);
+            if (!any) b = new Bounds(t.position, Vector3.one * 0.1f);
             d = new MotionGovernor.Disc(b.center, Mathf.Min(0.35f, b.extents.magnitude) + extra, name);
             return true;
         }
