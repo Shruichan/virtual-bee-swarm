@@ -1,6 +1,7 @@
 // Ask Beeswax for Live Bee Scout (branch scout/ask): voice follow-up questions on the glasses.
 //
-//   glasses final transcript --POST /scout/utterance--> routeUtterance(): echo | game (yes/no) | ask
+//   glasses final transcript --POST /scout/utterance--> routeUtterance(): echo | game | wake | ask
+//   (wake word only: "Hey Beeswax ..." is answered; a bare "Hey Beeswax" gets scout_wake_ack, then the next utterance)
 //   ask: game.interrupt() + beginAnswer() -> Claude tokens (streamAnswer) -> sentences -> ElevenLabs stream-input
 //        websocket (Beeswax voice, mp3) -> AskAudio, served progressively at GET /scout/ask/<id>.mp3
 //   the bus `say` (tts_id scout_ask_<id>) goes out as soon as the first audio bytes exist; endAnswer() when done.
@@ -54,8 +55,30 @@ const bigrams = (t: string) => {
   return out;
 };
 
-/** The mic heard Beeswax himself: the transcript sits inside something he said recently. */
-export function isEcho(text: string, captions: readonly string[]): boolean {
+// ---- wake word: Beeswax only answers (and only cuts himself off) when he is called by name
+
+const SEP = "[\\s,.!?;:\\-–—]+";
+/** "Beeswax" as speech-to-text writes it: beeswax, bees wax, bee's wax, bee wax, beezwax, b's wax, bees whacks... */
+const NAME = "b(?:ee|e)?(?:['’]?s|z)?[\\s\\-]*(?:wax|wacks|whacks|wax's)";
+/** hey/hay/hi/a/okay/yo + the name, the name alone, or "hey bee(s)". */
+export const WAKE_RX = new RegExp(`\\b(?:(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP})?${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
+/** An explicit call ("hey beeswax"), which Beeswax's own lines never contain ("Hey class! I'm Beeswax"). */
+const CALL_RX = new RegExp(`\\b(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
+const EDGE_RX = /^[\s,.!?;:\-–—]+|[\s,.;:\-–—]+$/g;
+const FILLER_ONLY_RX = /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|hey|hi|hello|okay|ok|please|there)\s*)*$/;
+
+/** Finds the wake phrase. `rest` = the utterance without it (what goes to Claude); "" when it was only the name. */
+export function parseWake(text: string): { wake: boolean; rest: string } {
+  const raw = String(text ?? "");
+  const m = WAKE_RX.exec(raw);
+  if (!m) return { wake: false, rest: raw.trim() };
+  const rest = `${raw.slice(0, m.index).replace(EDGE_RX, "")} ${raw.slice(m.index + m[0].length).replace(EDGE_RX, "")}`.replace(EDGE_RX, "").trim();
+  return { wake: true, rest: FILLER_ONLY_RX.test(norm(rest)) ? "" : rest };
+}
+
+/** The mic heard Beeswax himself: the transcript sits inside something he said recently. `loose` (for an utterance
+ *  that names him, when he just said his own name) accepts a rougher match, since STT spells his puns differently. */
+export function isEcho(text: string, captions: readonly string[], loose = false): boolean {
   const t = norm(text);
   const n = t ? t.split(" ").length : 0;
   if (n < 2) return false;
@@ -63,6 +86,13 @@ export function isEcho(text: string, captions: readonly string[]): boolean {
     const c = norm(cap);
     if (!c) continue;
     if (` ${c} `.includes(` ${t} `)) return true;
+    // He said his own name ("I'm Beeswax, your unbeelievably ..."): STT spells his puns differently, so most of the
+    // words being his is enough. Not for an explicit "hey beeswax" his line doesn't contain.
+    if (loose && WAKE_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
+      const words = new Set(c.split(" "));
+      const ws = t.split(" ");
+      if (ws.filter((w) => words.has(w)).length / ws.length >= 0.6) return true;
+    }
     if (n >= 4) {
       // STT rarely hears it word for word: most of its word pairs in order is enough
       const have = new Set(bigrams(c));
@@ -73,22 +103,35 @@ export function isEcho(text: string, captions: readonly string[]): boolean {
   return false;
 }
 
-export type AskRoute = "echo" | "game" | "ask";
+/** echo: Beeswax heard himself. game: not for Ask (yes/no, chatter: the game reads it, the judge screen shows it).
+ *  wake: only the name: acknowledge and take the next utterance as the question. ask: answer `question`. */
+export type AskRoute =
+  | { kind: "echo" }
+  | { kind: "game"; text: string }
+  | { kind: "wake" }
+  | { kind: "ask"; question: string };
 
-/** Not a question even right after "Got any questions?": thanks, okay, no questions, fillers. */
+/** Never a question, even right after "Hey Beeswax": thanks, okay, never mind. */
 const NOT_A_QUESTION_RX =
-  /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|beeswax)\s*)*(?:thanks|thank you|thank you beeswax|ok(?:ay)?|cool|nice|great|awesome|got it|i'?m good|i'?m fine|all good|no questions?|nothing|not really|that'?s all|that'?s it|bye|goodbye|wow|yay)?(?: (?:thanks|thank you|beeswax))?$/;
+  /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well)\s*)*(?:thanks|thank you|ok(?:ay)?|cool|nice|got it|i'?m good|all good|never ?mind|nothing|no questions?|not really|that'?s all|bye|goodbye)?(?: (?:thanks|thank you))?$/;
 
-/** Where a final transcript goes. `answer` = the game's own yes/no/rude reading (classifyAnswer). Short yes/no
- *  answers stay with the game, Beeswax's own voice is dropped, questions go to Ask Beeswax, the rest to the game.
- *  `expectQuestion`: Beeswax just asked "Got any questions?", so anything that isn't clearly yes/no/thanks is one. */
-export function routeUtterance(text: string, o: { answer: ScoutAnswer; captions: readonly string[]; expectQuestion?: boolean }): AskRoute {
-  if (isEcho(text, o.captions)) return "echo";
-  const t = norm(text).replace(LEAD_RX, "");
-  const words = t.split(" ").filter(Boolean).length;
-  if (o.answer !== "other" && words <= 4) return "game";
-  if (o.expectQuestion) return !t || NOT_A_QUESTION_RX.test(t) ? "game" : "ask";
-  return looksLikeQuestion(text) ? "ask" : "game";
+/** Where a final transcript goes. Wake-word only: without "Hey Beeswax" (or within `awaitingQuestion`, the few
+ *  seconds after a bare "Hey Beeswax") nothing is answered. `classify` = the game's yes/no/rude reading. */
+export function routeUtterance(
+  text: string,
+  o: { classify: (t: string) => ScoutAnswer; captions: readonly string[]; awaitingQuestion?: boolean },
+): AskRoute {
+  const { wake, rest } = parseWake(text);
+  if (isEcho(text, o.captions, wake)) return { kind: "echo" };
+  if (!wake) {
+    const t = norm(text);
+    if (o.awaitingQuestion && t && !NOT_A_QUESTION_RX.test(t) && !FILLER_ONLY_RX.test(t)) return { kind: "ask", question: text.trim() };
+    return { kind: "game", text: text.trim() };
+  }
+  if (!rest) return { kind: "wake" };
+  // "Hey Beeswax, yes!" during an offer is still the game's yes
+  if (o.classify(rest) !== "other" && norm(rest).split(" ").length <= 4 && !looksLikeQuestion(rest)) return { kind: "game", text: rest };
+  return { kind: "ask", question: rest };
 }
 
 // ---------------------------------------------------------------- spoken text
@@ -571,6 +614,8 @@ export interface ScoutAskDeps {
   /** Env SCOUT_ASK_AUDIO=progressive|whole|sentence (default progressive). */
   mode?: AskAudioMode;
   facts?: Record<ScoutLabel, AskFact[]>;
+  /** A pre-rendered scout line (the wake ack): its caption and mp3 URL, or null when it doesn't exist. */
+  line?: (id: string) => { caption: string; audio_url: string | null; ms?: number | null } | null;
 }
 
 /** Timings of one answer, ms after the question reached the Hive. */
@@ -590,9 +635,11 @@ export interface AskStats {
   error?: string;
 }
 
-/** After a "Got any questions?" line (scout_any_q_*) ends, utterances count as questions for this long. */
-export const ANY_Q_WINDOW_MS = 8000;
-export const ANY_Q_PREFIX = "scout_any_q";
+/** After a bare "Hey Beeswax", the next utterance is the question if it comes within this long after the ack. */
+export const WAKE_WINDOW_MS = 8000;
+/** The acknowledgement line (hive/lines), and what the glasses say when it has no mp3 yet. */
+export const WAKE_ACK_ID = "scout_wake_ack";
+export const WAKE_ACK_FALLBACK = "Yes? I'm all antennae!";
 /** Captions this recent count for the echo check. */
 const ECHO_WINDOW_MS = 25_000;
 /** From the say to the first sound in the ear, roughly (phone fetch + player start). */
@@ -606,9 +653,8 @@ export class ScoutAsk {
   private readonly now: () => number;
   private readonly facts: Record<ScoutLabel, AskFact[]>;
   private lastFound: ScoutLabel | null = null;
-  /** Until when an utterance counts as a question by default (after scout_any_q_*). */
-  private anyQUntil = 0;
-  private anyQFrom = 0;
+  /** Until when an utterance counts as the question (after a bare "Hey Beeswax"). */
+  private wakeUntil = 0;
   private captions: { text: string; at: number }[] = [];
   private recent: string[] = [];
   private audios = new Map<string, AskAudio>();
@@ -626,23 +672,14 @@ export class ScoutAsk {
   /** Feed every game event: remembers the last found card and what Beeswax said (echo check). */
   event(e: ScoutEvent): void {
     if (e.type === "found") this.lastFound = e.label;
-    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) {
-      this.noteSaid(e.caption, e.at);
-      // the line plays after the fact lines queued before it: the game's busyUntil already includes it
-      if (e.line_id.startsWith(ANY_Q_PREFIX)) {
-        const len = estimateSpeechMs(e.caption);
-        const ends = Math.max(this.d.game.busyUntil ?? 0, Math.max(e.at, this.now()) + len);
-        this.anyQFrom = ends - len - 500; // not while the fact before it is still playing
-        this.anyQUntil = ends + ANY_Q_WINDOW_MS;
-      }
-    }
+    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) this.noteSaid(e.caption, e.at);
     else if (e.type === "state" && e.state.phase === "intro") this.reset(); // game restarted
   }
 
   /** Forget the last card (game restarted). */
   reset(): void {
     this.lastFound = null;
-    this.anyQUntil = 0;
+    this.wakeUntil = 0;
     this.recent = [];
   }
 
@@ -660,14 +697,42 @@ export class ScoutAsk {
     return this.captions.filter((c) => now - c.at <= ECHO_WINDOW_MS).map((c) => c.text);
   }
 
-  /** Is an utterance now a question by default (just after "Got any questions?")? */
-  get expectingQuestion(): boolean {
-    const now = this.now();
-    return now >= this.anyQFrom && now <= this.anyQUntil;
+  /** Is the next utterance the question (a bare "Hey Beeswax" was just acknowledged)? */
+  get awaitingQuestion(): boolean {
+    return this.now() <= this.wakeUntil;
   }
 
-  route(text: string, answer: ScoutAnswer): AskRoute {
-    return routeUtterance(text, { answer, captions: this.recentCaptions(), expectQuestion: this.expectingQuestion });
+  route(text: string, classify: (t: string) => ScoutAnswer): AskRoute {
+    return routeUtterance(text, { classify, captions: this.recentCaptions(), awaitingQuestion: this.awaitingQuestion });
+  }
+
+  /** A bare "Hey Beeswax": cut Beeswax off, say the ack, and wait for the question (detections paused meanwhile). */
+  wake(): void {
+    this.current?.abort();
+    const g = this.d.game;
+    try {
+      g.interrupt?.();
+      g.beginAnswer?.();
+    } catch (e) {
+      log("scout ask: wake interrupt failed:", e);
+    }
+    const line = this.d.line?.(WAKE_ACK_ID) ?? null;
+    const caption = line?.caption || WAKE_ACK_FALLBACK;
+    const s: AskSay = { line_id: WAKE_ACK_ID, caption, audio_url: line?.audio_url ?? null };
+    try {
+      this.d.say(s);
+    } catch (e) {
+      log("scout ask: say failed:", e);
+    }
+    this.noteSaid(caption);
+    this.emit({ type: "say", ...s, at: this.now() });
+    const ackMs = line?.ms ?? estimateSpeechMs(caption);
+    this.wakeUntil = this.now() + PLAYER_START_MS + ackMs + WAKE_WINDOW_MS;
+    try {
+      g.endAnswer?.(this.wakeUntil - this.now()); // the game waits for the question, then looks again
+    } catch (e) {
+      log("scout ask: endAnswer failed:", e);
+    }
   }
 
   audio(id: string): AskAudio | undefined {
@@ -683,7 +748,7 @@ export class ScoutAsk {
     const t0 = this.now();
     const ms = () => this.now() - t0;
     this.current?.abort();
-    this.anyQUntil = 0;
+    this.wakeUntil = 0;
     const ac = new AbortController();
     this.current = ac;
     const id = `${(t0 % 1e8).toString(36)}${(this.seq++ % 36).toString(36)}`;
