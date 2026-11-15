@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import type { Bus } from "./bus";
 import { log } from "./bus";
 import { scoutDashboardHtml, scoutSlidesHtml } from "./scout-dashboard";
+import { scoutAssetResponse, scoutShowHtml } from "./scout-show";
 import {
   SCOUT_BACKGROUND,
   SCOUT_BOOTH_LINES,
@@ -731,9 +732,9 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
 
   app.use("/scout/*", cors({ origin: "*", allowHeaders: ["content-type", "x-hive-token"], allowMethods: ["GET", "POST", "OPTIONS"] }));
   app.use("/scout/*", async (c, next) => {
-    if (c.req.method === "OPTIONS" || c.req.path.startsWith("/scout/audio/")) return next(); // mp3s: public lines, no token (like /audio)
+    if (c.req.method === "OPTIONS" || c.req.path.startsWith("/scout/audio/") || c.req.path.startsWith("/scout/assets/")) return next(); // mp3s + artwork: public, no token (like /audio)
     if (!ctx.authed(c)) {
-      return c.req.path === "/scout/slides" || c.req.path === "/scout" ? c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401) : c.json({ error: "bad token" }, 401);
+      return c.req.path === "/scout/slides" || c.req.path === "/scout" || c.req.path === "/scout/show" ? c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401) : c.json({ error: "bad token" }, 401);
     }
     ctx.rememberBase?.(c);
     await next();
@@ -745,6 +746,11 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     return c.html(scoutDashboardHtml());
   });
   app.get("/scout/slides", (c) => c.html(scoutSlidesHtml()));
+  app.get("/scout/show", (c) => {
+    if (!ctx.authed(c)) return c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401);
+    return c.html(scoutShowHtml());
+  });
+  app.get("/scout/assets/:file", (c) => scoutAssetResponse(c.req.param("file")));
   let lastFrameAt: number | null = null; // last POST /scout/frame from the vision worker (watchdog)
   app.get("/scout/state", (c) => c.json(game.state()));
 
