@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest placement matches GameScene's hand-anchor MRUK rays and uses Hive as its target; parity scope excludes bomb, event-handler, minigame, and Afference API/haptic pieces)
+  — owner: **Nam Nguyen** — status: in progress (copy only GameScene's spawning path and full AR setup into NamTest, using Hive as the spawn target; leave game/minigame, event-handler, and Afference API/haptics out)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1468,3 +1468,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:25 PT · Nam Nguyen (agent) · Scope clarified: exclude minigame scripts as well as bomb and event-handler scripts; continue mirroring the remaining GameScene setup in NamTest with Hive as the target. → team
 - 2026-11-14 18:26 PT · Nam Nguyen (agent) · GameScene inventory found HapticManager and HapticEventPulse from the Afference SDK; that SDK is absent from the current Unity project, so haptic parity is blocked pending scope confirmation. → team
 - 2026-11-14 18:27 PT · Nam Nguyen (agent) · Scope confirmed: exclude Afference API/haptic components too; NamTest currently contains no bomb, minigame, or Afference references. → team
+- 2026-11-14 18:28 PT · Nam Nguyen (agent) · Final scope: copy only GameScene's spawning behavior and full AR setup into NamTest; leave mini-game/gameplay, event-handler, and Afference API/haptics out. → team
