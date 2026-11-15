@@ -399,6 +399,34 @@ export class Bus {
     this.broadcast({ type: "beat.set", n, name: BEATS[n]! }, "all", origin);
     if (n !== prev) log(`beat -> ${n} ${BEATS[n]}${origin ? "" : " (hive applied: no Quest connected)"}`);
     this.hooks.onBeat?.(n, prev, scoreSeconds);
+    // Unity can reset locally without a Board request. Treat a return to the title after a ride
+    // as a fresh group. An explicit Board reset already cleared the clock and progress.
+    const hasRide = this.state.clock_start !== null || this.state.memory.solved.length > 0 ||
+      this.state.memory.wrong.length > 0;
+    if (origin && n !== prev && BEATS[n] === "pre" && hasRide) this.resetGroup(undefined, origin);
+  }
+
+  private resetGroup(groupId?: string, origin?: Client): void {
+    reset(this.state, groupId);
+    this.ttsRun.abort();
+    this.ttsRun = new AbortController();
+    this.lastSwarm.clear();
+    this.hooks.onGroupReset?.(this.state.group_id);
+    this.broadcast({ type: "group.reset", group_id: this.state.group_id }, "all", origin);
+    // The origin has already reset its scene. Refresh its group without resetting the courier twice.
+    if (origin) this.sendWelcome(origin);
+    log(`group reset -> ${this.state.group_id}`);
+  }
+
+  private sendWelcome(ws: Client): void {
+    this.send(ws, {
+      type: "welcome",
+      group_id: this.state.group_id,
+      beat: this.state.beat,
+      mode: this.state.mode,
+      server_time: Date.now(),
+      host: this.opts.host,
+    });
   }
 
   private route(ws: Client, m: Record<string, unknown>): void {
@@ -428,14 +456,7 @@ export class Bus {
           }
         }
         ws.data.client = str(m.client, 80) || "?";
-        this.send(ws, {
-          type: "welcome",
-          group_id: this.state.group_id,
-          beat: this.state.beat,
-          mode: this.state.mode,
-          server_time: Date.now(),
-          host: this.opts.host,
-        });
+        this.sendWelcome(ws);
         return;
       }
 
@@ -474,13 +495,7 @@ export class Bus {
 
       case "group.reset": {
         if (!boardOnly()) return;
-        reset(this.state, str(m.group_id, 64) || undefined);
-        this.ttsRun.abort();
-        this.ttsRun = new AbortController();
-        this.lastSwarm.clear();
-        this.hooks.onGroupReset?.(this.state.group_id);
-        this.broadcast({ type: "group.reset", group_id: this.state.group_id });
-        log(`group reset -> ${this.state.group_id}`);
+        this.resetGroup(str(m.group_id, 64) || undefined);
         return;
       }
 
