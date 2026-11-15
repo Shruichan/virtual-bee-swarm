@@ -5,7 +5,7 @@ import {Bus as HiveBus, setQuiet} from "../../hive/src/bus"
 import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
-import {Scout, scoutLineId} from "../src/background/scout"
+import {isEchoOf, looksLikeQuestion, Scout, scoutLineId} from "../src/background/scout"
 import {fakeSession, sleep, until, type FakeOptions} from "./fakes"
 
 const TOKEN = "test-token"
@@ -137,6 +137,56 @@ describe("scout stop", () => {
   })
 })
 
+describe("Ask Beeswax barge-in", () => {
+  const SCOUT = {scoutMode: true, streamUrl: "rtmp://127.0.0.1:1935/scout"}
+
+  test("a spoken question cuts Beeswax at once (before the Hive answers) and still goes to the Hive", async () => {
+    const fake = await boot(SCOUT, {speakMs: 500})
+    sayOnBus("scout_fact_pebble_dish", "Bees can't swim, so pebbles are their landing pads.")
+    sayOnBus("scout_fact_pebble_dish_2", "Queued second fact.")
+    await until(() => fake.audio.length >= 1, 2000, "fact starts")
+    fake.say("why do bees need pebbles")
+    await until(() => paths().includes("/scout/utterance"), 2000, "utterance")
+    await sleep(700)
+    expect(fake.audio.map((a) => (a.kind === "speak" ? a.text : a.kind))).toEqual(["Bees can't swim, so pebbles are their landing pads."])
+    expect(fake.status.last?.log.some((l) => l.includes("ear stopped"))).toBe(true)
+  })
+
+  test("Beeswax's own words heard back, and yes/no answers, do not cut him", async () => {
+    const fake = await boot(SCOUT, {speakMs: 400})
+    sayOnBus("scout_chime_ask", "Bee fact found! Would you like to learn more?")
+    sayOnBus("scout_fact_honey_jar", "This is honey.")
+    await until(() => fake.audio.length >= 1, 2000, "chime starts")
+    fake.say("would you like to learn more") // echo of the line playing
+    fake.say("yes")
+    await until(() => fake.audio.length >= 2, 2000, "the fact still plays")
+    expect(fake.status.last?.log.some((l) => l.includes("ear stopped"))).toBe(false)
+  })
+
+  test("an Ask Beeswax answer (tts_id scout_ask_*) cuts whatever is playing or queued", async () => {
+    const fake = await boot(SCOUT, {speakMs: 400})
+    sayOnBus("scout_fact_bug_spray", "This is bug spray.")
+    sayOnBus("scout_fact_bug_spray_2", "Queued, never plays.")
+    await until(() => fake.audio.length >= 1, 2000, "fact starts")
+    const url = `${base}/scout/ask/abc1.mp3`
+    sayOnBus("scout_ask_abc1", "Great question, class!", url)
+    await until(() => fake.audio.length >= 2, 2000, "answer plays")
+    await sleep(500)
+    expect(fake.audio.map((a) => (a.kind === "url" ? a.url : a.kind === "speak" ? a.text : a.kind))).toEqual(["This is bug spray.", url])
+  })
+
+  test("partials stop Beeswax only when scoutStopOnPartial is on", async () => {
+    const fake = await boot({...SCOUT, scoutStopOnPartial: true}, {speakMs: 500})
+    sayOnBus("scout_fact_beehive", "This is a beehive.")
+    sayOnBus("scout_fact_beehive_2", "Queued.")
+    await until(() => fake.audio.length >= 1, 2000, "fact starts")
+    fake.say("how do bees", false)
+    await sleep(700)
+    expect(fake.audio.length).toBe(1)
+    expect(paths()).not.toContain("/scout/utterance") // a partial is never sent
+  })
+})
+
 describe("non-scout mode is unchanged", () => {
   test("press goes to the scanner, no /scout calls, no stream", async () => {
     const fake = await boot({scoutMode: false})
@@ -169,6 +219,23 @@ describe("Scout unit", () => {
     s.heard({text: "  ", isFinal: true})
     s.heard({text: "sure", isFinal: false})
     expect(sent).toEqual(["/scout/start"])
+  })
+
+  test("question detection mirrors the Hive's; after a scout_any_q line anything but yes/no/thanks counts", () => {
+    for (const q of ["why do bees need pebbles", "why though", "tell me more about honey", "um beeswax what is foulbrood", "honey? really"]) expect([q, looksLikeQuestion(q)]).toEqual([q, true])
+    for (const a of ["yes", "no thanks", "cool", "I like this one", ""]) expect([a, looksLikeQuestion(a)]).toEqual([a, false])
+    expect(isEchoOf("would you like to learn more", ["Bee fact found! Would you like to learn more?"])).toBe(true)
+    expect(isEchoOf("what is a bee hotel", ["This is a bee hotel."])).toBe(false)
+
+    const s = new Scout({hive: {send: async () => true}, led: {turnOn: async () => ({}) as any}, log: () => {}})
+    expect(s.isQuestion("the honey")).toBe(false)
+    s.said({tts_id: "scout_any_q_1", caption: "Got any questions? Bee my guest!"})
+    expect(s.isQuestion("the honey")).toBe(false) // still queued behind the fact
+    s.noteSaid("Got any questions? Bee my guest!") // starts playing
+    expect(s.isQuestion("the honey")).toBe(true)
+    expect(s.isQuestion("no thanks")).toBe(false)
+    expect(s.isQuestion("thank you beeswax")).toBe(false)
+    expect(s.isQuestion("got any questions")).toBe(false) // echo
   })
 
   test("LED failures are swallowed and it gives up after three", async () => {

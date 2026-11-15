@@ -10,6 +10,7 @@ import type { Bus } from "./bus";
 import { log } from "./bus";
 import { scoutDashboardHtml, scoutSlidesHtml } from "./scout-dashboard";
 import { scoutAssetResponse, scoutShowHtml } from "./scout-show";
+import { elevenAvailable, prewarmAsk, registerScoutAskRoutes, ScoutAsk, warmTts, type ScoutAskDeps } from "./scout-ask";
 import {
   SCOUT_BACKGROUND,
   SCOUT_BOOTH_LINES,
@@ -756,6 +757,9 @@ export interface ScoutRouteCtx {
   rememberBase?: (c: Context) => void;
   stopped?: () => boolean;
   now?: () => number;
+  /** Ask Beeswax (scout-ask.ts): false = off; fakes for tests. On by default when ElevenLabs is configured
+   *  (SCOUT_ASK=1 forces it on without, SCOUT_ASK=0 off). */
+  ask?: false | Partial<Pick<ScoutAskDeps, "llm" | "tts" | "renderSentence" | "mode">>;
 }
 
 const FRAME_EVENT_MS = 200; // ~5 a second on SSE
@@ -763,7 +767,9 @@ const FRAME_EVENT_MS = 200; // ~5 a second on SSE
 export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
   const listeners = new Set<(e: ScoutEvent) => void>();
   let lastFrameEvent = 0;
+  let ask: ScoutAsk | null = null;
   const fanout = (e: ScoutEvent) => {
+    ask?.event(e);
     if (e.type === "frame") {
       const t = Date.now();
       if (t - lastFrameEvent < FRAME_EVENT_MS) return;
@@ -787,6 +793,32 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     say: (s) =>
       ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
   });
+
+  // Ask Beeswax: questions in /scout/utterance are answered live in Beeswax's voice (scout-ask.ts).
+  const askOn = ctx.ask !== false && process.env.SCOUT_ASK !== "0" && (!!ctx.ask || elevenAvailable() || process.env.SCOUT_ASK === "1");
+  if (askOn) {
+    ask = new ScoutAsk({
+      ...(ctx.ask || {}),
+      game,
+      base: ctx.base,
+      event: (e) => {
+        for (const l of listeners) l(e);
+        if (e.type === "say") log(`scout: say ${JSON.stringify(e).slice(0, 160)}`);
+      },
+      say: (s) => ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
+    });
+    if (!ctx.ask) {
+      // warm Claude's connection and a spare ElevenLabs websocket now, and again whenever a card is found
+      warmTts();
+      void prewarmAsk();
+      let warmedAt = Date.now();
+      listeners.add((e) => {
+        if (e.type !== "found") return;
+        warmTts();
+        if (Date.now() - warmedAt > 60_000) (warmedAt = Date.now()), void prewarmAsk();
+      });
+    }
+  }
 
   // Startup mode survives Hive restarts: SCOUT_MODE=demo|practice|booth (SCOUT_PRACTICE=1 = practice),
   // SCOUT_ORDER=native_flower,honey_jar,... the booth order. POST /scout/mode and /scout/practice still switch.
@@ -815,7 +847,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
 
   app.use("/scout/*", cors({ origin: "*", allowHeaders: ["content-type", "x-hive-token"], allowMethods: ["GET", "POST", "OPTIONS"] }));
   app.use("/scout/*", async (c, next) => {
-    if (c.req.method === "OPTIONS" || c.req.path.startsWith("/scout/audio/") || c.req.path.startsWith("/scout/assets/")) return next(); // mp3s + artwork: public, no token (like /audio)
+    if (c.req.method === "OPTIONS" || c.req.path.startsWith("/scout/audio/") || c.req.path.startsWith("/scout/ask/") || c.req.path.startsWith("/scout/assets/")) return next(); // mp3s + artwork: public, no token (like /audio)
     if (!ctx.authed(c)) {
       return c.req.path === "/scout/slides" || c.req.path === "/scout" || c.req.path === "/scout/show" ? c.text("Add ?token=<HIVE_TOKEN> to the URL.", 401) : c.json({ error: "bad token" }, 401);
     }
@@ -880,6 +912,12 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     const body = await readJson(c);
     const text = typeof body?.text === "string" ? body.text.trim() : "";
     if (!text) return c.json({ error: "text required" }, 400);
+    // A question goes to Ask Beeswax (it cuts Beeswax off and answers); short yes/no and the rest stay with the game.
+    if (ask && ask.route(text, classifyAnswer(text)) === "ask") {
+      fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now() });
+      void ask.ask(text.slice(0, 300));
+      return c.json({ ok: true, answer: "other", routed: "ask", phase: game.state().phase });
+    }
     const answer = game.utterance(text, typeof body?.at === "number" ? body.at : undefined);
     return c.json({ ok: true, answer, phase: game.state().phase });
   });
@@ -953,6 +991,8 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     game.slide(body.label as ScoutClass | null, num(body.at, Date.now()));
     return c.json({ ok: true });
   });
+
+  if (ask) registerScoutAskRoutes(app, ask); // after the token middleware: /scout/ask/<id>.mp3 is public, the rest needs it
 
   app.get("/scout/events", (c) => {
     const enc = new TextEncoder();
