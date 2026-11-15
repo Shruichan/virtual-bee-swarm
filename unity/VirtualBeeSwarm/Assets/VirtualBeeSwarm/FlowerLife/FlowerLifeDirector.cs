@@ -68,6 +68,9 @@ namespace VirtualBeeSwarm.FlowerLife
         int[][] _index;
         int[] _count;
         MaterialPropertyBlock[] _mpb;
+        const int MaxInstancesPerDraw = 1023; // Graphics.DrawMeshInstanced's per-call limit
+        readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
+        readonly Vector4[] _drawData = new Vector4[MaxInstancesPerDraw];
         Material _mat, _shadeMat;
         Mesh _shadeMesh;
         const int MaxShade = 200;
@@ -747,8 +750,16 @@ namespace VirtualBeeSwarm.FlowerLife
                         shade++;
                     }
                 }
-                _mpb[s].SetVectorArray(DataId, data);
-                Graphics.DrawMeshInstanced(_species[s].mesh, 0, _mat, _m[s], n, _mpb[s], ShadowCastingMode.Off, false, layer);
+                // Unity accepts at most 1,023 instances per call. Dense meadow grass can exceed that
+                // for one species, so submit fixed-size chunks without allocating each frame.
+                for (int offset = 0; offset < n; offset += MaxInstancesPerDraw)
+                {
+                    int batch = Mathf.Min(MaxInstancesPerDraw, n - offset);
+                    System.Array.Copy(_m[s], offset, _drawMatrices, 0, batch);
+                    System.Array.Copy(data, offset, _drawData, 0, batch);
+                    _mpb[s].SetVectorArray(DataId, _drawData);
+                    Graphics.DrawMeshInstanced(_species[s].mesh, 0, _mat, _drawMatrices, batch, _mpb[s], ShadowCastingMode.Off, false, layer);
+                }
             }
             if (shade > 0 && ArTuning.Shadows)
             {
