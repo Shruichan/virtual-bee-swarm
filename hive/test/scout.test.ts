@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, ANSWER_MAX_MS, PRACTICE_OUT_OF_VIEW_MS, PRACTICE_REFIRE_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
+import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, ANSWER_MAX_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
 import { SCOUT_STOP_ID, SCOUT_TEACHER_LINE, SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 import { makeHive, TestClient, TOKEN } from "./helpers";
 
@@ -81,6 +81,15 @@ function setup(opts: { durationMs?: number; extra?: ScoutLine[] } = {}) {
   };
   const idle = () => advance(30_000); // let everything finish playing and the gap pass
   return { game, says, events, stops, ids, advance, frame, look, idle, now: () => clock };
+}
+
+/** "Start your adventure" on a setup() game: intro played and over, says and events cleared. */
+function begin<S extends ReturnType<typeof setup>>(s: S): S {
+  s.game.start();
+  s.advance(20_000);
+  s.says.length = 0;
+  s.events.length = 0;
+  return s;
 }
 
 /** Started, intro finished, gap passed. */
@@ -492,13 +501,20 @@ describe("/scout routes", () => {
     };
     await until(() => seen.some((e) => e.type === "state"), "state on connect");
 
-    // frames before /scout/start are allowed (dashboard testing without glasses)
+    // waiting (Hive just started): frames still reach the dashboards, but nothing fires and nothing is said
+    expect(seen.find((e) => e.type === "state")).toMatchObject({ state: { phase: "waiting" } });
     const t0 = Date.now();
     while (Date.now() - t0 < SCOUT_TUNING.steadyMs + 400) {
       const r = await post("/scout/frame", { at: Date.now(), frame_ms: 20, fps: 10, source: "test", top: [{ label: "honey_jar", score: 0.9 }, { label: "background", score: 0.2 }] });
       expect(r.status).toBe(200);
       await Bun.sleep(50);
     }
+    expect(seen.some((e) => e.type === "found" || e.type === "say")).toBe(false);
+    // the glasses' bus-connect POST /scout/start changes nothing
+    expect((await (await post("/scout/start", { at: Date.now() })).json()).state).toMatchObject({ phase: "waiting" });
+    // "Start your adventure" -> intro; the operator's force (with a label) fires during the intro
+    expect(await (await post("/scout/reset", {})).json()).toMatchObject({ phase: "intro" });
+    expect((await post("/scout/force", { label: "honey_jar" })).status).toBe(200);
     await until(() => seen.some((e) => e.type === "found"), "found");
     expect(seen.find((e) => e.type === "found")).toMatchObject({ label: "honey_jar" });
     expect(seen.some((e) => e.type === "frame")).toBe(true);
@@ -524,8 +540,8 @@ describe("/scout routes", () => {
     await until(() => seen.some((e) => e.type === "slide"), "slide");
     expect((await post("/scout/slide", { label: "snowboard" })).status).toBe(400);
 
-    const start = await (await post("/scout/start", { at: Date.now() })).json();
-    expect(start.state).toMatchObject({ phase: "intro", found: [] });
+    // "Restart your journey": back to waiting, badges cleared
+    expect(await (await post("/scout/stop", {})).json()).toMatchObject({ ok: true, phase: "waiting", found: [] });
     await reader.cancel();
     await pump.catch(() => {});
   });
@@ -574,23 +590,35 @@ describe("practice mode and blocked reasons", () => {
     expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "bug_spray", reason: "busy" });
   });
 
-  test("practice mode: the same object triggers again after the slide changes, never on the same slide", () => {
-    const s = ready();
-    s.game.setPractice(true);
-    expect(s.game.state().practice).toBe(true);
-    s.game.slide("honey_jar", s.now());
-    s.look("honey_jar", 1000);
-    expect(s.ids()).toEqual(["scout_chime", "scout_fact_honey_jar"]);
-    s.idle();
-    s.events.length = 0;
-    s.look("honey_jar", 1500); // same slide: no repeat
-    expect(s.events.some((e) => e.type === "found")).toBe(false);
-    s.game.slide(null, s.now());
-    s.game.slide("honey_jar", s.now());
-    s.look("honey_jar", 1000);
-    expect(s.events.some((e) => e.type === "found" && e.label === "honey_jar")).toBe(true);
-    expect(s.game.state().found).toEqual(["honey_jar"]); // one badge, however often it is found
-    expect(s.ids().filter((id) => id.startsWith("scout_progress") || id === "scout_done")).toEqual([]);
+  test("no rediscovery: a card whose fact played never fires again (slide changes, time, other cards), until reset", () => {
+    for (const mode of ["practice", "demo"] as const) {
+      const s = ready();
+      s.game.setMode(mode);
+      s.game.slide("honey_jar", s.now());
+      s.look("honey_jar", T.steadyMs);
+      if (mode === "demo") s.game.utterance("yes");
+      expect(s.ids()).toContain("scout_fact_honey_jar");
+      s.advance(10_000);
+      s.look("bug_spray", T.steadyMs); // another card in between
+      if (mode === "demo") s.game.utterance("yes");
+      s.advance(10_000);
+      s.game.slide(null, s.now());
+      s.game.slide("honey_jar", s.now()); // a new slide of the same card
+      s.events.length = 0;
+      s.says.length = 0;
+      s.look("background", 5000, 0.9, 0.1); // out of view for a while
+      s.advance(60_000);
+      s.look("honey_jar", 3000);
+      expect(s.events.some((e) => e.type === "found")).toBe(false);
+      expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "honey_jar", reason: "already_found" });
+      expect(s.says).toEqual([]);
+      expect(s.game.force("honey_jar")).toBe(false); // not even forced
+      s.game.start(); // POST /scout/reset frees it
+      s.advance(2000 + T.gapMs + 100);
+      s.says.length = 0;
+      s.look("honey_jar", T.steadyMs);
+      expect(s.ids()[0]).toBe("scout_chime");
+    }
   });
 
   test("practice mode: found -> chime + fact straight away, no hook, no offer, then looking", () => {
@@ -619,7 +647,7 @@ describe("practice mode and blocked reasons", () => {
       s.look(l, T.steadyMs);
     }
     s.advance(3000);
-    s.look(order[0]!, PRACTICE_REFIRE_MS); // a rediscovery after another card: the fact again, no new badge
+    s.look(order[0]!, 3000); // an earlier card again: silent (no rediscovery), no new badge
     expect(s.game.state().found).toEqual(order.slice(0, 5));
     expect(s.ids()).not.toContain("scout_done");
     s.advance(3000);
@@ -631,8 +659,8 @@ describe("practice mode and blocked reasons", () => {
     s.advance(3000);
     expect(s.game.state().phase).toBe("looking"); // practice keeps going
     s.says.length = 0;
-    s.look(order[1]!, T.steadyMs + 1000); // another card in between: rediscovery, no second finale
-    expect(s.ids()).toEqual(["scout_chime", `scout_fact_${order[1]}`]);
+    s.look(order[1]!, T.steadyMs + 1000); // no rediscovery, no second finale
+    expect(s.ids()).toEqual([]);
     s.game.start(); // reset clears the badges
     expect(s.game.state().found).toEqual([]);
   });
@@ -647,47 +675,6 @@ describe("practice mode and blocked reasons", () => {
     expect(s.ids()).toEqual([]);
     s.look("bug_spray", 100);
     expect(s.ids()).toEqual(["scout_chime", "scout_fact_bug_spray"]);
-  });
-
-  test("practice rediscovery: the same card fires again 20 s after its fact ended, once out of view for 3 s", () => {
-    const s = ready();
-    s.game.setPractice(true);
-    s.look("pebble_dish", T.steadyMs); // fires on the last frame; chime + fact end 2 s later
-    s.advance(2000);
-    s.says.length = 0;
-    s.look("pebble_dish", PRACTICE_REFIRE_MS + 1000); // stared at the whole time: never out of view
-    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
-    s.look("background", PRACTICE_OUT_OF_VIEW_MS - 1000, 0.9, 0.1); // out of view, not long enough
-    s.look("pebble_dish", 2000);
-    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
-    s.look("background", PRACTICE_OUT_OF_VIEW_MS + 100, 0.9, 0.1);
-    s.look("pebble_dish", T.steadyMs + 3000); // + room for an idle nudge's gap
-    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual(["scout_chime", "scout_fact_pebble_dish"]);
-  });
-
-  test("practice rediscovery: out of view 3 s but under 20 s since the fact waits for the 20 s", () => {
-    const s = ready();
-    s.game.setPractice(true);
-    s.look("bee_hotel", T.steadyMs);
-    s.advance(2000); // fact ended
-    s.look("native_flower", PRACTICE_OUT_OF_VIEW_MS + 100, 0.5, 0.1); // another class on top (too weak to fire)
-    s.says.length = 0;
-    s.look("bee_hotel", 5000); // ~8 s after the fact
-    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual([]);
-    s.look("bee_hotel", PRACTICE_REFIRE_MS - 8000 + 3000); // + room for the idle nudge and its gap
-    expect(s.ids().filter((id) => id !== "scout_idle")).toEqual(["scout_chime", "scout_fact_bee_hotel"]);
-  });
-
-  test("practice rediscovery: another card firing in between frees the first one at once", () => {
-    const s = ready();
-    s.game.setPractice(true);
-    s.look("honey_jar", T.steadyMs);
-    s.advance(2000 + 1000);
-    s.look("bug_spray", T.steadyMs);
-    s.advance(2000 + 1000);
-    s.says.length = 0;
-    s.look("honey_jar", T.steadyMs);
-    expect(s.ids()).toEqual(["scout_chime", "scout_fact_honey_jar"]);
   });
 
   test("POST /scout/reset logic: start() clears the practice memory", () => {
@@ -970,15 +957,27 @@ describe("booth routes", () => {
       const st = await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json();
       expect(st).toMatchObject({ mode: "booth", order: ["honey_jar", "bug_spray"], next: "honey_jar" });
 
-      // boxes ride through POST /scout/frame: a centered AprilTag box alone triggers the expected station (fresh Hive: no gap)
-      let found = false;
-      const t0 = Date.now();
-      while (!found && Date.now() - t0 < 6000) {
-        await post("/scout/frame", { at: Date.now(), top: [{ label: "background", score: 0.9 }], boxes: [{ label: "honey_jar", score: 0.3, x: 0.4, y: 0.4, w: 0.2, h: 0.2, via: "marker" }, { label: "nope", score: 1, x: 0, y: 0, w: 1, h: 1 }] });
-        found = (await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json()).found.includes("honey_jar");
-        await Bun.sleep(80);
-      }
-      expect(found).toBe(true);
+      // boxes ride through POST /scout/frame (validated) to the dashboards' frame events
+      const sse = (await fetch(`${hive.url}/scout/events?token=${TOKEN}`)).body!.getReader();
+      let feed = "";
+      const pump = (async () => {
+        for (let r = await sse.read(); !r.done; r = await sse.read()) feed += new TextDecoder().decode(r.value);
+      })().catch(() => {});
+      await Bun.sleep(250); // past the frame-event throttle
+      await post("/scout/frame", { at: Date.now(), top: [{ label: "background", score: 0.9 }], boxes: [{ label: "honey_jar", score: 0.3, x: 0.4, y: 0.4, w: 0.2, h: 0.2, via: "marker" }, { label: "nope", score: 1, x: 0, y: 0, w: 1, h: 1 }] });
+      const frameEvent = async () => {
+        for (let i = 0; i < 100; i++) {
+          const line = feed.split("\n").find((l) => l.startsWith("data: ") && l.includes('"type":"frame"'));
+          if (line) return JSON.parse(line.slice(6));
+          await Bun.sleep(10);
+        }
+        return null;
+      };
+      expect((await frameEvent())?.frame.boxes).toEqual([{ label: "honey_jar", score: 0.3, x: 0.4, y: 0.4, w: 0.2, h: 0.2, via: "marker" }]);
+      await sse.cancel();
+      await pump;
+      expect((await post("/scout/force")).status).toBe(409); // waiting: silent until reset
+      await post("/scout/reset");
       expect((await post("/scout/force", {}, "nope")).status).toBe(401);
       expect((await post("/scout/mode", { mode: "party" })).status).toBe(400);
       expect((await post("/scout/mode", { mode: "booth", order: ["honey_jar", "honey_jar"] })).status).toBe(400);
@@ -986,7 +985,8 @@ describe("booth routes", () => {
       expect(await (await post("/scout/mode", { mode: "booth", order: ["native_flower", "bee_hotel"] })).json()).toMatchObject({ mode: "booth", next: "native_flower" });
 
       expect((await post("/scout/force", { label: "snowboard" })).status).toBe(400);
-      expect(await (await post("/scout/force")).json()).toMatchObject({ ok: true, phase: "telling", found: ["native_flower"], next: "bee_hotel" });
+      expect((await post("/scout/force")).status).toBe(409); // a bare force during the intro is refused
+      expect(await (await post("/scout/force", { label: "native_flower" })).json()).toMatchObject({ ok: true, phase: "telling", found: ["native_flower"], next: "bee_hotel" });
       expect((await post("/scout/yes")).status).toBe(409); // booth never offers
       expect(await (await post("/scout/next")).json()).toMatchObject({ ok: true, phase: "done", next: null });
       expect(await (await post("/scout/reset")).json()).toMatchObject({ ok: true, phase: "intro", next: "native_flower", found: [] });
@@ -1087,6 +1087,10 @@ describe("two-line facts (scout_fact_<label>_2)", () => {
     const lines = [...LINES, { id: "scout_fact_native_flower_2", kind: "fact" as const, label: "native_flower" as const, text: "Second half of the flower fact." }];
     const game = new ScoutGame({ lines, now: () => clock, say: (x) => says.push(x.line_id), durationMs: () => 1000 });
     game.setMode(mode);
+    game.start(); // "Start your adventure"
+    clock += 20_000;
+    game.tick();
+    says.length = 0;
     return { game, says, tick: (ms: number) => ((clock += ms), game.tick()) };
   }
 
@@ -1208,6 +1212,8 @@ describe("teacher + reset routes", () => {
     try {
       const post = (path: string) => fetch(`${hive.url}${path}?token=${TOKEN}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       expect((await fetch(`${hive.url}/scout/teacher`, { method: "POST" })).status).toBe(401);
+      expect((await post("/scout/teacher")).status).toBe(409); // silent while waiting for "Start your adventure"
+      await post("/scout/reset");
       expect((await post("/scout/teacher")).status).toBe(200);
       const t = await glasses.waitFor("say", (m) => m.tts_id === SCOUT_TEACHER_LINE);
       expect(t.caption.length).toBeGreaterThan(0);
@@ -1238,6 +1244,7 @@ describe("any-questions line and multi-line intro / finale", () => {
   test("practice: an any-q line after each fact, taking turns", () => {
     const s = setup({ extra: EXTRA });
     s.game.setPractice(true);
+    begin(s);
     s.game.force("beehive");
     s.advance(5000);
     s.game.force("honey_jar");
@@ -1253,6 +1260,7 @@ describe("any-questions line and multi-line intro / finale", () => {
   test("practice: the sixth badge -> fact, any-q, then every finale line", () => {
     const s = setup({ extra: EXTRA });
     s.game.setPractice(true);
+    begin(s);
     for (const l of SCOUT_LABELS) {
       s.says.length = 0;
       s.game.force(l);
@@ -1264,6 +1272,7 @@ describe("any-questions line and multi-line intro / finale", () => {
   test("booth: fact, any-q, direction; the last station plays every booth finale line", () => {
     const s = setup({ extra: EXTRA });
     s.game.setMode("booth", ["honey_jar", "beehive"]);
+    begin(s);
     s.game.force();
     s.advance(6000);
     s.game.force();
@@ -1284,7 +1293,7 @@ describe("any-questions line and multi-line intro / finale", () => {
   });
 
   test("demo: no any-q (unchanged), the finale plays every done line", () => {
-    const s = setup({ extra: EXTRA });
+    const s = begin(setup({ extra: EXTRA }));
     for (const l of SCOUT_LABELS) {
       s.says.length = 0;
       s.game.force(l);
@@ -1325,9 +1334,10 @@ describe("glasses mute", () => {
     try {
       const post = (path: string, body: unknown = {}) => fetch(`${hive.url}${path}?token=${TOKEN}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       expect((await (await fetch(`${hive.url}/scout/state?token=${TOKEN}`)).json()).glasses_muted).toBe(true);
+      await post("/scout/reset"); // starts the journey: the intro says are muted too
       await post("/scout/teacher");
       await Bun.sleep(100);
-      expect(glasses.events.some((e) => e.kind === "json" && e.msg.type === "say")).toBe(false);
+      expect(glasses.events.some((e) => e.kind === "json" && e.msg.type === "say" && e.msg.tts_id !== SCOUT_STOP_ID)).toBe(false);
       await post("/scout/glasses-mute", { muted: false });
       await post("/scout/teacher");
       await glasses.waitFor("say", (m) => m.tts_id === SCOUT_TEACHER_LINE);
@@ -1337,5 +1347,52 @@ describe("glasses mute", () => {
       if (prev === undefined) delete process.env.SCOUT_GLASSES_MUTED;
       else process.env.SCOUT_GLASSES_MUTED = prev;
     }
+  });
+});
+
+// ---------------------------------------------------------------- waiting until "Start your adventure"
+
+describe("waiting (silent until POST /scout/reset)", () => {
+  test("a fresh game waits: no detections, no lines, no answers, no teacher, no force", () => {
+    for (const mode of ["demo", "practice", "booth"] as const) {
+      const s = setup();
+      s.game.setMode(mode);
+      expect(s.game.state().phase).toBe("waiting");
+      expect(s.game.isStarted()).toBe(false);
+      s.look(mode === "booth" ? "native_flower" : "honey_jar", 5000);
+      s.advance(120_000);
+      expect(s.events.some((e) => e.type === "found" || e.type === "blocked")).toBe(false);
+      expect(s.events.some((e) => e.type === "frame")).toBe(true); // the dashboards still see the camera
+      expect(s.game.utterance("yes")).toBe("other");
+      expect(s.game.button()).toBe(false);
+      expect(s.game.force()).toBe(false);
+      expect(s.game.force("bug_spray")).toBe(false);
+      expect(s.game.teacher()).toBe(false);
+      expect(s.game.beginAnswer()).toBe(false);
+      expect(s.game.skipStation()).toBe(false);
+      expect(s.says).toEqual([]);
+      s.game.start();
+      expect(s.game.state().phase).toBe("intro");
+      expect(s.game.isStarted()).toBe(true);
+    }
+  });
+
+  test("stopJourney (POST /scout/stop): cuts the ear, clears badges, waits silently again", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("beehive", T.steadyMs);
+    expect(s.game.state().found).toEqual(["beehive"]);
+    s.game.stopJourney();
+    expect(s.stops.length).toBe(1);
+    expect(s.game.state()).toMatchObject({ phase: "waiting", found: [], offer: null, started_at: null });
+    s.says.length = 0;
+    s.look("honey_jar", 3000);
+    s.advance(60_000);
+    expect(s.says).toEqual([]);
+    s.game.start(); // "Start your adventure" again
+    s.advance(3000);
+    s.says.length = 0;
+    s.look("beehive", T.steadyMs);
+    expect(s.ids()[1]).toBe("scout_fact_beehive"); // badges were cleared, so it fires again
   });
 });

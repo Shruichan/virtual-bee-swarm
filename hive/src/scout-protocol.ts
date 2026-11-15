@@ -75,7 +75,8 @@ export interface ScoutButton { at: number }
 /** POST /scout/watchdog (token): the glasses ask how long ago the vision worker last posted a frame.
  *  null = no frame yet since the Hive started. The glasses restart their stream when it goes stale. */
 export interface ScoutWatchdog { frame_age_ms: number | null }
-/** POST /scout/start (token): the glasses entered scout mode (plays the intro, resets progress). */
+/** POST /scout/start (token): the glasses entered scout mode. Returns {ok, state} and changes nothing: the journey
+ *  starts with POST /scout/reset ("Start your adventure"); POST /scout/stop ("Restart your journey") goes back to waiting. */
 export interface ScoutStart { at: number }
 
 // ------------------------------------------------------------------ test harness -> Hive
@@ -85,8 +86,10 @@ export interface ScoutSlide { label: ScoutClass | null; at: number }
 
 // ------------------------------------------------------------------ the game
 
-/** answering: Ask Beeswax (scout/ask) is answering a question; frames are ignored until it ends. */
-export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done" | "answering";
+/** answering: Ask Beeswax (scout/ask) is answering a question; frames are ignored until it ends.
+ *  waiting: the Hive just started or POST /scout/stop: silent (no detections, no lines, no Ask Beeswax) until
+ *  POST /scout/reset (the judge view's "Start your adventure") plays the intro. */
+export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done" | "answering" | "waiting";
 export type ScoutAnswer = "yes" | "no" | "rude" | "other";
 
 export interface ScoutState {
@@ -144,7 +147,8 @@ export interface ScoutModeRequest { mode: ScoutMode; order?: ScoutLabel[] }
  *   POST /scout/force {label?}  found right now for `label` (default: booth's next station), no dwell, no gap.
  *   POST /scout/yes             = the wearer said yes (only while offering).
  *   POST /scout/next            booth: skip to the next station (the current one counts as skipped).
- *   POST /scout/reset           start over: progress cleared, intro plays (= /scout/start). */
+ *   POST /scout/reset           start the journey: badges/progress cleared, the ear cut, intro plays, then looking.
+ *   POST /scout/stop            end it: badges/progress cleared, the ear cut, phase "waiting" (silent) until reset. */
 export interface ScoutForce { label?: ScoutLabel }
 
 /** The walking order from the run-of-show: four judge stations, then the two optional ones. */

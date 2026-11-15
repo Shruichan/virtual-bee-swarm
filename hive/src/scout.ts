@@ -79,10 +79,6 @@ export interface ScoutGameDeps {
 export const SKIP_REOFFER_MS = 60_000;
 /** Practice mode: the pause after a line before the next chime (demo mode uses tuning.gapMs). */
 export const PRACTICE_GAP_MS = 1000;
-/** Practice rediscovery: the last card fires again once its fact ended this long ago AND it was out of view
- *  (another class top-1) for PRACTICE_OUT_OF_VIEW_MS. Another card firing in between, or a slide change, frees it at once. */
-export const PRACTICE_REFIRE_MS = 20_000;
-export const PRACTICE_OUT_OF_VIEW_MS = 3000;
 /** An answer (beginAnswer) that never calls endAnswer gives up after this long. */
 export const ANSWER_MAX_MS = 30_000;
 /** Frames further apart than this break a steady look (the worker stalled). */
@@ -102,7 +98,8 @@ export class ScoutGame {
   private readonly now: () => number;
   private readonly d: ScoutGameDeps;
 
-  private phase: ScoutPhase = "looking";
+  /** Silent until the journey starts: POST /scout/reset (the judge view's "Start your adventure"). */
+  private phase: ScoutPhase = "waiting";
   private found: ScoutLabel[] = [];
   private skipped = new Map<ScoutLabel, number>(); // label -> skipped at
   private offer: ScoutLabel | null = null;
@@ -123,12 +120,6 @@ export class ScoutGame {
   private run: { label: ScoutLabel; since: number; firstAt: number; lastAt: number; score: number } | null = null;
   private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
   private mode: ScoutMode = "demo";
-  private lastFind: { label: ScoutLabel; at: number } | null = null;
-  /** Practice: since when the frames' top-1 has not been the last find, whether that lasted PRACTICE_OUT_OF_VIEW_MS,
-   *  and when the last find's fact ends. */
-  private awaySince: number | null = null;
-  private lookedAway = false;
-  private lastFactEnd = 0;
   /** Ask Beeswax: when the answer began, and when its audio ends (null until endAnswer). */
   private answerStartedAt = 0;
   private answerEndsAt: number | null = null;
@@ -196,7 +187,8 @@ export class ScoutGame {
     this.changed();
   }
 
-  /** POST /scout/start, /scout/reset: reset, play the intro, then look. */
+  /** POST /scout/reset (the judge view's "Start your adventure"): reset, play the intro, then look.
+   *  (POST /scout/start from the glasses no longer calls this; it only returns the state.) */
   start(): void {
     const now = this.now();
     this.found = [];
@@ -210,11 +202,6 @@ export class ScoutGame {
     this.finaleDone = false;
     this.lastCueAt = -Infinity;
     this.lastSeenNext = now;
-    // practice rediscovery state
-    this.lastFind = null;
-    this.awaySince = null;
-    this.lookedAway = false;
-    this.lastFactEnd = 0;
     this.lastSlide = null;
     this.answerEndsAt = null;
     this.blockedKey = "";
@@ -232,7 +219,10 @@ export class ScoutGame {
     const best = top[0];
     this.current = best ? { label: best.label, score: best.score } : null;
     this.emit({ type: "frame", frame: f });
-    this.trackLookAway(best?.label ?? null, now);
+    if (this.phase === "waiting") {
+      this.run = null; // silent until the journey starts (POST /scout/reset)
+      return;
+    }
     if (this.mode === "booth") return this.boothFrame(f, top, now);
     const second = top[1]?.score ?? 0;
     const byClass = !!best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
@@ -287,11 +277,12 @@ export class ScoutGame {
   /** POST /scout/force: found right now (no dwell, no gap) for `label`, default booth's next station. */
   force(label?: ScoutLabel | null): boolean {
     this.tick();
+    if (this.phase === "waiting") return false;
     // A bare force while Beeswax is busy (intro, a fact, an answer) is refused, so a double key press can't skip a
     // station; naming the label forces it anyway.
     if (!label && (this.phase === "intro" || this.phase === "telling" || this.phase === "answering")) return false;
     const l = label ?? this.next() ?? (this.current && isLabel(this.current.label) ? this.current.label : null);
-    if (!l) return false;
+    if (!l || this.found.includes(l)) return false; // no rediscovery, not even forced
     if (this.mode === "booth") {
       const i = this.order.indexOf(l);
       if (i < 0) return false;
@@ -306,7 +297,7 @@ export class ScoutGame {
   skipStation(): boolean {
     this.tick();
     const l = this.next();
-    if (!l) return false;
+    if (!l || this.phase === "waiting") return false;
     const now = this.now();
     if (!this.found.includes(l)) this.skipped.set(l, now);
     this.station++;
@@ -329,7 +320,7 @@ export class ScoutGame {
    *  already running (one at a time); the caller should then not speak. */
   beginAnswer(): boolean {
     this.tick();
-    if (this.phase === "answering") return false;
+    if (this.phase === "answering" || this.phase === "waiting") return false;
     this.phase = "answering";
     this.offer = null;
     this.run = null;
@@ -357,7 +348,6 @@ export class ScoutGame {
     const now = this.now();
     this.busyUntil = now;
     this.mainUntil = now;
-    if (this.lastFactEnd > now) this.lastFactEnd = now;
     if (this.phase === "offering") this.offerDeadline = Math.min(this.offerDeadline, now + this.offerTimeout());
     try {
       this.d.stop?.();
@@ -385,10 +375,39 @@ export class ScoutGame {
     this.changed();
   }
 
-  /** POST /scout/teacher: "Ask your teacher for another assignment!" (queued after whatever is playing). */
-  teacher(): void {
+  /** POST /scout/teacher: "Ask your teacher for another assignment!" (queued after whatever is playing).
+   *  False (silent) while waiting for the journey to start. */
+  teacher(): boolean {
     this.tick();
+    if (this.phase === "waiting") return false;
     this.say(SCOUT_TEACHER_LINE);
+    this.changed();
+    return true;
+  }
+
+  /** Has the journey started (POST /scout/reset)? While waiting the game, Ask Beeswax and the teacher line are silent. */
+  isStarted(): boolean {
+    return this.phase !== "waiting";
+  }
+
+  /** POST /scout/stop (the judge view's "Restart your journey"): cut the ear, clear badges and progress, and wait
+   *  silently for the next POST /scout/reset. */
+  stopJourney(): void {
+    this.interrupt();
+    const now = this.now();
+    this.found = [];
+    this.skipped.clear();
+    this.offer = null;
+    this.run = null;
+    this.station = 0;
+    this.startedAt = null;
+    this.finaleDone = false;
+    this.answerEndsAt = null;
+    this.lastSlide = null;
+    this.blockedKey = "";
+    this.busyUntil = now;
+    this.mainUntil = now;
+    this.phase = "waiting";
     this.changed();
   }
 
@@ -507,16 +526,9 @@ export class ScoutGame {
   }
 
   private eligible(label: ScoutLabel): boolean {
-    if (this.mode === "practice") {
-      // Practice: anything goes, except repeating the last find before the slide has changed.
-      // Practice: the last card is blocked until the slide changes, or 20 s after its fact ended + 3 s out of view.
-      // Another card firing in between replaces lastFind, which frees it at once.
-      const last = this.lastFind;
-      if (!last || last.label !== label) return true;
-      if (this.lastSlide && this.lastSlide.recvAt > last.at) return true;
-      return this.lookedAway && this.now() - this.lastFactEnd >= PRACTICE_REFIRE_MS;
-    }
+    // No rediscovery: once a card's fact has played this journey it never fires again (until POST /scout/reset).
     if (this.found.includes(label)) return false;
+    if (this.mode === "practice") return true;
     const skippedAt = this.skipped.get(label);
     if (skippedAt === undefined) return true;
     if (this.now() - skippedAt >= SKIP_REOFFER_MS) return true;
@@ -531,25 +543,10 @@ export class ScoutGame {
     return this.mode === "practice" ? PRACTICE_GAP_MS : this.tuning.gapMs;
   }
 
-  /** Practice: latch "looked away" once the last find hasn't been top-1 for PRACTICE_OUT_OF_VIEW_MS (props, no slides). */
-  private trackLookAway(top: ScoutClass | null, now: number): void {
-    const last = this.lastFind;
-    if (!last || top === null) return;
-    if (top !== last.label) {
-      this.awaySince ??= now;
-      return;
-    }
-    if (this.awaySince !== null && now - this.awaySince >= PRACTICE_OUT_OF_VIEW_MS) this.lookedAway = true;
-    this.awaySince = null;
-  }
-
   private foundIt(label: ScoutLabel, score: number, lookMs: number, frameMs: number): void {
     const now = this.now();
     this.run = null;
     this.offer = label;
-    this.lastFind = { label, at: now };
-    this.awaySince = null;
-    this.lookedAway = false;
     this.phase = this.mode === "demo" ? "offering" : "telling";
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
@@ -559,7 +556,6 @@ export class ScoutGame {
       // Practice and booth: no hook, no offer. "Bee fact found!", the fact (+ _2), then "any questions?"
       // (Ask Beeswax takes it from there through beginAnswer/endAnswer).
       this.sayFact(label);
-      this.lastFactEnd = this.busyUntil;
       this.latency("found_to_say", this.now() - now);
       const isNew = !this.found.includes(label); // a badge per distinct card; a rediscovery replays the fact only
       if (isNew) this.found.push(label);
@@ -946,7 +942,8 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     // "Hey Beeswax" gets the ack and the next utterance is the question; everything else stays with the game
     // (yes / no) and shows on the judge screen as heard.
     let forGame = text;
-    if (ask) {
+    if (ask && game.isStarted()) {
+      // (while waiting for "Start your adventure", Ask Beeswax stays silent too)
       const r = ask.route(text, classifyAnswer);
       if (r.kind === "ask" || r.kind === "wake") {
         fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now(), ...(r.kind === "ask" ? { question: true } : {}) });
@@ -966,9 +963,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     return c.json({ ok: true, answer: yes ? "yes" : null, phase: game.state().phase });
   });
 
-  app.post("/scout/start", (c) => {
-    game.start();
-    return c.json({ ok: true, state: game.state() });
+  // The glasses POST this when their bus connects. It no longer starts (or restarts) the journey: the judge view's
+  // "Start your adventure" does, through POST /scout/reset. Kept so older glasses builds get a clean 200.
+  app.post("/scout/start", (c) => c.json({ ok: true, state: game.state() }));
+
+  app.post("/scout/stop", (c) => {
+    game.stopJourney();
+    return c.json({ ok: true, ...game.state() });
   });
 
   app.post("/scout/watchdog", (c) => c.json({ frame_age_ms: lastFrameAt === null ? null : Date.now() - lastFrameAt }));
@@ -1026,8 +1027,8 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
   });
 
   app.post("/scout/teacher", (c) => {
-    game.teacher();
-    return c.json({ ok: true, ...game.state() });
+    const ok = game.teacher();
+    return c.json({ ok, ...game.state() }, ok ? 200 : 409);
   });
 
   app.post("/scout/slide", async (c) => {
