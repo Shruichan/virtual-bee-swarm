@@ -130,6 +130,31 @@ namespace VirtualBeeSwarm.Ask.Tests
         }
 
         [Test]
+        public void FastTranscriptKeepsWaitingEvenWhenPendingWasNeverSampled()
+        {
+            var flow = Opened();
+            flow.TalkStarted(0f);
+            flow.TalkEnded(1f);
+            flow.Transcript("why do bees dance", true, 1.1f);
+            flow.Intent("ask");
+            flow.Tick(2f, false, false);
+            Assert.IsTrue(flow.ExpectingReply);
+            Assert.AreEqual(AskFlow.Asked("why do bees dance"), flow.Status);
+        }
+
+        [Test]
+        public void MissingMicrophoneExplainsHowToContinue()
+        {
+            var flow = Opened();
+            Assert.IsTrue(Has(flow.MicrophoneUnavailable(false), AskCue.Status));
+            Assert.AreEqual(AskFlow.StatusMicPermission, flow.Status);
+            Assert.IsTrue(Has(flow.MicrophoneUnavailable(true), AskCue.Status));
+            Assert.AreEqual(AskFlow.StatusMicUnavailable, flow.Status);
+            flow.TalkStarted(0f);
+            Assert.AreEqual(AskFlow.StatusListening, flow.Status);
+        }
+
+        [Test]
         public void EmptyTranscriptWaitsForTheHiveThenSaysNotHeard()
         {
             var f = Opened();

@@ -401,12 +401,17 @@ namespace Beeswax
                     }
                     if (_delivering && _sent == _frames.Count)
                     {
-                        b.SendListenEnd(cancel: false);
-                        _endSentAt = now;
-                        LatencyReporter.Mark("voice");
-                        UtterancesSent++;
-                        EndDelivery();
-                        return;
+                        if (b.SendListenEnd(cancel: false))
+                        {
+                            _endSentAt = now;
+                            LatencyReporter.Mark("voice");
+                            UtterancesSent++;
+                            EndDelivery();
+                            return;
+                        }
+                        // The end marker didn't reach the send queue. Keep the audio for the reconnect retry.
+                        _streamOpen = false;
+                        _sent = 0;
                     }
                 }
             }
@@ -424,8 +429,8 @@ namespace Beeswax
             if (_streamOpen && b != null && b.IsListening)
             {
                 while (_sent < _frames.Count && b.SendMicFrame(_frames[_sent])) _sent++;
-                b.SendListenEnd(cancel: _sent < _frames.Count);
-                if (_sent == _frames.Count) { _endSentAt = Time.realtimeSinceStartup; LatencyReporter.Mark("voice"); UtterancesSent++; }
+                bool complete = _sent == _frames.Count;
+                if (b.SendListenEnd(cancel: !complete) && complete) { _endSentAt = Time.realtimeSinceStartup; LatencyReporter.Mark("voice"); UtterancesSent++; }
                 else UtterancesLost++;
                 EndDelivery();
             }

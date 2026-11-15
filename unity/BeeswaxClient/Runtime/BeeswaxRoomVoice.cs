@@ -10,6 +10,7 @@ namespace Beeswax
     ///  * pre-rendered clips by line_id: the serialized list first, then Resources/BeeswaxLines/&lt;line_id&gt;;
     ///    a missing clip still shows its caption for a reading-time estimate, so the beat never stalls;
     ///  * live lines: tts.start + PCM16 chunks + tts.end from the bus, streamed through a PCMReaderCallback clip.
+    ///    A stream that ends or stalls before any audio plays falls back to its caption.
     /// Listens to say{channel:"room"}, scan.verdict line_id (optional), tts.*, and group.reset.
     /// Exposes Amplitude (0..1) for mouth flaps and OnLineStarted/OnLineEnded(caption) for captions.
     /// </summary>
@@ -284,7 +285,12 @@ namespace Beeswax
         void Update()
         {
             float now = Time.realtimeSinceStartup;
-            if (_current != null && IsFinished(_current, now)) Finish();
+            if (_current != null && IsFinished(_current, now))
+            {
+                if (!_current.started && !string.IsNullOrWhiteSpace(_current.caption))
+                    ShowStreamCaption(_current, now);
+                else Finish();
+            }
             if (_current == null) StartNext(now);
             if (_current != null && _current.IsStream && !_current.started && StreamReady(_current, now)) BeginStream(_current, now);
             UpdateAmplitude();
@@ -304,22 +310,36 @@ namespace Beeswax
                 }
                 _current = line;
                 if (line.IsStream) return; // starts once enough audio is buffered
-                line.started = true;
-                line.startedAt = now;
-                if (line.clip != null)
-                {
-                    line.envelope = EnvelopeOf(line.clip);
-                    source.clip = line.clip;
-                    source.Play();
-                }
-                else
-                {
-                    int words = line.caption.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
-                    line.captionOnlySeconds = Mathf.Clamp(words * 0.38f, 1.5f, 7f);
-                }
-                RaiseLine(OnLineStarted, line.caption);
+                BeginLocalLine(line, now);
                 return;
             }
+        }
+
+        void BeginLocalLine(Line line, float now)
+        {
+            line.started = true;
+            line.startedAt = now;
+            if (line.clip != null)
+            {
+                line.envelope = EnvelopeOf(line.clip);
+                source.clip = line.clip;
+                source.Play();
+            }
+            else
+            {
+                int words = line.caption.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                line.captionOnlySeconds = Mathf.Clamp(words * 0.38f, 1.5f, 7f);
+            }
+            RaiseLine(OnLineStarted, line.caption);
+        }
+
+        void ShowStreamCaption(Line line, float now)
+        {
+            _streams.Remove(line.ttsId);
+            _ttsCaptions.Remove(line.ttsId);
+            line.ttsId = "";
+            line.pcm = null;
+            BeginLocalLine(line, now);
         }
 
         // Start once the prebuffer is full, or with what we have if the line ended or the feed paused.

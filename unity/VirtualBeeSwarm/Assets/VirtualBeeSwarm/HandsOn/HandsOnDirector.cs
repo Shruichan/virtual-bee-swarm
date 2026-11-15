@@ -176,8 +176,6 @@ namespace VirtualBeeSwarm.HandsOn
             }
             _stream = HandsOnKit.Glow(PrimitiveType.Cylinder, "Stream", fx, Vector3.zero, Vector3.one, new Color(1f, 0.78f, 0.25f, 0.9f));
             _stream.gameObject.SetActive(false);
-            _water = HandsOnKit.Glow(PrimitiveType.Cylinder, "Water", fx, Vector3.zero, Vector3.one, new Color(0.25f, 0.6f, 1f, 0.8f));
-            _water.gameObject.SetActive(false);
         }
 
         void AddControlStake(Transform control)
@@ -206,6 +204,8 @@ namespace VirtualBeeSwarm.HandsOn
                 if (_stations[i] != null && _stations[i].IsActive) { active = _stations[i]; break; }
             if (active != _cur)
             {
+                if (_water != null && (active is HeatStation || _cur is HeatStation && !_cur.Solved))
+                    _water.gameObject.SetActive(false);
                 LeaveStation();
                 _cur = active;
                 _sd = active != null ? active.GetComponent<StationDelivery>() : null;
@@ -218,7 +218,8 @@ namespace VirtualBeeSwarm.HandsOn
             if (WaitingForLaunch && Time.frameCount - _launchTick > 2) EndLaunchWait(false);
             if (GameInput.KeyDown(LeverKey)) _lever.SimulatePull();
             if (HandsOnTuning.AutoDrive && WaitingForLaunch && !_launchPulled && Time.time - _stepAt > 0.8f) _lever.SimulatePull();
-            if (_water.gameObject.activeSelf && (_director == null || _director.Beat == GameBeat.Pre)) _water.gameObject.SetActive(false);
+            if (_water != null && _water.gameObject.activeSelf && (_director == null || _director.Beat == GameBeat.Pre))
+                _water.gameObject.SetActive(false);
             StepPuffs();
             if (_cur == null) return;
 
@@ -486,8 +487,13 @@ namespace VirtualBeeSwarm.HandsOn
         {
             Puff(_lever.transform.position + Vector3.up * 0.05f, spot.position + Vector3.up * 0.03f, HandsOnKit.Water, 3);
             GameSound.Cue("water_spray", spot);
+            if (_cur is HeatStation heat && heat.ShowDishWater()) return;
+            if (_water == null)
+                _water = HandsOnKit.Glow(PrimitiveType.Cylinder, "Water", _stream.transform.parent,
+                    Vector3.zero, Vector3.one, new Color(0.25f, 0.6f, 1f, 0.8f));
             _water.transform.SetPositionAndRotation(spot.position + Vector3.up * 0.022f, _table.rotation);
-            _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f);
+            float scale = Mathf.Max(0.001f, Mathf.Abs(_water.transform.parent.lossyScale.x));
+            _water.transform.localScale = new Vector3(0.1f, 0.0015f, 0.1f) / scale;
             _water.gameObject.SetActive(true);
         }
 

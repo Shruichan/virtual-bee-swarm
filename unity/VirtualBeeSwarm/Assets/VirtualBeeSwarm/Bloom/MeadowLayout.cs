@@ -85,23 +85,43 @@ namespace VirtualBeeSwarm.Bloom
             float dRoof = Vector3.Dot(back - eye, fwd), dWall = Vector3.Dot(windowPos - eye, fwd);
             if (dRoof < 0.1f || dWall <= dRoof) return Mathf.Max(low, RoofY + 0.15f);
             float y = eye.y + (RoofY - eye.y) * (dWall / dRoof);
-            return Mathf.Max(low, Mathf.Min(y + 0.12f, RoofY + 0.15f));
+            return Mathf.Max(low, y + 0.12f);
         }
         public static float WindowWidth => MeadowTuning.WindowWidth;
         /// <summary>The big hive's roof (world y): the window's bottom stays above it.</summary>
         public static float RoofY => FloorY + MeadowTuning.HiveStand + 0.31f * Scale;
 
-        /// <summary>ArRig: how far to slide the window (width m) along the wall (its right axis). Over the roof line it stays
-        /// centred behind the hive, straight ahead; only under a ceiling too low for that it slides clear of the roof, to
-        /// the side away from the rocket.</summary>
-        public static float WindowSideShift(Vector3 windowRight, float width, bool clearsRoof)
+        /// <summary>Try a free-standing position beside the hive, preferring the side away from the rocket.</summary>
+        public static bool TryWindowBesideHive(Vector3 center, Vector3 right, float width, float halfHeight, out Vector3 position)
         {
-            if (!Active || Anchor == null || clearsRoof) return 0f;
+            position = center;
+            if (Anchor == null) return false;
             var rocket = Anchor.Find("HONEYMOON-1");
             var hive = Anchor.Find("Hive");
             float side = -1f;
-            if (rocket != null && hive != null) side = Vector3.Dot(rocket.position - hive.position, windowRight) > 0f ? -1f : 1f;
-            return side * (0.15f * Scale + width * 0.5f + 0.15f);
+            if (rocket != null && hive != null) side = Vector3.Dot(rocket.position - hive.position, right) > 0f ? -1f : 1f;
+            float shift = 0.15f * Scale + width * 0.5f + 0.15f;
+            var scene = MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
+            for (int i = 0; i < 2; i++, side = -side)
+            {
+                var point = center + right * (side * shift);
+                if (scene != null && !WindowFits(scene, point, right, width * 0.5f, halfHeight)) continue;
+                position = point;
+                return true;
+            }
+            return false;
+        }
+
+        static bool WindowFits(BloomScene scene, Vector3 pos, Vector3 right, float halfWidth, float halfHeight)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                Vector3 column = pos + x * (halfWidth + 0.07f) * right;
+                if (!scene.InFloor(column)) return false;
+                for (int y = -1; y <= 1; y++)
+                    if (scene.InVolume(column + y * (halfHeight + 0.07f) * Vector3.up, 0.05f)) return false;
+            }
+            return true;
         }
         public static float WindowBehindHive => 0.25f * Scale + 0.25f;
 

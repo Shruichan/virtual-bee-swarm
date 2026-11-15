@@ -19,8 +19,8 @@ namespace VirtualBeeSwarm.Ask
     /// </summary>
     public class AskCard : MonoBehaviour
     {
-        public const float Width = 0.44f, Height = 0.32f, Scale = 1.15f;
-        const float StatusBig = 0.0034f, StatusSmall = 0.0024f;
+        public const float Width = 0.49f, Height = 0.36f, Scale = 1.15f;
+        const float StatusBig = 0.0035f, StatusSmall = 0.0027f;
 
         public event Action<int> ChipPressed;
         public bool Visible => _root != null && _root.activeSelf;
@@ -32,7 +32,7 @@ namespace VirtualBeeSwarm.Ask
             get
             {
                 if (_chips == null) return false;
-                foreach (var c in _chips) if (c != null && c.Hovered) return true;
+                foreach (var c in _chips) if (c != null && c.isActiveAndEnabled && c.Hovered) return true;
                 return false;
             }
         }
@@ -102,11 +102,11 @@ namespace VirtualBeeSwarm.Ask
             _chipLabels = new GameObject[_chips.Length];
             for (int i = 0; i < _chips.Length; i++)
             {
-                float x = (i % 2 == 0 ? -1f : 1f) * 0.106f;
-                float y = top - 0.170f - (i / 2) * 0.058f;
+                float x = (i % 2 == 0 ? -1f : 1f) * 0.118f;
+                float y = top - 0.179f - (i / 2) * 0.064f;
                 _chips[i] = Chip(i, new Vector3(x, y, -0.006f), AskLines.ChipLabels[i]);
             }
-            _answer = Text("Answer", new Vector3(0f, top - 0.198f, -0.004f), "", 0.0030f, FontStyle.Bold);
+            _answer = Text("Answer", new Vector3(0f, top - 0.218f, -0.004f), "", 0.0030f, FontStyle.Bold);
             _answer.gameObject.SetActive(false);
             _minutes = Text("Minutes", new Vector3(0f, -top + 0.022f, -0.004f), AskFlow.MinutesText(0), 0.0022f, FontStyle.Bold);
             _root.SetActive(false);
@@ -189,7 +189,11 @@ namespace VirtualBeeSwarm.Ask
             if (_chips == null) return;
             for (int i = 0; i < _chips.Length; i++)
             {
-                if (_chips[i] != null && _chips[i].gameObject.activeSelf != on) _chips[i].gameObject.SetActive(on);
+                if (_chips[i] != null && _chips[i].gameObject.activeSelf != on)
+                {
+                    if (!on) _chips[i].SetHover(false);
+                    _chips[i].gameObject.SetActive(on);
+                }
                 if (_chipLabels[i] != null && _chipLabels[i].activeSelf != on) _chipLabels[i].SetActive(on);
             }
         }
@@ -218,8 +222,8 @@ namespace VirtualBeeSwarm.Ask
                 switch (Look)
                 {
                     case AskCardLook.Listening:
-                        // a mic meter: each hex bounces on its own beat, taller with the voice when a level is known
-                        s = 0.75f + (0.35f + 0.5f * mic) * Mathf.Abs(Mathf.Sin(now * (7f + i * 1.9f) + i * 1.3f));
+                        // Stay still for silence, then scale visibly when the mic picks up speech.
+                        s = 0.72f + 0.65f * Mathf.Clamp01(mic * (1.2f - i * 0.24f));
                         break;
                     case AskCardLook.Thinking:
                         s = ((int)(now * 3.5f)) % 3 == i ? 1.3f : 0.65f;
@@ -253,7 +257,7 @@ namespace VirtualBeeSwarm.Ask
             go.name = "Chip " + i;
             go.transform.SetParent(_root.transform, false);
             go.transform.localPosition = pos;
-            go.transform.localScale = new Vector3(0.200f, 0.050f, 0.008f);
+            go.transform.localScale = new Vector3(0.218f, 0.054f, 0.008f);
             var r = go.GetComponent<Renderer>();
             r.sharedMaterial = _chipMat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -263,7 +267,7 @@ namespace VirtualBeeSwarm.Ask
             col.size = new Vector3(1f, 1f, 4f); // a little depth in front, so a poke registers before the finger hits the board
             var chip = go.AddComponent<AskChip>();
             chip.Init(i, r, ChipIdle, ChipHover, this);
-            _chipLabels[i] = Text("ChipLabel " + i, pos + new Vector3(0f, 0f, -0.006f), label, 0.0022f, FontStyle.Bold).gameObject;
+            _chipLabels[i] = Text("ChipLabel " + i, pos + new Vector3(0f, 0f, -0.006f), label, 0.00245f, FontStyle.Bold).gameObject;
             return chip;
         }
 

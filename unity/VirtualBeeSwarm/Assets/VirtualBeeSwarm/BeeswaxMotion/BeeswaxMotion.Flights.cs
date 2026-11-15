@@ -251,6 +251,8 @@ namespace VirtualBeeSwarm
             fl.order = _orderSerial;
             _govOff = Vector3.zero; // it starts from where he really is
             _parkedSince = -1f;
+            if (_perched && _hasEye && (fl.start - _ctx.eye).sqrMagnitude <= 2.25f)
+                GameSound.Cue("bee_wing", fl.start);
             _perched = false;
             _player.Cancel("Settle", _mt);
             float d = Vector3.Distance(fl.start, fl.end);
@@ -323,6 +325,7 @@ namespace VirtualBeeSwarm
             if (fl.perch) _perched = true;
             if (fl.settle) PlaySettle();
             if (fl.kind == "drop") PlayBounce();
+            if (_hasEye && (fl.perch || fl.kind == "drop")) GameSound.BeeLanding(fl.cur, _ctx.eye);
             if (fl.kind == "duck" && _b.PresenterPoint != null) { _hiding = true; _b.SetCaptionAnchor(_b.PresenterPoint, 0.13f); }
             // face snap with a small overshoot if he is not facing the player yet
             if (_hasEye && Vector3.Angle(transform.forward, _ctx.eye - transform.position) > 15f) _snapUntil = Time.time + 0.4f;

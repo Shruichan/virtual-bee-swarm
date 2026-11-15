@@ -127,6 +127,7 @@ namespace VirtualBeeSwarm.Ask
                 _net.VoiceLineStarted += HandleLine;
                 _net.TranscriptReceived += HandleTranscript;
                 _net.IntentReceived += HandleIntent;
+                _net.VoiceInputUnavailable += HandleVoiceInputUnavailable;
                 _net.GroupReset += HandleReset;
             }
             _subscribed = true;
@@ -146,6 +147,7 @@ namespace VirtualBeeSwarm.Ask
                 _net.VoiceLineStarted -= HandleLine;
                 _net.TranscriptReceived -= HandleTranscript;
                 _net.IntentReceived -= HandleIntent;
+                _net.VoiceInputUnavailable -= HandleVoiceInputUnavailable;
                 _net.GroupReset -= HandleReset;
             }
         }
@@ -262,6 +264,11 @@ namespace VirtualBeeSwarm.Ask
             Apply(Flow.Intent(name));
         }
 
+        void HandleVoiceInputUnavailable(bool hasPermission)
+        {
+            Apply(Flow.MicrophoneUnavailable(hasPermission));
+        }
+
         // ------------------------------------------------------------ frame
         void Update()
         {
@@ -320,7 +327,7 @@ namespace VirtualBeeSwarm.Ask
                      : answer ? AskCardLook.Answer : AskCardLook.Idle;
             if (look != _card.Look) _card.SetLook(look);
             CaptionAway(_card.AnswerShown);
-            _card.Animate(now, Mathf.Clamp01(_net.HumLevel * 3f));
+            _card.Animate(now, _net.VoiceInputLevel);
         }
 
         void LateUpdate()

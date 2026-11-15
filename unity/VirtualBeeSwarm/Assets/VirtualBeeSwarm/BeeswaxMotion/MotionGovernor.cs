@@ -86,6 +86,19 @@ namespace VirtualBeeSwarm
             return c.eye + (dist > 1e-4f ? d / dist : c.forward) * minDist;
         }
 
+        /// <summary>Blend into roof/object clearance before the body reaches the solid's edge.</summary>
+        public static Vector3 KeepAboveSolid(Vector3 point, Bounds solid, float bodyRadius)
+        {
+            if (point.y >= solid.max.y + bodyRadius || point.y < solid.min.y - bodyRadius) return point;
+            float dx = Mathf.Max(0f, Mathf.Abs(point.x - solid.center.x) - solid.extents.x - bodyRadius);
+            float dz = Mathf.Max(0f, Mathf.Abs(point.z - solid.center.z) - solid.extents.z - bodyRadius);
+            float distance = Mathf.Sqrt(dx * dx + dz * dz);
+            if (distance >= 0.22f) return point;
+            float minY = Mathf.Lerp(solid.max.y + bodyRadius, solid.min.y - bodyRadius, Mathf.SmoothStep(0f, 1f, distance / 0.22f));
+            point.y = Mathf.Max(point.y, minY);
+            return point;
+        }
+
         // ------------------------------------------------------------ G3 speed
         /// <summary>Degrees between where the head looks and the direction to p.</summary>
         public static float GazeAngle(Vector3 p, in Ctx c) => Vector3.Angle(c.gaze, p - c.eye);

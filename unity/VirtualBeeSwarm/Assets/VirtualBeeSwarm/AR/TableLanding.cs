@@ -122,6 +122,7 @@ namespace VirtualBeeSwarm.AR
             Vector3 home = _hive != null ? _hive.SwarmCenter.position : transform.position;
             var room = _rig != null ? _rig.Room : null;
 
+            var camera = Camera.main;
             int landed = 0, flying = 0, drawn = 0;
             for (int i = 0; i < _n; i++)
             {
@@ -151,10 +152,11 @@ namespace VirtualBeeSwarm.AR
                             _state[i] = Landed;
                             _until[i] = escape ? float.MaxValue : now + Rand(sitSeconds);
                             TotalLandings++;
+                            if (camera != null) GameSound.BeeLanding(Contact(i), camera.transform.position);
                         }
                         break;
                     case Landed:
-                        if (now >= _until[i]) StartFlight(i, _to[i], Mathf.Clamp(Vector3.Distance(home, _to[i]) / flySpeed, 0.8f, 2.2f), Back);
+                        if (now >= _until[i]) StartFlight(i, Contact(i), Mathf.Clamp(Vector3.Distance(home, _to[i]) / flySpeed, 0.8f, 2.2f), Back);
                         break;
                     case Back:
                         if (now >= _t0[i] + _dur[i])
@@ -234,30 +236,36 @@ namespace VirtualBeeSwarm.AR
             return p;
         }
 
+        Vector3 Contact(int i) => _to[i] + _toNormal[i] * (beeLength * 0.18f);
+
+        Quaternion PerchRotation(int i, float now)
+        {
+            Vector3 up = _toNormal[i];
+            Vector3 tangent = Vector3.ProjectOnPlane(Mathf.Abs(up.y) > 0.9f ? Vector3.forward : Vector3.up, up);
+            float turn = _yaw[i] + Mathf.Sin(now * 0.7f + i) * 8f;
+            return Quaternion.LookRotation(Quaternion.AngleAxis(turn, up) * tangent.normalized, up);
+        }
+
         void Pose(int i, float now, byte s, out Vector3 pos, out Quaternion rot)
         {
             if (s == Landed)
             {
-                pos = _to[i];
-                Vector3 n = _toNormal[i];
-                Vector3 tangent = Quaternion.AngleAxis(_yaw[i], n) * (Mathf.Abs(n.y) > 0.9f ? Vector3.forward : Vector3.up);
-                tangent = Vector3.ProjectOnPlane(tangent, n);
-                // wings still (_WingFlap 0); a tiny walk-turn now and then
-                float turn = Mathf.Sin(now * 0.7f + i) * 8f;
-                rot = Quaternion.LookRotation(Quaternion.AngleAxis(turn, n) * tangent.normalized, n);
-                pos += n * (beeLength * 0.18f);
+                pos = Contact(i);
+                rot = PerchRotation(i, now);
                 return;
             }
             Vector3 a = _from[i];
-            Vector3 b = s == Back ? (_hive != null ? _hive.SwarmCenter.position : transform.position) : _to[i];
+            Vector3 b = s == Back ? (_hive != null ? _hive.SwarmCenter.position : transform.position) : Contact(i);
             float u = Mathf.Clamp01((now - _t0[i]) / Mathf.Max(0.05f, _dur[i]));
             float e = u * u * (3f - 2f * u);
             Vector3 mid = (a + b) * 0.5f + Vector3.up * (0.08f + 0.15f * Vector3.Distance(a, b));
             Vector3 p0 = Vector3.Lerp(a, mid, e), p1 = Vector3.Lerp(mid, b, e);
             pos = Vector3.Lerp(p0, p1, e);
-            pos += new Vector3(Mathf.Sin(now * 13f + i), Mathf.Sin(now * 11f + i * 2f), Mathf.Cos(now * 12f + i)) * 0.006f;
+            pos += new Vector3(Mathf.Sin(now * 13f + i), Mathf.Sin(now * 11f + i * 2f), Mathf.Cos(now * 12f + i)) * (0.006f * Mathf.Sin(u * Mathf.PI));
             Vector3 vel = p1 - p0;
             rot = vel.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(vel.normalized, Vector3.up) : Quaternion.identity;
+            if (s == Out)
+                rot = Quaternion.Slerp(rot, PerchRotation(i, now), Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.7f, 1f, u)));
         }
     }
 }

@@ -14,6 +14,24 @@ namespace VirtualBeeSwarm.Tests
 
         static MotionGovernor.Ctx Ctx(Vector3 gazeAt) => MotionGovernor.Ctx.Make(Eye, gazeAt - Eye, Hive);
 
+        [Test]
+        public void SolidClearanceRaisesTheBeeWithoutAccumulatingHeight()
+        {
+            var hive = new Bounds(Vector3.up * 0.5f, Vector3.one);
+            const float radius = 0.075f;
+            var crossing = new Vector3(0f, 0.6f, 0f);
+            var atEdge = new Vector3(hive.max.x + radius + 0.09f, 0.3f, 0f);
+            var clear = new Vector3(2f, 0.6f, 0f);
+
+            Assert.That(MotionGovernor.KeepAboveSolid(crossing, hive, radius).y,
+                Is.EqualTo(hive.max.y + radius).Within(0.0001f));
+            Vector3 eased = MotionGovernor.KeepAboveSolid(atEdge, hive, radius);
+            Assert.Greater(eased.y, atEdge.y);
+            Assert.Less(eased.y, hive.max.y + radius);
+            Assert.AreEqual(eased, MotionGovernor.KeepAboveSolid(eased, hive, radius));
+            Assert.AreEqual(clear, MotionGovernor.KeepAboveSolid(clear, hive, radius));
+        }
+
         // ------------------------------------------------------------ G1 / G2
         [Test]
         public void Distance_PushesOutToSoftAndHard()

@@ -93,6 +93,7 @@ namespace VirtualBeeSwarm
         public event Action GroupReset;
         public event Action<string, bool> TranscriptReceived;      // (text, final)
         public event Action<string, string, string> IntentReceived; // (name, topic or "", text)
+        public event Action<bool> VoiceInputUnavailable;          // microphone permission granted?
         public event Action<string, int, int> FxReceived;          // (name, delay_ms or -1, duration_ms or -1)
         public event Action<string> SceneChanged;                  // window scene (local request, or the Hive's orbis{scene})
         public event Action<float> OperatorHeat;                   // hum.set from the Board (0..1)
@@ -124,10 +125,11 @@ namespace VirtualBeeSwarm
         public bool OrbisIsLive => orbis != null && orbis.IsLive;
         public bool HasVoiceInput => voiceInput != null;
         public bool Talking => voiceInput != null && voiceInput.IsTalking;
+        public float VoiceInputLevel => voiceInput != null ? voiceInput.Level : 0f;
         /// <summary>The mic is taking the player's voice (push-to-talk / VAD) or the hornet's hum: game sound stays silent.</summary>
         public bool MicListening => (voiceInput != null && (voiceInput.IsTalking || voiceInput.IsDucking)) || (hum != null && hum.Listening);
-        /// <summary>Between the end of an utterance and its intent: show "thinking...".</summary>
-        public bool AwaitingReply => voiceInput != null && voiceInput.AwaitingReply;
+        /// <summary>Between the end of an utterance and its intent, including reconnect delivery.</summary>
+        public bool AwaitingReply => voiceInput != null && (voiceInput.Delivering || voiceInput.AwaitingReply);
         public string HostName => _bound != null ? _bound.CurrentHost : "";
         /// <summary>PreloadVoice has finished (or there is no BeeswaxRoomVoice, so nothing to load).</summary>
         public bool VoicePreloadDone { get; private set; }
@@ -622,6 +624,7 @@ namespace VirtualBeeSwarm
             if (forceOffline || voiceInput == null || _bound == null) return false;
             bool ok = voiceInput.BeginTalk();
             if (ok && logEvents) Debug.Log("[VBS] talk start");
+            if (!ok) VoiceInputUnavailable?.Invoke(Beeswax.BeeswaxMic.HasPermission);
             return ok;
         }
 

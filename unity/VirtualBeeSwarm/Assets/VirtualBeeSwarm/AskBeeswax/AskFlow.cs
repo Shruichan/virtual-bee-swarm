@@ -35,11 +35,13 @@ namespace VirtualBeeSwarm.Ask
     /// </summary>
     public sealed class AskFlow
     {
-        public const string StatusIdle = "Hold the pinch and talk";
-        public const string StatusListening = "Listening...";
-        public const string StatusShort = "Hold the pinch while you talk";
-        public const string StatusNotHeard = "Didn't catch that. Hold the pinch while you talk.";
+        public const string StatusIdle = "Hold to talk, release to send";
+        public const string StatusListening = "Listening. Release to send.";
+        public const string StatusShort = "Hold while you talk, then release.";
+        public const string StatusNotHeard = "Didn't catch that. Try again or pick a question.";
         public const string StatusOffline = "Can't reach the hive. Poke a question.";
+        public const string StatusMicPermission = "Allow microphone access or pick a question.";
+        public const string StatusMicUnavailable = "Mic unavailable. Pick a question.";
         public static readonly string[] StatusThinking = { "Checking the spreadsheet", "Checking the spreadsheet.", "Checking the spreadsheet..", "Checking the spreadsheet..." };
 
         public bool BargeIn = true;
@@ -102,6 +104,13 @@ namespace VirtualBeeSwarm.Ask
             return StartThinking(now);
         }
 
+        public AskCue MicrophoneUnavailable(bool hasPermission)
+        {
+            return State == AskState.Idle
+                ? SetStatus(hasPermission ? StatusMicUnavailable : StatusMicPermission)
+                : AskCue.None;
+        }
+
         /// <summary>A press while the Hive is unreachable: Beeswax says so (the card's chips still work).</summary>
         public AskCue OfflinePress(float now)
         {
@@ -130,6 +139,7 @@ namespace VirtualBeeSwarm.Ask
         public AskCue Transcript(string text, bool final, float now)
         {
             if (!final || !IsOpen || !_expectReply) return AskCue.None;
+            _sawAwaiting = true; // Fast replies may arrive before Tick sees the pending flag.
             if (string.IsNullOrEmpty(text) || text.Trim().Length == 0)
             {
                 _noCount = true;
