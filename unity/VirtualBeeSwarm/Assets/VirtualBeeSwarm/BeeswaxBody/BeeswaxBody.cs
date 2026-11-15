@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -101,7 +102,10 @@ namespace VirtualBeeSwarm
         [Tooltip("Gap log every 0.5 s and the exact per-frame measuring (the summary). On in the editor, batch runs and VBS_BODY_DUMP=1.")]
         public bool logGaps;
         static readonly bool _dump = Environment.GetEnvironmentVariable("VBS_BODY_DUMP") == "1";
-        static bool MeasureByDefault => Application.isEditor || Application.isBatchMode || _dump;
+        // [perf] off in Play mode over Link (headset profile): measuring every frame costs more than the collision itself.
+        // VBS_BODY_MEASURE=1/0 forces it.
+        static bool MeasureByDefault => Environment.GetEnvironmentVariable("VBS_BODY_MEASURE") is string m && m.Length > 0 ? m == "1"
+            : _dump || Application.isBatchMode || (Application.isEditor && !QuestPerf.On);
 
         public bool Active => collide && enabled && _ready && !_failed;
 
@@ -327,6 +331,11 @@ namespace VirtualBeeSwarm
             try { Frame(); } catch (Exception e) { _rocketClr = float.PositiveInfinity; Fail("frame", e); }
         }
 
+        // profiler markers (PerfProbe logs them per beat in development players)
+        static readonly ProfilerMarker MScan = new ProfilerMarker("VBS.Body.Scan"), MObs = new ProfilerMarker("VBS.Body.Obstacles"),
+            MRes = new ProfilerMarker("VBS.Body.Resolve"), MMeas = new ProfilerMarker("VBS.Body.Measure"),
+            MGoal = new ProfilerMarker("VBS.Body.Goal"), MSteer = new ProfilerMarker("VBS.Body.Steer");
+
         void Frame()
         {
             if (!_ready)
@@ -337,10 +346,10 @@ namespace VirtualBeeSwarm
                 _nextScan = Time.time + 1f;
             }
             float dt = Mathf.Min(Time.deltaTime, 1f / 20f);
-            if (Time.time >= _nextScan) { _nextScan = Time.time + 1f; ScanObstacles(); }
+            if (Time.time >= _nextScan) { _nextScan = Time.time + 1f; using (MScan.Auto()) ScanObstacles(); }
             CaptureRest(); // every frame, in every state: a rescale while he is inside or seated is followed too
             UpdateSize();
-            UpdateObstacles(Time.deltaTime);
+            using (MObs.Auto()) UpdateObstacles(Time.deltaTime);
 
             Vector3 root = transform.position;
             Vector3 rootL = ToLocalP(root);
@@ -398,10 +407,11 @@ namespace VirtualBeeSwarm
             BodyCapsule(out Vector3 a0, out Vector3 b0, out float r);
             a0 += lag; b0 += lag;
             _holdingClip = attached && !ride;
-            if (logGaps) _nomGap = MinGap(a0, b0, r, mask, 0f, out _nomGroup);
+            if (logGaps) using (MMeas.Auto()) _nomGap = MinGap(a0, b0, r, mask, 0f, out _nomGroup);
 
             Vector3 sep;
             if (collide)
+            using (MRes.Auto())
             {
                 // soft: the spring keeps the margin; hard: never inside (velocity into the obstacle is cancelled)
                 Vector3 soft = Resolve(a0, b0, r, _margin, mask, out int sg, out Vector3 sn);
@@ -458,7 +468,7 @@ namespace VirtualBeeSwarm
                 _appliedAtL = transform.localPosition;
                 _hasApplied = true;
             }
-            Measure(true, mask, ride, climbing);
+            using (MMeas.Auto()) Measure(true, mask, ride, climbing);
             if (_dump && Time.time >= _nextDump) { _nextDump = Time.time + 5f; DumpParts(); }
         }
 
@@ -524,6 +534,7 @@ namespace VirtualBeeSwarm
                     Vector3 keep = raw + (_gOut - _gRaw);
                     if (ClearAt(keep, FaceRot(keep), 0.8f * _margin, GoalMask)) { _gRaw = raw; _gOut = keep; _gFrame = Time.frameCount; _gNext = Time.time + 0.25f; return keep; }
                 }
+                using var _mg = MGoal.Auto();
                 Vector3 g = gt != null && IsRocket(gt) ? SeatSpot(gt, raw, out int why) : Project(raw, UpOnly(gt), GoalMask, out why);
                 float moved = Vector3.Distance(g, raw);
                 bool news = !same || (g - _gOut).sqrMagnitude > Sq(0.25f * _margin);
@@ -747,6 +758,7 @@ namespace VirtualBeeSwarm
                 {
                     _stGoal = goal;
                     _stNext = Time.time + 0.3f;
+                    using var _ms = MSteer.Auto();
                     int n = SampleLine(from, goal, goal, _stPts);
                     SweepGap(_stPts, n, PathThreshold, out int i0, out int i1, out _);
                     _stHasWay = false;
