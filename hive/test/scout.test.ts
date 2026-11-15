@@ -1230,7 +1230,7 @@ describe("teacher + reset routes", () => {
 
 // ---------------------------------------------------------------- any-questions, multi-line intro and finale
 
-describe("any-questions line and multi-line intro / finale", () => {
+describe("quiet after facts (any-q lines loaded but never said), empty chime, multi-line intro / finale", () => {
   const EXTRA: ScoutLine[] = [
     { id: "scout_any_q_1", kind: "any_q", text: "Any questions?" },
     { id: "scout_any_q_2", kind: "any_q", text: "Questions? Ask away." },
@@ -1241,7 +1241,7 @@ describe("any-questions line and multi-line intro / finale", () => {
     { id: "scout_booth_done_2", kind: "done", text: "Booth done two." },
   ];
 
-  test("practice: an any-q line after each fact, taking turns", () => {
+  test("practice: no any-q line after facts, even when the lines exist", () => {
     const s = setup({ extra: EXTRA });
     s.game.setPractice(true);
     begin(s);
@@ -1251,13 +1251,22 @@ describe("any-questions line and multi-line intro / finale", () => {
     s.advance(5000);
     s.game.force("bug_spray");
     expect(s.ids()).toEqual([
-      "scout_chime", "scout_fact_beehive", "scout_any_q_1",
-      "scout_chime", "scout_fact_honey_jar", "scout_any_q_2",
-      "scout_chime", "scout_fact_bug_spray", "scout_any_q_1",
+      "scout_chime", "scout_fact_beehive",
+      "scout_chime", "scout_fact_honey_jar",
+      "scout_chime", "scout_fact_bug_spray",
     ]);
   });
 
-  test("practice: the sixth badge -> fact, any-q, then every finale line", () => {
+  test("an empty scout_chime is skipped (the chime folded into the fact opener)", () => {
+    const s = setup({ extra: [{ id: "scout_chime", kind: "chime", text: "" }] });
+    s.game.setPractice(true);
+    begin(s);
+    s.look("beehive", T.steadyMs);
+    expect(s.ids()).toEqual(["scout_fact_beehive"]);
+    expect(s.events.some((e) => e.type === "found")).toBe(true);
+  });
+
+  test("practice: the sixth badge -> fact, then every finale line", () => {
     const s = setup({ extra: EXTRA });
     s.game.setPractice(true);
     begin(s);
@@ -1266,10 +1275,10 @@ describe("any-questions line and multi-line intro / finale", () => {
       s.game.force(l);
       s.advance(8000);
     }
-    expect(s.ids()).toEqual(["scout_chime", "scout_fact_bee_hotel", "scout_any_q_2", "scout_done", "scout_done_2", "scout_done_3"]);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_bee_hotel", "scout_done", "scout_done_2", "scout_done_3"]);
   });
 
-  test("booth: fact, any-q, direction; the last station plays every booth finale line", () => {
+  test("booth: fact, direction; the last station plays every booth finale line", () => {
     const s = setup({ extra: EXTRA });
     s.game.setMode("booth", ["honey_jar", "beehive"]);
     begin(s);
@@ -1277,8 +1286,8 @@ describe("any-questions line and multi-line intro / finale", () => {
     s.advance(6000);
     s.game.force();
     expect(s.ids()).toEqual([
-      "scout_chime", "scout_fact_honey_jar", "scout_any_q_1", "scout_next_beehive",
-      "scout_chime", "scout_fact_beehive", "scout_any_q_2", "scout_booth_done", "scout_booth_done_2",
+      "scout_chime", "scout_fact_honey_jar", "scout_next_beehive",
+      "scout_chime", "scout_fact_beehive", "scout_booth_done", "scout_booth_done_2",
     ]);
   });
 
@@ -1292,7 +1301,7 @@ describe("any-questions line and multi-line intro / finale", () => {
     expect(s.ids()).toEqual(["scout_booth_intro", "scout_booth_intro_2"]);
   });
 
-  test("demo: no any-q (unchanged), the finale plays every done line", () => {
+  test("demo: the finale plays every done line", () => {
     const s = begin(setup({ extra: EXTRA }));
     for (const l of SCOUT_LABELS) {
       s.says.length = 0;
