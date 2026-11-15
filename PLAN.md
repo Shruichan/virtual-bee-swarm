@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (generic prefab spawner added; headset hookup/testing pending)
+  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; optional generic spawner is table-only; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1440,3 +1440,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 15:38 PT · Nam Nguyen (agent) · Confirmed Windows sleep timeout is Never on AC and DC. Could not confirm physical power connection; a different Unity project is still open, so I left it untouched and did not start a competing import. → Nam: confirm power and close the other Unity project when ready for S1.9 import.
 - 2026-11-14 15:41 PT · Nam Nguyen (agent) · Started and completed a Unity 6000.2.9f1 batch import of `unity/VirtualBeeSwarm`; Asset Database refresh completed, exit code 0, no asset changes or C# compiler errors. This was a warm import, not S1.9's fresh-clone verification. → team
 - 2026-11-14 15:53 PT · Nam Nguyen (agent) · Reviewing S3.3 against the generic `SpawnObject` work in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`; the plan's P0 path is two-point table calibration (controller tip, grab-and-drop fallback), while aim-and-pinch is V7 SHOULD. → team
+- 2026-11-14 15:53 PT · Nam Nguyen (agent) · Updated optional `SpawnObject` to require the calibrated pre-beat table, fit the plan's placement box, snap near-table hits to table height, and parent spawned props to `TableAnchor`; `HivePlacement` remains the S3.3 calibration path. Editor diagnostics are clean; Quest/recenter checks remain. → team
