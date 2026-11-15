@@ -323,6 +323,37 @@ const DASHBOARD = `<!doctype html>
   #checklist .none { color: var(--mute); font-style: italic; padding: .6rem 0; }
   #checksbtn.on { color: var(--text); border-color: var(--honey); }
 
+  /* detection log (vision worker /debug/recent) */
+  #dlog { position: fixed; left: 1.6rem; right: 1.6rem; bottom: 3.7rem; height: 52vh; z-index: 15; display: none; flex-direction: column; gap: .6rem;
+    background: rgba(24, 18, 10, .97); border: 1px solid var(--honey); border-radius: 1rem; padding: .8rem 1rem 1rem; box-shadow: 0 -1rem 3rem rgba(0,0,0,.6); }
+  #dlog.on { display: flex; }
+  #dlog .cardhead { margin: 0; align-items: center; }
+  #dlstat { color: var(--dim); font-size: .85rem; font-weight: 600; margin-right: auto; margin-left: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #dlstat.err { color: var(--bad); }
+  .legend { display: flex; gap: .5rem; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  .legend i { font-style: normal; padding: .15rem .55rem; border-radius: 999px; border: 2px solid; }
+  .legend .lf { border-color: var(--amber); color: var(--amber); } .legend .ld { border-color: var(--bad); color: var(--bad); }
+  #dlgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+  #dlgrid .none { grid-column: 1 / -1; grid-row: 1 / -1; display: grid; place-items: center; color: var(--mute); font-style: italic; font-size: 1.1rem; text-align: center; }
+  .dl { border: 2px solid var(--line); border-radius: .7rem; overflow: hidden; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel2); }
+  .dl .th { position: relative; flex: 1; min-height: 0; background: #000; }
+  .dl .th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .dl .th .noimg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: .8rem; }
+  .dl .lb { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.1rem .5rem .3rem; background: linear-gradient(transparent, rgba(0,0,0,.88));
+    font-size: 1.2rem; font-weight: 900; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl .lb small { font-size: .85rem; color: var(--amber); margin-left: .3rem; }
+  .dl .lb.bgl { color: var(--dim); font-style: italic; }
+  .dl time { position: absolute; top: .3rem; right: .35rem; font-size: .7rem; font-weight: 700; color: var(--dim); background: rgba(0,0,0,.65); padding: .05rem .35rem; border-radius: .3rem; }
+  .dl .flag { position: absolute; top: .3rem; left: .35rem; font-size: .66rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; padding: .1rem .4rem; border-radius: .3rem; display: none; }
+  .dl .mt { padding: .3rem .5rem .35rem; font-size: .8rem; line-height: 1.35; }
+  .dl .mt div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .dl .mt b { color: var(--mute); font-size: .66rem; letter-spacing: .1em; margin-right: .3rem; }
+  .dl .mt .dim { color: var(--mute); }
+  .dl.dis { border-color: var(--bad); } .dl.dis .flag.fd { display: block; background: var(--bad); color: #2b0703; }
+  .dl.fire { border-color: var(--amber); box-shadow: 0 0 1rem rgba(255, 211, 107, .45); } .dl.fire .flag.ff { display: block; background: var(--amber); color: #2a1802; }
+  .dl.fire.dis .flag.fd { top: 1.5rem; }
+  #dlogbtn.on { color: var(--text); border-color: var(--honey); }
+
   /* enrol drawer */
   #enrol { position: fixed; top: 0; right: 0; bottom: 0; width: 30rem; max-width: 92vw; z-index: 20; background: #1b140c; border-left: 1px solid var(--line);
     box-shadow: -2rem 0 4rem rgba(0,0,0,.6); padding: 1.6rem; display: flex; flex-direction: column; gap: 1rem; transform: translateX(105%); transition: transform .3s; overflow-y: auto; }
@@ -402,9 +433,15 @@ const DASHBOARD = `<!doctype html>
   <span class="chip" id="hstream"><i></i>Stream: <b>-</b></span>
   <span class="chip" id="hvision"><i></i>Vision: <b>-</b></span>
   <span id="refs"></span>
+  <button class="ghost" id="dlogbtn" title="Every detection from the vision worker (D)">Detections</button>
   <button class="ghost" id="checksbtn" title="Slide check panel (S)">Slide check</button>
   <button class="ghost" id="enrolbtn" title="Enrol references (E)">Calibrate</button>
 </footer>
+<section id="dlog">
+  <div class="cardhead"><span class="label">Detection log &middot; last 12 from the vision worker</span><span id="dlstat">-</span>
+    <span class="legend"><i class="lf">fired</i><i class="ld">OCR &ne; SIFT</i></span><button class="ghost" id="dlogclose">Close (D)</button></div>
+  <div id="dlgrid"><div class="none">Waiting for the vision worker...</div></div>
+</section>
 <div id="bigclock"><b id="bigtime">00:00:00.000</b><span>Point the glasses at this clock: the video shows it a little late. The gap is the full glass-to-screen delay. (T hides it)</span></div>
 <aside id="enrol">
   <div class="cardhead"><h2>Calibrate</h2><button class="ghost" id="enrolclose">Close (Esc)</button></div>
@@ -413,7 +450,7 @@ const DASHBOARD = `<!doctype html>
   <div id="enrolmsg"></div>
   <div class="label">References per label</div>
   <table id="reftable"></table>
-  <p class="kbd">Keys: M mirror audio &middot; S slide check &middot; T latency clock &middot; E calibrate &middot; Esc close</p>
+  <p class="kbd">Keys: M mirror audio &middot; S slide check &middot; D detection log &middot; T latency clock &middot; E calibrate &middot; Esc close</p>
 </aside>
 <script>
 (function () {
@@ -858,6 +895,77 @@ const DASHBOARD = `<!doctype html>
       .catch(function () { btn.classList.toggle("on", !on); btn.classList.add("err"); });
   });
 
+  // ------------------------------------------------------------------ detection log: what the vision worker decided, frame by frame
+  // GET <vision>/debug/recent -> newest first [{t, ocr: [..], ocr_label, sift: [{label, inliers}], final_label, score, img}]
+  var founds = [], dlOn = false, dlTimer = null, dlSig = "", dlOkAt = 0;
+  function msOf(t) { return typeof t === "number" ? (t < 1e12 ? t * 1000 : t) : Date.parse(t) || 0; }
+  function lname(l) { return l ? short(l) : "-"; }
+  function dlStat(t, err) { var e = $("dlstat"); e.textContent = t; e.className = err ? "err" : ""; }
+  function pollDebug() {
+    dlTimer = null;
+    if (!dlOn) return;
+    var ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 2500);
+    fetch(VISION + "/debug/recent", { cache: "no-store", signal: ctl.signal }).then(function (r) {
+      clearTimeout(to);
+      if (r.status === 404) throw new Error("the vision worker has no /debug/recent yet (404)");
+      if (!r.ok) throw new Error("/debug/recent answered HTTP " + r.status);
+      return r.json();
+    }).then(function (list) {
+      list = (Array.isArray(list) ? list : (list && (list.recent || list.items)) || []).slice(0, 12);
+      dlOkAt = Date.now();
+      dlStat(list.length + " detections \u00b7 updated " + hhmmss(dlOkAt), false);
+      renderDebug(list);
+    }).catch(function (e) {
+      clearTimeout(to);
+      dlStat(e && e.name !== "AbortError" && e.message && e.message.indexOf("debug") >= 0 ? e.message : "vision worker not reachable at " + VISION, true);
+    }).then(function () { if (dlOn && !dlTimer) dlTimer = setTimeout(pollDebug, 1000); });
+  }
+  function renderDebug(list) {
+    var sig = list.map(function (d) { return (d.t || "") + (d.img || ""); }).join("|") + "#" + founds.length;
+    if (sig === dlSig) return;
+    dlSig = sig;
+    var g = $("dlgrid"); g.textContent = "";
+    if (!list.length) { g.appendChild(el("div", "none", "No detections yet. Point the glasses at something.")); return; }
+    list.forEach(function (d) {
+      var t = msOf(d.t), fl = d.final_label, sift = Array.isArray(d.sift) ? d.sift.slice().sort(function (a, b) { return (b.inliers || 0) - (a.inliers || 0); }) : [];
+      var siftTop = sift[0] && sift[0].label, dis = !!(d.ocr_label && siftTop && d.ocr_label !== siftTop);
+      var fire = !!fl && founds.some(function (f) { return f.label === fl && Math.abs(f.at - t) <= 1000; });
+      var card = el("div", "dl" + (dis ? " dis" : "") + (fire ? " fire" : ""));
+      var th = el("div", "th");
+      if (d.img) {
+        var img = el("img"); img.alt = ""; img.loading = "lazy";
+        img.src = /^https?:/.test(d.img) ? d.img : VISION + (d.img.charAt(0) === "/" ? "" : "/") + d.img;
+        img.onerror = function () { img.remove(); th.insertBefore(el("div", "noimg", "no image"), th.firstChild); };
+        th.appendChild(img);
+      } else th.appendChild(el("div", "noimg", "no image"));
+      var bgl = !fl || fl === CFG.BACKGROUND, lb = el("div", "lb" + (bgl ? " bgl" : ""), bgl ? "background" : lname(fl));
+      if (typeof d.score === "number") lb.appendChild(el("small", "num", pct(d.score)));
+      th.appendChild(lb);
+      if (t) th.appendChild(el("time", "num", hhmmss(t)));
+      th.appendChild(el("span", "flag ff", "fired"));
+      th.appendChild(el("span", "flag fd", "OCR \u2260 SIFT"));
+      card.appendChild(th);
+      var mt = el("div", "mt"), o = el("div"), sf = el("div");
+      var words = Array.isArray(d.ocr) ? d.ocr.filter(Boolean) : [];
+      o.appendChild(el("b", "", "OCR"));
+      if (d.ocr_label) o.appendChild(document.createTextNode(lname(d.ocr_label) + " "));
+      if (words.length) o.appendChild(el("span", "dim", "\u201c" + words.slice(0, 4).join(" ") + "\u201d"));
+      else o.appendChild(el("span", "dim", "nothing"));
+      sf.appendChild(el("b", "", "SIFT"));
+      if (sift.length) sf.appendChild(document.createTextNode(sift.slice(0, 2).map(function (x) { return lname(x.label) + " " + (x.inliers || 0); }).join(" \u00b7 ")));
+      else sf.appendChild(el("span", "dim", "no match"));
+      mt.appendChild(o); mt.appendChild(sf); card.appendChild(mt);
+      g.appendChild(card);
+    });
+  }
+  function setDlog(on) {
+    dlOn = on; $("dlog").classList.toggle("on", on); $("dlogbtn").classList.toggle("on", on);
+    if (on) { dlSig = ""; if (!dlTimer) pollDebug(); }
+    else if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
+  }
+  $("dlogbtn").addEventListener("click", function () { setDlog(!dlOn); });
+  $("dlogclose").addEventListener("click", function () { setDlog(false); });
+
   // ------------------------------------------------------------------ Hive events
   function handle(ev) {
     if (!ev || !ev.type) return;
@@ -871,7 +979,7 @@ const DASHBOARD = `<!doctype html>
       case "slide": onSlide(ev); checkSlide(ev); addLog("slide", "slide", ev.label == null ? "blank screen" : name(ev.label), ev.at); break;
       case "blocked": checkBlocked(ev); addLog("blocked", "silent", name(ev.label) + ": " + (BLOCKED[ev.reason] || ev.reason), ev.at); break;
     }
-    if (ev.type === "found") checkFound(ev);
+    if (ev.type === "found") { checkFound(ev); founds.push({ label: ev.label, at: ev.at || Date.now() }); if (founds.length > 40) founds.shift(); dlSig = ""; }
     if (ev.type === "latency" && ev.hop === "slide_to_found") checkS2F(ev.ms);
   }
   function fetchState() {
@@ -1033,6 +1141,7 @@ const DASHBOARD = `<!doctype html>
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
     else if (e.key === "s" || e.key === "S") $("checksbtn").click();
     else if (e.key === "t" || e.key === "T") toggleBig();
+    else if (e.key === "d" || e.key === "D") setDlog(!dlOn);
     else if (e.key === "e" || e.key === "E") openEnrol(!$("enrol").classList.contains("on"));
     else if (e.key === "Escape") openEnrol(false);
   });
