@@ -47,7 +47,12 @@ namespace VirtualBeeSwarm
         bool _launched, _landed;
         bool _hasLaunchPose;
         Pose _launchPose, _crashPose;
+        Vector3 _launchScale;
         Transform _facingSeat;
+        HiveBody _hive;
+
+        const float BoardScale = 0.85f;
+        const float FlightScale = 1.25f;
 
         public bool MoonAwardVisible { get; private set; }
 
@@ -59,6 +64,7 @@ namespace VirtualBeeSwarm
             if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
+            _hive = FindAnyObjectByType<HiveBody>();
             if (rocket != null) { _rocketHomePos = rocket.localPosition; _rocketHomeRot = rocket.localRotation; }
             if (earth != null) _earthHome = earth.localPosition;
             if (moon != null) { _moonScale = moon.transform.localScale; _moonHome = moon.transform.localPosition; }
@@ -93,6 +99,7 @@ namespace VirtualBeeSwarm
                         rocket.SetPositionAndRotation(item.HomePosition, item.HomeRotation);
                     else
                         rocket.SetLocalPositionAndRotation(_launchPose.position, _launchPose.rotation);
+                    rocket.localScale = _launchScale;
                 }
                 if (earth != null) earth.localPosition = _earthHome;
                 if (dustPuff != null) dustPuff.Clear();
@@ -100,7 +107,11 @@ namespace VirtualBeeSwarm
             }
             else
             {
-                if (rocket != null) _launchPose = new Pose(rocket.localPosition, rocket.localRotation);
+                if (rocket != null)
+                {
+                    _launchPose = new Pose(rocket.localPosition, rocket.localRotation);
+                    _launchScale = rocket.localScale;
+                }
                 _hasLaunchPose = true;
             }
             _launched = _landed = MoonAwardVisible = false;
@@ -110,6 +121,15 @@ namespace VirtualBeeSwarm
         IEnumerator Run()
         {
             if (swarm != null && swarm.Mode == SwarmMode.PourOut) swarm.SetMode(SwarmMode.Calm);
+            Vector3 flyAway = Vector3.forward;
+            if (rocket != null)
+            {
+                rocket.position = RevealPosition(out flyAway);
+                rocket.localScale = _launchScale * 0.22f;
+                rocket.gameObject.SetActive(true);
+                RevealBurst(flyAway);
+                yield return ScaleTo(rocket, _launchScale * BoardScale, 0.8f);
+            }
             // V16: to his perch on the rocket first, then the line
             var perch = Perch();
             if (beeswax != null && perch != null)
@@ -143,6 +163,7 @@ namespace VirtualBeeSwarm
             }
             if (LaunchGate != null) yield return LaunchGate(rocketDisplay); // HANDSON hook
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
+            if (rocket != null) yield return ScaleTo(rocket, _launchScale * FlightScale, 0.65f);
 
             // launch
             _launched = true;
@@ -164,7 +185,8 @@ namespace VirtualBeeSwarm
                 while (Time.time - start < launchSeconds)
                 {
                     float k = (Time.time - start) / launchSeconds;
-                    rocket.position = from + Vector3.up * (k * k * height) + Vector3.right * (Mathf.Sin(Time.time * 25f) * 0.003f);
+                    float travel = k * k;
+                    rocket.position = from + (Vector3.up * height + flyAway * 0.55f) * travel;
                     SetDim(Mathf.Lerp(0f, passthroughDim, Mathf.Clamp01(k * 1.5f)));
                     if (earth != null) earth.localPosition = _earthHome + Vector3.up * (earthRise * k * 0.5f);
                     yield return null;
@@ -188,6 +210,7 @@ namespace VirtualBeeSwarm
             if (rocket != null)
             {
                 _crashPose = GetCrashPose();
+                rocket.localScale = _launchScale;
                 rocket.gameObject.SetActive(true);
                 Vector3 from = _crashPose.position + Vector3.up * 1.2f;
                 float start = Time.time;
@@ -261,6 +284,53 @@ namespace VirtualBeeSwarm
             return _facingSeat;
         }
 
+        Vector3 RevealPosition(out Vector3 flyAway)
+        {
+            var cam = Camera.main;
+            Transform head = beeswax != null ? beeswax.HeadTransform : null;
+            if (head == null && cam != null) head = cam.transform;
+            Vector3 top = _hive != null ? _hive.SwarmCenter.position + Vector3.up * 0.35f
+                                        : rocket.position + Vector3.up * 0.5f;
+            if (_hive != null && _hive.TryGetBodyBounds(out var frame, out var bounds))
+            {
+                Matrix4x4 toWorld = frame.localToWorldMatrix;
+                top = toWorld.MultiplyPoint3x4(bounds.center);
+                top.y += Mathf.Abs(toWorld.m10) * bounds.extents.x +
+                         Mathf.Abs(toWorld.m11) * bounds.extents.y +
+                         Mathf.Abs(toWorld.m12) * bounds.extents.z;
+            }
+
+            Vector3 offset = head != null ? Vector3.ProjectOnPlane(top - head.position, Vector3.up) : Vector3.forward;
+            flyAway = offset.sqrMagnitude > 1e-4f ? offset.normalized : Vector3.forward;
+            // A small viewer-relative depth offset keeps the rocket over the hive when the player leans in.
+            top += flyAway * Mathf.Clamp(0.9f - offset.magnitude, -0.10f, 0.25f);
+            Vector3 forward = Vector3.ProjectOnPlane(rocket.forward, Vector3.up);
+            rocket.rotation = Quaternion.LookRotation(forward.sqrMagnitude > 1e-4f ? forward : flyAway, Vector3.up);
+            var item = rocket.GetComponent<DeliveryItem>();
+            if (item != null && !item.measured) item.Measure();
+            float floorOffset = item != null && item.measured
+                ? Mathf.Max(0f, -item.localBounds.min.y * Mathf.Abs(rocket.lossyScale.y) * FlightScale)
+                : 0.08f;
+            return top + Vector3.up * (floorOffset + 0.14f);
+        }
+
+        void RevealBurst(Vector3 flyAway)
+        {
+            var fx = FindAnyObjectByType<Juice.JuiceParticles>();
+            Vector3 origin = rocket.position - flyAway * 0.16f + Vector3.up * 0.07f;
+            if (fx != null)
+            {
+                fx.Burst(origin, 30, new Color(1f, 0.74f, 0.22f), 0.95f, 0.85f, 0.024f, 0.45f);
+                fx.Ring(origin, -flyAway, 18, new Color(1f, 0.94f, 0.70f), 1.15f, 0.55f, 0.022f);
+            }
+            else if (dustPuff != null)
+            {
+                dustPuff.transform.position = origin;
+                dustPuff.Emit(24);
+            }
+            Debug.Log("[VBS][T0] rocket revealed above hive at " + rocket.position.ToString("F2"));
+        }
+
         Transform Perch()
         {
             if (rocketPerch != null) return rocketPerch;
@@ -301,6 +371,7 @@ namespace VirtualBeeSwarm
             SetActive(flame, false);
             SetActive(moon, false);
             if (rocket != null && !rocket.gameObject.activeSelf) rocket.gameObject.SetActive(true);
+            if (rocket != null) rocket.localScale = _launchScale;
             if (_launched && !_landed)
             {
                 if (rocket != null) PutRocketDown();
@@ -308,6 +379,8 @@ namespace VirtualBeeSwarm
             }
             else if (_landed && rocket != null)
                 rocket.SetPositionAndRotation(_crashPose.position, _crashPose.rotation);
+            else if (rocket != null)
+                rocket.SetLocalPositionAndRotation(_launchPose.position, _launchPose.rotation);
             if (beeswax != null) { beeswax.Detach(); beeswax.SetVisible(true); }
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
         }
@@ -336,6 +409,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnResetState()
         {
+            if (rocket != null && _hasLaunchPose) rocket.localScale = _launchScale;
             _hasLaunchPose = false;
             MoonAwardVisible = false;
             SetDim(0f);

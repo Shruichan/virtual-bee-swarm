@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using VirtualBeeSwarm.Stakes;
 
 namespace VirtualBeeSwarm
 {
@@ -49,6 +50,7 @@ namespace VirtualBeeSwarm
         public bool Grabbable => LiftEnabled && isActiveAndEnabled;
         public bool Held { get; private set; }
         public float LiftHeight { get; private set; }
+        public int ShakeCount { get; private set; }
         internal bool LiftReported => _liftReported;
         public Transform DoorPoint => doorPoint != null ? doorPoint : transform;
         public Transform SwarmCenter => swarmCenter != null ? swarmCenter : transform;
@@ -85,6 +87,9 @@ namespace VirtualBeeSwarm
         Vector3 _restPos;
         Quaternion _restRot;
         Vector3 _grabStart;
+        Vector3 _shakeSample, _shakeDirection;
+        float _shakeSampleAt, _shakeDirectionAt, _nextShakeAt, _shakeUntil;
+        const float ShakeDuration = 0.33f;
         bool _liftReported, _keyLift;
         float _doorTarget, _heatTarget, _sick, _sickTarget;
         Color _lastBody = new Color(-1f, 0f, 0f, 0f);
@@ -131,6 +136,8 @@ namespace VirtualBeeSwarm
             Held = false;
             _keyLift = false;
             LiftHeight = 0f;
+            ShakeCount = 0;
+            _shakeUntil = _nextShakeAt = 0f;
             liftRoot.localPosition = _restPos;
             liftRoot.localRotation = _restRot;
             _doorTarget = doorNormal;
@@ -146,15 +153,45 @@ namespace VirtualBeeSwarm
             Held = true;
             _grabStart = grabPoint;
             _liftReported = false;
+            _shakeSample = grabPoint;
+            _shakeSampleAt = Time.time;
+            _shakeDirection = Vector3.zero;
         }
 
         public void UpdateGrab(Vector3 handPoint)
         {
+            if (!Held) return;
+            TrackShake(handPoint, Time.time);
             Vector3 d = handPoint - _grabStart;
             ApplyLift(d.y, Vector3.Dot(d, transform.right));
         }
 
-        public void EndGrab() => Held = false;
+        public void EndGrab()
+        {
+            Held = false;
+            _shakeUntil = 0f;
+        }
+
+        void TrackShake(Vector3 handPoint, float now)
+        {
+            float dt = now - _shakeSampleAt;
+            Vector3 delta = handPoint - _shakeSample;
+            if (dt <= 0f || (dt < 0.12f && delta.sqrMagnitude < 0.018f * 0.018f)) return;
+            _shakeSample = handPoint;
+            _shakeSampleAt = now;
+            // Require two brisk strokes in opposite directions, and discard tracking jumps.
+            if (dt > 0.12f || delta.sqrMagnitude > 0.22f * 0.22f ||
+                delta.sqrMagnitude < Mathf.Max(dt * dt * 0.75f * 0.75f, 0.018f * 0.018f)) return;
+            Vector3 direction = delta.normalized;
+            bool reversed = now - _shakeDirectionAt < 0.36f && Vector3.Dot(direction, _shakeDirection) < -0.55f;
+            _shakeDirection = direction;
+            _shakeDirectionAt = now;
+            if (!reversed || now < _nextShakeAt) return;
+            _nextShakeAt = now + 0.6f;
+            _shakeUntil = now + ShakeDuration;
+            ShakeCount++;
+            GameSound.Cue("hive_shake", SwarmCenter);
+        }
 
         void ApplyLift(float up, float side)
         {
@@ -162,7 +199,10 @@ namespace VirtualBeeSwarm
             float tilt = Mathf.Clamp(-side * 160f, -maxTiltDegrees, maxTiltDegrees) * Mathf.Clamp01(h / 0.05f);
             LiftHeight = h;
             liftRoot.localPosition = _restPos + Vector3.up * h;
-            liftRoot.localRotation = _restRot * Quaternion.Euler(0f, 0f, tilt);
+            float energy = Mathf.Clamp01((_shakeUntil - Time.time) / ShakeDuration);
+            float wobble = energy * (StakesFlags.Comfort ? 2f : 5f);
+            liftRoot.localRotation = _restRot * Quaternion.Euler(
+                Mathf.Sin(Time.time * 48f) * wobble, 0f, tilt + Mathf.Cos(Time.time * 42f) * wobble);
             if (!_liftReported && h >= liftThreshold)
             {
                 _liftReported = true;

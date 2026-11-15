@@ -1,11 +1,12 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using VirtualBeeSwarm.Juice;
 
 namespace VirtualBeeSwarm.Pals
 {
     /// <summary>
     /// Beeswax plays with the player's hands (tuning pals.on, default on):
-    ///   pet        gentle strokes touching his body make him blush with drifting pink pollen.
+    ///   pet        gentle strokes touching his body make him blush with drifting pink hearts.
     ///   swat       a quick tap or fast hit makes him spring back indignantly with a bright impact burst.
     ///   wave       a raised hand waved side to side (3 turns): he waves back with his front leg.
     ///   high-five  a raised open palm held still, facing away from you: he flies over, slaps it (sparkle burst, squash),
@@ -50,6 +51,17 @@ namespace VirtualBeeSwarm.Pals
         float _nextTouch;
         int _boops;
 
+        struct Heart
+        {
+            public Vector3 origin, drift;
+            public float start, size, tilt;
+        }
+        const float HeartLifetime = 0.96f;
+        readonly Heart[] _hearts = new Heart[6];
+        int _nextHeart;
+        Mesh _heartMesh;
+        Material _heartMaterial;
+
         // wave
         readonly float[] _waveX = new float[2], _waveExt = new float[2], _waveStart = new float[2];
         readonly int[] _waveDir = new int[2], _waveTurns = new int[2];
@@ -87,6 +99,11 @@ namespace VirtualBeeSwarm.Pals
             _net = FindAnyObjectByType<GameNet>();
             _director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
             _fx = FindAnyObjectByType<JuiceParticles>();
+            if (_bw != null)
+            {
+                _heartMesh = BuildHeart();
+                _heartMaterial = GameMaterials.Create("VBS_PetHeart (runtime)", Color.white, vertexColors: true, doubleSided: true);
+            }
             if (_bw != null) _bw.Ordered += OnOrdered;
             if (_net != null) _net.VoiceLineStarted += OnLine;
             Debug.Log("[VBS][Pals] on: pet, swat, wave, high-five" + (_bw == null ? " (no Beeswax: off)" : "") + ", radius " + Radius().ToString("0.00") + " m");
@@ -97,6 +114,8 @@ namespace VirtualBeeSwarm.Pals
             if (Instance == this) Instance = null;
             if (_bw != null) _bw.Ordered -= OnOrdered;
             if (_net != null) _net.VoiceLineStarted -= OnLine;
+            if (_heartMesh != null) Destroy(_heartMesh);
+            if (_heartMaterial != null) Destroy(_heartMaterial);
         }
 
         void OnLine(GameNet.VoiceLineInfo info)
@@ -206,6 +225,7 @@ namespace VirtualBeeSwarm.Pals
         {
             // leg moves after the Animator: the wave back, and the slap
             float t = Time.time;
+            DrawHearts(t);
             if (_waveBackUntil > t)
             {
                 if (_legR == null && !_triedR) { _triedR = true; _legR = Bone("Leg_Front_Upper.R"); }
@@ -278,7 +298,7 @@ namespace VirtualBeeSwarm.Pals
                 bool tap = contact.touching && !contact.reacted && now - contact.startedAt <= 0.28f &&
                            contact.travel >= 0.012f && inward < -0.12f;
                 contact.touching = contact.reacted = false;
-                if (tap) React(Touch.Swat, c, previous);
+                if (tap) React(Touch.Swat, (GameHand)h, c, previous);
                 return;
             }
             if (!contact.touching)
@@ -293,17 +313,17 @@ namespace VirtualBeeSwarm.Pals
             if (inward > 0.85f)
             {
                 contact.reacted = true;
-                React(Touch.Swat, c, point);
+                React(Touch.Swat, (GameHand)h, c, point);
                 return;
             }
             // Small tracking jitter and fast exits do not count as a gentle stroke.
             if (step > 0.001f && step / dt < 0.65f) contact.travel += step;
             if (now - contact.startedAt < 0.36f || contact.travel < 0.05f) return;
             contact.reacted = true;
-            React(Touch.Pet, c, point);
+            React(Touch.Pet, (GameHand)h, c, point);
         }
 
-        void React(Touch touch, Vector3 centre, Vector3 point)
+        void React(Touch touch, GameHand hand, Vector3 centre, Vector3 point)
         {
             if (Time.time < _nextTouch) return;
             _nextTouch = Time.time + 0.9f;
@@ -314,7 +334,8 @@ namespace VirtualBeeSwarm.Pals
                 Pets++;
                 _wiggleFrom = Time.time;
                 Rig("Blush", "gentle pet");
-                _fx?.Burst(centre + Vector3.up * Radius(), 10, new Color(1f, 0.55f, 0.75f), 0.22f, 0.8f, 0.012f, -0.38f);
+                SpawnHearts(centre);
+                GameHaptics.Pulse(hand, 0.20f, 0.085f);
                 Say(PalLines.BoopBlush);
                 Log("pet #" + Pets + ": blush");
                 return;
@@ -327,9 +348,93 @@ namespace VirtualBeeSwarm.Pals
             Vector3 impact = centre + outward * Mathf.Min(Vector3.Distance(point, centre), Radius());
             _fx?.Ring(impact, outward, 10, new Color(1f, 0.55f, 0.18f), 0.8f, 0.35f, 0.013f);
             _fx?.Burst(impact, 5, new Color(1f, 0.86f, 0.3f), 0.55f, 0.35f, 0.01f, 0.4f);
+            GameHaptics.Pulse(hand, 0.55f, 0.055f);
             GameSound.Cue("beeswax_boop", _bw.transform);
             Say(PalLines.BoopFile);
             Log("swat #" + _boops + ": grievance");
+        }
+
+        void SpawnHearts(Vector3 centre)
+        {
+            Transform head = Head();
+            Vector3 towardViewer = head != null ? Flat(head.position - centre) : Flat(_bw.transform.forward);
+            Vector3 across = Vector3.Cross(Vector3.up, towardViewer);
+            float radius = Radius();
+            Vector3 origin = centre + towardViewer * radius + Vector3.up * (radius * 0.65f);
+            float size = Mathf.Clamp(radius * 0.55f, 0.052f, 0.13f);
+            for (int i = 0; i < 3; i++)
+            {
+                int side = i == 0 ? 0 : i == 1 ? -1 : 1;
+                _hearts[_nextHeart] = new Heart
+                {
+                    origin = origin + across * (side * size * 0.72f),
+                    drift = Vector3.up * (size * 2.6f + 0.07f) + across * (side * size * 0.95f),
+                    start = Time.time + i * 0.085f,
+                    size = size * (side == 0 ? 1.15f : 0.86f),
+                    tilt = side * 13f
+                };
+                _nextHeart = (_nextHeart + 1) % _hearts.Length;
+            }
+        }
+
+        void DrawHearts(float now)
+        {
+            if (_heartMesh == null) return;
+            Quaternion facing = Quaternion.identity;
+            bool foundView = false;
+            foreach (var heart in _hearts)
+            {
+                float progress = (now - heart.start) / HeartLifetime;
+                if (heart.size == 0f || progress < 0f || progress >= 1f) continue;
+                if (!foundView)
+                {
+                    Transform head = Head();
+                    if (head != null) facing = head.rotation;
+                    foundView = true;
+                }
+                float size = heart.size * Mathf.Clamp01(progress / 0.14f) * Mathf.Clamp01((1f - progress) / 0.30f);
+                Vector3 pos = heart.origin + heart.drift * progress;
+                Quaternion rotation = facing * Quaternion.Euler(0f, 0f, heart.tilt + 5f * Mathf.Sin(progress * 7f));
+                Graphics.DrawMesh(_heartMesh, Matrix4x4.TRS(pos, rotation, Vector3.one * size),
+                    _heartMaterial, gameObject.layer, null, 0, null, ShadowCastingMode.Off, false);
+            }
+        }
+
+        static Mesh BuildHeart()
+        {
+            Vector2[] outline =
+            {
+                new Vector2(0f, 0.23f), new Vector2(-0.21f, 0.46f), new Vector2(-0.40f, 0.42f),
+                new Vector2(-0.50f, 0.25f), new Vector2(-0.47f, 0.04f), new Vector2(-0.32f, -0.17f),
+                new Vector2(0f, -0.51f), new Vector2(0.32f, -0.17f), new Vector2(0.47f, 0.04f),
+                new Vector2(0.50f, 0.25f), new Vector2(0.40f, 0.42f), new Vector2(0.21f, 0.46f)
+            };
+            int n = outline.Length;
+            var vertices = new Vector3[n * 2 + 1];
+            var colors = new Color[vertices.Length];
+            var triangles = new int[n * 9];
+            Color rose = new Color(1f, 0.34f, 0.6f);
+            colors[n * 2] = rose;
+            for (int i = 0; i < n; i++)
+            {
+                int next = (i + 1) % n, j = i * 9;
+                vertices[i] = outline[i];
+                vertices[i + n] = outline[i] * 0.83f;
+                colors[i] = new Color(0.38f, 0.07f, 0.23f);
+                colors[i + n] = Color.Lerp(rose, new Color(1f, 0.78f, 0.87f), Mathf.InverseLerp(0f, 0.46f, outline[i].y));
+                triangles[j] = i;
+                triangles[j + 1] = next;
+                triangles[j + 2] = i + n;
+                triangles[j + 3] = next;
+                triangles[j + 4] = next + n;
+                triangles[j + 5] = i + n;
+                triangles[j + 6] = i + n;
+                triangles[j + 7] = next + n;
+                triangles[j + 8] = n * 2;
+            }
+            var mesh = new Mesh { name = "VBS_PetHeart", vertices = vertices, colors = colors, triangles = triangles };
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         // ------------------------------------------------------------------ wave

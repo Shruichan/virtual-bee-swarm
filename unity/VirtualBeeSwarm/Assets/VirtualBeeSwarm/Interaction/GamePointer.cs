@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.XR;
 using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
@@ -143,8 +142,13 @@ namespace VirtualBeeSwarm
                 _grabDistance = hitDistance;
                 _grabHeldByGrip = controller && gripDown && grabTarget is PanelGrip;
                 grabTarget.BeginGrab(ray.GetPoint(hitDistance));
+                Feedback(0.20f, 0.05f);
             }
-            else if (down && target != null) target.Click();
+            else if (down && target != null)
+            {
+                target.Click();
+                Feedback(0.30f, 0.055f);
+            }
             else if (down && lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
         }
 
@@ -152,16 +156,17 @@ namespace VirtualBeeSwarm
         {
             var hive = source != Source.Mouse ? _grab as HiveBody : null;
             bool waitingForLift = hive != null && !hive.LiftReported;
+            int priorShakes = hive != null ? hive.ShakeCount : 0;
             _grab.UpdateGrab(point);
-            if (!waitingForLift || !hive.LiftReported) return;
+            if (hive == null) return;
+            if (hive.ShakeCount != priorShakes) Feedback(0.34f, 0.10f);
+            else if (waitingForLift && hive.LiftReported) Feedback(0.25f, 0.09f);
+        }
 
-            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
-            if (!(GameHands.For(hand) is IControllerPoseSource input) || !input.IsController(hand)) return;
-
-            var device = InputDevices.GetDeviceAtXRNode(hand == GameHand.Left ? XRNode.LeftHand : XRNode.RightHand);
-            if (device.isValid && (device.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
-                device.TryGetHapticCapabilities(out var haptics) && haptics.supportsImpulse && haptics.numChannels > 0)
-                device.SendHapticImpulse(0, 0.25f, 0.09f);
+        void Feedback(float strength, float seconds)
+        {
+            if (source != Source.Mouse)
+                GameHaptics.Pulse(source == Source.LeftHand ? GameHand.Left : GameHand.Right, strength, seconds);
         }
 
         void BeginDirectGrab(IGameGrabTarget target, Vector3 point, bool byGrip = false)
@@ -171,6 +176,7 @@ namespace VirtualBeeSwarm
             _directGrab = true;
             _grabHeldByGrip = byGrip;
             target.BeginGrab(point);
+            Feedback(0.20f, 0.05f);
         }
 
         void CacheHit(Collider hit)

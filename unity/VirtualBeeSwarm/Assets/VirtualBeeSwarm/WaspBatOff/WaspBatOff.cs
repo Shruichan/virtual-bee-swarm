@@ -804,9 +804,7 @@ namespace VirtualBeeSwarm.BatOff
 
         void HandBuzz(GameHand hand)
         {
-            if (!_handCtl[(int)hand]) return;
-            var dev = InputDevices.GetDeviceAtXRNode(hand == GameHand.Left ? XRNode.LeftHand : XRNode.RightHand);
-            if (dev.isValid) dev.SendHapticImpulse(0, 0.7f, 0.07f);
+            GameHaptics.Pulse(hand, 0.7f, 0.07f);
         }
 
         // ------------------------------------------------------------ end

@@ -65,6 +65,8 @@ namespace VirtualBeeSwarm.Sound
                 volume: null, pitch: null, splFollow: null, priority: 1),
             new SoundVoice("hive_tip", false, "hive_tip", new[] { "hive_tip" }, "Hive", spl: 50f, radius: 0.15f, zones: null, duration: 0.45f, cooldown: 0.8f, fadeIn: 0f, fadeOut: 0f,
                 volume: null, pitch: null, splFollow: null, priority: 1),
+            new SoundVoice("hive_shake", false, "hive_shake", new[] { "loop_hive_hum" }, "Hive", spl: 58f, radius: 0.22f, zones: null, duration: 0.33f, cooldown: 0.6f, fadeIn: 0.025f, fadeOut: 0.11f,
+                volume: null, pitch: new SoundFollow("hive_agitation", 0f, 1f, 1.30f, 1.48f), splFollow: null, priority: 1),
             new SoundVoice("smoker_puff", false, "smoker_puff", new[] { "smoker_puff" }, "Smoker", spl: 56f, radius: 0.06f, zones: null, duration: 0.5f, cooldown: 0.35f, fadeIn: 0f, fadeOut: 0f,
                 volume: null, pitch: null, splFollow: null, priority: 1),
             new SoundVoice("water_spray", false, "water_spray", new[] { "water_spray" }, "SprayBottle", spl: 55f, radius: 0.06f, zones: null, duration: 0.35f, cooldown: 0.3f, fadeIn: 0f, fadeOut: 0f,
