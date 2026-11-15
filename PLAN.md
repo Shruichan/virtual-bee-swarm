@@ -135,6 +135,7 @@
 | S16 Devpost, tracks, repo | Rome | E |
 | S17 Mentra Live miniapp | Rome | F |
 | S18 Bee Scout bonus art | Rome | art/generated-props/; art/generated-environment/; art/stickers/ |
+| S20 Pollinator habitat props in the game | Rome | A (new Art slots + table dressing; no scene edits) |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -693,6 +694,10 @@
 - **S18.3 Meadow environment mesh pack** (P2 · 0.5 h · needs –) — add Unity-importable flower, grass, and vine meshes under `art/generated-environment/`, without changing claimed Unity art slots — owner: **Rome** — status: done.
 
 - **S18.4 Pollinator habitat teaching props** (P2 · 0.5 h · needs –) — add lightweight, Unity-importable bee-water station and solitary-bee nesting-block meshes with a short audio-first lesson card; keep them outside dartiros's claimed Unity art slots — owner: **Rome** — status: done.
+
+#### S20 Pollinator habitat props in the game
+
+- **S20.1 Runtime prop integration** (P1 · 1 h · needs –) — done when: the water dish and cavity-nesting block import as two new prefab slots, the optional table-dressing system spawns them at clean, non-overlapping locations, and the game builder/runtime check sees both; no scene file or existing claimed slot is changed — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1469,3 +1474,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:35 PT · Rome (agent) · S18.3 done: added `meadow_flowers`, `soft_grass_tuft`, and `flowering_vine` OBJ/MTL models with a rendered pack preview and import notes; kept all new assets outside the claimed Unity art slots. → team
 - 2026-11-14 17:50 PT · Rome (agent) · Claiming S18.4: making two small, low-poly habitat props that teach safe water and nesting basics, plus a concise audio-first lesson card; working in `art/generated-environment/` on a separate branch. → team
 - 2026-11-14 17:57 PT · Rome (agent) · S18.4 done: added a shallow pollinator water dish, cavity-nesting block, Unity import materials, preview, and audio-first cue card. Kept the bee hotel lesson balanced with the ground-nesting reminder and left the Unity scene untouched. → team
+- 2026-11-14 19:44 PT · Rome (agent) · Claiming S20.1: integrating the water dish and cavity-nesting block as separate optional Unity table-dressing props in new art slots, without editing the scene or replacing dartiros's art. → team
