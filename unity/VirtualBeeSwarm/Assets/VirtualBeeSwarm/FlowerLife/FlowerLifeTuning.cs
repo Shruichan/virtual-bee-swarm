@@ -11,10 +11,10 @@ namespace VirtualBeeSwarm.FlowerLife
     /// The flower life switches (tuning.json, same files and order as ArTuning: StreamingAssets/tuning.json off Android,
     /// then persistentDataPath/tuning.json), then env VBS_FLOWERLIFE_FLAGS="flowerlife.density=0.5,flowerlife.bees=0".
     ///   flowerlife.on       true   everything here (false: nothing is built or drawn)
-    ///   flowerlife.density  1      0..2 (0.75 on the headset); 1 = ~280 plants on the table, ~300 in the floor ring, ~22 on the window sill
-    ///   flowerlife.floor    true   the thin ring of flowers on the real floor round the table (wilted at the start)
+    ///   flowerlife.density  1      0..2 (0.75 on the headset); 1 = ~280 plants around the hive, ~480 on the floor, ~22 on the window sill
+    ///   flowerlife.floor    true   flowers and grass around the hive across the real floor (sparse and drooped at the start)
     ///   flowerlife.sill     true   flowers spilling out along the bottom of the meadow window
-    ///   flowerlife.bees     6      bees that leave the hive to visit healthy blooms (0 = none; comfort mode: half)
+    ///   flowerlife.bees     8      bees that leave the hive to visit healthy blooms (0 = none; comfort mode: half)
     ///   flowerlife.petals   true   petals and pollen drifting in from the window and popping off blooms that perk up
     ///   flowerlife.lean     1      0..2 how far the heads lean toward the player
     ///   flowerlife.art      auto   auto: the art lane's bloom kit where it is in Resources; off: the built-in flowers
@@ -50,7 +50,7 @@ namespace VirtualBeeSwarm.FlowerLife
 #endif
             Floor = true;
             Sill = true;
-            Bees = 6;
+            Bees = 8;
             Petals = true;
             Lean = 1f;
             Art = true;
