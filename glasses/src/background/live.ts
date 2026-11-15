@@ -15,6 +15,7 @@ export class LiveStream {
   private stopped = false
   private watchTimer: ReturnType<typeof setInterval> | null = null
   private lastRestart = 0
+  private liveSince = 0
 
   constructor(
     private readonly stream: Pick<StreamModule, "startStream" | "stop">,
@@ -38,6 +39,7 @@ export class LiveStream {
         sound: false,
       })
       this.streamId = res.streamId
+      this.liveSince = Date.now()
       const v = res.resolvedConfig?.video
       this.set("live", `${res.status} in ${Date.now() - t0} ms${v ? ` (${v.width}x${v.height} @ ${v.fps} fps)` : ""}`)
     } catch (err) {
@@ -62,9 +64,11 @@ export class LiveStream {
       } catch {
         return // Hive unreachable: not a stream problem
       }
-      if (age === null || age < staleMs || this.stopped || this.state !== "live") return
+      // null = the Hive has had no frame since it started: stale once we've been "live" a while.
+      const stale = age === null ? Date.now() - this.liveSince > 2 * staleMs : age >= staleMs
+      if (!stale || this.stopped || this.state !== "live") return
       this.lastRestart = Date.now()
-      this.log(`stream: no frames for ${Math.round(age / 1000)} s, restarting`)
+      this.log(`stream: no frames ${age === null ? "since the Hive started" : `for ${Math.round(age / 1000)} s`}, restarting`)
       try {
         await this.stream.stop(this.streamId ?? undefined)
       } catch {}
