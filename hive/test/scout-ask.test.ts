@@ -51,8 +51,8 @@ describe("routing (wake word only)", () => {
       ["Hey Bs wax what is a bee hotel", "what is a bee hotel"],
       ["Hey, Bees Whacks! Why the pebbles?", "Why the pebbles?"],
       ["Beeswax, why", "why"],
-      ["why is honey sticky, hey beeswax?", "why is honey sticky"],
-      ["um so hey beeswax the honey jar", "um so the honey jar"],
+      ["um so hey beeswax the honey jar", "the honey jar"],
+      ["Okay, so, hey Beeswax, what's foulbrood?", "what's foulbrood?"],
     ];
     for (const [said, question] of table) {
       expect([said, parseWake(said)]).toEqual([said, { wake: true, rest: question }]);
@@ -66,8 +66,12 @@ describe("routing (wake word only)", () => {
     }
   });
 
-  test("without the wake word nothing is answered, even clear questions", () => {
-    for (const said of ["why do bees need pebbles", "so by the way, where's the judge view?", "Version that you're showing me currently?", "Like this?", "Hey, can you tell me a little bit more?", "Hey B, hello?", "the bees are cute", "yes", "no thanks"]) {
+  test("without the wake word at the start nothing is answered, even clear questions", () => {
+    for (const said of [
+      "And then the other thing is that previously you were showing the transcript of what Beeswax was saying",
+      "why is honey sticky, hey beeswax?",
+      "I love beeswax candles",
+      "the kids asked hey beeswax a lot","why do bees need pebbles", "so by the way, where's the judge view?", "Version that you're showing me currently?", "Like this?", "Hey, can you tell me a little bit more?", "Hey B, hello?", "the bees are cute", "yes", "no thanks"]) {
       expect([said, kind(said)]).toEqual([said, "game"]);
     }
   });
@@ -83,9 +87,12 @@ describe("routing (wake word only)", () => {
 
   test("Beeswax's own voice is an echo, including him saying his own name (with STT spelling his puns differently)", () => {
     const intro = "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant.";
-    expect(kind("Hey class, I'm Beeswax, your unbelievably charming and handsome bee assistant.", [intro])).toBe("echo");
-    expect(kind("I'm Beeswax", [intro])).toBe("echo");
-    expect(kind("I'm Beeswax your unbelievably", [intro])).toBe("echo");
+    // his intro heard back is never answered (no wake phrase at the start; echo or plain chatter for the game)
+    for (const said of ["Hey class, I'm Beeswax, your unbelievably charming and handsome bee assistant.", "I'm Beeswax", "I'm Beeswax your unbelievably"])
+      expect([said, ["echo", "game"].includes(kind(said, [intro]))]).toEqual([said, true]);
+    // "...say Hey Beeswax and I'll BEE right there" heard back starting at the name: an echo, not a wake
+    const tip = 'Got a question? Just say "Hey Beeswax" and I\'ll BEE right there!';
+    expect(kind("Hey Beeswax and I'll be right there", [tip])).toBe("echo");
     expect(kind("Hey Beeswax", [intro])).toBe("wake"); // a real call while his intro plays is not an echo
     const caps = ["Bee fact found! Would you like to learn more?", "This is a bee hotel, a safe home for wild bees like mason bees."];
     expect(kind("would you like to learn more", caps)).toBe("echo");
@@ -428,6 +435,22 @@ describe("barge-in (real ScoutGame, fake clock)", () => {
     expect(game.state().phase).toBe("looking");
   });
 
+  test("his 'just say Hey Beeswax' tip echoes only while it plays; a kid's 'Hey Beeswax' right after is a wake", () => {
+    let clock = 10_000;
+    const game = { ...fakeGame([]), busyUntil: clock + 6000 }; // the fact, then the tip line, end 6 s from now
+    const a = new ScoutAsk({ game, now: () => clock, base: () => "h", say: () => {}, llm: fakeLlm([]), tts: fakeTts() });
+    a.event({ type: "say", line_id: "scout_any_q_1", caption: 'Questions? Just say "Hey Beeswax"!', audio_url: null, at: clock });
+    clock += 5000; // the tip is playing: the mic hears it
+    expect(a.route("Hey Beeswax", classifyAnswer)).toEqual({ kind: "echo" });
+    clock += 1000 + 700 + 2000 + 1; // it ended (plus player start and the echo tail)
+    expect(a.route("Hey Beeswax", classifyAnswer)).toEqual({ kind: "wake" });
+    // cut off before it played: it can't echo
+    a.event({ type: "say", line_id: "scout_any_q_2", caption: 'Curious? Say "Hey Beeswax"!', audio_url: null, at: clock });
+    a.event({ type: "stop", at: clock });
+    clock += 2001;
+    expect(a.route("Hey Beeswax", classifyAnswer)).toEqual({ kind: "wake" });
+  });
+
   test("a bare 'Hey Beeswax' cuts Beeswax off, says the ack, and the next utterance within the window is the question", () => {
     let clock = 5000;
     const calls: string[] = [];
@@ -484,6 +507,8 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
       const say = sent.find((m) => String(m.tts_id).startsWith("scout_ask_"))!;
       expect(say).toMatchObject({ type: "say", channel: "ear", line_id: null });
       expect(sent.some((m) => m.tts_id === SCOUT_STOP_ID)).toBe(true); // interrupt() cut the ear first
+      await sleep(50);
+      expect(sent.filter((m) => String(m.tts_id).startsWith("scout_ask_")).length).toBe(1); // one say per answer on the bus
       const url = String(say.audio_url).replace("http://hive", "");
       const mp3 = await app.request(url); // public, no token
       expect(mp3.status).toBe(200);
