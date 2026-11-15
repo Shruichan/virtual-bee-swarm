@@ -108,7 +108,7 @@ namespace VirtualBeeSwarm.Dressing
                     Color color;
                     if (!colors.TryGetValue(order[i], out color)) color = new Color(0.72f, 0.66f, 0.51f, 1f);
                     mesh.SetTriangles(triangles[order[i]], i, false);
-                    materials[i] = GameMaterials.Create(name + " " + order[i], color, emission: 0f, instancing: true, doubleSided: true);
+                    materials[i] = GameMaterials.Create(name + " " + order[i], color, emission: 1f, instancing: true, doubleSided: true);
                 }
                 mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
