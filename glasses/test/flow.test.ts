@@ -32,6 +32,15 @@ const scanReply = {
   path: "claude",
   ms: 0,
 }
+const fieldGuideReply = {
+  item: "other_bee_plant",
+  verdict: "good",
+  line_id: null,
+  audio_url: null,
+  caption: "Likely lavender. Choose locally native flowers, and avoid spraying them while they bloom.",
+  path: "claude",
+  ms: 0,
+}
 const FIRE_REPLY = {intent: "what_if", topic: "fire", line_id: null, audio_url: null, caption: "Don't. Say. That."}
 let utteranceReply: unknown = FIRE_REPLY
 let utteranceStatus = 200
@@ -54,7 +63,7 @@ beforeAll(async () => {
       hits.push({path: url.pathname, body, at: Date.now()})
       switch (url.pathname) {
         case "/glasses/press": {
-          const allowed = SCAN_BEATS.includes(BEATS[state.beat]!)
+          const allowed = body?.field_guide === true || SCAN_BEATS.includes(BEATS[state.beat]!)
           return Response.json({allowed, scan_id: allowed ? `s${hits.length}` : null, line_id: allowed ? null : NOT_NOW})
         }
         case "/glasses/scan":
@@ -63,7 +72,7 @@ beforeAll(async () => {
             const notNow = {item: "unclear", verdict: "roast", line_id: NOT_NOW, audio_url: null, caption: "", path: "operator", ms: 0}
             return Response.json(notNow, {status: 409})
           }
-          return Response.json(scanReply)
+          return Response.json(body?.field_guide === true ? fieldGuideReply : scanReply)
         case "/glasses/utterance":
           await sleep(utteranceDelayMs)
           return Response.json(utteranceReply, {status: utteranceStatus})
@@ -97,6 +106,7 @@ afterEach(() => {
 })
 
 const TEST_CONFIG: Omit<LocalConfig, "hiveToken"> = {
+  fieldGuideMode: false,
   heardWindowMs: 300,
   heardLookbackMs: 500,
   stallMs: 2000,
@@ -171,6 +181,19 @@ test("scan: hold-still first, then press, photo + heard in one scan, then the ve
   expect(fake.leds[0]).toMatchObject({color: "orange"})
   expect(fake.leds).toContainEqual(expect.objectContaining({color: "green"}))
   await until(() => fake.status.last?.scanning === false, 1000, "scan done")
+})
+
+test("field guide: button scan works outside game scan beats and speaks a likely ID plus a safe action", async () => {
+  const fake = await boot({photoMs: 40}, {fieldGuideMode: true})
+  await questBeat(fake, "hook")
+  fake.press()
+  await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === fieldGuideReply.caption), 3000, "field guide audio")
+
+  const press = hits.find((h) => h.path === "/glasses/press")!
+  expect(press.body).toMatchObject({field_guide: true, press_type: "short"})
+  const scan = hits.find((h) => h.path === "/glasses/scan")!
+  expect(scan.body).toMatchObject({field_guide: true, photo_url: "https://photos.example/p1.jpg"})
+  expect(fake.leds).toContainEqual(expect.objectContaining({color: "green"}))
 })
 
 test("outside a scan beat: no hold-still, no photo, the Hive's line plays", async () => {

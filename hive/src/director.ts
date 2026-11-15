@@ -9,7 +9,7 @@ type ContentBlock = Anthropic.Beta.Messages.BetaContentBlockParam;
 type BetaMessage = Anthropic.Beta.Messages.BetaMessage;
 type ImageType = Anthropic.Beta.Messages.BetaBase64ImageSource["media_type"];
 
-export interface JudgeInput { photo?: Uint8Array; mime?: string; heard?: string; beat: BeatName; memory: { scanned: Item[] } }
+export interface JudgeInput { photo?: Uint8Array; mime?: string; heard?: string; beat: BeatName; fieldGuide?: boolean; memory: { scanned: Item[] } }
 export interface JudgeUsage { input: number; output: number; cache_read: number; cache_write: number }
 export interface JudgeResult extends DirectorOutput {
   ms: number;
@@ -83,7 +83,7 @@ Everything else. Write a line for these:
 If the photo is unclear but the scout clearly names one of our props, trust the scout. If the photo clearly shows something else, trust the photo.
 
 ## Writing a line
-- Only for other_bee_plant, other_plant, non_plant_object and unclear. For every other item, line is null.
+- Only for other_bee_plant, other_plant, non_plant_object and unclear. For every other item, line is null (except in field beat).
 - At most twenty words, one or two short sentences. Funny and punchy, in union-procedure voice, about the OBJECT, never about the person holding it.
 - It is spoken aloud: no emoji, no stage directions, no quotation marks, no hashtags. Write numbers as words.
 - Use no facts at all, or only these four, in these words:
@@ -93,6 +93,17 @@ If the photo is unclear but the scout clearly names one of our props, trust the 
   4. In one recent year, American beekeepers lost more than half their managed colonies.
   Never invent other facts, numbers or studies. Never say anything about figs.
 - Nothing mean about people, nothing crude, nothing political.
+
+## Field guide mode (Beat: field)
+This is a standalone, audio-first bee-conservation field guide, not the game. The wearer has no display and is asking about a real plant or pollinator.
+- Identify the main plant or pollinator in the photo. Give its common name; give a species name only when the visible evidence supports it. Do not guess a native/invasive status without a location.
+- State uncertainty in the spoken line when the photo is distant, blurry, or missing useful features ("This might be..." / "I can't tell the species from this view"). Confidence is about the identification, not about bee value.
+- For a plant, add one short, practical pollinator note or action. Prefer safe general guidance: choose locally native flowers, avoid spraying while plants bloom, and provide water with landing stones. Do not claim a plant is safe to touch, eat, or plant locally.
+- For a bee or other pollinator, give a cautious common-name identification and one brief conservation fact. Never recommend handling it.
+- If the image is a person or the subject is unclear, protect privacy and ask for a closer, centered photo of the flower or insect.
+- In this beat, always provide a spoken line, including for the listed props. Keep it to at most twenty-four words, plain and useful; no jokes, union roleplay, or made-up facts.
+- If there is no usable photo, say that you could not identify it and ask for a clearer photo. Do not infer a species from speech alone.
+The normal item/verdict enums are still required for the Quest/Beat Board contract; they are secondary in field guide mode.
 
 ## Example lines
 - coffee cup: Coffee. Not a flower. Noted for the minutes. Motion denied.
@@ -201,7 +212,7 @@ function clipWords(s: string, max: number): string {
 }
 
 /** Validate the model's JSON against the contract; null if it doesn't fit. */
-export function parseOutput(text: string): DirectorOutput | null {
+export function parseOutput(text: string, fieldGuide = false): DirectorOutput | null {
   let o: unknown;
   try {
     o = JSON.parse(text);
@@ -215,13 +226,17 @@ export function parseOutput(text: string): DirectorOutput | null {
     typeof r.confidence === "number" && Number.isFinite(r.confidence) ? Math.min(1, Math.max(0, r.confidence)) : 0.5;
   const seen = typeof r.seen === "string" ? clipWords(r.seen, 8) : "";
   const spoken = typeof r.line === "string" ? r.line.replace(/^["'\s]+|["'\s]+$/g, "") : "";
-  return { item: r.item as Item, verdict: r.verdict as Verdict, confidence, seen, line: spoken ? clipWords(spoken, 20) : null };
+  return { item: r.item as Item, verdict: r.verdict as Verdict, confidence, seen, line: spoken ? clipWords(spoken, fieldGuide ? 24 : 20) : null };
 }
 
 /** Props get their fixed verdict and no live line; people only ever get the friendly deflection. */
-export function applyRules(out: DirectorOutput): DirectorOutput {
+export function applyRules(out: DirectorOutput, fieldGuide = false): DirectorOutput {
   const verdict = PROP_VERDICT[out.item] ?? out.verdict;
   if (out.item === "person") return { ...out, verdict, seen: "a person", line: PERSON_LINE };
+  if (fieldGuide) {
+    const line = out.line ?? "I can't identify that yet. Hold the flower or insect closer and keep it centered.";
+    return { ...out, verdict, line };
+  }
   if (PROP_VERDICT[out.item]) return { ...out, verdict, line: null };
   return { ...out, verdict, line: out.line ?? GENERIC_LINE[verdict] };
 }
@@ -281,9 +296,10 @@ async function callModel(input: JudgeInput, model: string, timeoutMs: number, si
   if (msg.stop_reason === "refusal") throw new DirectorError("refusal", msg.stop_details?.category ?? "");
   let text = "";
   for (const block of msg.content ?? []) if (block.type === "text") text += block.text;
-  const out = parseOutput(text);
+  const fieldGuide = input.fieldGuide === true;
+  const out = parseOutput(text, fieldGuide);
   if (!out) throw new DirectorError("bad_output", `stop=${msg.stop_reason} text=${JSON.stringify(text.slice(0, 120))}`);
-  return { out: applyRules(out), usage: usageOf(msg), served: typeof msg.model === "string" ? msg.model : model };
+  return { out: applyRules(out, fieldGuide), usage: usageOf(msg), served: typeof msg.model === "string" ? msg.model : model };
 }
 
 /** Judge one scan. Never throws: timeout, refusal, API error or bad output all return the canned fallback. */

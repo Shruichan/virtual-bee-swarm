@@ -13,8 +13,10 @@ export interface Config {
   /** Hive hosts, most preferred first. The venue laptop is primary on demo day. */
   hosts: string[]
   hiveToken: string
+  /** Let the glasses scan plants and pollinators outside the Quest game's scan beats. */
+  fieldGuideMode: boolean
   photo: PhotoConfig
-  /** Pre-warm the camera when a scan beat starts (SDK camera.warmUp). Turn off if photos misbehave. */
+  /** Pre-warm the camera when the app starts in field-guide mode. Turn off if photos misbehave. */
   warmCamera: boolean
   /** In a scan beat, start the photo at the press instead of after the Hive's ack. */
   photoBeforeAck: boolean
@@ -43,6 +45,7 @@ export type LocalConfig = Partial<Omit<Config, "photo">> & {hiveToken: string; p
 export const DEFAULTS: Config = {
   hosts: ["https://beeswax-venue.drori.dev", "https://beeswax.drori.dev"],
   hiveToken: "",
+  fieldGuideMode: true,
   photo: {size: "low", compress: "medium", sound: false, timeoutMs: 10_000},
   warmCamera: true,
   photoBeforeAck: true,

@@ -258,15 +258,15 @@ export type BusMessage =
 // All glasses calls carry ?token=<HIVE_TOKEN> (or header x-hive-token).
 
 /** POST /glasses/press: button pressed (sent BEFORE taking the photo). */
-export interface PressRequest { pressed_at: number; button?: string; press_type?: "short" | "long" }
+export interface PressRequest { pressed_at: number; button?: string; press_type?: "short" | "long"; field_guide?: boolean }
 export interface PressResponse {
-  allowed: boolean; //          false outside scan beats or while a scan is in flight
+  allowed: boolean; //          false outside scan beats (unless field_guide) or while a scan is in flight
   scan_id: string | null;
   line_id: string | null; //    e.g. "ear_not_now" when not allowed
 }
 
 /** POST /glasses/scan: the photo (signed Mentra URL) and/or what the judge said. */
-export interface ScanRequest { scan_id: string; photo_url?: string; heard?: string; pressed_at: number }
+export interface ScanRequest { scan_id: string; photo_url?: string; heard?: string; pressed_at: number; field_guide?: boolean }
 export interface ScanResponse {
   item: Item;
   verdict: Verdict;

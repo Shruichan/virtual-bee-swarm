@@ -8,6 +8,8 @@ import type {LocalConfig} from "./background/config"
 export const LOCAL: LocalConfig = {
   // HIVE_TOKEN from hive/.env on the host (ask Rome / Discord).
   hiveToken: "",
+  // Standalone audio field guide; button scans work without the Quest's game beat.
+  fieldGuideMode: true,
 
   // Everything else is optional; see DEFAULTS in src/background/config.ts. Examples:
   // hosts: ["https://beeswax.drori.dev"],   // force pop-os only (no venue laptop tonight)

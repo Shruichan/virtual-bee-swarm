@@ -19,7 +19,7 @@ export function App() {
         paddingLeft: insets.left,
         paddingRight: insets.right,
       }}>
-      <MiniappHeader title="Beeswax" />
+      <MiniappHeader title="Bee Scout" />
       {status ? <Status s={status} /> : <p className="muted pad">Waiting for the background…</p>}
     </div>
   )
@@ -41,7 +41,7 @@ function Status({s}: {s: GlassesStatus}) {
 
       <div className="buttons">
         <button type="button" disabled={s.scanning} onClick={() => mentra.send("press", {at: Date.now()})}>
-          {s.scanning ? "Scanning…" : "Test scan"}
+          {s.scanning ? "Listening for ID…" : "Scan a plant or pollinator"}
         </button>
         <button type="button" className="secondary" onClick={() => mentra.send("replay", {at: Date.now()})}>
           Replay

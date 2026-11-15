@@ -433,6 +433,44 @@ describe("scan pipeline", () => {
     expect(quest.msgs.filter((m) => m.type.startsWith("scan.") || m.type === "plea")).toEqual([]);
   });
 
+  test("Bee Scout: field-guide press works outside Quest scan beats and sends the image to vision", async () => {
+    let judgedBeat = "";
+    hive = makeHive({
+      judge: async (input) => {
+        judgedBeat = input.beat;
+        return ({
+        item: "other_bee_plant",
+        verdict: "good",
+        confidence: 0.72,
+        seen: "likely lavender",
+        line: "Likely lavender. Choose locally native flowers, and avoid spraying them while they bloom.",
+        ms: 4,
+        model: "mock",
+        fallback: false,
+        });
+      },
+    });
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "hook", 1);
+
+    const { json: press } = await post(hive, "/glasses/press", { pressed_at: Date.now(), field_guide: true });
+    expect(press.allowed).toBe(true);
+    const { json } = await post(hive, "/glasses/scan", {
+      scan_id: press.scan_id,
+      photo_url: photoUrl,
+      heard: "I think this is lavender",
+      pressed_at: Date.now(),
+      field_guide: true,
+    });
+
+    expect(json).toMatchObject({path: "claude", caption: "Likely lavender. Choose locally native flowers, and avoid spraying them while they bloom."});
+    expect(judgedBeat).toBe("field");
+    expect((await board.waitFor("scan.verdict")).seen).toBe("likely lavender");
+    await Bun.sleep(30);
+    expect(quest.msgs.filter((m) => m.type.startsWith("scan."))).toEqual([]);
+  });
+
   test("verdict.force with no press: scan.started + operator verdict, ear line over the bus", async () => {
     hive = makeHive();
     const quest = await connect("quest");

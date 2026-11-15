@@ -69,6 +69,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
       push()
     },
   })
+  if (config.fieldGuideMode) scanner.warmCamera()
 
   const voice = new Voice({
     hive,

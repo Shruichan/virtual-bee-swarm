@@ -112,7 +112,7 @@ export class Scanner {
     const live = () => this.seq === id
     const beat = this.d.beat()
     const scanBeat = beat !== null && SCAN_BEATS.includes(beat)
-    const maybeScan = beat === null || scanBeat
+    const maybeScan = cfg.fieldGuideMode || beat === null || scanBeat
 
     if (maybeScan) {
       this.filler(this.holdStill, "all")
@@ -120,11 +120,16 @@ export class Scanner {
     }
     // In a known scan beat the Hive will almost surely say yes, so don't wait for it to start
     // the slowest hop. If it says no, the photo is simply never sent anywhere.
-    let photo = cfg.photoBeforeAck && scanBeat ? this.photo() : null
+    let photo = cfg.photoBeforeAck && (cfg.fieldGuideMode || scanBeat) ? this.photo() : null
 
     let ack: PressResponse
     try {
-      const req: PressRequest = {pressed_at: pressedAt, button, press_type: "short"}
+      const req: PressRequest = {
+        pressed_at: pressedAt,
+        button,
+        press_type: "short",
+        ...(cfg.fieldGuideMode ? {field_guide: true} : {}),
+      }
       ack = await hive.post<PressResponse>("/glasses/press", req, cfg.pressTimeoutMs)
     } catch (err) {
       throw new ScanError("ear_no_signal", `press failed: ${describe(err)}`)
@@ -166,7 +171,7 @@ export class Scanner {
       if (heard) log(`scan: heard "${heard}"`)
 
       if (cfg.speechFirst && heard) {
-        const reply = await this.scan({scan_id: scanId, heard, pressed_at: pressedAt}, pressedAt)
+        const reply = await this.scan({scan_id: scanId, heard, pressed_at: pressedAt, ...(cfg.fieldGuideMode ? {field_guide: true} : {})}, pressedAt)
         replied = true
         // The photo still goes up for the Quest polaroid; its reply has nothing left to say.
         void photo.then((url) => {
@@ -184,6 +189,7 @@ export class Scanner {
         if (heard) log(`scan: heard "${heard}"`)
       }
       const req: ScanRequest = {scan_id: scanId, pressed_at: pressedAt}
+      if (cfg.fieldGuideMode) req.field_guide = true
       if (photoUrl) req.photo_url = photoUrl
       if (heard) req.heard = heard
       const reply = await this.scan(req, pressedAt)

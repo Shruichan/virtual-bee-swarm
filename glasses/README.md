@@ -1,18 +1,23 @@
-# Beeswax in your ear: the Mentra Live miniapp
+# Bee Scout: plant and pollinator IDs in your ear
 
-The glasses half of HONEYMOON. Mentra Live has no display, so everything happens by ear:
-the scout presses the button, Beeswax says "hold still", the glasses take a photo and
-listen to what the scout says, the Hive judges it, and the verdict plays in the scout's ear. The miniapp
-also plays ear asides from the Hive bus (hornet warning, "they're on your flower") and
-sends the scout's plea to the Hive during the plea beat.
+Mentra Live has no display, so Bee Scout is built around a button, camera, LED, and audio. Point at a
+flower or pollinator and press once. Beeswax speaks a likely identification, says when the picture
+isn't clear enough for a confident ID, and adds one short bee-friendly observation or action. It
+doesn't ask the wearer to read the phone during a scan.
 
-It's a **Mentra miniapp** (`@mentra/miniapp` **3.3.0**, pinned for Mentra App 3.3 on iPhone)
-that runs on the phone inside the Mentra App. The old cloud SDK (`@mentra/sdk`, AppServer,
-ngrok, console API keys) is retired; don't follow tutorials that use it.
+The same app can still connect to the Quest demo: the glasses play ear asides and send the scout's
+plea during the plea beat. Field guide scans run independently of the Quest beat clock and do not
+trigger Quest effects.
+
+It's a **Mentra miniapp** (`@mentra/miniapp` **3.3.0**) that runs on the phone inside the Mentra
+App. This separate build targets local demo installs. The Miniapp SDK is beta; Mentra's current
+docs say there is no supported Miniapp Store distribution yet and recommend the Bluetooth SDK for
+new Mentra Live development. The old cloud SDK (`@mentra/sdk`, AppServer, ngrok, console API keys)
+is legacy and isn't used here.
 
 | On the glasses | Does |
 |---|---|
-| Button, short press | Scan (ignored while a scan is in flight) |
+| Button, short press | Take a photo and ask the Bee Scout field guide (ignored while a scan is in flight) |
 | Button, long press | Replay the last line |
 | Touch bar double tap or long press | Replay the last line (if the system keeps the button's long press) |
 | LED | Orange blink while scanning, green = good, red = bad/dangerous, blue = roast |
@@ -56,26 +61,26 @@ Open the **Beeswax** tile in the Mentra App for the status page: Hive connection
 glasses and cloud state, last line, latest latency per hop, and a log. **Test scan** runs the
 same flow as a button press (handy to test the Hive without the glasses); **Replay** replays.
 
-## Release for judging (no laptop needed)
+## Local release build for the demo
 
 1. Bump `version` in `miniapp.json` (the Mentra App refuses an older version than the installed one).
-2. `bun run release` (runs `mentra-miniapp release`): builds, packs, and serves a
+2. `bun run release` (runs `mentra-miniapp release`): builds and serves an unsigned
    `miniapp://release` QR on the LAN.
-3. Scan it from the same Miniapp Developer Settings screen. The install persists and runs offline.
+3. Scan it from the same Miniapp Developer Settings screen. The install persists; the Hive connection
+   still needs network access. This is a local testing/demo workflow, not public distribution.
 
 Do the release after `bun run lines` has copied the Hive's prerendered ear lines in (see Ear lines).
 
 ## How a scan works
 
 ```
-press ─► "ear_hold_still" clip (embedded, no network) + LED orange
-      ─► POST /glasses/press                      not allowed → play its line_id (ear_not_now)
+press ─► "hold still" audio + LED orange
+      ─► POST /glasses/press {field_guide: true}  starts a standalone field scan
       ─► takePhoto (low, compress medium)  ┐      in a scan beat the photo starts at the press,
       ─► listen (from 1.5 s before press)  ┘      without waiting for the ack (photoBeforeAck)
-      ─► POST /glasses/scan {scan_id, photo_url, heard, pressed_at}
-         as soon as the photo is in and nobody is mid-sentence (at most 3 s of listening);
-         if the photo failed, it waits for words instead
-      ─► verdict: embedded clip by line_id → else audio_url → else Mentra TTS of the caption
+      ─► POST /glasses/scan {scan_id, photo_url, heard, pressed_at, field_guide: true}
+      ─► vision identifies the likely common name; species-level IDs are spoken only when supported
+      ─► Beeswax speaks the identification and one conservation note; unclear photos get a retry cue
 4 s after the press with no verdict yet: "ear_hold_still_2". After 25 s the scan gives up.
 ```
 
@@ -109,7 +114,8 @@ catalog yet, so they are always TTS.
 |---|---|---|
 | `hosts` | venue, then pop-os | Most preferred first |
 | `photo` | `low`, compress `medium`, no shutter sound, 10 s timeout | Bigger photos cross BLE slower |
-| `warmCamera` | `true` | Pre-warms the camera when a scan beat starts |
+| `fieldGuideMode` | `true` | Makes button scans work without the Quest game or a scan beat |
+| `warmCamera` | `true` | Pre-warms the camera when the app starts in field-guide mode |
 | `photoBeforeAck` | `true` | Start the photo at the press in a known scan beat |
 | `speechFirst` | `false` | The scan-gate fallback above |
 | `heardWindowMs` / `heardLookbackMs` | 3000 / 1500 | Listening window around the press |
@@ -125,8 +131,8 @@ catalog yet, so they are always TTS.
   page's **Cloud** row should say `connected`; check the phone's network first.
 - **Hive row red/connecting:** the log says why. `401` = wrong `hiveToken`. Cloudflare `502/530`
   = that host's Hive or tunnel is down; the miniapp moves to the next host by itself.
-- **Every press says "not now":** the Hive thinks the beat isn't a scan beat (roses, beeline,
-  offlist, field). Check the beat on the status page and the Beat Board.
+- **Every press says "not now":** confirm `fieldGuideMode: true`, that no scan is already in flight,
+  and that the Hive token is current. Game-only mode still follows the Quest scan beats.
 - **Nothing happens on a press:** button mode isn't `apps`, or the glasses aren't connected (status
   page **Glasses** row). Use **Test scan** to check the rest of the chain.
 - **Lines play from the phone, not the glasses:** fix the iPhone's Bluetooth audio route.

@@ -343,6 +343,7 @@ interface ScanJob {
   beat: BeatName;
   pressedAt: number;
   origin: "glasses" | "operator";
+  fieldGuide?: boolean;
   started: boolean; //     a /glasses/scan arrived and the pipeline is running
   photoStarted: boolean; // the photo is being (or was) fetched for the polaroid
   httpWaiting: boolean; // a /glasses/scan request is waiting on the answer
@@ -503,6 +504,15 @@ export function startHive(opts: HiveOptions): Hive {
     seen,
     line: lineText("room_canned_unclear") || null,
   });
+  const fieldGuideFallback = (seen = "unclear photo"): Decision => ({
+    item: "unclear",
+    verdict: "roast",
+    confidence: 0,
+    seen,
+    line: "I couldn't identify that. Hold the flower or insect closer and try again.",
+  });
+  const fallbackFor = (job: ScanJob, seen?: string): Decision =>
+    job.fieldGuide ? fieldGuideFallback(seen) : fallbackDecision(seen);
   const earCuesPlayed = new Set<string>(); // ear cues already played this group ("<group>:<cue>")
   const earOnce = (cue: string, line_id: string | null | undefined) => {
     if (!hasLine(line_id) || earCuesPlayed.has(`${state.group_id}:${cue}`)) return;
@@ -541,15 +551,16 @@ export function startHive(opts: HiveOptions): Hive {
 
   // ------------------------------------------------------------ press / scan / verdict (glasses real-prop mode)
 
-  function newJob(pressedAt: number, origin: ScanJob["origin"]): ScanJob {
+  function newJob(pressedAt: number, origin: ScanJob["origin"], forcedBeat?: BeatName, fieldGuide = false): ScanJob {
     let finish!: (r: ScanResponse) => void;
     const done = new Promise<ScanResponse>((r) => (finish = r));
     const job: ScanJob = {
       id: shortId("s"),
       group_id: state.group_id,
-      beat: beatName(state),
+      beat: forcedBeat ?? beatName(state),
       pressedAt,
       origin,
+      fieldGuide,
       started: false,
       photoStarted: false,
       httpWaiting: false,
@@ -601,14 +612,14 @@ export function startHive(opts: HiveOptions): Hive {
     return typeof t === "number" && Number.isFinite(t) && now - t > -5000 && now - t < 120_000 ? t : now;
   }
 
-  function press(pressed_at: unknown): PressResponse {
+  function press(pressed_at: unknown, fieldGuide = false): PressResponse {
     const now = Date.now();
     const beat = beatName(state);
-    if (!SCAN_BEATS.includes(beat) || currentJob()) {
+    if ((!fieldGuide && !SCAN_BEATS.includes(beat)) || currentJob()) {
       const line_id = beat === "pre" && hasLine("ear_practice") ? "ear_practice" : "ear_not_now";
       return { allowed: false, scan_id: null, line_id };
     }
-    const job = newJob(saneTime(pressed_at, now), "glasses");
+    const job = newJob(saneTime(pressed_at, now), "glasses", fieldGuide ? "field" : undefined, fieldGuide);
     return { allowed: true, scan_id: job.id, line_id: null };
   }
 
@@ -617,7 +628,7 @@ export function startHive(opts: HiveOptions): Hive {
     let job = scan_id ? jobs.get(scan_id) : undefined;
     if (!job) {
       // The press never reached us (or expired): treat this scan as its own press.
-      const p = press(body.pressed_at);
+      const p = press(body.pressed_at, body.field_guide === true);
       if (!p.allowed || !p.scan_id) return { status: 409, body: notNowScan() };
       job = jobs.get(p.scan_id)!;
       if (scan_id) jobs.set(scan_id, job);
@@ -629,7 +640,7 @@ export function startHive(opts: HiveOptions): Hive {
       const j = job;
       void runScan(j, body).catch((err) => {
         log(`scan ${j.id} pipeline error:`, err);
-        resolve(j, fallbackDecision(), "claude");
+        resolve(j, fallbackFor(j), "claude");
       });
     } else if (photoUrl && !job.photoStarted) {
       // Speech-first glasses send the photo after the verdict, only so the Quest polaroid develops.
@@ -668,7 +679,8 @@ export function startHive(opts: HiveOptions): Hive {
     const photoP = photoUrl ? developPhoto(job, photoUrl) : Promise.resolve(null);
 
     if (job.response) return; // operator already decided; the photo still develops
-    const fast = heard ? speechVerdict(heard) : null;
+    // The field guide needs the photo to identify a species; a spoken guess must not short-circuit vision.
+    const fast = job.fieldGuide ? null : heard ? speechVerdict(heard) : null;
     if (fast) {
       resolve(job, { ...fast, confidence: 0.9, seen: SEEN[fast.item], line: null }, "speech");
       return;
@@ -676,8 +688,8 @@ export function startHive(opts: HiveOptions): Hive {
 
     const photo = await photoP;
     if (job.response) return;
-    if (!photo && !heard) {
-      resolve(job, fallbackDecision("nothing"), "claude");
+    if (!photo && (job.fieldGuide || !heard)) {
+      resolve(job, fallbackFor(job, "nothing"), "claude");
       return;
     }
     let result: JudgeResultLike | null = null;
@@ -690,6 +702,7 @@ export function startHive(opts: HiveOptions): Hive {
             heard: heard || undefined,
             beat: job.beat,
             memory: { scanned: [...state.memory.scanned] },
+            fieldGuide: job.fieldGuide,
           },
           { timeoutMs: directorTimeoutMs },
         ),
@@ -699,7 +712,7 @@ export function startHive(opts: HiveOptions): Hive {
     } catch (err) {
       log(`scan ${job.id}: judge failed:`, err instanceof Error ? err.message : err);
     }
-    const decision = result ? sanitize(result) : fallbackDecision();
+    const decision = result && !(job.fieldGuide && result.fallback) ? sanitize(result) : fallbackFor(job);
     observe(
       result
         ? `judge ${result.model} ${result.ms} ms${result.fallback ? " FALLBACK" : ""}: ${decision.item}/${decision.verdict}`
@@ -1527,7 +1540,7 @@ export function startHive(opts: HiveOptions): Hive {
 
   app.post("/glasses/press", async (c) => {
     const body = (await readJson(c)) ?? {};
-    return c.json(press(body.pressed_at));
+    return c.json(press(body.pressed_at, body.field_guide === true));
   });
 
   app.post("/glasses/scan", async (c) => {
