@@ -67,7 +67,7 @@ def serve(port, checkpoint):
                 soundfile.write(wave, waves[0], rate, format="WAV")
                 codec = ["-ar", "16000", "-f", "s16le"] if encoding == "pcm" else ["-f", "mp3"]
                 body = subprocess.run(
-                    [ffmpeg, "-v", "error", "-i", "pipe:0", "-af", "atempo=1.3", "-ac", "1", *codec, "pipe:1"],
+                    [ffmpeg, "-v", "error", "-i", "pipe:0", "-af", "atempo=1.1", "-ac", "1", *codec, "pipe:1"],
                     input=wave.getvalue(), capture_output=True, check=True, timeout=10,
                 ).stdout
                 if not body:

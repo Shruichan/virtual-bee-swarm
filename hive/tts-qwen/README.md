@@ -1,6 +1,6 @@
 # Beeswax's local voice
 
-This service uses a youthful, childlike Beeswax voice designed to stay in a comfortable middle register. FFmpeg plays each generated line at 1.3× its original pace and keeps the pitch. The reference was synthesized with Qwen3-TTS VoiceDesign.
+This service uses a youthful, childlike Beeswax voice designed to stay in a comfortable middle register. FFmpeg plays each generated line at 1.1× its original pace and keeps the pitch. The reference was synthesized with Qwen3-TTS VoiceDesign.
 
 Install the requirements in a Python environment with CUDA-enabled PyTorch and FFmpeg. Set `FFMPEG` if FFmpeg is outside PATH. Run `python tts-qwen/serve.py` from Hive. It listens only on loopback.
 
