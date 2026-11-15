@@ -3,8 +3,7 @@ using UnityEngine;
 namespace VirtualBeeSwarm.EnvironmentArt
 {
     /// <summary>
-    /// The window ring as a magic portal: flowering vines on the frame (Portal art space, so they open, grow and swell
-    /// with it), soft light shafts out of it toward the table in the colour of the window's scene (white-hot at the
+    /// The window ring as a magic portal: soft light shafts out of it toward the table in the colour of the window's scene (white-hot at the
     /// heat station, flickering orange in the fire, gone on the Moon), petals and motes drifting out of it.
     /// Needs the Portal art (ArtSlots "Portal (art)"); with the primitive placeholder only the motes run.
     /// </summary>
@@ -26,7 +25,8 @@ namespace VirtualBeeSwarm.EnvironmentArt
             bool hasArt = art != null && art.name.Contains("(art)");
             if (hasArt)
             {
-                EnvUtil.MakeMesh("PortalVines", art, kit.portalVines, kit.vc, false, out _vines);
+                // no vines on the frame any more: they crossed the picture (Rome: "vines block the portal"); the
+                // portal now has its own honeycomb rim (World/PortalFx)
                 EnvUtil.MakeMesh("LightShafts", art, kit.shafts, kit.glow, false, out _shafts);
                 _shafts.enabled = false;
                 if (QuestPerf.On) { _shafts.gameObject.SetActive(false); _shafts = null; } // headset: no big additive layer (overdraw)
@@ -94,7 +94,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
                 pr.renderMode = ParticleSystemRenderMode.Billboard;
                 pr.sharedMaterial = Atmosphere.MoteMaterial;
             }
-            Summary = hasArt ? "vines, light shafts, petals, motes" : "no Portal art: petals + motes only";
+            Summary = hasArt ? "light shafts, petals, motes" : "no Portal art: petals + motes only";
         }
 
         public void Tick(EnvMood mood, float moonK, bool open)

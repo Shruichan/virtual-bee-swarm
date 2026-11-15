@@ -26,7 +26,7 @@ namespace VirtualBeeSwarm.Bloom
     ///   meadow.roomBees     300    bees working the flowers on the floor AND the wall vines all over the room (0..600, low-poly bee)
     ///   meadow.rocketHeight 1.45   m, the rocket's height beside the hive (0 = rig scale only)
     ///   meadow.rocketX      1.33   m right of the rig origin; meadow.rocketZ 1.06 m forward (beside the hive, whole in the POV)
-    ///   meadow.windowWidth  1.6    m, the meadow window (portal) on the wall / behind the hive
+    ///   meadow.windowWidth  1.9    m, the free-floating meadow portal behind the hive
     ///   meadow.propSize     0.45   m, the hand props (smoker, jar, ...) grow toward this size (largest side)
     ///   meadow.propScale    2      ... by at most this much on top of the rig scale
     ///   meadow.wallStart    2.2    m the wall growth reaches while the hive is sick (thinner and paler; to the ceiling at the escape)
@@ -53,7 +53,7 @@ namespace VirtualBeeSwarm.Bloom
         public static float Yard = 0.7f;
         public static int RoomBees = 300;
         public static float RocketX = 1.33f, RocketZ = 1.06f;
-        public static float RocketHeight = 1.45f, WindowWidth = 1.6f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
+        public static float RocketHeight = 1.45f, WindowWidth = 1.9f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
         public static int SwarmCount = 500, DarkCount = 400, VatNear = 80;
         public static float CrewScale = 2.5f;
         public static string LoadedFrom = "defaults";
@@ -88,7 +88,7 @@ namespace VirtualBeeSwarm.Bloom
             RocketHeight = 1.45f;
             RocketX = 1.33f;
             RocketZ = 1.06f;
-            WindowWidth = 1.6f;
+            WindowWidth = 1.9f;
             PropScale = 2f;
             PropSize = 0.45f;
             WallStart = 2.2f;
