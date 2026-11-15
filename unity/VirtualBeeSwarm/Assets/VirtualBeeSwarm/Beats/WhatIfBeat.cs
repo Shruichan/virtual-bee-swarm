@@ -185,9 +185,14 @@ namespace VirtualBeeSwarm
             if (online != _wasOnline && hintText != null)
             {
                 _wasOnline = online;
-                hintText.text = online
-                    ? "Hold pinch / trigger (or T) and ask"
-                    : "Hold pinch (or T), ask, let go.  F = fire, P = put it out";
+                // One card, not two: the separate hint card sat 4.5 cm under the prompt and the themed cards collided
+                // (room playtests). Keyboard keys only on the desktop: the headset player has no T / F / P.
+                bool headset = UnityEngine.XR.XRSettings.isDeviceActive;
+                string how = headset
+                    ? (online ? "Hold a pinch and ask." : "Hold a pinch, ask, let go.")
+                    : (online ? "Hold pinch / trigger (or T) and ask" : "Hold pinch (or T), ask, let go.  F = fire, P = put it out");
+                hintText.text = "";
+                if (promptText != null) promptText.text = "Ask me anything.\n\"What if...?\"\n" + how;
             }
 
             if (GameInput.KeyDown(fireKey)) LocalWhatIfFire();
