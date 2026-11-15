@@ -12,7 +12,7 @@ namespace VirtualBeeSwarm.BatOff
     /// </summary>
     public static class BatOffArt
     {
-        static readonly Color Yellow = new Color(1f, 0.80f, 0.06f), Black = new Color(0.07f, 0.05f, 0.04f);
+        static readonly Color Scarlet = new Color(1f, 0.14f, 0.10f), Black = new Color(0.22f, 0.035f, 0.045f);
         static readonly Color Eye = new Color(0.12f, 0.08f, 0.05f), Wing = new Color(0.86f, 0.93f, 1f);
 
         /// <summary>The body: abdomen with stripes and a stinger point, a pinched wasp waist, thorax, a head with dark eyes.</summary>
@@ -21,7 +21,7 @@ namespace VirtualBeeSwarm.BatOff
             // rings along +Z (tail at -0.5, nose at +0.5): z, radius, colour
             float[] z = { -0.46f, -0.38f, -0.28f, -0.18f, -0.08f, 0.0f, 0.04f, 0.09f, 0.18f, 0.25f, 0.30f, 0.38f, 0.46f };
             float[] r = { 0.03f, 0.11f, 0.15f, 0.16f, 0.13f, 0.05f, 0.04f, 0.10f, 0.11f, 0.06f, 0.10f, 0.11f, 0.06f };
-            Color[] col = { Black, Yellow, Black, Yellow, Black, Yellow, Black, Black, Black, Black, Yellow, Eye, Yellow };
+            Color[] col = { Black, Scarlet, Black, Scarlet, Black, Scarlet, Black, Black, Black, Black, Scarlet, Eye, Scarlet };
             const int seg = 6;
             var v = new List<Vector3>(z.Length * seg + 2);
             var c = new List<Color>(v.Capacity);
@@ -43,7 +43,7 @@ namespace VirtualBeeSwarm.BatOff
             int tail = v.Count;
             v.Add(new Vector3(0f, 0f, -0.55f)); c.Add(UiTheme.Vertex(Black)); // the stinger
             int nose = v.Count;
-            v.Add(new Vector3(0f, -0.01f, 0.5f)); c.Add(UiTheme.Vertex(Yellow));
+            v.Add(new Vector3(0f, -0.01f, 0.5f)); c.Add(UiTheme.Vertex(Scarlet));
             int last = (z.Length - 1) * seg;
             for (int s = 0; s < seg; s++)
             {

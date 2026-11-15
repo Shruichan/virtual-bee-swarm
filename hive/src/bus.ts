@@ -92,7 +92,7 @@ export interface BusHooks {
   onFxForce?(name: FxName, from: Client): void;
   onWhatIfForce?(msg: { topic: WhatIfTopic | null; undo: boolean }, from: Client): void;
   /** Voice in (quest|glasses): listen.start, MIC_PCM16 payloads (kind byte stripped), listen.end. */
-  onListenStart?(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean): void;
+  onListenStart?(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean, askDialogue: boolean): void;
   onMic?(ws: Client, pcm: Uint8Array): void;
   onListenEnd?(ws: Client, cancel: boolean): void;
   onClientClose?(ws: Client): void;
@@ -614,7 +614,8 @@ export class Bus {
 
       case "listen.start": {
         if (!VOICE_ROLES.includes(role)) return this.send(ws, { type: "error", message: "listen.start comes from the quest or the glasses" });
-        this.hooks.onListenStart?.(ws, m.mode === "vad" ? "vad" : "ptt", role === "quest" && m.mode !== "vad" && m.wake_phrase === true);
+        const questPtt = role === "quest" && m.mode !== "vad";
+        this.hooks.onListenStart?.(ws, m.mode === "vad" ? "vad" : "ptt", questPtt && m.wake_phrase === true, questPtt && m.ask_dialogue === true);
         return;
       }
 

@@ -35,13 +35,14 @@ namespace VirtualBeeSwarm
         [Header("End card (v2, map beat)")]
         [Tooltip("Reading distance ahead of the head. The vertical offset is capped to keep the contract in view.")]
         [SerializeField] float endCardAhead = 0.62f;
-        [SerializeField] float endCardBelowEye = 0.3f;
+        [SerializeField] float endCardBelowEye = 0.43f;
         [SerializeField] float endCardTiltDegrees = 22f;
         [SerializeField] int endCardCrew = 6;
 
         public string LastScore { get; private set; } = "";
 
         Vector3 _cardScale = Vector3.one;
+        float _cardParentScale = 1f;
         GameObject _endPanel;
         float _cardWorldScale, _endPanelHeight, _cardBottom; // world metres: the panel, and the card's bottom below its pivot
         public bool EndCardShown => _endPanel != null && _endPanel.activeInHierarchy;
@@ -62,9 +63,11 @@ namespace VirtualBeeSwarm
             if (delivery == null) delivery = FindAnyObjectByType<BeeDelivery>();
             if (scoreCard != null)
             {
-                FitCard(scoreCard.transform);
-                _cardScale = scoreCard.transform.localScale;
-                BuildEndPanel(scoreCard.transform);
+                var card = scoreCard.transform;
+                FitCard(card);
+                _cardScale = card.localScale;
+                _cardParentScale = ParentScale(card);
+                BuildEndPanel(card);
                 if (!scoreCard.TryGetComponent<DeliveryItem>(out var item)) item = scoreCard.AddComponent<DeliveryItem>();
                 item.castShadow = false; // the score and contract are held in the air
             }
@@ -203,12 +206,7 @@ namespace VirtualBeeSwarm
             float eyeOffset = Mathf.Clamp(endCardBelowEye, 0f, endCardAhead * 0.10f);
             Vector3 centre = eye + fwd * endCardAhead - up * eyeOffset;
             Vector3 pivot = centre + rot * Vector3.up * below;
-            t.localScale = _cardScale;
-            // The score card grows with the meadow. Return it to reading size when held near the eye.
-            float currentScale = Mathf.Abs(t.lossyScale.x);
-            if (_cardWorldScale > 0f && currentScale > 1e-4f)
-                t.localScale *= _cardWorldScale / currentScale;
-            Vector3 heldScale = t.localScale;
+            Vector3 scale = SetDisplayScale(t);
             if (delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
             {
                 delivery.Register(t)?.Measure();
@@ -219,7 +217,7 @@ namespace VirtualBeeSwarm
                 t.SetPositionAndRotation(pivot, rot);
                 t.localScale = Vector3.zero;
                 SetActive(scoreCard, true);
-                StartCoroutine(ScaleTo(t, heldScale, 0.5f));
+                StartCoroutine(ScaleTo(t, scale, 0.5f));
             }
             DrawOnTop(true);
             Debug.Log("[VBS][EndCard] delivered: " + LastScore + " + the contract, " + endCardAhead.ToString("0.00") + " m ahead, " +
@@ -295,19 +293,22 @@ namespace VirtualBeeSwarm
             LastScore = "Hive saved in " + GameMaterials.Clock(run);
             if (scoreText != null) scoreText.text = LastScore;
             if (net != null) net.SendLog("score " + GameMaterials.Clock(run));
-            if (scoreCard != null && delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
+            if (scoreCard != null)
             {
-                scoreCard.transform.localScale = _cardScale;
-                delivery.DeliverHome(scoreCard.transform, DeliveryStyle.Crown, 6);
-            }
-            else if (scoreCard != null)
-            {
-                // back above the hive (the last run's end card left it in front of the player's head)
-                scoreCard.transform.localPosition = cardLocalPosition;
-                scoreCard.transform.localRotation = Quaternion.Euler(cardTiltDegrees, 0f, 0f);
-                scoreCard.transform.localScale = Vector3.zero;
-                SetActive(scoreCard, true);
-                StartCoroutine(ScaleTo(scoreCard.transform, _cardScale, 0.5f));
+                var card = scoreCard.transform;
+                Pose pose = RescueScorePose(card);
+                Vector3 scale = SetDisplayScale(card);
+                if (delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
+                {
+                    delivery.Deliver(card, pose, DeliveryStyle.Crown, 6);
+                }
+                else
+                {
+                    card.SetPositionAndRotation(pose.position, pose.rotation);
+                    card.localScale = Vector3.zero;
+                    SetActive(scoreCard, true);
+                    StartCoroutine(ScaleTo(card, scale, 0.5f));
+                }
             }
             yield return SayAndWait(GameLines.Escape, 2.5f, LineTime.Seconds(net, GameLines.Escape) + 1f);
 
@@ -325,6 +326,35 @@ namespace VirtualBeeSwarm
             float left = scoreHoldSeconds - (Time.time - start);
             if (left > 0f) yield return Wait(left);
             Complete(0.4f);
+        }
+
+        static float ParentScale(Transform t) => t.parent != null ? Mathf.Max(0.001f, Mathf.Abs(t.parent.lossyScale.x)) : 1f;
+
+        Vector3 SetDisplayScale(Transform card)
+        {
+            Vector3 scale = _cardScale * (_cardParentScale / ParentScale(card));
+            card.localScale = scale;
+            if (card.TryGetComponent(out DeliveryItem item)) item.restScale = scale;
+            return scale;
+        }
+
+        Pose RescueScorePose(Transform card)
+        {
+            var camera = Camera.main;
+            Transform head = delivery != null ? delivery.Head : null;
+            if (head == null && camera != null) head = camera.transform;
+            if (head == null)
+            {
+                var parent = card.parent;
+                return new Pose(parent != null ? parent.TransformPoint(cardLocalPosition) : cardLocalPosition,
+                    (parent != null ? parent.rotation : Quaternion.identity) * Quaternion.Euler(cardTiltDegrees, 0f, 0f));
+            }
+            Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+            forward.Normalize();
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            Vector3 position = head.position + forward * 0.85f - right * 0.26f - Vector3.up * 0.4f;
+            return new Pose(position, Quaternion.LookRotation(position - head.position, Vector3.up));
         }
 
         IEnumerator PulseForMinutes(GameLine minutes, float len)

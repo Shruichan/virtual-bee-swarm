@@ -7,8 +7,6 @@ namespace VirtualBeeSwarm
     /// Ride script v2 glue that belongs to no single beat. Installs itself into any scene with a GameDirector.
     ///   * Ride clock log: every beat change and every line Beeswax starts, on the script's clock (0:00 = the signature):
     ///     "[VBS][Ride] +0:25.21 line room_hook_1 (clip 5.25 s)", "[VBS][Ride] beat smoker at +0:40.02 (meet took 31.4 s)".
-    ///   * room_live_filler before every live answer: the Hive's intent "ask" (a question, not a what-if) arrives before
-    ///     Claude's answer streams, so Beeswax covers the wait ("I could drone on about that. Short version:").
     ///   * room_clock_zero once per run when the boarding clock hits 0:00 with problems left (no fail state).
     ///   * ASK BEESWAX after the contract (map beat): the operator opens it from the Board (Say a line: room_ask_anything)
     ///     or with J on the desktop; a small card parks by the window and a pinch talks to the Hive (the existing what-if
@@ -28,13 +26,12 @@ namespace VirtualBeeSwarm
         public bool AskShown => (_askCard != null && _askCard.activeSelf) || (FullAsk != null && FullAsk.IsOpen);
 
         /// <summary>The full ASK BEESWAX card (AskBeeswax/: chips, states, the answer on the card), when it is on: it
-        /// replaces the small card below, takes the pinch itself and the Hive plays its filler.</summary>
+        /// replaces the small card below and takes the pinch itself.</summary>
         static Ask.AskBeeswax FullAsk => Ask.AskBeeswax.Instance != null && Ask.AskBeeswax.Instance.On ? Ask.AskBeeswax.Instance : null;
 
         float _beatAt = -1f;
         GameBeat _beat = GameBeat.Pre;
         bool _clockZeroSaid, _subscribed;
-        float _lastFillerAt = -100f;
         GameObject _askCard;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -60,7 +57,7 @@ namespace VirtualBeeSwarm
         {
             if (Instance != this) return;
             if (director != null) director.BeatChanged += HandleBeat;
-            if (net != null) { net.VoiceLineStarted += HandleLine; net.IntentReceived += HandleIntent; }
+            if (net != null) net.VoiceLineStarted += HandleLine;
             _subscribed = true;
         }
 
@@ -69,7 +66,7 @@ namespace VirtualBeeSwarm
             if (!_subscribed) return;
             _subscribed = false;
             if (director != null) director.BeatChanged -= HandleBeat;
-            if (net != null) { net.VoiceLineStarted -= HandleLine; net.IntentReceived -= HandleIntent; }
+            if (net != null) net.VoiceLineStarted -= HandleLine;
         }
 
         void OnDestroy()
@@ -112,18 +109,6 @@ namespace VirtualBeeSwarm
             if (!logLines) return;
             Debug.Log("[VBS][Ride] " + Clock() + " line " + (info.id.Length > 0 ? info.id : "(live)") + " (" +
                       (info.stream ? "stream" : info.hasClip ? "clip " + info.clipSeconds.ToString("0.00") + " s" : "caption only") + ") [" + GameIds.BeatName(_beat) + "]");
-        }
-
-        void HandleIntent(string name, string topic, string text)
-        {
-            if (name != GameIds.Intent.Ask || net == null || _beat == GameBeat.Pre || _beat == GameBeat.Hook) return;
-            if (FullAsk != null && FullAsk.IsOpen) return; // the Hive covers its own ASK BEESWAX answers
-            if (Time.time - _lastFillerAt < 3f) return; // the Hive (or we) already covered this answer
-            var filler = RideLines.LiveFiller;
-            if (net.CurrentCaption == filler.caption) return;
-            _lastFillerAt = Time.time;
-            Debug.Log("[VBS][Ride] ask intent: " + filler.id + " covers the live answer");
-            net.Say(filler);
         }
 
         void Update()

@@ -125,6 +125,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomT0Earth = new GameLine("room_t0_earth", "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know."); // room | t0 | t0, optional, fact:earth
         public static readonly GameLine RoomT03 = new GameLine("room_t0_3", "...Not one flower. We've only found them on Earth."); // room | t0 | t0, fact:flowers
         public static readonly GameLine RoomT04 = new GameLine("room_t0_4", "I'm back. Nobody saw that. Mind your own beeswax."); // room | t0 | t0
+        public static readonly GameLine RoomT0FakeMoon = new GameLine("room_t0_fake_moon", "Turns out the Moon was fake. Union rules say you get it anyway."); // room | t0 | t0
         public static readonly GameLine RoomTruth = new GameLine("room_truth", "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison."); // room | map | map, load-bearing, fact:varroa
         public static readonly GameLine RoomMap = new GameLine("room_map", "Same time tomorrow? Other hives have it worse. Wild bees don't even get a beekeeper."); // room | map | map, load-bearing, fact:wild
         public static readonly GameLine RoomEndContract = new GameLine("room_end_contract", "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five."); // room | map | map, load-bearing, contract
@@ -224,13 +225,13 @@ namespace VirtualBeeSwarm
             RoomWhatifOut2, RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray, RoomWhatifWinter,
             RoomWhatifCustom, RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse, RoomWhatifBack,
             RoomWhatifNothing, RoomAdjourn, RoomLiveFiller, RoomEscape, RoomEscapeMinutes, RoomEscapeCredit,
-            RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomTruth,
-            RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance, RoomAckCarried,
-            RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy, RoomFactFestoon,
-            RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson, EarPractice,
-            EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2, EarCannedUnclear,
-            EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif, EarAsideWindow,
-            EarAsideHornet,
+            RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomT0FakeMoon,
+            RoomTruth, RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance,
+            RoomAckCarried, RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy,
+            RoomFactFestoon, RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson,
+            EarPractice, EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2,
+            EarCannedUnclear, EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif,
+            EarAsideWindow, EarAsideHornet,
         };
 
         static readonly GameLine[] LocalLines = { RoomFeedLiftHint };

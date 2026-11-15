@@ -38,8 +38,17 @@ namespace VirtualBeeSwarm
             if (net != null) net.RequestScene(GameIds.Scene.SmokerAngry, sendToHive: false);
         }
 
+        ArtAnimProp FindPropAnimation(ParticleSystem effect)
+        {
+            if (props == null || effect == null) return null;
+            foreach (var animation in props.GetComponentsInChildren<ArtAnimProp>(true))
+                if (animation.particleName == effect.name) return animation;
+            return null;
+        }
+
         protected override IEnumerator ShowOutcome(string choice, bool correct)
         {
+            var animation = FindPropAnimation(choice == GameIds.Choice.Smoker ? smokePuff : waterPuff);
             switch (choice)
             {
                 case GameIds.Choice.Swat:
@@ -55,6 +64,7 @@ namespace VirtualBeeSwarm
                         if (!_puffHomeSaved) { _puffHome = waterPuff.transform.localPosition; _puffHomeSaved = true; }
                         waterPuff.transform.position = nozzle.position;
                     }
+                    animation?.PlayManualAction();
                     GameSound.Cue("water_spray", waterPuff != null ? waterPuff.transform : null);
                     if (waterPuff != null) waterPuff.Emit(puffParticles);
                     if (swarm != null) swarm.Spike(0.8f);
@@ -62,6 +72,7 @@ namespace VirtualBeeSwarm
                 case GameIds.Choice.Smoker:
                     for (int k = 0; k < 3 && !SetupByHand; k++) // HANDSON hook: the player just pumped them
                     {
+                        animation?.PlayManualAction();
                         if (smokePuff != null) smokePuff.Emit(puffParticles);
                         GameSound.Cue("smoker_puff", smokePuff != null ? smokePuff.transform : null);
                         yield return Wait(0.4f);

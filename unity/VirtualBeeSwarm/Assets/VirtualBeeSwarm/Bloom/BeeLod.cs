@@ -33,22 +33,13 @@ namespace VirtualBeeSwarm.Bloom
         public static BeeLod Make(Mesh cheapMesh, Material cheapMat)
         {
             if (cheapMesh == null || cheapMat == null) return null;
-            if (QuestPerf.On) // the headset: far bees are the ~110-tri procedural bee (per-instance colour), not the 560-tri worker
+            if (QuestPerf.On)
             {
-                if (_questMesh == null)
-                {
-                    _questMesh = GameMeshes.CreateBeeMesh();
-                    _questMat = GameMaterials.Create("VBS_BeeFar (quest)", Color.white, vertexColors: true, doubleSided: true);
-                    _questMat.enableInstancing = true;
-                    WingClock.EnableOn(_questMat, _questMesh);
-                }
-                return new BeeLod(_questMesh, _questMat);
+                var far = BeeVat.AuthoredWorkerFarMesh(cheapMesh);
+                if (far != null && far != cheapMesh) return new BeeLod(far, cheapMat);
             }
             return new BeeLod(cheapMesh, cheapMat);
         }
-
-        static Mesh _questMesh;
-        static Material _questMat;
 
         /// <summary>Draws the pool split near / far. False: not in the meadow layout (or no VAT bee): draw as before.</summary>
         public bool Draw(Mesh mesh, Material mat, Matrix4x4[] m, Vector4[] col, int n, int layer)

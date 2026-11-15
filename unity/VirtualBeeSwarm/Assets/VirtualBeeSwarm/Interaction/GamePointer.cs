@@ -37,6 +37,7 @@ namespace VirtualBeeSwarm
         IGameGrabTarget _lastGrabTarget;
         float _grabDistance;
         bool _directGrab;
+        bool _panelGripHeld;
         readonly Collider[] _overlap = new Collider[8];
         readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
 
@@ -50,6 +51,7 @@ namespace VirtualBeeSwarm
         {
             SetHover(null);
             if (_grab != null) { _grab.EndGrab(); _grab = null; }
+            _panelGripHeld = false;
             if (rayLine != null) rayLine.enabled = false;
         }
 
@@ -57,11 +59,17 @@ namespace VirtualBeeSwarm
         {
             HasRay = TryGetRay(out Ray ray);
             bool down = PressDown(), held = PressHeld();
+            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
+            bool controller = source != Source.Mouse && GameHands.For(hand) is IControllerPoseSource input && input.IsController(hand);
+            bool gripHeld = controller ? GameHands.IsFist(hand) : held;
+            bool gripDown = controller ? gripHeld && !_panelGripHeld : down;
+            _panelGripHeld = gripHeld;
 
             // ---- holding something
             if (_grab != null)
             {
-                if (!held || !_grab.Grabbable)
+                bool stillHeld = _grab is PanelGrip panel ? gripHeld && panel.Held && panel.Ready : held && _grab.Grabbable;
+                if (!stillHeld)
                 {
                     _grab.EndGrab();
                     _grab = null;
@@ -80,13 +88,19 @@ namespace VirtualBeeSwarm
             Vector3 lockedLeverPoint = default;
 
             // ---- direct hand grab
-            if (down && source != Source.Mouse && TryGetHandPoint(out var handPoint))
+            if ((down || gripDown) && source != Source.Mouse && TryGetHandPoint(out var handPoint))
             {
                 int n = Physics.OverlapSphereNonAlloc(handPoint, directGrabRadius, _overlap, layers, QueryTriggerInteraction.Collide);
                 for (int i = 0; i < n; i++)
                 {
                     var g = _overlap[i].GetComponentInParent<IGameGrabTarget>();
                     if (g == null || !g.Grabbable) continue;
+                    if (g is PanelGrip)
+                    {
+                        // The nearby tab must be touched deliberately, rather than winning an overlapping chip's poke.
+                        if (!gripDown || (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.018f * 0.018f) continue;
+                    }
+                    else if (!down) continue;
                     if (g is HoneyLever lever && !lever.Live)
                     {
                         lockedLever = lever;
@@ -105,7 +119,7 @@ namespace VirtualBeeSwarm
             if (HasRay && Physics.Raycast(ray, out RaycastHit hit, maxDistance, layers, QueryTriggerInteraction.Collide))
             {
                 // A delivered prop can become grabbable while the player is already pointing at it.
-                if (hit.collider != _lastCol || down) CacheHit(hit.collider);
+                if (hit.collider != _lastCol || down || gripDown) CacheHit(hit.collider);
                 if (_lastGrabTarget is HoneyLever lever && !lever.Live && TryHitBehindLever(ray, hit.collider, out var behind))
                 {
                     hit = behind;
@@ -120,8 +134,8 @@ namespace VirtualBeeSwarm
             SetHover(target);
             DrawRay(HasRay, ray, target != null || grabTarget != null ? hitDistance : idleRayLength);
 
-            if (!down) return;
-            if (grabTarget != null)
+            if (!down && !gripDown) return;
+            if (grabTarget is PanelGrip ? gripDown : grabTarget != null && down)
             {
                 SetHover(null);
                 _grab = grabTarget;
@@ -129,8 +143,8 @@ namespace VirtualBeeSwarm
                 _grabDistance = hitDistance;
                 grabTarget.BeginGrab(ray.GetPoint(hitDistance));
             }
-            else if (target != null) target.Click();
-            else if (lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+            else if (down && target != null) target.Click();
+            else if (down && lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
         }
 
         void UpdateCurrentGrab(Vector3 point)

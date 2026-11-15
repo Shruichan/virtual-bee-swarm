@@ -163,6 +163,8 @@ namespace VirtualBeeSwarm
         BoxCollider[] _collider;
         ChoicePropTarget[] _target;
         readonly Pose[] _slots = new Pose[4];
+        Bounds _hiveEnvelope;
+        Transform _feedLanding;
 
         static readonly Dictionary<string, string> PropNames = new Dictionary<string, string>
         {
@@ -306,6 +308,7 @@ namespace VirtualBeeSwarm
             HideStamps();
             _parked = false;
             _rightSent = false;
+            if (_feedLanding != null) _feedLanding.gameObject.SetActive(false);
             for (int i = 0; i < _n; i++) _gone[i] = false;
             if (Active)
             {
@@ -330,22 +333,23 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < _n; i++) _heavyCued[i] = false;
             ComputeArc();
             if (OrderMode != null && OrderMode(this)) return; // HANDSON hook
-            int slot = 0;
             for (int i = 0; i < _n; i++)
             {
-                if (_gone[i]) { slot++; continue; }
-                Delivery.Park(_item[i], _slots[slot++]);
+                if (_gone[i]) continue;
+                Delivery.ParkStationChoice(_item[i], _slots[i], _hiveEnvelope);
             }
             Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + _n + " choices on their way to the arc");
         }
 
         /// <summary>HandsOn: fly one ordered choice in, to its arc slot (or to `at`).</summary>
-        public void ParkOrdered(string choice, Pose? at = null) // HANDSON hook
+        public Pose? ParkOrdered(string choice, Pose? at = null) // HANDSON hook
         {
             int i = IndexOf(choice);
-            if (!Active || i < 0 || _gone[i]) return;
+            if (!Active || i < 0 || _gone[i]) return null;
             if (!_parked) ParkChoices();
-            Delivery.Park(_item[i], at ?? _slots[i]);
+            Pose slot = at.HasValue ? ClearHandoff(at.Value, i) : _slots[i];
+            Delivery.ParkStationChoice(_item[i], slot, _hiveEnvelope, cueArrival: !at.HasValue);
+            return slot;
         }
 
         /// <summary>OfferChoices: make sure the choices are out (a subclass intro that never called ParkChoices). True = all parked.</summary>
@@ -412,7 +416,8 @@ namespace VirtualBeeSwarm
             if (!StampArt(i, correct)) Delivery.Stamp(_item[i], correct);
             if (!correct) return;
             // The smoker is pumped at the lever and the crew still takes it from there to its stand.
-            bool alreadyPlaced = setupByHand && station != GameStation.Smoker && spot != null && _item[i].gameObject.activeInHierarchy;
+            bool alreadyPlaced = setupByHand && (station == GameStation.Wasps || station == GameStation.Heat) &&
+                                 spot != null && _item[i].gameObject.activeInHierarchy;
             if (alreadyPlaced || rightLandsFirst) LandRight(i, alreadyPlaced);
         }
 
@@ -485,13 +490,15 @@ namespace VirtualBeeSwarm
             if (_rightSent) return;
             _rightSent = true;
             string id = _choice[i];
+            Transform landing = station == GameStation.Feed ? FeedLanding(i) : spot;
+            Bounds? avoidHive = station == GameStation.Feed ? _hiveEnvelope : (Bounds?)null;
             void LogSetDown() => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down");
             if (alreadyPlaced)
             {
-                Delivery.FinishManualPlacement(_item[i], new Pose(spot.position, spot.rotation));
+                Delivery.FinishManualPlacement(_item[i], new Pose(landing.position, landing.rotation));
                 LogSetDown();
             }
-            else Delivery.Deliver(_item[i], spot, DeliveryStyle.Crown, 0, LogSetDown);
+            else Delivery.Deliver(_item[i], landing, DeliveryStyle.Crown, 0, LogSetDown, avoidHive);
             for (int k = 0; k < _n; k++)
             {
                 if (k == i || _gone[k]) continue;
@@ -521,6 +528,7 @@ namespace VirtualBeeSwarm
                 else if (Delivery != null) { Delivery.Release(_item[i], hide: true); HideStamp(i); }
             }
             _parked = false;
+            if (_feedLanding != null) _feedLanding.gameObject.SetActive(false);
         }
 
         /// <summary>StationBase.OnResetState (before OnStationReset): everything back to the builder's layout.</summary>
@@ -537,6 +545,7 @@ namespace VirtualBeeSwarm
                 for (int i = 0; i < _n; i++) Delivery.Release(_item[i], hide: true);
             _parked = false;
             _rightSent = false;
+            if (_feedLanding != null) _feedLanding.gameObject.SetActive(false);
             for (int i = 0; i < _n; i++) _gone[i] = false;
             if (!Active) Detach();
         }
@@ -659,6 +668,7 @@ namespace VirtualBeeSwarm
             Transform head = Delivery.Head;
             Transform hive = hiveRoot != null ? hiveRoot : transform;
             Vector3 h = hive.position;
+            _hiveEnvelope = MeasureHive(hive);
             Vector3 f = head != null ? h - head.position : hive.forward;
             f.y = 0f;
             if (f.sqrMagnitude < 1e-6f) f = hive.forward;
@@ -673,9 +683,9 @@ namespace VirtualBeeSwarm
                 Vector3 e = head.position;
                 Vector3 toH = h - e;
                 toH.y = 0f;
-                float dFace = Mathf.Max(0.2f, toH.magnitude - hiveHalfDepth);
+                float dFace = Mathf.Max(0.2f, Vector3.Dot(_hiveEnvelope.center - e, f) - Support(_hiveEnvelope.extents, f));
                 float dArc = Mathf.Clamp(dFace - arcInFrontOfHive, Mathf.Min(minArcDistance, dFace), dFace);
-                float roof = tableY + hiveTop;
+                float roof = _hiveEnvelope.max.y;
                 float sight = e.y - (e.y - roof) * dArc / dFace;
                 float y = sight + clearAboveRoof; // props stand on their pivot (the builder's props sit on y = 0)
                 float lo = tableY + minArcHeight;
@@ -698,8 +708,75 @@ namespace VirtualBeeSwarm
             {
                 float x = (i - (n - 1) * 0.5f) * s;
                 float bend = s > 1e-4f ? arcBend * (x * x) / (s * s) : 0f;
-                _slots[i] = new Pose(c + right * x - f * bend, rot);
+                _slots[i] = ClearHandoff(new Pose(c + right * x - f * bend, rot), i);
             }
+        }
+
+        Bounds MeasureHive(Transform hive)
+        {
+            var bounds = new Bounds(hive.position + Vector3.up * (hiveTop * 0.5f),
+                new Vector3(hiveHalfDepth * 2f, hiveTop, hiveHalfDepth * 2f));
+            if (hiveRoot == null) return bounds;
+            bool found = false;
+            foreach (var renderer in hive.GetComponentsInChildren<Renderer>())
+            {
+                if (!renderer.enabled || !(renderer is MeshRenderer || renderer is SkinnedMeshRenderer)) continue;
+                if (!found) { bounds = renderer.bounds; found = true; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+            return bounds;
+        }
+
+        static float Support(Vector3 extents, Vector3 axis) =>
+            extents.x * Mathf.Abs(axis.x) + extents.y * Mathf.Abs(axis.y) + extents.z * Mathf.Abs(axis.z);
+
+        Pose ClearHandoff(Pose slot, int index)
+        {
+            Vector3 forward = slot.rotation * Vector3.forward;
+            Vector3 right = slot.rotation * Vector3.right;
+            Vector3 offset = slot.position - _hiveEnvelope.center;
+            var item = _item[index].GetComponent<DeliveryItem>();
+            float clearance = (item != null ? item.Radius : 0.08f) + 0.08f;
+            float front = -Support(_hiveEnvelope.extents, forward) - clearance;
+            float side = Support(_hiveEnvelope.extents, right) + clearance;
+            float depth = Vector3.Dot(offset, forward);
+            float lateral = Vector3.Dot(offset, right);
+            if (depth <= front || Mathf.Abs(lateral) >= side) return slot;
+
+            var head = Delivery.Head;
+            if (head == null || Vector3.Dot(_hiveEnvelope.center - head.position, forward) + front >= 0.28f)
+                slot.position += forward * (front - depth);
+            else
+            {
+                // When the hive fills the near view, put the order beside it and keep the arc's spacing.
+                float shift = (lateral <= 0f ? -side : side);
+                slot.position += right * shift;
+            }
+            return slot;
+        }
+
+        Transform FeedLanding(int index)
+        {
+            Transform table = Delivery.TableAnchor;
+            if (table == null) return spot;
+            if (_feedLanding == null)
+            {
+                _feedLanding = new GameObject("Syrup Landing Tray").transform;
+                _feedLanding.SetParent(table, false);
+                _feedLanding.localScale = Vector3.one / Mathf.Max(0.001f, Mathf.Abs(table.lossyScale.x));
+                HandsOn.HandsOnKit.Prim(PrimitiveType.Cylinder, "Tray", _feedLanding,
+                    Vector3.down * 0.018f, new Vector3(0.25f, 0.018f, 0.25f), HandsOn.HandsOnKit.Brass);
+                HandsOn.HandsOnKit.Prim(PrimitiveType.Cylinder, "Stand", _feedLanding,
+                    Vector3.zero, Vector3.one, HandsOn.HandsOnKit.Wood);
+            }
+            Pose slot = _slots[index];
+            _feedLanding.SetPositionAndRotation(slot.position, slot.rotation);
+            float height = Mathf.Max(0.08f, slot.position.y - table.position.y);
+            var stand = _feedLanding.Find("Stand");
+            stand.localPosition = Vector3.down * (height * 0.5f);
+            stand.localScale = new Vector3(0.045f, height * 0.5f, 0.045f);
+            _feedLanding.gameObject.SetActive(true);
+            return _feedLanding;
         }
 
         /// <summary>The arc slots (world) the last ParkChoices used.</summary>

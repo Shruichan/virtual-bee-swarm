@@ -69,7 +69,7 @@ namespace VirtualBeeSwarm.HandsOn
         bool _live, _armed = true, _painted;
         float _angle, _vel, _target, _grabAngle, _pop, _visibility, _flashAt = -1f;
         float _cradleRetractAt = -1f;
-        Vector3 _grabPoint;
+        Vector3 _grabPoint, _cradleHome;
         int _tooth;
         Coroutine _sim;
 
@@ -140,6 +140,7 @@ namespace VirtualBeeSwarm.HandsOn
 
             // the dock for a prop the crew parks at the lever (toward the middle of the table)
             lever._pad = HandsOnKit.Hexagon("Cradle", root, new Vector3(left ? 0.16f : -0.16f, 0f, 0.02f), 0.13f, 0.008f, HandsOnKit.Honey);
+            lever._cradleHome = lever._pad.localPosition;
             lever._pad.gameObject.SetActive(false);
 
             lever.Apply();
@@ -149,12 +150,15 @@ namespace VirtualBeeSwarm.HandsOn
             return lever;
         }
 
+        internal void PlaceCradle(Vector3 contact) => _pad.position = contact - transform.up * 0.012f;
+
         public void ShowCradle(bool on)
         {
             _cradleRetractAt = -1f;
             if (_pad == null) return;
             _pad.localScale = Vector3.one;
             if (_pad.gameObject.activeSelf != on) _pad.gameObject.SetActive(on);
+            if (!on) _pad.localPosition = _cradleHome;
         }
 
         // ------------------------------------------------------------ grab (IGameGrabTarget)

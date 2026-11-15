@@ -95,6 +95,7 @@ namespace VirtualBeeSwarm
         public event Action<string, string, string> IntentReceived; // (name, topic or "", text)
         public event Action<bool> VoiceInputUnavailable;          // microphone permission granted?
         public event Action VoiceWakeWait;
+        public event Action VoiceDialogueOpened;
         public event Action<bool> VoiceWakeRejected;              // was anything heard?
         public event Action<string, int, int> FxReceived;          // (name, delay_ms or -1, duration_ms or -1)
         public event Action<string> SceneChanged;                  // window scene (local request, or the Hive's orbis{scene})
@@ -136,6 +137,7 @@ namespace VirtualBeeSwarm
         public bool HasVoiceInput => voiceInput != null;
         public bool Talking => voiceInput != null && voiceInput.IsTalking;
         public float VoiceInputLevel => voiceInput != null ? voiceInput.Level : 0f;
+        public bool AskFollowUpOpen => _askQuestionsLeft > 0 && Time.realtimeSinceStartup <= _askFollowUpUntil;
         /// <summary>The mic is taking the player's voice (push-to-talk / VAD) or the hornet's hum: game sound stays silent.</summary>
         public bool MicListening => (voiceInput != null && (voiceInput.IsTalking || voiceInput.IsDucking)) || (hum != null && hum.Listening);
         /// <summary>Between the end of an utterance and its intent, including reconnect delivery.</summary>
@@ -219,6 +221,7 @@ namespace VirtualBeeSwarm
             if (online != _wasOnline)
             {
                 _wasOnline = online;
+                if (!online) _askQuestionsLeft = 0; // the Hive discarded the old socket's dialogue
                 if (logEvents) Debug.Log("[VBS] Hive " + (online ? "online (" + HostName + ")" : "offline: local script + timers"));
                 try { ConnectionChanged?.Invoke(online); } catch (Exception e) { Debug.LogException(e); }
             }
@@ -265,10 +268,18 @@ namespace VirtualBeeSwarm
             }
             if (voice != _boundVoice)
             {
-                if (_boundVoice != null) _boundVoice.OnLineStarted -= HandleLineStarted;
+                if (_boundVoice != null)
+                {
+                    _boundVoice.OnLineStarted -= HandleLineStarted;
+                    _boundVoice.CanSpeakAskCaption = null;
+                }
                 _boundVoice = voice;
                 _voiceSource = voice != null ? voice.GetComponent<AudioSource>() : null;
-                if (voice != null) voice.OnLineStarted += HandleLineStarted;
+                if (voice != null)
+                {
+                    voice.OnLineStarted += HandleLineStarted;
+                    voice.CanSpeakAskCaption = ShouldSpeakDeviceCaption;
+                }
             }
             if (orbis != _boundOrbis)
             {
@@ -302,7 +313,11 @@ namespace VirtualBeeSwarm
                 _bound.OnChoiceRequest -= HandleChoiceRequest;
             }
             _bound = null;
-            if (_boundVoice != null) _boundVoice.OnLineStarted -= HandleLineStarted;
+            if (_boundVoice != null)
+            {
+                _boundVoice.OnLineStarted -= HandleLineStarted;
+                _boundVoice.CanSpeakAskCaption = null;
+            }
             _boundVoice = null;
             if (_boundOrbis != null)
             {
@@ -328,7 +343,7 @@ namespace VirtualBeeSwarm
 
         void HandleGroupReset(Beeswax.GroupReset g)
         {
-            ResetVoiceWakeGate();
+            EndVoiceDialogue();
             if (forceOffline) return;
             voiceInput?.CancelPendingTurn();
             _hasPending = false;
@@ -360,19 +375,33 @@ namespace VirtualBeeSwarm
         void HandleTranscript(Beeswax.Transcript t)
         {
             if (forceOffline) return;
-            if (_wakeUtterance && t.final && t.source == Beeswax.Role.Quest)
+            if (_askUtterance && t.final && t.source == Beeswax.Role.Quest)
             {
-                _wakeUtterance = false;
-                var question = Ask.AskFlow.WakeQuestion(t.text);
-                if (question.Length == 0)
+                bool requireWake = _wakeUtterance;
+                _askUtterance = _wakeUtterance = false;
+                bool wake = Ask.AskFlow.TryWakePhrase(t.text, out var question);
+                bool legacyHive = string.IsNullOrEmpty(t.wake_status);
+                if (t.wake_status == "opened" || (legacyHive && wake && question.Length == 0))
+                {
+                    _askQuestionsLeft = MaxAskQuestions;
+                    _askFollowUpUntil = Time.realtimeSinceStartup + AskFollowUpSeconds;
+                    DiscardRemoteAskReply();
+                    VoiceDialogueOpened?.Invoke();
+                    Say(GameLines.RoomAckAllow);
+                    return;
+                }
+                if (t.wake_status == "rejected" || (legacyHive && ((!wake && requireWake) || string.IsNullOrWhiteSpace(t.text))))
                 {
                     // Older Hives may still answer a rejected turn. Ignore those replies until the next deliberate input.
-                    voiceInput?.CancelPendingTurn();
-                    if (voice != null) voice.SuppressAskReplies = true;
+                    EndVoiceDialogue();
+                    DiscardRemoteAskReply();
                     VoiceWakeRejected?.Invoke(!string.IsNullOrWhiteSpace(t.text));
                     return;
                 }
-                TranscriptReceived?.Invoke(question, true);
+                if (wake) _askQuestionsLeft = MaxAskQuestions;
+                _askQuestionsLeft = Mathf.Max(0, _askQuestionsLeft - 1);
+                _askFollowUpUntil = Time.realtimeSinceStartup + AskFollowUpSeconds;
+                TranscriptReceived?.Invoke(wake ? question : t.text, true);
                 return;
             }
             TranscriptReceived?.Invoke(t.text, t.final);
@@ -381,6 +410,7 @@ namespace VirtualBeeSwarm
         void HandleIntent(Beeswax.Intent i)
         {
             if (forceOffline || (voice != null && voice.SuppressAskReplies)) return;
+            _deviceAskReplyPending = i.name == GameIds.Intent.Ask && (_lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field);
             if (logEvents) Debug.Log("[VBS] <- intent " + i.name + " " + i.topic);
             IntentReceived?.Invoke(i.name, i.topic, i.text);
         }
@@ -408,6 +438,8 @@ namespace VirtualBeeSwarm
         void HandleLineStarted(string caption)
         {
             var id = voice != null ? voice.CurrentLineId : "";
+            if (voice != null && (voice.CurrentTtsId.Length > 0 || id.StartsWith("ask_", StringComparison.Ordinal)))
+                _deviceAskReplyPending = false;
             if (id == GameLines.RoomMeetHeyBeeswax.id && voiceInput != null) voiceInput.CancelPendingTurn();
             ReportLine(id, voice != null ? voice.CurrentTtsId : "", caption);
             LineStarted?.Invoke(caption);
@@ -422,14 +454,27 @@ namespace VirtualBeeSwarm
 
         // ---------------------------------------------------------------- outbound
         GameBeat? _lastBeat;
-        bool _wakeUtterance;
+        bool _askUtterance, _wakeUtterance;
+        bool _deviceAskReplyPending;
+
+        bool ShouldSpeakDeviceCaption(string caption)
+        {
+            if (!_deviceAskReplyPending) return false;
+            _deviceAskReplyPending = false;
+            return !string.IsNullOrWhiteSpace(caption) && !Ask.AskLines.IsNonAnswer("", caption);
+        }
+
+        const int MaxAskQuestions = 3;
+        const float AskFollowUpSeconds = 20f;
+        int _askQuestionsLeft;
+        float _askFollowUpUntil;
         /// <summary>Unity is the only beat clock: report every beat change. The bus re-sends it after a reconnect.</summary>
         public void SendBeat(GameBeat beat, int? scoreSeconds = null)
         {
             if (_lastBeat != beat)
             {
                 voiceInput?.CancelPendingTurn();
-                ResetVoiceWakeGate();
+                EndVoiceDialogue();
             }
             _lastBeat = beat;
             if (logEvents) Debug.Log("[VBS] beat " + (int)beat + " " + GameIds.BeatName(beat) + (Online ? "" : " (offline)"));
@@ -656,15 +701,19 @@ namespace VirtualBeeSwarm
         {
             if (Talking) return true;
             if (forceOffline || voiceInput == null || _bound == null) return false;
-            bool wake = _lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field;
+            bool ask = _lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field;
+            if (ask && voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
+            bool wake = ask && !AskFollowUpOpen;
             // Protect the instructional phrase even though it plays before the card is available.
-            if (IsSpeaking && (wake || (voice != null && voice.CurrentLineId == GameLines.RoomMeetHeyBeeswax.id)))
+            if ((ask && (IsSpeaking || AwaitingReply)) ||
+                (voice != null && voice.CurrentLineId == GameLines.RoomMeetHeyBeeswax.id))
             {
-                if (wake) VoiceWakeWait?.Invoke();
+                if (ask) VoiceWakeWait?.Invoke();
                 return false;
             }
             ResetVoiceWakeGate();
-            bool ok = voiceInput.BeginTalk(wake);
+            bool ok = voiceInput.BeginTalk(wake, ask);
+            _askUtterance = ok && ask;
             _wakeUtterance = ok && wake;
             if (ok && logEvents) Debug.Log("[VBS] talk start");
             if (!ok) VoiceInputUnavailable?.Invoke(Beeswax.BeeswaxMic.HasPermission);
@@ -673,8 +722,23 @@ namespace VirtualBeeSwarm
 
         public void ResetVoiceWakeGate()
         {
-            _wakeUtterance = false;
+            _askUtterance = _wakeUtterance = false;
+            _deviceAskReplyPending = false;
             if (voice != null) voice.SuppressAskReplies = false;
+        }
+
+        public void EndVoiceDialogue()
+        {
+            _askQuestionsLeft = 0;
+            _askFollowUpUntil = 0f;
+            ResetVoiceWakeGate();
+            if (voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
+        }
+
+        void DiscardRemoteAskReply()
+        {
+            voiceInput?.CancelPendingTurn();
+            if (voice != null) voice.SuppressAskReplies = true;
         }
 
         public void EndTalk(bool cancel = false)

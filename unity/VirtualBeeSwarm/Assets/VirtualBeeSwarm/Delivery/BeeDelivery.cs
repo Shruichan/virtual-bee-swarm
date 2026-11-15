@@ -151,6 +151,8 @@ namespace VirtualBeeSwarm
             public readonly int[] bees = new int[MaxCrew];
             public float start, duration, speedScale = 1f;
             public Vector3 p0, p1;               // path start + first control (p2/p3 follow the target)
+            public Bounds? avoidHive;
+            public bool parkArrival;
             public Transform targetParent;
             public Vector3 targetPos;            // local to targetParent, or world
             public Quaternion targetRot;
@@ -234,7 +236,7 @@ namespace VirtualBeeSwarm
             if (Instance == null) Instance = this;
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (hiveSwarm == null) hiveSwarm = FindAnyObjectByType<SwarmSystem>();
-            if (beeMesh == null) beeMesh = GameMeshes.CreateBeeMesh();
+            beeMesh = BeeVat.AuthoredWorkerMesh(beeMesh) ?? beeMesh ?? GameMeshes.CreateBeeMesh();
             if (beeMaterial == null) beeMaterial = GameMaterials.Create("VBS_DeliveryBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
@@ -426,10 +428,11 @@ namespace VirtualBeeSwarm
             => Command(item, null, to.position, to.rotation, style, crew, true, onLanded);
 
         /// <summary>Deliver onto a spot transform (followed while flying).</summary>
-        public void Deliver(Transform item, Transform spot, DeliveryStyle style = DeliveryStyle.Crown, int crew = 0, Action onLanded = null)
+        public void Deliver(Transform item, Transform spot, DeliveryStyle style = DeliveryStyle.Crown, int crew = 0, Action onLanded = null,
+            Bounds? avoidHive = null)
         {
             if (spot == null) { Deliver(item, new Pose(item.position, item.rotation), style, crew, onLanded); return; }
-            Command(item, spot, spot.position, spot.rotation, style, crew, true, onLanded);
+            Command(item, spot, spot.position, spot.rotation, style, crew, true, onLanded, avoidHive);
         }
 
         /// <summary>
@@ -471,6 +474,10 @@ namespace VirtualBeeSwarm
         /// <summary>Fly in and hover, perfectly still, at `slot` (world pose). The crew hovers above it until the next command.</summary>
         public void Park(Transform item, Pose slot, int crew = 0)
             => Command(item, null, slot.position, slot.rotation, DeliveryStyle.Crown, crew, false, null);
+
+        /// <summary>Carry a station prop around the hive to its handoff and give it a small arrival cue.</summary>
+        public void ParkStationChoice(Transform item, Pose slot, Bounds hive, bool cueArrival = true)
+            => Command(item, null, slot.position, slot.rotation, DeliveryStyle.Crown, 0, false, null, hive, cueArrival);
 
         /// <summary>A red repo crew flies in and hauls it out through the window. Heavy: 8 bees, drags 15 cm first, leaves at 0.8x.</summary>
         public void HaulAway(Transform item, bool repo = true) => TakeOut(item, repo);
@@ -709,7 +716,7 @@ namespace VirtualBeeSwarm
 
         // ------------------------------------------------------------ commands
         void Command(Transform t, Transform targetParent, Vector3 worldPos, Quaternion worldRot, DeliveryStyle style, int crew,
-            bool land, Action onLanded)
+            bool land, Action onLanded, Bounds? avoidHive = null, bool parkArrival = false)
         {
             if (t == null) return;
             Init();
@@ -751,6 +758,8 @@ namespace VirtualBeeSwarm
             j.land = land;
             j.heavy = item.Heavy;
             j.onDone = onLanded;
+            j.avoidHive = avoidHive;
+            j.parkArrival = parkArrival;
             j.start = _now;
             j.createdFrame = Time.frameCount;
             SetTarget(j, targetParent, worldPos, worldRot);
@@ -1137,6 +1146,13 @@ namespace VirtualBeeSwarm
             Quaternion rot = Quaternion.Slerp(j.startRot, TargetRot(j), u);
             float scaleK = Mathf.SmoothStep(0f, 1f, k / 0.2f);
             t.localScale = Vector3.LerpUnclamped(j.startScale, item.restScale, scaleK);
+            if (j.avoidHive is Bounds hive)
+            {
+                Vector3 d = pivot - hive.center;
+                float edge = Mathf.Max(Mathf.Abs(d.x) - hive.extents.x, Mathf.Abs(d.z) - hive.extents.z);
+                float clear = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.02f, 0.07f, edge - item.Radius));
+                pivot.y = Mathf.Lerp(pivot.y, Mathf.Max(pivot.y, hive.max.y + 0.06f), clear);
+            }
             ApplySwing(j, item, pivot, rot, dt, 1f - Mathf.SmoothStep(0f, 1f, (u - 0.8f) / 0.2f));
             PlaceCrew(j, now: _now, carrying: true);
             if (k >= 1f)
@@ -1161,6 +1177,7 @@ namespace VirtualBeeSwarm
                 {
                     j.phase = Phase.Hold;
                     item.parked = true;
+                    if (j.parkArrival) PlayParkArrival(item);
                     Log("parked " + t.name);
                 }
             }
@@ -1362,7 +1379,12 @@ namespace VirtualBeeSwarm
                         Landed?.Invoke(t);
                         cb?.Invoke();
                     }
-                    else { item.parked = true; FreeJob(ji); } // swirl parks hold with no crew
+                    else
+                    {
+                        item.parked = true;
+                        if (j.parkArrival) PlayParkArrival(item);
+                        FreeJob(ji);
+                    }
                 }
                 else
                 {
@@ -1503,6 +1525,15 @@ namespace VirtualBeeSwarm
                 _audio.pitch = Mathf.Lerp(1.15f, 0.7f, Mathf.Clamp01(item.weight));
                 _audio.PlayOneShot(thunkClip, 0.9f);
             }
+        }
+
+        void PlayParkArrival(DeliveryItem item)
+        {
+            var t = item.transform;
+            GameSound.Cue("touchdown_light", t);
+            if (_dust == null) return;
+            _dust.transform.position = t.position + Vector3.up * 0.01f;
+            _dust.Emit(Mathf.Max(1, dustParticles / 3));
         }
 
         void StepItems(float now)

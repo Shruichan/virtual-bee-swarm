@@ -320,11 +320,7 @@ namespace VirtualBeeSwarm.HandsOn
             _cur.RestartPickClock(); // no "Off the record?" hint / "Overruled" while it flies in
             if (choice == GameIds.Choice.Nothing) { Arrived(); return; } // nothing to fly
             bool right = GameIds.IsCorrect(_cur.Station, choice);
-            if (right && _cur.Station == GameStation.Smoker)
-            {
-                _lever.ShowCradle(true);
-                _sd.ParkOrdered(choice, _lever.CradlePose); // docked at the lever, ready to pump
-            }
+            if (right && _cur.Station == GameStation.Smoker) DockSmoker(choice);
             else _sd.ParkOrdered(choice);
             _step = Step.Inbound;
             _stepAt = Time.time;
@@ -533,7 +529,7 @@ namespace VirtualBeeSwarm.HandsOn
             Transform spot = _sd != null ? _sd.Spot : null;
             Transform at = st.Station == GameStation.Smoker || spot == null ? _lever.transform : spot;
             if (_carry != null) _carry.Disarm();
-            if (_item != null && spot != null && (st.Station == GameStation.Feed || st.Station == GameStation.Wasps))
+            if (_item != null && spot != null && st.Station == GameStation.Wasps)
                 _item.SetPositionAndRotation(spot.position, spot.rotation);
             _lever.Live = WaitingForLaunch;
             _stream.gameObject.SetActive(false);
@@ -591,8 +587,15 @@ namespace VirtualBeeSwarm.HandsOn
         {
             _ordered = GameIds.Choice.Smoker;
             BeginSetup(st);
-            if (_sd != null && _sd.Active && _item != null && BeeDelivery.Instance != null)
-                BeeDelivery.Instance.Park(_item, _lever.CradlePose);
+            if (_sd != null && _sd.Active && _item != null) DockSmoker(_ordered);
+        }
+
+        void DockSmoker(string choice)
+        {
+            Pose? dock = _sd.ParkOrdered(choice, _lever.CradlePose);
+            if (!dock.HasValue) return;
+            _lever.PlaceCradle(dock.Value.position);
+            _lever.ShowCradle(true);
         }
 
         /// <summary>T0Sequence, after 3-2-1: the lever is the launch button (auto-launch after launchWaitSeconds).</summary>

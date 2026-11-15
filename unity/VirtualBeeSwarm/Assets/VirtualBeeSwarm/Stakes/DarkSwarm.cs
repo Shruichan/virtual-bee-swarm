@@ -135,7 +135,7 @@ namespace VirtualBeeSwarm.Stakes
         {
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
-            if (beeMesh == null) beeMesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
+            beeMesh = BeeVat.AuthoredWorkerMesh(beeMesh) ?? beeMesh ?? GameMeshes.CreateBeeMesh();
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_DarkBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;

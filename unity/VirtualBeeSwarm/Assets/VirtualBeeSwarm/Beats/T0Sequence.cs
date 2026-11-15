@@ -46,7 +46,10 @@ namespace VirtualBeeSwarm
         float _dim;
         bool _launched, _landed;
         bool _hasLaunchPose;
-        Pose _launchPose;
+        Pose _launchPose, _crashPose;
+        Transform _facingSeat;
+
+        public bool MoonAwardVisible { get; private set; }
 
         public override bool Handles(GameBeat beat) => beat == GameBeat.T0;
 
@@ -100,7 +103,7 @@ namespace VirtualBeeSwarm
                 if (rocket != null) _launchPose = new Pose(rocket.localPosition, rocket.localRotation);
                 _hasLaunchPose = true;
             }
-            _launched = _landed = false;
+            _launched = _landed = MoonAwardVisible = false;
             StartCoroutine(Run());
         }
 
@@ -124,10 +127,11 @@ namespace VirtualBeeSwarm
             // board
             if (beeswax != null && rocketSeat != null)
             {
-                beeswax.FlyTo(rocketSeat);
+                Transform seat = FacingSeat();
+                beeswax.FlyTo(seat);
                 float t0 = Time.time;
                 while (!beeswax.Arrived && Time.time - t0 < 3f) yield return null;
-                beeswax.AttachTo(rocketSeat);
+                beeswax.AttachTo(seat);
             }
             for (int n = 3; n >= 1; n--)
             {
@@ -180,29 +184,44 @@ namespace VirtualBeeSwarm
                 yield return null;
             }
 
-            // crash back
+            // Accelerate into the crash, trigger the dust and audio at contact, then give the rocket one short bounce.
             if (rocket != null)
             {
+                _crashPose = GetCrashPose();
                 rocket.gameObject.SetActive(true);
-                Vector3 land = crashSpot != null ? crashSpot.position
-                    : rocket.parent != null ? rocket.parent.TransformPoint(_rocketHomePos) : _rocketHomePos;
-                Quaternion tilt = (crashSpot != null ? crashSpot.rotation : rocket.rotation) * Quaternion.Euler(0f, 0f, 28f);
-                rocket.rotation = tilt * Quaternion.Euler(0f, 0f, 150f);
-                Vector3 from = land + Vector3.up * 1.2f;
+                Vector3 from = _crashPose.position + Vector3.up * 1.2f;
                 float start = Time.time;
                 while (Time.time - start < 0.6f)
                 {
                     float k = (Time.time - start) / 0.6f;
-                    rocket.position = Vector3.Lerp(from, land, k * k);
-                    rocket.rotation = Quaternion.Slerp(rocket.rotation, tilt, k);
+                    rocket.SetPositionAndRotation(Vector3.Lerp(from, _crashPose.position, k * k),
+                        _crashPose.rotation * Quaternion.Euler(0f, 0f, 145f * (1f - k * k)));
                     yield return null;
                 }
-                rocket.position = land;
-                rocket.rotation = tilt;
+                rocket.SetPositionAndRotation(_crashPose.position, _crashPose.rotation);
             }
             _landed = true;
             SetActive(flame, false);
-            if (dustPuff != null) { dustPuff.transform.position = rocket != null ? rocket.position : dustPuff.transform.position; dustPuff.Emit(30); }
+            if (dustPuff != null)
+            {
+                if (rocket != null) dustPuff.transform.position = _crashPose.position;
+                dustPuff.Emit(38);
+            }
+            SetActive(moon, false);
+            RestoreMeadow(); // the sound director plays the crash on the Moon-to-Meadow change
+            if (rocket != null)
+            {
+                float start = Time.time;
+                while (Time.time - start < 0.4f)
+                {
+                    float k = (Time.time - start) / 0.4f;
+                    float bounce = Mathf.Sin(k * Mathf.PI) * (1f - k);
+                    rocket.SetPositionAndRotation(_crashPose.position + Vector3.up * (0.19f * bounce),
+                        _crashPose.rotation * Quaternion.Euler(0f, 0f, -22f * bounce));
+                    yield return null;
+                }
+                rocket.SetPositionAndRotation(_crashPose.position, _crashPose.rotation);
+            }
             if (beeswax != null)
             {
                 beeswax.Detach();
@@ -210,8 +229,6 @@ namespace VirtualBeeSwarm
                 beeswax.SetDusty(true);
                 beeswax.GoPresent();
             }
-            SetActive(moon, false);
-            RestoreMeadow();
             float undimStart = Time.time;
             float dim0 = _dim;
             while (Time.time - undimStart < 1f)
@@ -223,7 +240,25 @@ namespace VirtualBeeSwarm
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
 
             yield return SayAndWait(GameLines.T0Back, 2.5f, 7f);
-            Complete(1f);
+            MoonAwardVisible = true;
+            yield return SayAndWait(GameLines.RoomT0FakeMoon, 2.5f, LineTime.Seconds(net, GameLines.RoomT0FakeMoon) + 1f);
+            Complete(0.7f);
+        }
+
+        Transform FacingSeat()
+        {
+            if (_facingSeat == null)
+            {
+                _facingSeat = new GameObject("Facing Seat").transform;
+                _facingSeat.SetParent(rocketSeat, false);
+            }
+            Transform head = beeswax.HeadTransform;
+            Vector3 forward = head != null ? head.position - rocketSeat.position : rocketSeat.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.ProjectOnPlane(rocketSeat.forward, Vector3.up);
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+            _facingSeat.rotation = Quaternion.LookRotation(forward, Vector3.up);
+            return _facingSeat;
         }
 
         Transform Perch()
@@ -261,6 +296,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnExit(GameBeat beat)
         {
+            MoonAwardVisible = false;
             SetDim(0f);
             SetActive(flame, false);
             SetActive(moon, false);
@@ -270,6 +306,8 @@ namespace VirtualBeeSwarm
                 if (rocket != null) PutRocketDown();
                 RestoreMeadow();
             }
+            else if (_landed && rocket != null)
+                rocket.SetPositionAndRotation(_crashPose.position, _crashPose.rotation);
             if (beeswax != null) { beeswax.Detach(); beeswax.SetVisible(true); }
             if (rocketDisplay != null) rocketDisplay.text = "HONEYMOON-1";
         }
@@ -280,16 +318,26 @@ namespace VirtualBeeSwarm
             if (net != null) net.RequestScene(GameIds.Scene.FullBloom, sendToHive: true);
         }
 
+        Pose GetCrashPose()
+        {
+            if (crashSpot != null)
+                return new Pose(crashSpot.position, crashSpot.rotation * Quaternion.Euler(0f, 0f, 28f));
+            var parent = rocket.parent;
+            return new Pose(parent != null ? parent.TransformPoint(_rocketHomePos) : _rocketHomePos,
+                (parent != null ? parent.rotation * _rocketHomeRot : _rocketHomeRot) * Quaternion.Euler(0f, 0f, 28f));
+        }
+
         void PutRocketDown()
         {
-            if (crashSpot != null) rocket.SetPositionAndRotation(crashSpot.position, crashSpot.rotation * Quaternion.Euler(0f, 0f, 28f));
-            else { rocket.localPosition = _rocketHomePos; rocket.localRotation = _rocketHomeRot; }
+            _crashPose = GetCrashPose();
+            rocket.SetPositionAndRotation(_crashPose.position, _crashPose.rotation);
             _landed = true;
         }
 
         protected override void OnResetState()
         {
             _hasLaunchPose = false;
+            MoonAwardVisible = false;
             SetDim(0f);
             SetActive(flame, false);
             SetActive(moon, false);

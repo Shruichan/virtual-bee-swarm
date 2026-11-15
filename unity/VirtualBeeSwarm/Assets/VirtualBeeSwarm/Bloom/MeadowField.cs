@@ -773,7 +773,7 @@ namespace VirtualBeeSwarm.Bloom
             _pos = new Vector3[_m.Length]; _from = new Vector3[_m.Length]; _to = new Vector3[_m.Length]; _rest = new Vector3[_m.Length];
             _t0 = new float[_m.Length]; _dur = new float[_m.Length]; _until = new float[_m.Length]; _arc = new float[_m.Length];
             _perched = new bool[_m.Length]; _live = new bool[_m.Length];
-            _mesh = QuestPerf.On ? GameMeshes.CreateBeeMesh() : BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh(); // headset: the low-poly bee
+            _mesh = (QuestPerf.On ? BeeVat.AuthoredWorkerFarMesh() : BeeVat.AuthoredWorkerMesh()) ?? GameMeshes.CreateBeeMesh();
             _mat = GameMaterials.Create("VBS_MeadowBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             _mat.enableInstancing = true;
             WingClock.EnableOn(_mat, _mesh); // use the static worker with shader wings for the full room pool
