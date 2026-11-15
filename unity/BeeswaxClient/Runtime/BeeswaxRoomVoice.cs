@@ -141,9 +141,9 @@ namespace Beeswax
                 if (!string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName())) source.spatialize = true;
                 if (Application.platform == RuntimePlatform.Android)
                 {
-                    source.spatialBlend = 0.8f;
+                    source.spatialBlend = 0.6f; // Rome playtest: still too quiet on the headset; more of him direct, less distance falloff
                     source.minDistance = Mathf.Max(source.minDistance, 1.8f);
-                    _dialogueGain = 1.41f; // +3 dB on quiet blocks, also on streamed speech
+                    _dialogueGain = 2f; // +6 dB, peak-limited per block below (was +3 dB)
                 }
             }
         }
