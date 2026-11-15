@@ -46,6 +46,7 @@ namespace VirtualBeeSwarm.Ask
         TextMesh _status, _minutes, _answer;
         AskChip[] _chips;
         GameObject[] _chipLabels;
+        bool _showChip;
         readonly Transform[] _hex = new Transform[3];
         readonly Renderer[] _hexR = new Renderer[3];
         bool _flownIn;
@@ -102,14 +103,9 @@ namespace VirtualBeeSwarm.Ask
                 _hexR[i] = r;
             }
 
-            _chips = new AskChip[AskLines.Chips.Length];
+            _chips = new AskChip[1];
             _chipLabels = new GameObject[_chips.Length];
-            for (int i = 0; i < _chips.Length; i++)
-            {
-                float x = (i % 2 == 0 ? -1f : 1f) * 0.118f;
-                float y = top - 0.179f - (i / 2) * 0.064f;
-                _chips[i] = Chip(i, new Vector3(x, y, -0.006f), AskLines.ChipLabels[i]);
-            }
+            _chips[0] = Chip(0, new Vector3(0f, top - 0.215f, -0.006f), AskLines.ChipLabels[0]);
             _answer = Text("Answer", new Vector3(0f, top - 0.218f, -0.004f), "", 0.0030f, FontStyle.Bold);
             _answer.gameObject.SetActive(false);
             _minutes = Text("Minutes", new Vector3(0f, -top + 0.022f, -0.004f), AskFlow.MinutesText(0), 0.0022f, FontStyle.Bold);
@@ -118,9 +114,10 @@ namespace VirtualBeeSwarm.Ask
 
         // ------------------------------------------------------------ show / hide
         /// <summary>Fly the card in with a bee crew (BeeDelivery, any mode; off = it just appears) and park it at `pose`.</summary>
-        public void Show(Pose pose)
+        public void Show(Pose pose, bool showChip = true)
         {
             Build();
+            _showChip = showChip;
             _grip.ResetPlacement();
             _grip.Ready = true;
             ShowChips();
@@ -188,7 +185,7 @@ namespace VirtualBeeSwarm.Ask
         public void ShowChips()
         {
             if (_answer != null) _answer.gameObject.SetActive(false);
-            SetChipsActive(true);
+            SetChipsActive(_showChip);
             AnswerShown = false;
         }
 

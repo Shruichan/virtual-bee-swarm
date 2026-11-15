@@ -16,7 +16,7 @@
   {"id": "room_smoker_swat", "channel": "room", "beat": "smoker", "text": "You SWATTED a union member?! Squish one bee and her alarm smell calls the whole shift.", "tags": ["station:smoker", "choice:swat", "wrong", "fact:alarm"]},
   {"id": "room_smoker_spray_water", "channel": "room", "beat": "smoker", "text": "Water? Now they're wet AND still buzzing mad. Smoke masks the alarm smell.", "tags": ["station:smoker", "choice:spray_water", "wrong", "fact:alarm"]},
   {"id": "room_smoker_smoker", "channel": "room", "beat": "smoker", "text": "Ahh. Smoke covers our alarm smell and makes us fill up on honey. The alarm? Smells like bananas.", "tags": ["station:smoker", "choice:smoker", "correct", "fact:smoke"]},
-  {"id": "room_smoker_banana", "channel": "room", "beat": "smoker", "text": "Don't go bananas near my hive. And don't eat a banana, either.", "tags": ["station:smoker", "joke", "cut-if-behind"]},
+  {"id": "room_smoker_banana", "channel": "room", "beat": "smoker", "text": "Don't turn into a banana.", "tags": ["station:smoker", "joke", "cut-if-behind"]},
   {"id": "room_smoker_hand", "channel": "room", "beat": "smoker", "text": "They're calm. Hold out your hand. These ones are virtual. Real ones? Bee-hold, but don't touch.", "tags": ["station:smoker", "optional", "palm", "fact:sting"]},
   {"id": "room_feed_intro", "channel": "room", "beat": "feed", "text": "Problem two. Speaking of honey, any left? Now lift the hive.", "tags": ["station:feed", "prompt", "load-bearing"]},
   {"id": "room_lift_light", "channel": "room", "beat": "feed", "text": "Light, right? That's bad. Full hives are heavy with honey. The movers were being dramatic.", "tags": ["station:feed", "lift", "load-bearing", "fact:heft"]},

@@ -75,7 +75,7 @@ namespace VirtualBeeSwarm.Meta
         bool HandTracked(GameHand h)
         {
             var hand = Hand(h);
-            return hand != null && hand.IsTracked;
+            return hand != null && hand.isActiveAndEnabled && hand.IsDataValid && hand.IsTracked;
         }
 
         bool ControllerTracked(GameHand h)
@@ -148,12 +148,16 @@ namespace VirtualBeeSwarm.Meta
 
         public bool TryGetIndexTip(GameHand hand, out Vector3 position)
         {
-            if (HandTracked(hand) && TryBones(hand, out var b))
+            if (HandTracked(hand))
             {
-                position = b.indexTip.position;
-                return true;
+                TryBones(hand, out var b);
+                if (b.indexTip != null)
+                {
+                    position = b.indexTip.position;
+                    return true;
+                }
             }
-            if (!HandTracked(hand) && ControllerTracked(hand))
+            else if (ControllerTracked(hand))
             {
                 var a = ControllerAnchor(hand);
                 if (a != null)

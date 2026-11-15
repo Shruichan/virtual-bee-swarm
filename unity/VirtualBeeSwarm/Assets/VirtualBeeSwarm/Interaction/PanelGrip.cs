@@ -8,6 +8,7 @@ namespace VirtualBeeSwarm
     public sealed class PanelGrip : MonoBehaviour, IGameGrabTarget
     {
         Transform _panel;
+        Collider _handle;
         bool _delivered;
         Vector3 _holdOffset, _start;
 
@@ -22,22 +23,27 @@ namespace VirtualBeeSwarm
             var tab = new GameObject("Panel Grab Tab");
             tab.transform.SetParent(parent, false);
             tab.transform.localPosition = localPosition;
-            var trigger = tab.AddComponent<BoxCollider>();
+            var handle = tab.AddComponent<BoxCollider>();
+            handle.size = new Vector3(0.135f, 0.043f, 0.055f);
+            handle.isTrigger = true;
             if (panelArea is Vector2 area)
             {
-                trigger.size = new Vector3(area.x, area.y + 0.055f, 0.056f);
-                trigger.center = -localPosition + Vector3.up * 0.012f;
+                var trigger = tab.AddComponent<BoxCollider>();
+                trigger.size = new Vector3(area.x, area.y, 0.036f);
+                trigger.center = -localPosition;
+                trigger.isTrigger = true;
             }
-            else trigger.size = new Vector3(0.085f, 0.028f, 0.035f);
-            trigger.isTrigger = true;
             HandsOnKit.Prim(PrimitiveType.Cube, "Tab", tab.transform, Vector3.zero,
-                new Vector3(0.074f, 0.017f, 0.007f), HandsOnKit.Honey);
-            HandsOnKit.Text("Grab Label", tab.transform, Vector3.back * 0.005f, "GRAB", 0.0019f, HandsOnKit.Ink);
+                new Vector3(0.12f, 0.028f, 0.007f), HandsOnKit.Honey);
+            HandsOnKit.Text("Grab Label", tab.transform, Vector3.back * 0.005f, "GRAB", 0.0023f, HandsOnKit.Ink);
             var grip = tab.AddComponent<PanelGrip>();
+            grip._handle = handle;
             grip._panel = panel;
             grip._delivered = delivered;
             return grip;
         }
+
+        internal bool IsHandle(Collider collider) => collider == _handle;
 
         public void BeginGrab(Vector3 grabPoint)
         {

@@ -97,10 +97,25 @@ namespace VirtualBeeSwarm.Tests
                 yield return null;
                 Assert.That(panel.transform.position.x, Is.EqualTo(start.x + 0.15f).Within(0.005f));
 
+                // Meta can swap modalities inside the same pose provider while its button edge is held.
+                source.Controller = false;
+                source.Origin += Vector3.right * 0.5f;
+                yield return null;
+                Assert.That(grip.Held, Is.False);
+                Assert.That(panel.transform.position.x, Is.EqualTo(start.x + 0.15f).Within(0.005f));
+
                 source.Trigger = false;
                 yield return null;
                 Assert.That(grip.Held, Is.False);
                 Assert.That(grip.ManuallyPlaced, Is.True);
+
+                // The new hand can pinch the nearby handle even before its pointer ray becomes available.
+                source.Aiming = false;
+                source.Origin = grip.transform.position;
+                Physics.SyncTransforms();
+                source.Trigger = true;
+                yield return null;
+                Assert.That(grip.Held, Is.True);
             }
             finally
             {

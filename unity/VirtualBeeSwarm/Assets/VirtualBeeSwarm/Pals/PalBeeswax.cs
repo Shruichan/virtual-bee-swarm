@@ -7,7 +7,7 @@ namespace VirtualBeeSwarm.Pals
     /// <summary>
     /// Beeswax plays with the player's hands (tuning pals.on, default on):
     ///   pet        gentle strokes touching his body make him blush with drifting pink hearts.
-    ///   swat       a quick tap or fast hit makes him spring back indignantly with a bright impact burst.
+    ///   swat       a sharp inward hit makes him spring back with a bright impact burst.
     ///   wave       a raised hand waved side to side (3 turns): he waves back with his front leg.
     ///   high-five  a raised open palm held still, facing away from you: he flies over, slaps it (sparkle burst, squash),
     ///              then goes back to where the script had him.
@@ -39,13 +39,15 @@ namespace VirtualBeeSwarm.Pals
         Vector3 _wroteSquash = Vector3.one, _baseSquash = Vector3.one;
         bool _wrote;
         float _wiggleFrom = -1f, _squashFrom = -1f;
+        float _rollFrom = -1f, _nextRoll, _lastPet = -10f;
+        int _petStreak;
 
         enum Touch { Pet, Swat }
         struct Contact
         {
-            public bool armed, touching, reacted;
+            public bool armed, touching, petted, swatted;
             public Vector3 previousTip, previousPalm;
-            public float startedAt, travel;
+            public float startedAt, travel, sharpTime;
         }
         readonly Contact[] _contacts = new Contact[2];
         float _nextTouch;
@@ -289,41 +291,52 @@ namespace VirtualBeeSwarm.Pals
 
             float now = Time.time;
             float dt = Mathf.Max(Time.deltaTime, 0.001f);
-            float inward = (Vector3.Distance(previous, c) - distance) / dt;
-            float step = Vector3.Distance(previous, point);
+            Vector3 motion = point - previous;
+            float step = motion.magnitude;
             if (step > 0.20f || Time.deltaTime > 0.1f)
             {
                 contact.armed = distance > r + 0.015f;
-                contact.touching = contact.reacted = false;
+                contact.touching = contact.petted = contact.swatted = false;
+                contact.sharpTime = 0f;
                 return;
             }
             if (distance > r + 0.015f)
             {
-                bool tap = contact.touching && !contact.reacted && now - contact.startedAt <= 0.28f &&
-                           contact.travel >= 0.012f && inward < -0.12f;
-                contact.touching = contact.reacted = false;
-                if (tap) React(Touch.Swat, (GameHand)h, c, previous);
+                contact.touching = contact.petted = contact.swatted = false;
+                contact.sharpTime = 0f;
                 return;
             }
             if (!contact.touching)
             {
-                if (distance > r || inward < 0.08f) return;
+                if (distance > r) return;
                 contact.touching = true;
-                contact.reacted = now < _nextTouch;
                 contact.startedAt = now;
                 contact.travel = 0f;
             }
-            if (contact.reacted || distance > r) return;
-            if (inward > 0.85f)
+            if (contact.swatted || distance > r) return;
+
+            // Use the moving hand, so Beeswax brushing past a still finger cannot register as a hit.
+            Vector3 strokeNormal = previous - c;
+            float speed = step / dt;
+            float inward = -Vector3.Dot(motion, strokeNormal.normalized) / dt;
+            if (!contact.petted && now - contact.startedAt < 0.14f)
             {
-                contact.reacted = true;
-                React(Touch.Swat, (GameHand)h, c, point);
-                return;
+                bool direct = inward > 1.15f && inward >= speed * 0.82f && step >= 0.009f;
+                contact.sharpTime = direct ? contact.sharpTime + dt : 0f;
+                if (direct && (inward >= 1.65f || contact.sharpTime >= 0.027f) && now >= _nextTouch)
+                {
+                    contact.swatted = true;
+                    React(Touch.Swat, (GameHand)h, c, point);
+                    return;
+                }
             }
-            // Small tracking jitter and fast exits do not count as a gentle stroke.
-            if (step > 0.001f && step / dt < 0.65f) contact.travel += step;
-            if (now - contact.startedAt < 0.36f || contact.travel < 0.05f) return;
-            contact.reacted = true;
+
+            float stroke = Vector3.ProjectOnPlane(motion, strokeNormal).magnitude;
+            if (stroke > 0.0012f && speed < 0.95f) contact.travel += stroke;
+            if (now < _nextTouch || now - contact.startedAt < 0.24f || contact.travel < 0.027f) return;
+            contact.petted = true;
+            contact.startedAt = now;
+            contact.travel = 0f;
             React(Touch.Pet, (GameHand)h, c, point);
         }
 
@@ -340,12 +353,24 @@ namespace VirtualBeeSwarm.Pals
                 Rig("Blush", "gentle pet");
                 SpawnHearts(centre);
                 GameHaptics.Pulse(hand, 0.20f, 0.085f);
+                GameSound.Cue("bee_pet", _bw.transform);
                 Say(PalLines.BoopBlush);
+                float now = Time.time;
+                _petStreak = now - _lastPet <= 7f ? _petStreak + 1 : 1;
+                _lastPet = now;
+                if (_petStreak >= 3 && now >= _nextRoll && !_bw.IsAttached && !_bw.Inside && !_bw.Climbing)
+                {
+                    _petStreak = 0;
+                    _rollFrom = now;
+                    _nextRoll = now + 5f;
+                    Log("barrel roll after three pets");
+                }
                 Log("pet #" + Pets + ": blush");
                 return;
             }
 
             _boops++;
+            _petStreak = 0;
             _offVel -= outward * (0.55f + Radius() * 1.5f);
             _squashFrom = Time.time;
             Rig("Angry", "quick swat");
@@ -353,7 +378,7 @@ namespace VirtualBeeSwarm.Pals
             _fx?.Ring(impact, outward, 10, new Color(1f, 0.55f, 0.18f), 0.8f, 0.35f, 0.013f);
             _fx?.Burst(impact, 5, new Color(1f, 0.86f, 0.3f), 0.55f, 0.35f, 0.01f, 0.4f);
             GameHaptics.Pulse(hand, 0.55f, 0.055f);
-            GameSound.Cue("beeswax_boop", _bw.transform);
+            GameSound.Cue("bee_swat", _bw.transform);
             Say(PalLines.BoopFile);
             Log("swat #" + _boops + ": grievance");
         }
@@ -612,11 +637,28 @@ namespace VirtualBeeSwarm.Pals
             _offset += _offVel * dt;
             Quaternion tilt = Quaternion.identity;
             Vector3 squash = Vector3.one;
+            Vector3 rollOffset = Vector3.zero;
             if (_wiggleFrom >= 0f)
             {
                 float s = t - _wiggleFrom;
-                if (s > 0.9f) _wiggleFrom = -1f;
-                else tilt *= Quaternion.Euler(0f, 0f, 14f * Mathf.Sin(s * Mathf.PI * 2f * 7f) * (1f - s / 0.9f));
+                if (s >= 0.85f) _wiggleFrom = -1f;
+                else
+                {
+                    float k = s / 0.85f;
+                    float ease = Mathf.Sin(k * Mathf.PI);
+                    tilt *= Quaternion.Euler(-3f * ease, 0f, 8f * Mathf.Sin(k * Mathf.PI * 3f) * ease);
+                }
+            }
+            if (_rollFrom >= 0f)
+            {
+                float k = (t - _rollFrom) / 0.8f;
+                if (k >= 1f) _rollFrom = -1f;
+                else
+                {
+                    float arc = Mathf.Sin(k * Mathf.PI);
+                    tilt *= Quaternion.Euler(0f, 0f, 360f * Mathf.SmoothStep(0f, 1f, k));
+                    rollOffset = (Vector3.up + _bw.transform.right * 0.4f) * (Radius() * 0.26f * arc * arc);
+                }
             }
             if (_waveBackUntil > t)
             {
@@ -631,7 +673,8 @@ namespace VirtualBeeSwarm.Pals
                 if (s > 0.35f) _squashFrom = -1f;
                 else { float a = Mathf.Sin(s / 0.35f * Mathf.PI) * 0.16f * (1f - s / 0.35f); squash = new Vector3(1f + a, 1f - a, 1f + a); }
             }
-            bool idle = _offset.sqrMagnitude < 1e-8f && _offVel.sqrMagnitude < 1e-6f && tilt == Quaternion.identity && squash == Vector3.one && dance == Vector3.zero;
+            bool idle = _offset.sqrMagnitude < 1e-8f && _offVel.sqrMagnitude < 1e-6f && tilt == Quaternion.identity &&
+                        squash == Vector3.one && dance == Vector3.zero && rollOffset == Vector3.zero;
             // what the motion module wrote this frame (or, if it didn't, what was there before my last write)
             bool fresh = !_wrote || _bw.BodyOffset != _wroteOffset || _bw.BodyTilt != _wroteTilt || _bw.BodySquash != _wroteSquash;
             if (fresh) { _baseOffset = _bw.BodyOffset; _baseTilt = _bw.BodyTilt; _baseSquash = _bw.BodySquash; }
@@ -642,7 +685,7 @@ namespace VirtualBeeSwarm.Pals
                 _wrote = false;
                 return;
             }
-            _bw.BodyOffset = _baseOffset + _bw.transform.InverseTransformVector(_offset + dance);
+            _bw.BodyOffset = _baseOffset + _bw.transform.InverseTransformVector(_offset + dance + rollOffset);
             _bw.BodyTilt = _baseTilt * tilt;
             _bw.BodySquash = Vector3.Scale(_baseSquash, squash);
             _wroteOffset = _bw.BodyOffset;

@@ -202,16 +202,16 @@ namespace VirtualBeeSwarm
                 label.GetComponent<MeshRenderer>().sharedMaterial = label.font.material;
                 label.text = "EMPTY HIVE";
                 label.anchor = TextAnchor.MiddleCenter;
+                label.alignment = TextAlignment.Center;
                 label.fontSize = 48;
                 label.characterSize = 0.01f;
                 label.color = new Color(1f, 0.94f, 0.76f);
             }
             var eyes = camera.transform;
-            var front = Vector3.ProjectOnPlane(hive.transform.position - eyes.position, Vector3.up).normalized;
-            if (front.sqrMagnitude < 0.5f) front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
+            Vector3 front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
-            var pos = eyes.position + front * 0.8f + Vector3.Cross(Vector3.up, front) * 0.2f - Vector3.up * 0.23f;
-            _emptyCard.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
+            Vector3 position = eyes.position + front * 0.65f - Vector3.up * 0.17f;
+            _emptyCard.SetPositionAndRotation(position, Quaternion.LookRotation(position - eyes.position, Vector3.up));
             _emptyCard.gameObject.SetActive(true);
         }
 

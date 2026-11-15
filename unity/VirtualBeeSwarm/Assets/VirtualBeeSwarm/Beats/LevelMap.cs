@@ -19,6 +19,11 @@ namespace VirtualBeeSwarm
 
         Vector3 _rootScale = Vector3.one;
         EscapeSequence _escape;
+        static LevelMap _openMaps;
+        MapMenu _menu;
+        bool _returnToAsk, _returnToContract, _returnToPreview;
+
+        public static bool MapsMenuOpen => _openMaps != null;
 
         /// <summary>The unload's lines are done (room_end_contract said, the end card is out).</summary>
         public bool UnloadDone { get; private set; }
@@ -64,9 +69,76 @@ namespace VirtualBeeSwarm
         void LateUpdate()
         {
             var ride = RideDirector.Instance;
-            if (ride == null || !ride.AskShown) return;
+            var honey = Pals.HoneyFrame.Instance;
+            bool askShown = ride != null && ride.AskShown;
+            if (_openMaps == this)
+            {
+                if (honey != null && honey.Visible) CloseMaps(restore: false);
+                else if (Ask.AskBeeswax.Instance is Ask.AskBeeswax ask && ask.IsOpen) ask.Close("Maps open");
+            }
+            if (askShown || (honey != null && honey.Visible) || _openMaps == this)
+            {
+                SetActive(mapRoot, false);
+                if (_escape != null && _escape.EndCardShown) _escape.HideEndCard();
+            }
+
+            bool open = _openMaps == this;
+            bool visible = open || CanOpenMaps();
+            if (visible && _menu == null) _menu = new MapMenu(transform, OpenMaps, ReplayHive, BackFromMaps);
+            _menu?.Show(visible, open);
+        }
+
+        bool CanOpenMaps()
+        {
+            if (!IsActive || !UnloadDone || director == null || !Handles(director.Beat)) return false;
+            var honey = Pals.HoneyFrame.Instance;
+            if (honey != null && honey.BlocksAsk) return false;
+            var ride = RideDirector.Instance;
+            var ask = Ask.AskBeeswax.Instance;
+            return ride == null || !ride.AskShown || (ask != null && ask.IsOpen);
+        }
+
+        void OpenMaps()
+        {
+            if (MapsMenuOpen || !CanOpenMaps()) return;
+            _openMaps = this;
+            var ask = Ask.AskBeeswax.Instance;
+            _returnToAsk = ask != null && ask.IsOpen;
+            _returnToContract = _escape != null && _escape.EndCardShown;
+            _returnToPreview = mapRoot != null && mapRoot.activeSelf;
+            if (_returnToAsk) ask.Close("Maps open");
+            if (_returnToContract) _escape.HideEndCard();
             SetActive(mapRoot, false);
-            if (_escape != null) _escape.HideEndCard();
+            _menu.Show(true, true);
+        }
+
+        void BackFromMaps() => CloseMaps(restore: true);
+
+        void ReplayHive()
+        {
+            if (_openMaps != this || director == null) return;
+            CloseMaps(restore: false);
+            director.ResetToPre();
+        }
+
+        void CloseMaps(bool restore)
+        {
+            if (_openMaps != this) return;
+            _openMaps = null;
+            _menu?.Show(false, false);
+            if (restore && IsActive && director != null && Handles(director.Beat))
+            {
+                if (_returnToAsk) Ask.AskBeeswax.Instance?.Open("Maps back");
+                else if (_returnToContract && _escape != null) _escape.DeliverEndCard();
+                else if (_returnToPreview) Restore(true);
+            }
+            _returnToAsk = _returnToContract = _returnToPreview = false;
+        }
+
+        void OnDisable()
+        {
+            CloseMaps(restore: false);
+            _menu?.Show(false, false);
         }
 
         IEnumerator Say(GameLine line)
@@ -99,12 +171,16 @@ namespace VirtualBeeSwarm
 
         protected override void OnExit(GameBeat beat)
         {
+            CloseMaps(restore: false);
+            _menu?.Show(false, false);
             Restore(false);
             if (beat == GameBeat.Map && _escape != null) _escape.HideEndCard();
         }
 
         protected override void OnResetState()
         {
+            CloseMaps(restore: false);
+            _menu?.Show(false, false);
             UnloadDone = false;
             Restore(false);
             if (_escape != null) _escape.HideEndCard();

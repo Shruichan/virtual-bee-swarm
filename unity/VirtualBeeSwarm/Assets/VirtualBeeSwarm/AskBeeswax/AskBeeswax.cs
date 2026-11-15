@@ -174,11 +174,17 @@ namespace VirtualBeeSwarm.Ask
         public void Open(string why)
         {
             if (!On || Flow.IsOpen || _director == null || !AskBeat(_director.Beat)) return;
+            var honey = Pals.HoneyFrame.Instance;
+            if (!SelfTest && honey != null && honey.BlocksAsk)
+            {
+                _autoOpenAt = Time.time + 0.2f;
+                return;
+            }
             if (_head == null && Camera.main != null) _head = Camera.main.transform;
             Apply(Flow.Open());
             _card.SetMinutes(AskFlow.MinutesText(Flow.Minutes));
             var pose = AskCard.PoseFor(_head, _window);
-            _card.Show(pose);
+            _card.Show(pose, Chips);
             if (_beeswax != null)
             {
                 // hover at the card's inner edge (the table side), looking at the player, in his own colours: he is the
@@ -308,7 +314,11 @@ namespace VirtualBeeSwarm.Ask
             if (Flow.IsOpen) Apply(Flow.SetDialogueOpen(_net.AskFollowUpOpen));
 
             if (_autoPending && !_net.IsSpeaking) { _autoPending = false; _autoOpenAt = now + autoOpenDelay; }
-            if (_autoOpenAt >= 0f && now >= _autoOpenAt) { _autoOpenAt = -1f; Open("auto after the contract"); }
+            if (_autoOpenAt >= 0f && now >= _autoOpenAt && !_net.IsSpeaking)
+            {
+                _autoOpenAt = -1f;
+                Open("after the contract and honeycomb");
+            }
             if (On && askBeat && GameInput.KeyDown(openKey))
             {
                 if (Flow.IsOpen) Close("key " + openKey);

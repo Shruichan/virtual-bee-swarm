@@ -38,6 +38,8 @@ namespace VirtualBeeSwarm
         float _grabDistance;
         bool _directGrab;
         bool _panelGripHeld, _grabHeldByGrip;
+        IHandPoseSource _poseSource;
+        bool _poseIsController, _waitForNeutral;
         readonly Collider[] _overlap = new Collider[8];
         readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
         static int _pickupDrawFrame = -1;
@@ -63,16 +65,35 @@ namespace VirtualBeeSwarm
             SetHover(null);
             if (_grab != null) { _grab.EndGrab(); _grab = null; }
             _panelGripHeld = false;
+            _poseSource = null;
+            _poseIsController = _waitForNeutral = false;
             if (rayLine != null) rayLine.enabled = false;
         }
 
         void Update()
         {
+            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
+            var pose = source == Source.Mouse ? null : GameHands.For(hand);
+            bool controller = pose is IControllerPoseSource input && input.IsController(hand);
             HasRay = TryGetRay(out Ray ray);
             bool down = PressDown(), held = PressHeld();
-            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
-            bool controller = source != Source.Mouse && GameHands.For(hand) is IControllerPoseSource input && input.IsController(hand);
             bool gripHeld = controller ? GameHands.IsFist(hand) : held;
+            if (!ReferenceEquals(_poseSource, pose) || _poseIsController != controller)
+            {
+                if (_grab != null) { _grab.EndGrab(); _grab = null; }
+                SetHover(null);
+                _lastCol = null;
+                _poseSource = pose;
+                _poseIsController = controller;
+                _panelGripHeld = false;
+                _waitForNeutral = held || gripHeld;
+            }
+            if (_waitForNeutral)
+            {
+                _waitForNeutral = held || gripHeld;
+                down = false;
+                gripHeld = false;
+            }
             bool gripDown = controller ? gripHeld && !_panelGripHeld : down;
             _panelGripHeld = gripHeld;
 
@@ -106,10 +127,11 @@ namespace VirtualBeeSwarm
                 {
                     var g = _overlap[i].GetComponentInParent<IGameGrabTarget>();
                     if (g == null || !g.Grabbable) continue;
-                    if (g is PanelGrip)
+                    if (g is PanelGrip nearPanel)
                     {
-                        // The nearby tab must be touched deliberately, rather than winning an overlapping chip's poke.
-                        if ((!gripDown && !down) || (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.028f * 0.028f) continue;
+                        // Pinch the visible strip, or use the controller grip on the panel face.
+                        if (!(nearPanel.IsHandle(_overlap[i]) || controller && gripDown) ||
+                            (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.045f * 0.045f) continue;
                     }
                     else if (!down) continue;
                     if (g is HoneyLever lever && !lever.Live)
@@ -136,6 +158,7 @@ namespace VirtualBeeSwarm
                     hit = behind;
                     if (hit.collider != _lastCol) CacheHit(hit.collider);
                 }
+                if (PreferPanelRayHit(ray, ref hit, controller && gripHeld)) CacheHit(hit.collider);
                 target = _lastTarget != null && _lastTarget.Interactable ? _lastTarget : null;
                 grabTarget = _lastGrabTarget != null && _lastGrabTarget.Grabbable ? _lastGrabTarget : null;
                 hitDistance = hit.distance;
@@ -162,6 +185,30 @@ namespace VirtualBeeSwarm
                 Feedback(0.30f, 0.055f);
             }
             else if (down && lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+        }
+
+        bool PreferPanelRayHit(Ray ray, ref RaycastHit hit, bool grip)
+        {
+            var panel = hit.collider.GetComponentInParent<PanelGrip>();
+            var target = hit.collider.GetComponentInParent<IGameTarget>();
+            bool findPanel = grip && target != null;
+            bool findChip = !grip && panel != null && !panel.IsHandle(hit.collider);
+            if (!findPanel && !findChip) return false;
+            float limit = hit.distance + 0.05f;
+            bool changed = false;
+            int count = Physics.RaycastNonAlloc(ray, _hitsBehindLever, limit, layers, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = _hitsBehindLever[i];
+                if (candidate.distance >= limit) continue;
+                bool eligible = findPanel ? candidate.collider.GetComponentInParent<PanelGrip>()?.Grabbable == true :
+                    candidate.collider.GetComponentInParent<IGameTarget>()?.Interactable == true;
+                if (!eligible) continue;
+                hit = candidate;
+                limit = hit.distance;
+                changed = true;
+            }
+            return changed;
         }
 
         void LateUpdate()

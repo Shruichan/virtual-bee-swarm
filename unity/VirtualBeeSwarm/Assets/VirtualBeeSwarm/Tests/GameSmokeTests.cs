@@ -242,8 +242,9 @@ namespace VirtualBeeSwarm.Tests
             Assert.That(Mathf.Abs(Vector3.Dot(padOffset, padRight)), Is.GreaterThan(0.14f),
                 "the rocket starts to one side of the hive");
             Assert.That(padOffset.magnitude, Is.LessThan(0.9f), "the rocket starts next to the hive");
-            Assert.That(Mathf.Abs(launchPosition.y - hive.transform.position.y), Is.LessThan(0.22f),
-                "the small rocket starts near the hive's ground level");
+            float padHeight = Bloom.MeadowLayout.Active ? Bloom.MeadowLayout.FloorY : hive.transform.position.y;
+            Assert.That(Mathf.Abs(launchPosition.y - padHeight), Is.LessThan(0.22f),
+                "the small rocket starts on the floor or tabletop beside the hive");
             var revealPosition = launchPosition;
             Assert.IsFalse(HiveClearance.Push(rocket, ref revealPosition, launchRotation, rocketItem),
                 "the revealed rocket is clear of the hive");
@@ -405,9 +406,12 @@ namespace VirtualBeeSwarm.Tests
             hive.RockReleasedEarly += OnEarlyRelease;
             hive.Rocked += OnRocked;
             float previousTimeScale = Time.timeScale;
+            float previousCaptureDelta = Time.captureDeltaTime;
             try
             {
-                Time.timeScale = 1f; // keep synthetic hand samples within the tracking tolerance
+                Time.timeScale = 1f;
+                // Supply one stable tracking sample per frame even when the editor is busy.
+                Time.captureDeltaTime = 1f / 72f;
                 Vector3 origin = hive.transform.position;
                 hive.BeginGrab(origin);
                 yield return new WaitForSeconds(0.05f);
@@ -421,30 +425,35 @@ namespace VirtualBeeSwarm.Tests
 
                 origin = hive.transform.position;
                 Vector3 raised = origin + Vector3.up * 0.09f;
-                Vector3 side = hive.transform.right * 0.05f;
+                Vector3 side = Vector3.ProjectOnPlane(hive.transform.right, Vector3.up).normalized * 0.05f;
                 hive.BeginGrab(origin);
-                yield return new WaitForSeconds(0.06f);
-                hive.UpdateGrab(Vector3.Lerp(origin, raised, 0.5f));
-                yield return new WaitForSeconds(0.06f);
-                hive.UpdateGrab(raised);
-                yield return new WaitForSeconds(0.06f);
-                hive.UpdateGrab(raised + side);
-                yield return new WaitForSeconds(0.08f);
-                hive.UpdateGrab(raised + side);
-                yield return new WaitForSeconds(0.08f);
-                hive.UpdateGrab(raised);
-                yield return new WaitForSeconds(0.06f);
-                hive.UpdateGrab(raised - side);
-                Assert.IsTrue(hive.RockCompleted, "lifting and rocking in opposing directions counts before release");
+                yield return SampleGrabStroke(hive, origin, raised, 12);
+                Assert.That(hive.LiftHeight, Is.GreaterThanOrEqualTo(0.05f), "the hive is high enough to rock");
+                yield return SampleGrabStroke(hive, raised, raised + side, 12);
+                Assert.IsFalse(hive.RockCompleted, "the first stroke alone is not a rock");
+                yield return SampleGrabStroke(hive, raised + side, raised - side, 28);
+                Assert.IsTrue(hive.RockCompleted,
+                    $"the complete rock counts before release (held {hive.Held}, enabled {hive.LiftEnabled}, height {hive.LiftHeight:F3})");
                 Assert.AreEqual(1, completedRocks, "the successful rock sends one event");
                 hive.EndGrab();
                 Assert.AreEqual(1, earlyReleases, "releasing a successful rock does not send a retry");
             }
             finally
             {
+                Time.captureDeltaTime = previousCaptureDelta;
                 Time.timeScale = previousTimeScale;
                 hive.RockReleasedEarly -= OnEarlyRelease;
                 hive.Rocked -= OnRocked;
+                if (hive.Held) hive.EndGrab();
+            }
+        }
+
+        static IEnumerator SampleGrabStroke(HiveBody hive, Vector3 from, Vector3 to, int frames)
+        {
+            for (int frame = 1; frame <= frames; frame++)
+            {
+                yield return null;
+                hive.UpdateGrab(Vector3.Lerp(from, to, (float)frame / frames));
             }
         }
 
