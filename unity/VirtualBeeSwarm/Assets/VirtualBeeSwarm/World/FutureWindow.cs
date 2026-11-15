@@ -24,6 +24,8 @@ namespace VirtualBeeSwarm
         [SerializeField] Color glowColor = new Color(1f, 0.8f, 0.35f, 0.5f);
         [SerializeField] float growScale = 1.5f;
         [SerializeField] float moonScale = 2.4f;
+        [Tooltip("How long the frame glow flares when the scene changes.")]
+        [SerializeField] float flareSeconds = 1.5f;
 
         public bool IsOpen => _openTarget > 0.5f;
         /// <summary>Seconds from Open() to fully open.</summary>
@@ -162,6 +164,9 @@ namespace VirtualBeeSwarm
             {
                 var g = glowColor;
                 g.a *= _open * (0.7f + 0.3f * Mathf.Sin(Time.time * 2f));
+                // A new scene (a station outcome, a what-if, a question to Beeswax): the frame flares so eyes go to it.
+                float flare = 1f - Mathf.Clamp01((Time.time - _morphStart) / flareSeconds);
+                g.a = Mathf.Min(1f, g.a * (1f + 1.5f * flare * flare));
                 if (_toFlicker) g = Color.Lerp(g, new Color(1f, 0.3f, 0.05f, g.a), 0.7f);
                 GameMaterials.Tint(glow, g);
             }
