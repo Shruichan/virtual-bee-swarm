@@ -39,6 +39,13 @@ namespace VirtualBeeSwarm
             LitCount++;
         }
 
+        /// <summary>v2: pop one lit hexagon again (the minutes read back the four S's, one per hexagon).</summary>
+        public void Pulse(int index)
+        {
+            if (index < 0 || index >= _lit.Length || !_lit[index]) return;
+            _litAt[index] = Time.time;
+        }
+
         public void LightAll()
         {
             for (int i = 0; i < _lit.Length; i++) Light(i);
