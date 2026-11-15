@@ -33,7 +33,7 @@ const START_RX =
   /^(?:why|how|what|what's|whats|who|who's|where|where's|when|which|whose|is|are|am|do|does|did|can|could|would|will|should|was|were|have|has|tell me|explain|i wonder|i want to know|i wanna know)\b/;
 /** A question or request anywhere ("so the pebbles are for what", "and tell me about honey"). */
 const ANY_RX =
-  /\b(?:why|how come|how do|how does|how did|how many|how much|how long|how big|what is|what's|what are|what do|what does|what happens|what if|tell me (?:more )?about|tell me why|explain|i wonder)\b/;
+  /\b(?:why|how come|how do|how does|how did|how many|how much|how long|how big|what is|what's|what are|what do|what does|what happens|what if|tell me (?:more )?about|tell me why|explain|i wonder)\b|\b(?:for what|what for)$/;
 
 /** Is this transcript a question or a request for more info? Two words minimum ("why though"), three for most. */
 export function looksLikeQuestion(text: string): boolean {
