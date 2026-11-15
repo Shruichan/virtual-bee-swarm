@@ -65,6 +65,15 @@ namespace VirtualBeeSwarm.Tests
             if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert)
             {
                 if (condition.StartsWith("[Licensing", StringComparison.Ordinal)) return; // editor licensing noise
+                // Editor-only: the Meta SDK writes StreamingAssets/RuntimeActionBindings.json at play start, the asset
+                // refresh that follows re-uploads textures and Unity logs this natively (no managed stack). A built player
+                // never refreshes assets; game code calling Apply() on an empty texture would have a stack and still count.
+                if (string.IsNullOrEmpty(stackTrace) && condition == "No texture data is available to upload.")
+                {
+                    _foreignCount++;
+                    if (Foreign.Count < 8) Foreign.Add(type + ": " + condition + " (editor asset refresh)");
+                    return;
+                }
                 if (!FromOurCode(stackTrace))
                 {
                     _foreignCount++;

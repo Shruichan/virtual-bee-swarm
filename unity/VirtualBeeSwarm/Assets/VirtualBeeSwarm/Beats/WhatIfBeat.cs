@@ -273,7 +273,7 @@ namespace VirtualBeeSwarm
             var adjourn = RideLines.Adjourn;
             yield return SayAndWait(adjourn, 1f, LineTime.Seconds(net, adjourn) + 1f);
             Adjourned = true;
-            Complete(0.3f); // "All in favor?" -> the swarm roars yes (escape)
+            Complete(1.6f); // "All in favor?" -> a beat for the player to raise a hand, then the swarm roars yes (escape)
         }
 
         void OfflineQuestion()
