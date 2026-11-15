@@ -789,7 +789,7 @@ const SHOW = `<!doctype html>
       clearTimeout(confirmTimer); confirmTimer = setTimeout(unconfirm, 3500); return;
     }
     unconfirm();
-    fetch("/scout/reset?" + TQ, { method: "POST" }).catch(function () {});
+    fetch("/scout/stop?" + TQ, { method: "POST" }).catch(function () {}); // cut the ear, back to the silent waiting phase
     resetPage();
     showLanding();
   });
@@ -801,9 +801,11 @@ const SHOW = `<!doctype html>
     clearCaps(); pendingQ = null; hideTeacher(); stopSpeaking(); goIdle(); clearCase();
   }
 
+  var firstState = true;
   function onState(st) {
     S = st;
     glassesState(st);
+    if (firstState) { firstState = false; if (st.phase && st.phase !== "waiting" && !started) { started = true; tickMode(); } } // opened mid-journey
     var found = Array.isArray(st.found) ? st.found : [];
     // a new journey (reset, start, mode switch): the case empties
     if ((journey !== null && st.started_at && st.started_at !== journey) || (st.phase === "intro" && !found.length)) clearCase();
