@@ -7,6 +7,7 @@
   {"id": "room_hook_2", "channel": "room", "beat": "meet", "text": "Your evacuation rocket. Honeymoon One. We booked you a window seat.", "tags": ["meet", "rocket", "stakes"]},
   {"id": "room_meet_1", "channel": "room", "beat": "meet", "text": "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee.", "tags": ["meet", "fact:species"]},
   {"id": "room_meet_role", "channel": "room", "beat": "meet", "text": "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper.", "tags": ["meet", "load-bearing", "role"]},
+  {"id": "room_meet_hey_beeswax", "channel": "room", "beat": "meet", "text": "When you see Ask Beeswax, hold the mic and say, “Hey Beeswax,” then ask your question.", "tags": ["meet", "ask", "voice"]},
   {"id": "room_forecast", "channel": "room", "beat": "meet", "text": "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful.", "tags": ["meet", "load-bearing", "window", "forecast"]},
   {"id": "room_meet_2", "channel": "room", "beat": "meet", "text": "Four problems. Four minutes. Or you're on that rocket.", "tags": ["meet", "load-bearing", "stakes"]},
   {"id": "room_meet_stat", "channel": "room", "beat": "map", "text": "In one recent year, American beekeepers lost more than half their hives. Somebody has to be loud.", "tags": ["map", "fact:colonies"]},

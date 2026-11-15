@@ -4,9 +4,9 @@ namespace VirtualBeeSwarm
 {
     /// <summary>
     /// Plays one of dartiros' prop clips (Legacy Animation on the same object) when the gameplay event already
-    /// happens, without touching gameplay code:
+    /// happens:
     ///  - ParticleBurst: a named ParticleSystem (SmokePuff, WaterPuff) just emitted a burst -> smoker bellows squeeze,
-    ///    spray trigger pull. The station's own Emit() is the event; the particle count jump is how we see it.
+    ///    spray trigger pull. The automatic station watches the particle burst. A manual pull calls PlayManualAction.
     ///  - ObjectActive: a named child switched on -> rocket Flame (T0Sequence turns it on at liftoff): ignition, then
     ///    the flicker loop; off = stopped (rest pose: flame scaled to nothing).
     ///  - Beat: GameDirector.BeatChanged reached a beat -> hive lid opens at the escape; back before it = closes
@@ -100,14 +100,6 @@ namespace VirtualBeeSwarm
             }
         }
 
-        /// <summary>Play one squeeze for a hand-operated puff, which uses its own visual effect.</summary>
-        public void PlayActuation()
-        {
-            if (trigger != Trigger.ParticleBurst || !isActiveAndEnabled) return;
-            _repeatsLeft = 0;
-            Play(clip, "hand pump");
-        }
-
         void Snap(bool open)
         {
             var s = _anim[clip];
@@ -116,6 +108,14 @@ namespace VirtualBeeSwarm
             _anim.Sample();
             if (!open) _anim.Stop();
             _open = open;
+        }
+
+        public void PlayManualAction()
+        {
+            if (!isActiveAndEnabled || _anim == null || trigger != Trigger.ParticleBurst) return;
+            _repeatsLeft = 0;
+            _anim.Rewind(clip);
+            Play(clip, "manual action");
         }
 
         void Play(string c, string why)

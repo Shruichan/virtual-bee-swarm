@@ -17,6 +17,8 @@ namespace VirtualBeeSwarm
         [Tooltip("Water surface of the deep bowl (drinkers sink below it).")]
         [SerializeField] Transform bowlWater;
         [SerializeField] Transform[] drinkers = new Transform[0];
+        GameObject _dishWater;
+        GameObject _handoffTray;
 
         protected override GameLine Prompt => GameLines.HeatPrompt;
         protected override GameLine Hint => RideLines.HintHeat;
@@ -35,12 +37,30 @@ namespace VirtualBeeSwarm
         {
             station = GameStation.Heat;
             base.Awake();
+            if (pebbleDish != null)
+            {
+                foreach (var renderer in pebbleDish.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer.name != "Water" || !renderer.enabled) continue;
+                    _dishWater = renderer.gameObject;
+                    break;
+                }
+            }
             HideAll();
+        }
+
+        /// <summary>Reveal the water surface from the authored dish or its placeholder.</summary>
+        public bool ShowDishWater()
+        {
+            if (_dishWater == null) return false;
+            _dishWater.SetActive(true);
+            return true;
         }
 
         protected override void OnStationEnter()
         {
             HideAll();
+            StageDishTray();
             if (hive != null) hive.SetHeatGlow(1f);
             if (swarm != null)
             {
@@ -48,6 +68,31 @@ namespace VirtualBeeSwarm
                 swarm.Agitation = 0.4f;
             }
             if (net != null) net.RequestScene(GameIds.Scene.HeatStress, sendToHive: false);
+        }
+
+        void StageDishTray()
+        {
+            if (delivery == null || !delivery.Active || !Bloom.MeadowLayout.Active) return;
+            Transform anchor = Bloom.MeadowLayout.Anchor;
+            Transform spot = delivery.Spot;
+            if (anchor == null || spot == null) return;
+            float scale = Bloom.MeadowLayout.Scale;
+            float height = Mathf.Max(0.58f, Bloom.MeadowTuning.ChoiceHeight - 0.22f);
+            float row = Bloom.MeadowLayout.RowOffset(scale);
+            spot.SetPositionAndRotation(anchor.TransformPoint(new Vector3(0.48f / scale, height / scale, -row - 0.18f / scale)),
+                anchor.rotation);
+            if (_handoffTray == null)
+            {
+                var tray = new GameObject("Dish Handoff Tray");
+                tray.transform.SetParent(spot, false);
+                tray.transform.localScale = Vector3.one / scale;
+                HandsOn.HandsOnKit.Prim(PrimitiveType.Cylinder, "Tray", tray.transform,
+                    Vector3.down * 0.023f, new Vector3(0.34f, 0.023f, 0.34f), HandsOn.HandsOnKit.Brass);
+                HandsOn.HandsOnKit.Prim(PrimitiveType.Cylinder, "Stand", tray.transform,
+                    Vector3.down * (height * 0.5f), new Vector3(0.055f, height * 0.5f, 0.055f), HandsOn.HandsOnKit.Wood);
+                _handoffTray = tray;
+            }
+            _handoffTray.SetActive(true);
         }
 
         protected override IEnumerator ShowOutcome(string choice, bool correct)
@@ -65,6 +110,7 @@ namespace VirtualBeeSwarm
                     break;
                 case GameIds.Choice.PebbleDish:
                     SetActive(pebbleDish, true);
+                    ShowDishWater();
                     GameSound.Cue("pebble_sip", pebbleDish != null ? pebbleDish.transform : null, 1.2f); // first drinker lands
                     yield return FlyDrinkers(true);
                     if (hive != null) hive.SetHeatGlow(0f);
@@ -84,12 +130,12 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < drinkers.Length; i++)
                 if (drinkers[i] != null) { drinkers[i].position = from; drinkers[i].gameObject.SetActive(true); }
 
-            float start = Time.time;
             const float fly = 1.2f, sink = 1.5f, stagger = 0.15f;
-            float duration = fly + stagger * (drinkers.Length - 1) + (pebbles ? 0f : sink);
+            float start = Time.time;
+            float end = fly + (pebbles ? 0f : sink) + (drinkers.Length - 1) * stagger;
             while (true)
             {
-                float age = Time.time - start;
+                float age = Mathf.Min(Time.time - start, end);
                 for (int i = 0; i < drinkers.Length; i++)
                 {
                     var d = drinkers[i];
@@ -102,7 +148,7 @@ namespace VirtualBeeSwarm
                     if (!pebbles && k >= 1f) p = land + Vector3.down * Mathf.Clamp01((age - fly - i * stagger) / sink) * 0.04f;
                     d.position = p;
                 }
-                if (age >= duration) yield break;
+                if (age >= end) yield break;
                 yield return null;
             }
         }
@@ -117,7 +163,7 @@ namespace VirtualBeeSwarm
         {
             if (hive != null && Solved) hive.SetHeatGlow(0f);
             SetActive(deepBowl, false);
-            if (!Solved) { SetActive(pebbleDish, false); HideDrinkers(); }
+            if (!Solved) { SetActive(pebbleDish, false); SetActive(_handoffTray, false); HideDrinkers(); }
         }
 
         protected override void OnStationReset()
@@ -130,6 +176,8 @@ namespace VirtualBeeSwarm
         {
             SetActive(deepBowl, false);
             SetActive(pebbleDish, false);
+            SetActive(_dishWater, false);
+            SetActive(_handoffTray, false);
             HideDrinkers();
         }
 

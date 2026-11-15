@@ -730,6 +730,7 @@ namespace Beeswax
     {
         public string source = Role.Quest;
         public string mode = ListenMode.Ptt;
+        public bool wake_phrase;
         public ListenStart() { type = MsgType.ListenStart; }
         internal override void Normalize() { base.Normalize(); source = BeeswaxProtocol.S(source); mode = BeeswaxProtocol.S(mode); }
     }

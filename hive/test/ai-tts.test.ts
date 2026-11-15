@@ -83,6 +83,30 @@ test("speech budget is shared by streaming and whole-file renders", async () => 
   }
 });
 
+test("local voice handles live PCM and MP3 without using the paid provider", async () => {
+  const previous = process.env.VBS_LOCAL_TTS_URL;
+  const url = "http://127.0.0.1:8243/speak";
+  process.env.VBS_LOCAL_TTS_URL = url;
+  delete process.env.ELEVENLABS_API_KEY;
+  try {
+    mockFetch(() => new Response(new Uint8Array(6402)));
+    expect(ttsAvailable()).toBe(true);
+    expect((await collect(ttsPcm("That's the queen."))).map((chunk) => chunk.length)).toEqual([3200, 3200, 2]);
+    expect(await ttsMp3("That's the queen.")).toHaveLength(6402);
+    expect(calls.map(({ url: requestUrl, init }) => [requestUrl, JSON.parse(String(init?.body))])).toEqual([
+      [url, { text: "That's the queen.", format: "pcm" }],
+      [url, { text: "That's the queen.", format: "mp3" }],
+    ]);
+
+    mockFetch(() => new Response(null, { status: 503 }));
+    expect(await collect(ttsPcm("That's the queen."))).toEqual([]);
+    expect(calls).toHaveLength(1);
+  } finally {
+    if (previous === undefined) delete process.env.VBS_LOCAL_TTS_URL;
+    else process.env.VBS_LOCAL_TTS_URL = previous;
+  }
+});
+
 describe("ttsPcm", () => {
   test("streams pcm_16000 from flash v2.5 and re-chunks odd sizes to whole samples", async () => {
     const sizes = [3, 5, 1, 7, 2]; // 18 bytes total
@@ -99,6 +123,7 @@ describe("ttsPcm", () => {
     expect(url).toContain("output_format=pcm_16000");
     const body = JSON.parse(String(init?.body));
     expect(body.model_id).toBe("eleven_flash_v2_5");
+    expect(body.voice_settings).toEqual({ speed: 0.95 });
     expect(body.text).toBe("Motion denied.");
   });
 

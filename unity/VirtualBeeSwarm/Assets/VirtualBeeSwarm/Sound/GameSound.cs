@@ -16,6 +16,17 @@ namespace VirtualBeeSwarm
         /// <summary>Every cue, sound on or off: (event, transform or null, position, delay). Juice/ listens.</summary>
         public static event Action<string, Transform, Vector3, float> Cued;
 
+        static float _lastBeeLanding = float.NegativeInfinity;
+
+        public static void BeeLanding(Vector3 at, Vector3 listener)
+        {
+            // Share a short cooldown across pools. Nearby landings read as detail; the whole meadow stays quiet.
+            if (Sink == null || (at - listener).sqrMagnitude > 1.5f * 1.5f ||
+                Time.time - _lastBeeLanding < 0.7f) return;
+            _lastBeeLanding = Time.time;
+            Cue("bee_land", at);
+        }
+
         static void Notify(string evt, Transform at, Vector3 pos, float delay)
         {
             var c = Cued;

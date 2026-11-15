@@ -18,7 +18,7 @@ BEAT = re.compile(r"^\[VBS\] beat (\d+) (\w+)(?: \(offline\))?$")
 REQUIRED = ["pre", "hook", "meet", "smoker", "feed", "wasps", "heat", "whatif", "escape", "t0", "map", "pre"]
 VIEWS = [
     ("Clipboard", "beat 1 hook", -0.6), ("Hive delivery", "fire the reveal", 0.5),
-    ("Meet", "beat 2 meet", 4.0), ("Smoker", "Squeeze (hand pump)", 0.44),
+    ("Meet", "beat 2 meet", 4.0), ("Smoker", "[VBS][HandsOn] puff 1 of 3", 0.44),
     ("Lift and feed", "beat 4 feed", 7.0), ("Wasps", "beat 5 wasps", 6.0),
     ("Cooling", "beat 7 heat", 6.0), ("Fire", "window scene whatif_fire", 3.2),
     ("Rain", "fire brigade: rain cloud", 2.3), ("Recovery", "beat 9 escape", 3.2),

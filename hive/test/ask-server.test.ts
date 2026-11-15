@@ -62,6 +62,70 @@ afterEach(async () => {
 
 describe("ASK BEESWAX in the Hive", () => {
 
+  test("Quest Ask rejects background words and the bare name before routing or speech", async () => {
+    const askCalls: string[] = [];
+    hive = makeHive({
+      ask: {
+        ...askModule,
+        async answer(text, ctx, hooks) {
+          askCalls.push(text);
+          return askModule.answer(text, ctx, hooks);
+        },
+      },
+      ttsAvailable: () => true,
+    }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+    for (const text of ["The sign says Hey Beeswax, then ask.", "Hey Beeswax?"]) {
+      quest.send({ type: "listen.start", source: "quest", mode: "ptt", wake_phrase: true });
+      quest.sendMic(new TextEncoder().encode(text.length % 2 ? text + " " : text));
+      quest.send({ type: "listen.end", source: "quest" });
+      await quest.waitFor("transcript", (m) => m.text === text);
+    }
+    expect(askCalls).toEqual([]);
+    expect(hive.deps.routeCalls).toEqual([]);
+    expect(hive.deps.ttsCalls).toEqual([]);
+
+    const staged = "Hey, bee's wax — why bananas?";
+    quest.send({ type: "listen.start", source: "quest", mode: "ptt", wake_phrase: true });
+    quest.sendMic(new TextEncoder().encode(staged.length % 2 ? staged + " " : staged));
+    quest.send({ type: "listen.end", source: "quest" });
+    await quest.waitFor("intent", (m) => m.name === "ask" && m.text === "why bananas?");
+    expect(askCalls).toEqual(["why bananas?"]);
+
+    quest.say("why bananas?");
+    await quest.waitFor("intent", (m) => m.text === "why bananas?" &&
+      quest.of("intent").filter((i) => i.text === "why bananas?").length === 2);
+    expect(askCalls).toEqual(["why bananas?", "why bananas?"]);
+  });
+
+  test("Quest Ask keeps a deliberate pause and starts batch transcription on release", async () => {
+    const started = Promise.withResolvers<number>();
+    const question = "Hey Beeswax, why bananas?";
+    hive = makeHive({
+      ask: askModule,
+      transcribe: async (pcm) => {
+        started.resolve(performance.now());
+        await Bun.sleep(100); // mock batch provider only; no billable calls
+        return mockTranscribe(pcm);
+      },
+    }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+    quest.send({ type: "listen.start", source: "quest", mode: "ptt", wake_phrase: true });
+    quest.sendMic(new TextEncoder().encode("Hey Beeswax,"));
+    await Bun.sleep(1000);
+    expect(quest.of("transcript")).toEqual([]);
+    quest.sendMic(new TextEncoder().encode(" why bananas? "));
+    const released = performance.now();
+    quest.send({ type: "listen.end", source: "quest" });
+    expect((await started.promise) - released).toBeLessThan(1000);
+    await quest.waitFor("transcript", (m) => m.text === question);
+    expect((await quest.waitFor("intent", (m) => m.name === "ask")).text).toBe("why bananas?");
+  });
+
   test.each(["transcription", "routing", "transcription with the same group ID"] as const)("group reset discards an utterance waiting on %s", async (scenario) => {
     const stage = scenario === "routing" ? "routing" : "transcription";
     const reuseGroupId = scenario === "transcription with the same group ID";

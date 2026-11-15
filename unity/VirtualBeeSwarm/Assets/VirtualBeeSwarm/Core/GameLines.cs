@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 b8449adec547fe85012645353d072d2a4180e32552e3edd7e4f6cdb8b7680c86
+// lines.json sha256 f7d9c30575f6eca0de9e9877c9d2f24038376fe491d2c8ec0826a718a9b5c064
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,7 +44,7 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "b8449adec547fe85012645353d072d2a4180e32552e3edd7e4f6cdb8b7680c86";
+        public const string LinesSha256 = "f7d9c30575f6eca0de9e9877c9d2f24038376fe491d2c8ec0826a718a9b5c064";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
@@ -56,6 +56,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomHook2 = new GameLine("room_hook_2", "Your evacuation rocket. Honeymoon One. We booked you a window seat."); // room | meet | meet, rocket, stakes
         public static readonly GameLine RoomMeet1 = new GameLine("room_meet_1", "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee."); // room | meet | meet, fact:species
         public static readonly GameLine RoomMeetRole = new GameLine("room_meet_role", "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper."); // room | meet | meet, load-bearing, role
+        public static readonly GameLine RoomMeetHeyBeeswax = new GameLine("room_meet_hey_beeswax", "When you see Ask Beeswax, hold the mic and say, “Hey Beeswax,” then ask your question."); // room | meet | meet, ask, voice
         public static readonly GameLine RoomForecast = new GameLine("room_forecast", "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful."); // room | meet | meet, load-bearing, window, forecast
         public static readonly GameLine RoomMeet2 = new GameLine("room_meet_2", "Four problems. Four minutes. Or you're on that rocket."); // room | meet | meet, load-bearing, stakes
         public static readonly GameLine RoomMeetStat = new GameLine("room_meet_stat", "In one recent year, American beekeepers lost more than half their hives. Somebody has to be loud."); // room | map | map, fact:colonies
@@ -212,23 +213,24 @@ namespace VirtualBeeSwarm
         static readonly GameLine[] FileLines =
         {
             RoomPre, RoomPreNudge, RoomPreSigned, RoomHookCarry, RoomHook1, RoomHook2,
-            RoomMeet1, RoomMeetRole, RoomForecast, RoomMeet2, RoomMeetStat, RoomSmokerIntro,
-            RoomHintSmoker, RoomSmokerSwat, RoomSmokerSprayWater, RoomSmokerSmoker, RoomSmokerBanana, RoomSmokerHand,
-            RoomFeedIntro, RoomLiftLight, RoomFeedTip, RoomFeedRocketFuel, RoomFeedPrompt, RoomHintFeed,
-            RoomFeedStoreHoney, RoomFeedSugarSyrup, RoomFeedWhy, RoomWaspsArrive, RoomWaspsBatoff, RoomWaspsBatoffNice,
-            RoomWaspsBatoffDoor, RoomWaspsBatoffDone, RoomWaspsIntro, RoomHintWasps, RoomWaspsBiggerDoor, RoomWaspsSmallerDoor,
-            RoomHornet1, RoomHornet2, RoomHornet3, RoomHornet4, RoomHeatIntro, RoomHintHeat,
-            RoomHeatDeepBowl, RoomHeatNothing, RoomHeatPebbleDish, RoomWhatifPrompt, RoomWhatifNotfire, RoomHintWhatif,
-            RoomWhatifFire, RoomWhatifFire2, RoomWhatifFire3, RoomWhatifPutout, RoomWhatifOut, RoomWhatifOut2,
-            RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray, RoomWhatifWinter, RoomWhatifCustom,
-            RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse, RoomWhatifBack, RoomWhatifNothing,
-            RoomAdjourn, RoomLiveFiller, RoomEscape, RoomEscapeMinutes, RoomEscapeCredit, RoomT01,
-            RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomTruth, RoomMap,
-            RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance, RoomAckCarried, RoomAckDenied,
-            RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy, RoomFactFestoon, RoomStrikeLookup,
-            RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson, EarPractice, EarNotNow,
-            EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2, EarCannedUnclear, EarHintSmoker,
-            EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif, EarAsideWindow, EarAsideHornet,
+            RoomMeet1, RoomMeetRole, RoomMeetHeyBeeswax, RoomForecast, RoomMeet2, RoomMeetStat,
+            RoomSmokerIntro, RoomHintSmoker, RoomSmokerSwat, RoomSmokerSprayWater, RoomSmokerSmoker, RoomSmokerBanana,
+            RoomSmokerHand, RoomFeedIntro, RoomLiftLight, RoomFeedTip, RoomFeedRocketFuel, RoomFeedPrompt,
+            RoomHintFeed, RoomFeedStoreHoney, RoomFeedSugarSyrup, RoomFeedWhy, RoomWaspsArrive, RoomWaspsBatoff,
+            RoomWaspsBatoffNice, RoomWaspsBatoffDoor, RoomWaspsBatoffDone, RoomWaspsIntro, RoomHintWasps, RoomWaspsBiggerDoor,
+            RoomWaspsSmallerDoor, RoomHornet1, RoomHornet2, RoomHornet3, RoomHornet4, RoomHeatIntro,
+            RoomHintHeat, RoomHeatDeepBowl, RoomHeatNothing, RoomHeatPebbleDish, RoomWhatifPrompt, RoomWhatifNotfire,
+            RoomHintWhatif, RoomWhatifFire, RoomWhatifFire2, RoomWhatifFire3, RoomWhatifPutout, RoomWhatifOut,
+            RoomWhatifOut2, RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray, RoomWhatifWinter,
+            RoomWhatifCustom, RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse, RoomWhatifBack,
+            RoomWhatifNothing, RoomAdjourn, RoomLiveFiller, RoomEscape, RoomEscapeMinutes, RoomEscapeCredit,
+            RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04, RoomTruth,
+            RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance, RoomAckCarried,
+            RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy, RoomFactFestoon,
+            RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson, EarPractice,
+            EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2, EarCannedUnclear,
+            EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif, EarAsideWindow,
+            EarAsideHornet,
         };
 
         static readonly GameLine[] LocalLines = { RoomFeedLiftHint };

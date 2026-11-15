@@ -406,6 +406,7 @@ interface Listen {
   n: number;
   source: VoiceSource;
   turn: VoiceTurn;
+  wakePhrase: boolean;
   mode: "ptt" | "vad";
   startedAt: number;
   chunks: Uint8Array[];
@@ -571,7 +572,7 @@ export function startHive(opts: HiveOptions): Hive {
       onChoiceRequest: (station, choice) => choiceRequest(station, choice),
       onFxForce: (name) => fxForce(name),
       onWhatIfForce: (m) => whatIfForce(m),
-      onListenStart: (ws, mode) => listenStart(ws, mode),
+      onListenStart: (ws, mode, wakePhrase) => listenStart(ws, mode, wakePhrase),
       onMic: (ws, pcm) => micFrame(ws, pcm),
       onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
       onClientClose: (ws) => finishListen(ws, "closed"),
@@ -957,14 +958,25 @@ export function startHive(opts: HiveOptions): Hive {
 
   /** Morph a running stream to this scene's prompt (cut: a fresh run of it instead, for a change a morph would only
    *  hint at). No stream: nothing (never opens a billed session by itself). */
-  function steerRelay(scene: Scene, cut = false): void {
+  function steerRelay(scene: Scene, cut = false, shouldSend?: () => boolean): void {
     if (!relayUrl || !relayRunning()) return;
     const prompt = promptFor(scene);
-    if (relayScene === scene && relayPrompt === prompt) return;
     if (!prompt) return observe(`no Orbis prompt for scene ${scene}`);
+    const stage = () => relay("/orbis/stage", cut ? { prompt, scene, reset: true } : { prompt, scene });
+    if (shouldSend) {
+      void queueRelay(async () => {
+        if (!shouldSend() || !relayRunning() || state.scene !== scene || promptFor(scene) !== prompt) return null;
+        if (relayScene === scene && relayPrompt === prompt) return null;
+        relayScene = scene;
+        relayPrompt = prompt;
+        return stage();
+      });
+      return;
+    }
+    if (relayScene === scene && relayPrompt === prompt) return;
     relayScene = scene;
     relayPrompt = prompt;
-    void queueRelay(() => relay("/orbis/stage", cut ? { prompt, scene, reset: true } : { prompt, scene }));
+    void queueRelay(stage);
   }
 
   /** live: start the stream on the current scene, or morph a running one. clips/off: stop (Reactor bills while connected). */
@@ -1101,6 +1113,8 @@ export function startHive(opts: HiveOptions): Hive {
       setScene("moon", "t0");
     } else if (name === "map") {
       setScene("full_bloom", "map");
+    } else if (momentActive && momentTimer) {
+      setScene(state.base_scene, "ask moment ended at beat change");
     }
   }
 
@@ -1205,7 +1219,7 @@ export function startHive(opts: HiveOptions): Hive {
       (operator || turn.beatRevision === beatRevision) && turn.isLatestListen?.() !== false;
   }
 
-  function listenStart(ws: Client, mode: "ptt" | "vad"): void {
+  function listenStart(ws: Client, mode: "ptt" | "vad", wakePhrase: boolean): void {
     const id = ws.data.id;
     const old = listens.get(id);
     if (old) {
@@ -1223,6 +1237,7 @@ export function startHive(opts: HiveOptions): Hive {
       n,
       source: ws.data.role === "glasses" ? "glasses" : "quest",
       turn: captureVoiceTurn(() => latestListen.get(ws) === n),
+      wakePhrase,
       mode,
       startedAt: Date.now(),
       chunks: [],
@@ -1271,7 +1286,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     const pcm = concat(l.chunks, l.bytes & ~1);
     log(`listen ${ws.data.id}#${l.n}: ${(pcm.length / 32000).toFixed(2)} s of audio (${l.mode}, ${why})`);
-    void runVoice(pcm, l.source, ws, l.turn).catch((err) => log("voice pipeline error:", err));
+    void runVoice(pcm, l.source, ws, l.turn, l.wakePhrase).catch((err) => log("voice pipeline error:", err));
   }
 
   async function safeTranscribe(pcm: Uint8Array): Promise<SttResultLike> {
@@ -1322,7 +1337,7 @@ export function startHive(opts: HiveOptions): Hive {
   }
 
   /** Mic audio -> transcript -> intent -> act. Never throws. */
-  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client, turn: VoiceTurn): Promise<void> {
+  async function runVoice(pcm: Uint8Array, source: VoiceSource, ws: Client, turn: VoiceTurn, wakePhrase: boolean): Promise<void> {
     const t0 = Date.now();
     const isCurrent = () => voiceTurnIsCurrent(turn);
     if (!isCurrent()) return;
@@ -1330,7 +1345,17 @@ export function startHive(opts: HiveOptions): Hive {
     if (!isCurrent()) return;
     latency("voice.stt", stt.ms);
     bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
-    if (!stt.text) {
+    let text = stt.text;
+    if (wakePhrase && source === "quest" && (turn.beat === "map" || turn.beat === "field")) {
+      // The card shows the actual transcript, but only the question goes to the router, voice and window.
+      const match = /^\s*["“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—"'”]*(.*)$/isu.exec(text);
+      text = match?.[1]?.trim() ?? "";
+      if (!/[\p{L}\p{N}]/u.test(text)) {
+        observe("voice: Quest Ask needs Hey Beeswax followed by a question");
+        return;
+      }
+    }
+    if (!text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
       // ASK BEESWAX: a press with nothing in it gets "Didn't catch that" instead of silence (no Claude call).
       if (deps.ask && source === "quest" && stt.error !== "no_audio" && deps.ask.ASK_BEATS.includes(turn.beat) && bus.count("quest") > 0)
@@ -1338,7 +1363,7 @@ export function startHive(opts: HiveOptions): Hive {
       return;
     }
     // Glasses talking over the bus get their ear reply over the bus too.
-    const r = await understand(stt.text, source, t0, turn, (reply) => {
+    const r = await understand(text, source, t0, turn, (reply) => {
       if (reply.line_id || reply.audio_url || reply.caption) bus.say("ear", reply.line_id, { audio_url: reply.audio_url, caption: reply.caption });
     });
     if (r) log(`voice ${source}: stt ${stt.provider} ${Math.round(stt.ms)} ms, total ${Date.now() - t0} ms (${ws.data.id})`);
@@ -1502,7 +1527,7 @@ export function startHive(opts: HiveOptions): Hive {
    */
   function askWindow(said: string, isCurrent: () => boolean): { pointer: string | null; seq: number; ask: number; moment: boolean } | null {
     const win = deps.window;
-    if (!win) return null;
+    if (!win || !isCurrent()) return null;
     const near = nearestScene(said);
     // A player's own what-if (not a question's moment) stays up for anything that doesn't name a scene.
     const inWhatIf = !momentActive && (isWhatIfScene(state.scene) || state.scene === "fire_out");
@@ -1516,11 +1541,13 @@ export function startHive(opts: HiveOptions): Hive {
       armMomentEnd(seq);
     }
     let ask = -1;
+    const canSteer = (expectedMoment: number) =>
+      isCurrent() && orbisWant === "live" && expectedMoment === momentSeq && (ask === -1 || ask === askSeq);
     if (live && Date.now() - lastWindowCallAt < askWindowGapMs) {
       // Too soon after the last call: no new Claude prompt, just the nearest scene's own (or nothing to change).
       if (near) {
         momentCut = true;
-        steerRelay(near.scene, true);
+        steerRelay(near.scene, true, () => canSteer(seq));
       }
     } else if (live) {
       lastWindowCallAt = Date.now();
@@ -1529,7 +1556,7 @@ export function startHive(opts: HiveOptions): Hive {
         .writePrompt(said, near ? promptFor(near.scene) : null, { timeoutMs: askWindowMs })
         .then((w) => {
           latency("ask.window", w.ms);
-          if (!isCurrent() || ask !== askSeq || seq !== momentSeq) {
+          if (!canSteer(seq)) {
             return observe(`ask window prompt in ${w.ms} ms, too late (the window moved on)`);
           }
           const check = w.prompt ? checkCustomPrompt(w.prompt) : null;
@@ -1542,7 +1569,7 @@ export function startHive(opts: HiveOptions): Hive {
             // A cut, not a morph: a morph from the sunny meadow only hints at a new prompt. Unity holds the nearest
             // clip during the gap (clip_first_s, then no live frame for 1 s).
             momentCut = true;
-            steerRelay("whatif_custom", true);
+            steerRelay("whatif_custom", true, () => canSteer(mine));
             observe(`ask window: live prompt in ${w.ms} ms: "${check.prompt.slice(0, 200)}"`);
             armMomentEnd(mine);
           } else {
@@ -1550,7 +1577,7 @@ export function startHive(opts: HiveOptions): Hive {
             // Make the relay match the scene everyone was told about (the matched one, or whatever is up now).
             const cut = !!near || momentCut;
             if (near) momentCut = true;
-            steerRelay(near ? near.scene : state.scene, cut);
+            steerRelay(near ? near.scene : state.scene, cut, () => canSteer(seq));
           }
         })
         .catch((err) => log("ask window failed:", err));
@@ -1606,7 +1633,7 @@ export function startHive(opts: HiveOptions): Hive {
     const { beat, group } = turn;
     const toRoom = (beat !== "field" || source === "quest") && (operator || bus.count("quest") > 0);
     const onLive = () => isCurrent() && toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
-    // The window reacts now, in parallel with the answer (Beeswax's own voice heard back is no question).
+    // Show the nearest clip immediately and resolve the live prompt in parallel with the answer.
     const shown = beat !== "field" && toRoom && !ask.isEcho(group, text) ? askWindow(text, isCurrent) : null;
     const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive, isCurrent });
     if (!isCurrent()) return null;
@@ -1623,7 +1650,8 @@ export function startHive(opts: HiveOptions): Hive {
     const response: UtteranceResponse = { intent: name, topic: null, line_id: null, audio_url: null, caption: "" };
     if (a.kind !== "echo") {
       const reply: Reply = a.line_id ? lineReply(a.line_id, "room_ack_grievance") : a.text ? { line_id: null, text: a.text } : ackReply();
-      // He points at the window after the answer. Canned lines keep their cached audio.
+      // He points at the window after the answer, as the live morph lands.
+      // Not on a canned answer: the pointer would change its text and lose its cached audio.
       if (toRoom && a.kind === "answer" && !reply.line_id && reply.text && shown?.pointer && shown.seq === momentSeq) reply.text = `${reply.text} ${shown.pointer}`;
       if (toRoom) sayReply(reply, "room", operator ? undefined : isCurrent);
       else {

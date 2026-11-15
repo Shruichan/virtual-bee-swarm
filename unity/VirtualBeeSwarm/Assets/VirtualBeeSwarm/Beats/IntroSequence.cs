@@ -547,6 +547,7 @@ namespace VirtualBeeSwarm
             if (window != null && !window.IsOpen) window.Open();
             yield return SayAndHold(GameLines.MeetIntro, 2f, 9f);   // room_meet_1
             yield return SayAndHold(RideLines.MeetRole, 2f, 8f);    // raps the roof on "sick", jabs a leg on "You signed"
+            yield return SayAndHold(GameLines.RoomMeetHeyBeeswax, 2f, 8f);
 
             // "Job perk: that window shows the future." The window goes to peaceful Paris on "future"; the cut to the
             // ravaged one comes on "angry swarms" in room_hook_1 (StakesDirector pours, ForecastMoment cuts).

@@ -28,7 +28,7 @@ namespace VirtualBeeSwarm
             Play(new MotionTrack
             {
                 name = "Settle", length = C.SettleSeconds,
-                eval = (tr, t) => new MotionSample { stage = new Vector3(C.SwayX(t), C.SettleY(t) + C.SwayY(t), 0f), rot = new Vector3(0f, 0f, C.SwayRoll(t)) }
+                eval = (tr, t) => new MotionSample { stage = new Vector3(C.SwayX(t) * 0.5f, C.SettleY(t), 0f), rot = new Vector3(0f, 0f, C.SwayRoll(t) * 0.5f) }
             }, null, false);
         }
 
