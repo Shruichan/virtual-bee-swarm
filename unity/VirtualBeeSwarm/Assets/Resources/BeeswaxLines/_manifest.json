@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T00:20:26.710Z",
+  "generated_at": "2026-11-15T01:12:39.279Z",
   "model": "eleven_multilingual_v2",
   "voice_id": "SOYHLrjzK2X1ezoPC6cr",
   "lines": {
@@ -83,13 +83,13 @@
     },
     "room_meet_1": {
       "channel": "room",
-      "caption": "Beeswax. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee.",
+      "caption": "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee.",
       "beat": "meet",
       "tags": [
         "meet",
         "fact:species"
       ],
-      "duration_s": 6.48,
+      "duration_s": 8.39,
       "mp3": "unity/room_meet_1.mp3",
       "pcm": null
     },
@@ -108,7 +108,7 @@
     },
     "room_forecast": {
       "channel": "room",
-      "caption": "Job perk: that window shows the future. Paris, tomorrow. Lovely.",
+      "caption": "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful.",
       "beat": "meet",
       "tags": [
         "meet",
@@ -116,7 +116,7 @@
         "window",
         "forecast"
       ],
-      "duration_s": 6.14,
+      "duration_s": 5.59,
       "mp3": "unity/room_forecast.mp3",
       "pcm": null
     },
@@ -147,14 +147,14 @@
     },
     "room_smoker_intro": {
       "channel": "room",
-      "caption": "Problem one: the girls are furious. Calm them down. Pick one.",
+      "caption": "Problem one: the girls are buzzing mad. Calm them down. Pick one.",
       "beat": "smoker",
       "tags": [
         "station:smoker",
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 4.86,
+      "duration_s": 4.52,
       "mp3": "unity/room_smoker_intro.mp3",
       "pcm": null
     },
@@ -186,7 +186,7 @@
     },
     "room_smoker_spray_water": {
       "channel": "room",
-      "caption": "Water? Now they're wet AND angry. Angry bees give off an alarm smell. Smoke covers it.",
+      "caption": "Water? Now they're wet AND still buzzing mad. Smoke masks the alarm smell.",
       "beat": "smoker",
       "tags": [
         "station:smoker",
@@ -194,7 +194,7 @@
         "wrong",
         "fact:alarm"
       ],
-      "duration_s": 6.95,
+      "duration_s": 6.48,
       "mp3": "unity/room_smoker_spray_water.mp3",
       "pcm": null
     },
@@ -214,20 +214,20 @@
     },
     "room_smoker_banana": {
       "channel": "room",
-      "caption": "Don't eat one near my house.",
+      "caption": "Don't go bananas near my hive. And don't eat a banana, either.",
       "beat": "smoker",
       "tags": [
         "station:smoker",
         "joke",
         "cut-if-behind"
       ],
-      "duration_s": 1.73,
+      "duration_s": 3.74,
       "mp3": "unity/room_smoker_banana.mp3",
       "pcm": null
     },
     "room_smoker_hand": {
       "channel": "room",
-      "caption": "They're calm now. Hold out your hand, palm up. They won't sting. Probably.",
+      "caption": "They're calm. Hold out your hand. These ones are virtual. Real ones? Bee-hold, but don't touch.",
       "beat": "smoker",
       "tags": [
         "station:smoker",
@@ -235,7 +235,7 @@
         "palm",
         "fact:sting"
       ],
-      "duration_s": 6.14,
+      "duration_s": 6.95,
       "mp3": "unity/room_smoker_hand.mp3",
       "pcm": null
     },
@@ -672,13 +672,13 @@
     },
     "room_whatif_rain": {
       "channel": "room",
-      "caption": "Rain? Fine. Nobody forages in the rain. We stay in and do paperwork.",
+      "caption": "Rain? Fine. Hardly anybee forages in the rain. We'll stay in and do paperwork.",
       "beat": "whatif",
       "tags": [
         "whatif",
         "topic:rain"
       ],
-      "duration_s": 6.43,
+      "duration_s": 6.56,
       "mp3": "unity/room_whatif_rain.mp3",
       "pcm": null
     },
@@ -902,14 +902,14 @@
     },
     "room_t0_earth": {
       "channel": "room",
-      "caption": "Look at Earth. Just hanging over the horizon. Doesn't rise, doesn't set. Like a drone. I'd know.",
+      "caption": "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know.",
       "beat": "t0",
       "tags": [
         "t0",
         "optional",
         "fact:earth"
       ],
-      "duration_s": 8.1,
+      "duration_s": 7.16,
       "mp3": "unity/room_t0_earth.mp3",
       "pcm": null
     },
@@ -964,14 +964,14 @@
     },
     "room_end_contract": {
       "channel": "room",
-      "caption": "You're hired. New contract: plant flowers, skip the bug spray, put out a pebble dish.",
+      "caption": "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five.",
       "beat": "map",
       "tags": [
         "map",
         "load-bearing",
         "contract"
       ],
-      "duration_s": 5.7,
+      "duration_s": 7.03,
       "mp3": "unity/room_end_contract.mp3",
       "pcm": null
     },
