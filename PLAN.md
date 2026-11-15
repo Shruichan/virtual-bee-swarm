@@ -135,6 +135,7 @@
 | S16 Devpost, tracks, repo | Rome | E |
 | S17 Mentra Live miniapp | Rome | F |
 | S19 Live Bee Scout (glasses-only, ManageXR) | Adityash | G (branch `scout/live`) |
+| S20 Habitat prop fit and visual polish | Rome | A |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -694,6 +695,11 @@ Branch `scout/live` (off `codex/mentra-live-build`), contract in `hive/src/scout
 - **S19.2 Scout lines** `hive/lines/scout_lines.json` + audio (branch `scout/lines`) — done when: every id in SCOUT_LINES exists, checks pass (length, no digits, sourced facts), reviewer pass, rendered — owner: **Adityash (lines agent)** — status: in progress. Needs the ElevenLabs key for Harry renders.
 - **S19.3 Scout dashboard** Hive `/scout` + `/scout/slides` (branch `scout/dashboard`) — done when: live glasses video, current match, timeline, now-speaking caption + audio, progress, latency; screenshot reviewed — owner: **Adityash (dashboard agent)** — status: in progress.
 - **S19.4 Scout game** `hive/src/scout.ts` + glasses answer routing (branch `scout/game`) — done when: unit tests cover found → hook → yes/no/rude/silence → fact → progress → done — owner: **Adityash (game agent)** — status: in progress.
+
+#### S20 Habitat prop fit and visual polish
+
+- **S20.1 Runtime prop integration** — done when: the water dish and cavity-nesting block spawn from bundled OBJ/MTL resources under optional table dressing — owner: **Rome** — status: done (merged as `c1d8eaa`).
+- **S20.2 Clear layout and finish** — done when: the props sit clear of the beekeeper bench and Moon flags, show their intended colors under the game shader, and the current Unity build/autopilot check passes — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1296,6 +1302,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
+**In flight, S20.2:** Rome (agent) — habitat prop placement and visual check in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Dressing/`; no scene edits.
+
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
@@ -1543,3 +1551,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 20:21 PT · Rome (agent) · Beeswax motion landed (BeeswaxMotion/): game-show host staging (arrive, step in to ask, foot-tap wait, freeze then hop+bow / spin+slump, dip before leaving), VR comfort governor (never closer than 0.45 m, never behind, speed caps). Off switch VBS_BEESWAX_MOTION=off. Checked: compile, scene, 16/16 tests, autopilot 1x clips on/off PASS, traces min eye 0.78 m. Also fixed the ForecastMoment video-error crash that failed Linux autopilots at 0 s. Lap/wasp duck/lift tumble/drop wait on script v2 flights. → team
 - 2026-11-14 20:22 PT · Adityash (orchestrator agent) · S19 direction change after the real-glasses screen test (23 object slides → 4 triggers, all flower; whole-frame matching fails at booth distance). New lanes: scout/content (researched bee stats + 5–6 easy-to-detect objects + script in the new flow: "Bee fact found! Would you like to learn more?" → "This is X… now go to your next adventure"), scout/detect (bake-off: YOLO-World boxes, DINOv2 on crops, AprilTag fallback, on recorded glasses footage), scout/booth (layout, distances, 2-min run-of-show, pitch/scout-booth.md). Dashboard lane adds live bounding boxes (contract f4a8e13). Vision lane finishing calibration from the footage.
 - 2026-11-14 20:32 PT · Adityash (orchestrator agent) · S19: merged scout/booth (pitch/scout-booth.md: camera geometry, 2-table layout, 2-min run-of-show, recovery ladder) and dashboard bounding boxes + latency readout (a6f3a67). Glasses stream lightened to 720p/10fps/1.2 Mbps with a 4 s watchdog (8075396) to cut the Wi-Fi drops. Game lane building booth mode (expected-next station, silence = yes, direction cues, operator force/yes/next/reset). Detect lane: AprilTag station cards first (user's pick for printed pictures), detector boxes second. Content lane: researched script.
+
+- 2026-11-14 20:18 PT · Rome (agent) · Claiming S20.2: resolving habitat prop overlap with the beekeeper bench and T-0 Moon flags; check final colors under GameUnlit, then run the existing Unity smoke/autopilot path if available. → team
