@@ -107,7 +107,6 @@ namespace VirtualBeeSwarm
                 while (!beeswax.Arrived && Time.time - t0 < 3f) yield return null;
                 beeswax.AttachTo(rocketSeat);
             }
-            if (net != null) net.Say(GameLines.T0Launch);
             for (int n = 3; n >= 1; n--)
             {
                 if (rocketDisplay != null) rocketDisplay.text = n.ToString();
@@ -116,6 +115,7 @@ namespace VirtualBeeSwarm
                 yield return Wait(0.9f);
             }
             if (LaunchGate != null) yield return LaunchGate(rocketDisplay); // HANDSON hook
+            if (net != null) net.Say(GameLines.T0Launch); // "TAKE ME TO THE MOON!" lands with the lever pull and the flame
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
 
             // launch
