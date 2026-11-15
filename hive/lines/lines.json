@@ -76,6 +76,7 @@
   {"id": "room_t0_earth", "channel": "room", "beat": "t0", "text": "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know.", "tags": ["t0", "optional", "fact:earth"]},
   {"id": "room_t0_3", "channel": "room", "beat": "t0", "text": "...Not one flower. We've only found them on Earth.", "tags": ["t0", "fact:flowers"]},
   {"id": "room_t0_4", "channel": "room", "beat": "t0", "text": "I'm back. Nobody saw that. Mind your own beeswax.", "tags": ["t0"]},
+  {"id": "room_t0_fake_moon", "channel": "room", "beat": "t0", "text": "Turns out the Moon was fake. Union rules say you get it anyway.", "tags": ["t0"]},
   {"id": "room_truth", "channel": "room", "beat": "map", "text": "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison.", "tags": ["map", "load-bearing", "fact:varroa"]},
   {"id": "room_map", "channel": "room", "beat": "map", "text": "Same time tomorrow? Other hives have it worse. Wild bees don't even get a beekeeper.", "tags": ["map", "load-bearing", "fact:wild"]},
   {"id": "room_end_contract", "channel": "room", "beat": "map", "text": "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five.", "tags": ["map", "load-bearing", "contract"]},

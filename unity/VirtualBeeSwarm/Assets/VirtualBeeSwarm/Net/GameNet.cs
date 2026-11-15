@@ -260,10 +260,18 @@ namespace VirtualBeeSwarm
             }
             if (voice != _boundVoice)
             {
-                if (_boundVoice != null) _boundVoice.OnLineStarted -= HandleLineStarted;
+                if (_boundVoice != null)
+                {
+                    _boundVoice.OnLineStarted -= HandleLineStarted;
+                    _boundVoice.CanSpeakAskCaption = null;
+                }
                 _boundVoice = voice;
                 _voiceSource = voice != null ? voice.GetComponent<AudioSource>() : null;
-                if (voice != null) voice.OnLineStarted += HandleLineStarted;
+                if (voice != null)
+                {
+                    voice.OnLineStarted += HandleLineStarted;
+                    voice.CanSpeakAskCaption = ShouldSpeakDeviceCaption;
+                }
             }
             if (orbis != _boundOrbis)
             {
@@ -297,7 +305,11 @@ namespace VirtualBeeSwarm
                 _bound.OnChoiceRequest -= HandleChoiceRequest;
             }
             _bound = null;
-            if (_boundVoice != null) _boundVoice.OnLineStarted -= HandleLineStarted;
+            if (_boundVoice != null)
+            {
+                _boundVoice.OnLineStarted -= HandleLineStarted;
+                _boundVoice.CanSpeakAskCaption = null;
+            }
             _boundVoice = null;
             if (_boundOrbis != null)
             {
@@ -389,6 +401,7 @@ namespace VirtualBeeSwarm
         void HandleIntent(Beeswax.Intent i)
         {
             if (forceOffline || (voice != null && voice.SuppressAskReplies)) return;
+            _deviceAskReplyPending = i.name == GameIds.Intent.Ask && (_lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field);
             if (logEvents) Debug.Log("[VBS] <- intent " + i.name + " " + i.topic);
             IntentReceived?.Invoke(i.name, i.topic, i.text);
         }
@@ -416,6 +429,8 @@ namespace VirtualBeeSwarm
         void HandleLineStarted(string caption)
         {
             var id = voice != null ? voice.CurrentLineId : "";
+            if (voice != null && (voice.CurrentTtsId.Length > 0 || id.StartsWith("ask_", StringComparison.Ordinal)))
+                _deviceAskReplyPending = false;
             if (id == GameLines.RoomMeetHeyBeeswax.id && voiceInput != null) voiceInput.CancelPendingTurn();
             ReportLine(id, voice != null ? voice.CurrentTtsId : "", caption);
             LineStarted?.Invoke(caption);
@@ -431,6 +446,15 @@ namespace VirtualBeeSwarm
         // ---------------------------------------------------------------- outbound
         GameBeat? _lastBeat;
         bool _askUtterance, _wakeUtterance;
+        bool _deviceAskReplyPending;
+
+        bool ShouldSpeakDeviceCaption(string caption)
+        {
+            if (!_deviceAskReplyPending) return false;
+            _deviceAskReplyPending = false;
+            return !string.IsNullOrWhiteSpace(caption) && !Ask.AskLines.IsNonAnswer("", caption);
+        }
+
         const int MaxAskQuestions = 3;
         const float AskFollowUpSeconds = 20f;
         int _askQuestionsLeft;
@@ -669,6 +693,7 @@ namespace VirtualBeeSwarm
             if (Talking) return true;
             if (forceOffline || voiceInput == null || _bound == null) return false;
             bool ask = _lastBeat == GameBeat.Map || _lastBeat == GameBeat.Field;
+            if (ask && voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
             bool wake = ask && !AskFollowUpOpen;
             // Protect the instructional phrase even though it plays before the card is available.
             if ((ask && (IsSpeaking || AwaitingReply)) ||
@@ -689,6 +714,7 @@ namespace VirtualBeeSwarm
         public void ResetVoiceWakeGate()
         {
             _askUtterance = _wakeUtterance = false;
+            _deviceAskReplyPending = false;
             if (voice != null) voice.SuppressAskReplies = false;
         }
 
@@ -697,6 +723,7 @@ namespace VirtualBeeSwarm
             _askQuestionsLeft = 0;
             _askFollowUpUntil = 0f;
             ResetVoiceWakeGate();
+            if (voice != null && voice.IsSpeakingDeviceFallback) voice.StopAll();
         }
 
         void DiscardRemoteAskReply()

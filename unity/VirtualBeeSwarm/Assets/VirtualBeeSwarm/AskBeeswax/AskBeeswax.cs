@@ -47,7 +47,7 @@ namespace VirtualBeeSwarm.Ask
         public bool On { get; private set; } = true;
         public bool Auto { get; private set; } = true;
         public bool Chips { get; private set; } = true;
-        public bool Buzz { get; private set; } = true;
+        public bool Buzz { get; private set; }
         public AskFlow Flow { get; } = new AskFlow();
         public AskCard Card => _card;
         public bool IsOpen => Flow.IsOpen;
@@ -467,7 +467,7 @@ namespace VirtualBeeSwarm.Ask
             Auto = Bool(flat, "ask.auto", true);
             Chips = Bool(flat, "ask.chips", true);
             BargeIn = Bool(flat, "ask.bargeIn", true);
-            Buzz = Bool(flat, "ask.buzz", true) && Bool(flat, "sound.on", true);
+            Buzz = Bool(flat, "ask.buzz", false) && Bool(flat, "sound.on", true);
             if (flat.TryGetValue("ask.watchdogSeconds", out var w) &&
                 float.TryParse(w.Trim().Trim('"'), NumberStyles.Float, CultureInfo.InvariantCulture, out var ws))
                 WatchdogSeconds = Mathf.Clamp(ws, 3f, 20f);

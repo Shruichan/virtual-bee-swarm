@@ -56,6 +56,8 @@ namespace Beeswax
         public event Action<string> OnLineEnded;   // caption
 
         public bool IsSpeaking => _current != null;
+        public bool IsSpeakingDeviceFallback => _current?.deviceSpeech == true;
+        public Func<string, bool> CanSpeakAskCaption { get; set; }
         /// <summary>Smoothed loudness of what Beeswax is saying now, 0..1.</summary>
         public float Amplitude { get; private set; }
         public string CurrentCaption => _current?.caption ?? "";
@@ -74,6 +76,7 @@ namespace Beeswax
             public float[] envelope;
             public float queuedAt, startedAt, captionOnlySeconds;
             public bool started;
+            public bool deviceSpeech, allowDeviceSpeech;
             // live line
             public PcmRing pcm;
             public int sampleRate;
@@ -95,6 +98,7 @@ namespace Beeswax
         readonly Dictionary<AudioClip, float[]> _envelopes = new Dictionary<AudioClip, float[]>();
         readonly float[] _outBuf = new float[256];
         readonly byte[] _pair = new byte[2];
+        readonly DeviceSpeech _deviceSpeech = new DeviceSpeech();
         Line _current;
         BeeswaxBus _bound;
         float _dialogueGain = 1f;
@@ -105,6 +109,7 @@ namespace Beeswax
         void Awake()
         {
             if (source == null) source = GetComponent<AudioSource>();
+            _deviceSpeech.Warm();
             foreach (var l in lines)
                 if (l != null && !string.IsNullOrEmpty(l.id) && l.clip != null) _clipCache[l.id] = l.clip;
             if (configureSpatialSource)
@@ -138,6 +143,11 @@ namespace Beeswax
         void OnEnable() => Bind();
         void Start() => Bind();
         void OnDisable() { Unbind(); StopAll(); }
+        void OnDestroy() => _deviceSpeech.Dispose();
+        void OnApplicationPause(bool paused)
+        {
+            if (paused && IsSpeakingDeviceFallback) StopAll();
+        }
 
         void Bind()
         {
@@ -218,13 +228,14 @@ namespace Beeswax
         void HandleSay(Say s)
         {
             if (s.channel != Channel.Room) return; // ear lines play only in the glasses
+            if (s.line_id == "room_live_filler") return; // older Hives still send this before Ask replies
             if (SuppressAskReplies && (s.line_id.Length == 0 || s.line_id.StartsWith("ask_", StringComparison.Ordinal) ||
                 s.line_id.StartsWith("room_ack", StringComparison.Ordinal) ||
-                s.line_id.StartsWith("room_whatif_", StringComparison.Ordinal) || s.line_id == "room_live_filler")) return;
+                s.line_id.StartsWith("room_whatif_", StringComparison.Ordinal))) return;
             if (s.line_id.Length > 0) PlayFromBus(s.line_id, s.caption);
             else if (s.tts_id.Length > 0) { if (s.caption.Length > 0) _ttsCaptions[s.tts_id] = s.caption; }
             // Neither a clip nor a stream: the Hive's live voice is down, so Beeswax "says" the caption (reading time).
-            else if (s.caption.Length > 0) PlayCaption(s.caption);
+            else if (s.caption.Length > 0) Enqueue(new Line { caption = s.caption, allowDeviceSpeech = true });
         }
 
         void HandleVerdict(ScanVerdict v)
@@ -354,6 +365,8 @@ namespace Beeswax
             {
                 int words = line.caption.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
                 line.captionOnlySeconds = Mathf.Clamp(words * 0.38f, 1.5f, 7f);
+                if (line.allowDeviceSpeech && CanSpeakAskCaption?.Invoke(line.caption) == true)
+                    line.deviceSpeech = _deviceSpeech.Speak(line.caption);
             }
             RaiseLine(OnLineStarted, line.caption);
         }
@@ -364,6 +377,7 @@ namespace Beeswax
             _ttsCaptions.Remove(line.ttsId);
             line.ttsId = "";
             line.pcm = null;
+            line.allowDeviceSpeech = true;
             BeginLocalLine(line, now);
         }
 
@@ -415,7 +429,11 @@ namespace Beeswax
                 float tail = Mathf.Clamp(2f * l.readBlock / Mathf.Max(1, l.sampleRate) + 0.1f, 0.35f, 1.5f);
                 return now - l.drainedSince > tail;
             }
-            if (l.clip == null) return now - l.startedAt >= l.captionOnlySeconds;
+            if (l.clip == null)
+            {
+                float elapsed = now - l.startedAt;
+                return elapsed >= l.captionOnlySeconds && (!l.deviceSpeech || elapsed >= 12f || !_deviceSpeech.Speaking);
+            }
             return (!source.isPlaying && now - l.startedAt > 0.1f) || now - l.startedAt > l.clip.length + 1f;
         }
 
@@ -424,6 +442,7 @@ namespace Beeswax
             var line = _current;
             _current = null;
             if (line == null) return;
+            if (line.deviceSpeech) _deviceSpeech.Stop();
             if (source != null && line.clip != null && source.clip == line.clip)
             {
                 source.Stop();

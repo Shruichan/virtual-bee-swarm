@@ -1000,6 +1000,18 @@
       "mp3": "unity/room_t0_4.mp3",
       "pcm": null
     },
+    "room_t0_fake_moon": {
+      "channel": "room",
+      "caption": "Turns out the Moon was fake. Union rules say you get it anyway.",
+      "beat": "t0",
+      "tags": [
+        "t0"
+      ],
+      "duration_s": 3.82,
+      "mp3": "unity/room_t0_fake_moon.mp3",
+      "pcm": null,
+      "source": "local Qwen3-TTS-12Hz-0.6B-Base"
+    },
     "room_truth": {
       "channel": "room",
       "caption": "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison.",

@@ -46,6 +46,9 @@ namespace VirtualBeeSwarm.Theme
         readonly bool[] _slept = new bool[4];
         FieldInfo _timeoutField;
         UnionCard _card;
+        T0Sequence _moon;
+        Transform _moonAward;
+        float _moonAwardAt;
         int _lastGrievances, _lastClockSecond = int.MinValue;
         float _choosingSince = -1f, _nextSlowPoll;
         bool _wasChoosing;
@@ -104,6 +107,8 @@ namespace VirtualBeeSwarm.Theme
             _anchor = FindAnchor();
             _card = UnionCard.Create(transform); // keep physical card size when the meadow rig scales
             BuildClue();
+            _moon = FindAnyObjectByType<T0Sequence>();
+            if (_moon != null) BuildMoonAward();
             _hint = StickerArt.Quad(transform, StickerArt.Winking, hintStickerSize, "[VBS] HintSticker");
             _hint.gameObject.SetActive(false);
 
@@ -333,6 +338,7 @@ namespace VirtualBeeSwarm.Theme
             var beat = _director.Beat;
             RefreshCardPose();
             UpdateClock(beat);
+            UpdateMoonAward();
 
             int st = StationIndex(beat);
             var s = st >= 0 ? _stations[st] : null;
@@ -381,6 +387,39 @@ namespace VirtualBeeSwarm.Theme
             UpdateHint(now);
             UpdateClue(now);
             UpdateStrip(now);
+        }
+
+        void BuildMoonAward()
+        {
+            const float width = 0.34f;
+            var award = UiCard.Create(transform, "[VBS] Moon Award", new Vector2(width, 0.085f), UiCard.Look.Dark);
+            _moonAward = award.transform;
+            var label = UiTheme.NewText(_moonAward, "Title", "You got the Moon", 24f, UiTheme.Honey,
+                new Vector2(width - 0.04f, 0.05f), display: true, wrap: false);
+            label.transform.localPosition = new Vector3(0f, 0f, -0.004f);
+            _moonAward.gameObject.SetActive(false);
+        }
+
+        void UpdateMoonAward()
+        {
+            if (_moonAward == null) return;
+            bool visible = _moon != null && _moon.MoonAwardVisible;
+            if (visible != _moonAward.gameObject.activeSelf)
+            {
+                _moonAward.gameObject.SetActive(visible);
+                if (!visible) return;
+                var camera = Camera.main;
+                Transform view = camera != null ? camera.transform : transform;
+                Vector3 forward = Vector3.ProjectOnPlane(view.forward, Vector3.up);
+                if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+                Vector3 eye = view.position;
+                if (camera == null) eye.y = Mathf.Max(eye.y, Bloom.MeadowLayout.FloorY + 1.5f);
+                Vector3 p = eye + forward.normalized * 0.85f - Vector3.up * 0.43f;
+                p.y = Mathf.Max(p.y, Bloom.MeadowLayout.FloorY + 0.65f);
+                _moonAward.SetPositionAndRotation(p, Quaternion.LookRotation(p - eye, Vector3.up));
+                _moonAwardAt = Time.time;
+            }
+            if (visible) _moonAward.localScale = Vector3.one * UiTheme.Pop((Time.time - _moonAwardAt) / 0.32f);
         }
 
         void UpdateClock(GameBeat beat)

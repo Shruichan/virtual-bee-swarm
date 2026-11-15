@@ -1645,7 +1645,7 @@ export function startHive(opts: HiveOptions): Hive {
     void understand(q, "quest", Date.now(), turn).catch((e) => log("ask.chip failed:", e));
   }
 
-  /** ASK BEESWAX (map/field): ask.ts answers instead of the router; the first live answer of a group gets the filler. */
+  /** ASK BEESWAX (map/field): ask.ts answers instead of the router. */
   async function askTurn(
     text: string,
     source: VoiceSource,
@@ -1658,10 +1658,9 @@ export function startHive(opts: HiveOptions): Hive {
     const ask = deps.ask!;
     const { beat, group } = turn;
     const toRoom = (beat !== "field" || source === "quest") && (operator || bus.count("quest") > 0);
-    const onLive = () => isCurrent() && toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
     // Show the nearest clip immediately and resolve the live prompt in parallel with the answer.
     const shown = beat !== "field" && toRoom && !ask.isEcho(group, text) ? askWindow(text, isCurrent) : null;
-    const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive, isCurrent });
+    const a = await ask.answer(text, { beat, group, run: state.memory }, { isCurrent });
     if (!isCurrent()) return null;
     const answered = a.kind === "answer" || a.kind === "canned";
     if (shown && !answered) {
