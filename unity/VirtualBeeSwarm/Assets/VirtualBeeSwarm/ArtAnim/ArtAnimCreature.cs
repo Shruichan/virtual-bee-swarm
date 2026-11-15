@@ -103,6 +103,7 @@ namespace VirtualBeeSwarm
             _base = clip;
             if (fade <= 0f) _anim.Play(clip);
             else _anim.CrossFade(clip, fade);
+            ArtAnimLog.Clip(this, clip); // Rome (agent): VBS_ANIM_LOG=1 only
         }
 
         void Update()
@@ -136,7 +137,7 @@ namespace VirtualBeeSwarm
             if (accents.Length > 0 && Time.time >= _nextAccent)
             {
                 var a = accents[_accentIdx++ % accents.Length];
-                if (_anim[a.clip] != null) _anim.CrossFade(a.clip, 0.1f);
+                if (_anim[a.clip] != null) { _anim.CrossFade(a.clip, 0.1f); ArtAnimLog.Clip(this, a.clip); } // Rome (agent): log
                 _nextAccent = Time.time + Random.Range(Mathf.Max(0.5f, a.minGap), Mathf.Max(a.minGap + 0.1f, a.maxGap));
             }
         }
