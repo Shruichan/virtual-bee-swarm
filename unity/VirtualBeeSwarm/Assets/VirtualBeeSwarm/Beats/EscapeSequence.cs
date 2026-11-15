@@ -35,7 +35,7 @@ namespace VirtualBeeSwarm
         [Header("End card (v2, map beat)")]
         [Tooltip("Held this far in front of the head, its middle this far below the eye.")]
         [SerializeField] float endCardAhead = 0.62f;
-        [SerializeField] float endCardBelowEye = 0.43f;
+        [SerializeField] float endCardBelowEye = 0.27f;
         [SerializeField] float endCardTiltDegrees = 22f;
         [SerializeField] int endCardCrew = 6;
 
@@ -202,7 +202,7 @@ namespace VirtualBeeSwarm
             Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up) * Quaternion.Euler(endCardTiltDegrees, 0f, 0f);
             // the card's pivot is the score line; the whole card (score + contract) is centred on the target
             float below = (_cardBottom + 0.012f + _endPanelHeight) * 0.5f;
-            Vector3 centre = eye + fwd * endCardAhead - Vector3.up * endCardBelowEye;
+            Vector3 centre = eye + fwd * endCardAhead - Vector3.Cross(Vector3.up, fwd) * 0.14f - Vector3.up * endCardBelowEye;
             Vector3 pivot = centre + rot * Vector3.up * below;
             Vector3 scale = SetDisplayScale(t);
             if (delivery != null && BeeDelivery.Mode != DeliveryMode.Off)
@@ -343,7 +343,7 @@ namespace VirtualBeeSwarm
             if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
             forward.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            Vector3 position = head.position + forward * 0.85f - right * 0.26f - Vector3.up * 0.4f;
+            Vector3 position = head.position + forward * 0.67f - right * 0.17f - Vector3.up * 0.27f;
             return new Pose(position, Quaternion.LookRotation(position - head.position, Vector3.up));
         }
 

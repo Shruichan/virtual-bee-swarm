@@ -124,7 +124,7 @@ namespace VirtualBeeSwarm.Theme
             }
             Debug.Log("[VBS][Stickers] union card ready (" + (_anchor != null ? "on " + _anchor.name : "no TableAnchor") + "), stations " +
                       Count(_stations) + "/4, timeout flag " + (_timeoutField != null ? "found" : "by line id"));
-            if (_director != null && _director.Beat >= GameBeat.Smoker && _director.Beat <= GameBeat.Map) ShowCard("joined at " + GameIds.BeatName(_director.Beat));
+            if (_director != null && _director.Beat >= GameBeat.Smoker && _director.Beat < GameBeat.Escape) ShowCard("joined at " + GameIds.BeatName(_director.Beat));
         }
 
         static int Count(StationBase[] a) { int n = 0; foreach (var s in a) if (s != null) n++; return n; }
@@ -171,7 +171,8 @@ namespace VirtualBeeSwarm.Theme
             _choosingSince = -1f;
             _wasChoosing = false;
             if (beat == GameBeat.Pre) { ResetRun(); return; }
-            if (beat >= GameBeat.Smoker && beat <= GameBeat.Map) ShowCard(GameIds.BeatName(beat));
+            if (beat >= GameBeat.Smoker && beat < GameBeat.Escape) ShowCard(GameIds.BeatName(beat));
+            else if (beat >= GameBeat.Escape) _card.Show(false);
             if (beat == GameBeat.Escape)
             {
                 _escapeAt = Time.time;
@@ -414,7 +415,9 @@ namespace VirtualBeeSwarm.Theme
                 if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
                 Vector3 eye = view.position;
                 if (camera == null) eye.y = Mathf.Max(eye.y, Bloom.MeadowLayout.FloorY + 1.5f);
-                Vector3 p = eye + forward.normalized * 0.85f - Vector3.up * 0.43f;
+                forward.Normalize();
+                Vector3 right = Vector3.Cross(Vector3.up, forward);
+                Vector3 p = eye + forward * 0.67f - right * 0.17f - Vector3.up * 0.24f;
                 p.y = Mathf.Max(p.y, Bloom.MeadowLayout.FloorY + 0.65f);
                 _moonAward.SetPositionAndRotation(p, Quaternion.LookRotation(p - eye, Vector3.up));
                 _moonAwardAt = Time.time;

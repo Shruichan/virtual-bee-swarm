@@ -54,11 +54,19 @@ namespace VirtualBeeSwarm
             bool cut = RidePacing.Cut(3, map);
             StartCoroutine(Show(true)); // the map of six more hives lands
             if (!cut) yield return Say(map);
-            ShowTitle(false); // the end card lands where the map title is
+            SetActive(mapRoot, false);
             if (_escape != null) _escape.DeliverEndCard();
             yield return Say(RideLines.EndContract);
             UnloadDone = true;
             Debug.Log("[VBS][Ride] unload done: the end card is out (ASK BEESWAX: J or the Board's room_ask_anything)");
+        }
+
+        void LateUpdate()
+        {
+            var ride = RideDirector.Instance;
+            if (ride == null || !ride.AskShown) return;
+            SetActive(mapRoot, false);
+            if (_escape != null) _escape.HideEndCard();
         }
 
         IEnumerator Say(GameLine line)

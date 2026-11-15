@@ -318,15 +318,13 @@ namespace VirtualBeeSwarm.Ask
         }
 
         /// <summary>
-        /// Where the card parks: at the player's right hand, 1 m away and 30 degrees right of the window (so the hive,
-        /// the level map over it and the window stay clear), a little below eye height, facing them. No window: the same
-        /// spot measured from where the head looks.
+        /// Park in reach below the player's gaze, clear of the hive and window.
         /// </summary>
         public static Pose PoseFor(Transform head, Transform window)
         {
             Vector3 h = head != null ? head.position : new Vector3(0f, 1.5f, 0f);
             Vector3 fwd = head != null ? head.forward : Vector3.forward;
-            if (window != null)
+            if (head == null && window != null)
             {
                 Vector3 toWin = window.position - h;
                 toWin.y = 0f;
@@ -336,9 +334,7 @@ namespace VirtualBeeSwarm.Ask
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
             fwd.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, fwd);
-            const float deg = 30f * Mathf.Deg2Rad;
-            Vector3 pos = h + (fwd * Mathf.Cos(deg) + right * Mathf.Sin(deg)) * 1.0f;
-            pos.y = Mathf.Clamp(h.y - 0.20f, 0.85f, 1.65f);
+            Vector3 pos = h + fwd * 0.72f + right * 0.16f - Vector3.up * 0.25f;
             Vector3 look = pos - h;
             look.y = 0f;
             if (look.sqrMagnitude < 1e-4f) look = fwd;
