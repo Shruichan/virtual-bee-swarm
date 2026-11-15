@@ -135,8 +135,10 @@ namespace VirtualBeeSwarm
                 if (beeswax != null) beeswax.SetVisible(false); // he's up there with it
             }
 
-            // the Moon
+            // the Moon (v2 optional #4 first: "Look at Earth. Up here it barely moves.")
             float moonStart = Time.time;
+            var earthLine = RideLines.T0Earth;
+            if (RidePacing.Optional(4, earthLine)) yield return SayAndWait(earthLine, 2.5f, LineTime.Seconds(net, earthLine) + 1f, unlessHive: false);
             yield return SayAndWait(GameLines.T0Moon, 2.5f, 6f, unlessHive: false);
             while (Time.time - moonStart < 4f)
             {
