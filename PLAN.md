@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest Start click hides its button, then waits for fingertip contact on an upward-facing MRUK room-mesh surface; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest mirrors GameScene placement wiring: left/right hand-anchor MRUK rays, 0.5 m range, 20° surface-normal limit, and the same scene-label filter; its only spawn target is the Hive; headset testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1460,3 +1460,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:39 PT · Nam Nguyen (agent) · Bound Canvas Button.OnClick to SpawnObject.BeginPlacement so a valid poke hides StartHivePlacementButton and starts placement; invalid spawn configuration leaves the button available. Editor diagnostics report no C# errors; Quest retest pending. → team
 - 2026-11-14 17:43 PT · Nam Nguyen (agent) · Adapting NamTest placement to MRUK room-mesh surfaces instead of the TABLE label; clarifying whether "touch" means fingertip contact or hand-pointer aim and whether vertical faces are allowed before changing interaction/orientation. → team
 - 2026-11-14 17:43 PT · Nam Nguyen (agent) · Decision: "touch" means tracked index-fingertip proximity to any upward-facing MRUK room-mesh surface; ignore the TABLE label and reject walls/downward-facing surfaces. → team
+- 2026-11-14 18:07 PT · Nam Nguyen (agent) · Decision superseded per clarification: copy GameScene's placement wiring only (hand-anchor forward MRUK rays, button-to-spawner hookup, range/angle/label settings), leave bomb/wire puzzle content out, and spawn only the Hive in NamTest. → team
