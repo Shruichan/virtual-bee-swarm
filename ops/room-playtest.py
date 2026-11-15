@@ -23,7 +23,7 @@ VIEWS = [
     ("Cooling", "beat 7 heat", 6.0), ("Fire", "window scene whatif_fire", 3.2),
     ("Rain", "fire brigade: rain cloud", 2.3), ("Recovery", "beat 9 escape", 3.2),
     ("Launch", "window scene moon", 0.4), ("Moon", "window scene moon", 5.2),
-    ("Crash", "crash ->", 0.65), ("Contract", "beat 11 map", 10.0),
+    ("Crash", "crash ->", 0.65), ("Contract", "[VBS][EndCard] delivered", 3.0),
 ]
 
 

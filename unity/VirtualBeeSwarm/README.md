@@ -220,8 +220,9 @@ py ops/room-playtest.py --player "C:\path\to\vbs-capture.exe" --out "C:\path\to\
 
 Open `index.html` in the output folder. It links each room's video, review frames, and event timeline. Use
 `--rooms 4 9 20` to repeat selected cases in a fresh output folder. The desktop run uses furniture volumes for
-placement and sightline checks. Dialogue is reconstructed from the captured timestamps. Quest tracking,
-passthrough, physical reach, and headset frame time still need a device run.
+placement and sightline checks. Review the video even when the script completes all four hand actions.
+The starting gaze can hide controls, and a partial floor fit can intersect furniture. Dialogue is reconstructed
+from the captured timestamps. Quest tracking, passthrough, physical reach, and headset frame time still need a device run.
 
 ## Known gaps
 
