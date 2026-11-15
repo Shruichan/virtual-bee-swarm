@@ -41,7 +41,7 @@ from detect import ScoutTracker, scores_from_boxes  # printed station-card tags 
 from train.fusion import CardScout  # printed cards: SIFT picture matcher + card-name OCR, train/
 
 TEST = ROOT / "data" / "test"
-DEBUG = ROOT / "debug"  # --match: ring of the last 50 frames with card evidence (gitignored)
+DEBUG = Path(os.environ.get("SCOUT_DEBUG_DIR", ROOT / "debug"))  # --match: ring of the last 50 frames with card evidence (gitignored)
 CREDITS = ROOT / "data" / "web" / "credits.csv"
 
 
@@ -251,7 +251,8 @@ class Worker:
 
     def health(self) -> dict:
         return {"ok": True, "model": self.rec.backbone.name, "source": self.source.label, "fps": round(self.fps, 2),
-                "refs": self.rec.counts(), "connected": self.source.connected, "last": self.last}
+                "refs": self.rec.counts(), "connected": self.source.connected, "last": self.last,
+                **({"match": self.scout.stats} if self.scout else {})}
 
 
 def load_detector(spec: str):

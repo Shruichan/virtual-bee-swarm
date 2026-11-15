@@ -2,7 +2,7 @@
 
     from train.ocr import CardOCR
     ocr = CardOCR(level="fast")
-    hits = ocr.read(rgb)   # [{label, keyword, strong, text, conf, x, y, w, h}] normalized, x,y top-left
+    hits = ocr.read(rgb)   # [{label, keyword, kind, strong, full, text, conf, x, y, w, h}] normalized, x,y top-left
     texts = ocr.last_texts # every string Vision read in that frame (debug)
 
     uv run python -m train.ocr <image>...    # print what it reads and the label it maps to
@@ -31,6 +31,7 @@ PHRASES: list[tuple[str, str]] = [
     ("WATERDISH", "pebble_dish"),
 ]
 PHRASE_MIN = 0.85
+FULL_CONF = 0.5  # Vision confidence a full-name read needs to fire instantly (no vote)
 # Single words: weak evidence (a water bottle says WATER), counted only when the picture matcher agrees.
 WORDS: list[tuple[str, str]] = [("HIVE", "beehive"), ("HOTEL", "bee_hotel"), ("SPRAY", "bug_spray"), ("WATER", "pebble_dish"),
                                 ("DISH", "pebble_dish"), ("HONEY", "honey_jar"), ("FLOWER", "native_flower")]
@@ -49,25 +50,34 @@ def _ratio_in(hay: str, needle: str) -> float:
     return best
 
 
-def label_for(text: str) -> tuple[str | None, str | None, bool]:
-    """A recognized string -> (label, keyword, strong). strong = a full card name was read."""
+def label_for(text: str) -> tuple[str | None, str | None, str]:
+    """A recognized string -> (label, keyword, kind). kind: "full" (a whole card name), "partial" (a cut-off name,
+    >= 6 letters), "word" (one weak word), "" (nothing)."""
     up = re.sub(r"[^A-Z ]", " ", text.upper().replace("0", "O").replace("1", "I").replace("5", "S").replace("8", "B"))
     joined = up.replace(" ", "")
     if len(joined) < 4:
-        return None, None, False
+        return None, None, ""
     best = (0.0, None, None)
     for ph, lb in PHRASES:
         r = _ratio_in(joined, ph)
         if r >= PHRASE_MIN and r > best[0]:
             best = (r, lb, ph)
     if best[1]:
-        return best[1], best[2], True
+        return best[1], best[2], "full"
+    # a cut-off read of a full name ("HONEYC", "YCOMB" at the frame edge): >= 6 letters, exact prefix/suffix of one name
+    for w in [joined] + up.split():
+        if len(w) >= 6:
+            for ph, lb in PHRASES:
+                if len(w) < len(ph) and (ph.startswith(w) or ph.endswith(w)):
+                    return lb, ph, "partial"
+                if len(w) >= 7 and len(w) <= len(ph) and (ph.startswith(w[:-1]) or ph.endswith(w[1:])):  # one bad edge letter
+                    return lb, ph, "partial"
     for w in up.split():
         for kw, lb in WORDS:
             r = difflib.SequenceMatcher(None, w, kw).ratio()
             if r >= WORD_MIN and r > best[0]:
                 best = (r, lb, kw)
-    return best[1], best[2], False
+    return best[1], best[2], "word" if best[1] else ""
 
 
 class CardOCR:
@@ -77,6 +87,8 @@ class CardOCR:
         self.level = level
         self.min_px = min_px  # ignore keyword reads shorter than this (px): small print on bottles and screens
         self.frame_h = 720
+        self.errors = 0
+        self.last_err = 0.0
         self.min_height = min_height
         self.last_texts: list[dict] = []
 
@@ -108,6 +120,10 @@ class CardOCR:
         ok, err = handler.performRequests_error_([req], None)
         out = []
         if not ok:
+            self.errors += 1
+            if time.time() - self.last_err > 5:
+                print(f"[ocr] Vision failed ({self.errors} so far): {err}", file=sys.stderr, flush=True)
+                self.last_err = time.time()
             return out
         for obs in req.results() or []:
             cands = obs.topCandidates_(1)
@@ -124,9 +140,10 @@ class CardOCR:
         self.last_texts = self.texts(rgb)
         hits = []
         for t in self.last_texts:
-            lb, kw, strong = label_for(t["text"])
+            lb, kw, kind = label_for(t["text"])
             if lb and t["h"] * self.frame_h >= self.min_px:
-                hits.append({**t, "label": lb, "keyword": kw, "strong": strong})
+                hits.append({**t, "label": lb, "keyword": kw, "kind": kind, "strong": kind in ("full", "partial"),
+                             "full": kind == "full" and t["conf"] >= FULL_CONF})
         return hits
 
 
