@@ -11,13 +11,16 @@ Per frame (OCR and SIFT run in parallel threads):
   2. No OCR label: SIFT alone fires only with >= sift_alone inliers (25), when no OCR read names any card, and
      when the runner-up picture has less than half its inliers.
   3. OCR and SIFT disagree: OCR's label is reported, never SIFT's.
-  4. The final label must win >= 3 of the last 5 frames before its score goes above 0.3 (the Hive needs 0.6).
+  4. The final label must win >= 3 of the last 5 frames before its score goes above 0.3 (the Hive needs 0.6),
+     except a confident full-name read with no other name in view: it fires on that frame, box via "marker"
+     (the Hive then needs only markerSteadyMs = 250 ms).
 Debug: frames with any evidence (at most ~3/s) and every voted-label change go to a ring of 50 thumbnails.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -34,6 +37,7 @@ OCR_SCORE = 0.95
 SIFT_ALONE = 25
 SIFT_SUPPORT = 10
 CAP = 0.3
+TRACE = os.environ.get("SCOUT_TRACE") == "1"
 
 
 def _box(label: str, score: float, x0: float, y0: float, x1: float, y1: float) -> dict:
@@ -47,6 +51,14 @@ def _text_card_box(t: dict, aspect: float = 16 / 9) -> tuple[float, float, float
     w = max(t["w"] * 1.3, t["h"] / aspect * 6)  # in x units (frame width = 1); text height is in y units
     h_px = w * aspect * 0.85  # picture height ~ 0.85 of card width; aspect turns x units into y units
     return cx - w / 2, t["y"] - h_px, cx + w / 2, t["y"] + t["h"] * 1.3
+
+
+def _weight(t: dict) -> float:
+    """How likely the wearer is looking at this name: text size x closeness to the gaze point. The camera aims ~15 deg
+    below the gaze, so the gaze sits above the frame centre (~0.35 of the height)."""
+    cx, cy = t["x"] + t["w"] / 2, t["y"] + t["h"] / 2
+    d2 = (cx - 0.5) ** 2 + (cy - 0.35) ** 2
+    return t["w"] * t["h"] * float(np.exp(-d2 / 0.18))
 
 
 class CardScout:
@@ -69,6 +81,7 @@ class CardScout:
         self.debug: deque[dict] = deque(maxlen=debug_keep)
         self.debug_lock = threading.Lock()
         self.last_debug = 0.0
+        self.stats = {"frames": 0, "ocr_text_frames": 0, "ocr_hit_frames": 0, "sift_frames": 0, "fired_frames": 0}
         if self.debug_dir:
             self.debug_dir.mkdir(parents=True, exist_ok=True)
             for old in self.debug_dir.glob("*.jpg"):  # the ring starts empty: drop thumbnails from the last run
@@ -95,16 +108,25 @@ class CardScout:
         return hits, texts, sift, dbg
 
     def decide(self, hits: list[dict], sift: list[dict]) -> tuple[str, float, dict | None, str]:
-        """-> (label or background, raw score, box, reason)."""
+        """-> (label or background, raw score, box, reason). reason "ocr-full*" = a confident full-name read: fires
+        without the vote and its box says via "marker" (the Hive's short steady time)."""
         by_sift = {b["label"]: b for b in sift}  # best first already, one per label
         usable = [h for h in hits if h["strong"] or h["label"] in by_sift]
         if usable:
-            h = max(usable, key=lambda t: t["w"] * t["h"])
+            h = max(usable, key=_weight)
             lb = h["label"]
+            other = max((_weight(o) for o in hits if o["label"] != lb and o["strong"]), default=0.0)
+            full = h.get("full", False) and _weight(h) >= 2 * other  # another name about as prominent in view: vote
+            tag = "ocr-full" if full else ("ocr" if h["strong"] else "ocr-weak")
             if lb in by_sift:
                 b = by_sift[lb]
-                return lb, OCR_SCORE, _box(lb, OCR_SCORE, b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"]), "ocr+sift"
-            return lb, OCR_SCORE, _box(lb, OCR_SCORE, *_text_card_box(h)), "ocr" + ("" if h["strong"] else "-weak")
+                box = _box(lb, OCR_SCORE, b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"])
+                tag += "+sift"
+            else:
+                box = _box(lb, OCR_SCORE, *_text_card_box(h))
+            if full:
+                box["via"] = "marker"
+            return lb, OCR_SCORE, box, tag
         if hits:  # OCR named a card but it is unusable (weak, no picture support): stay quiet rather than trust SIFT
             return BACKGROUND, 0.0, None, "ocr-weak-only"
         if sift:
@@ -119,11 +141,17 @@ class CardScout:
     def process(self, rgb: np.ndarray, at: float) -> tuple[list[dict], dict[str, float], list[dict]]:
         hits, texts, sift, dbg = self.evidence(rgb)
         label, raw, box, reason = self.decide(hits, sift)
+        if TRACE:
+            print(f"[trace] {rgb.shape} {rgb.dtype} ocr={[t['text'] for t in texts]} sift={dbg.get('inliers')} -> {label} {reason}",
+                  file=sys.stderr, flush=True)
+            if os.environ.get("SCOUT_TRACE_DIR") and int(at) % 10 == 0:
+                cv2.imwrite(os.path.join(os.environ["SCOUT_TRACE_DIR"], f"{int(at)}.jpg"), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
         if at - self.last_at > 1500:
             self.hist.clear()
         self.last_at = at
         self.hist.append(label)
-        voted = label != BACKGROUND and sum(lb == label for lb in self.hist) >= self.need
+        instant = reason.startswith("ocr-full")
+        voted = label != BACKGROUND and (instant or sum(lb == label for lb in self.hist) >= self.need)
         score = raw if voted else min(raw, CAP)
         scores = {lb: 0.0 for lb in LABELS}
         if label != BACKGROUND:
@@ -135,7 +163,18 @@ class CardScout:
         new_voted = label if voted else (self.voted if self.voted in self.hist else BACKGROUND)
         changed = new_voted != self.voted
         self.voted = new_voted
-        if self.debug_dir and (changed or ((hits or sift) and time.time() - self.last_debug > 0.33)):
+        st = self.stats
+        st["frames"] += 1
+        st["ocr_text_frames"] += bool(texts)
+        st["ocr_hit_frames"] += bool(hits)
+        st["sift_frames"] += bool(sift)
+        st["fired_frames"] += label != BACKGROUND
+        st["last_ocr"] = [t["text"] for t in texts][:6]
+        st["last_sift"] = dict(sorted(dbg.get("inliers", {}).items(), key=lambda kv: -kv[1])[:2])
+        st["frame_shape"] = list(rgb.shape)
+        evidence = hits or sift
+        gap = time.time() - self.last_debug
+        if self.debug_dir and (changed or (evidence and gap > 0.33) or (texts and gap > 1.0)):
             self.last_debug = time.time()
             self._record(rgb, at, hits, texts, sift, dbg, label, score, reason, voted, changed, boxes)
         return top, scores, boxes
@@ -148,7 +187,7 @@ class CardScout:
             entry = {"at": int(at), "time": time.strftime("%H:%M:%S", time.localtime(at / 1000)) + f".{int(at) % 1000:03d}",
                      "final": label, "score": round(score, 3), "voted": voted, "voted_label": self.voted, "changed": changed,
                      "reason": reason, "ocr": [{"text": t["text"], "h_px": round(t["h"] * rgb.shape[0])} for t in texts][:8],
-                     "ocr_hits": [{"text": h["text"], "label": h["label"], "strong": h["strong"]} for h in hits],
+                     "ocr_hits": [{"text": h["text"], "label": h["label"], "kind": h["kind"], "conf": h["conf"]} for h in hits],
                      "sift_top2": [{"label": lb, "inliers": n} for lb, n in ranked],
                      "sift_accepted": [{"label": b["label"], "inliers": b["inliers"]} for b in sift]}
             H, W = rgb.shape[:2]
