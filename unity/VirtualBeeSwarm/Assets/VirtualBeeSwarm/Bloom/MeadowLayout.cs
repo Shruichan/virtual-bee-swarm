@@ -329,6 +329,15 @@ namespace VirtualBeeSwarm.Bloom
             fwd.Normalize();
             float s = Active ? Scale : MeadowTuning.RigScale;
             float dist = RowOffset(s) * s + MeadowTuning.Distance;
+            // [RoomAware] hook (Rome): the whole rig (hive, yard, rocket, row, portal) against the room's furniture keep-outs
+            // (scan volumes, else depth cells), turns capped at room.turnCap 35 deg; the old open-floor search below runs
+            // only when the room is unknown or room.aware=false.
+            if (RoomAware.RigFit.TryChoose(hp, fwd, s, dist, out var fitted, out var fitWhy))
+            {
+                LastFit = fitWhy;
+                fitted.position = new Vector3(fitted.position.x, FloorY, fitted.position.z);
+                return fitted;
+            }
             var scene = MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
             Vector3 p = hp + fwd * dist;
             if (scene != null)

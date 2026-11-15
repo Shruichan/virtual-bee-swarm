@@ -579,6 +579,7 @@ namespace VirtualBeeSwarm.AR
             if (scannedRoom != null &&
                 (!PortalClearsRoom(pos, k * window.MaxSize) || PortalViewScore(pos, k * window.MaxSize) < PortalViewScore(pos, k)))
                 window.MaxSize = 1f;
+            RoomAware.PortalKeeper.Fit(window, why); // [RoomAware] hook: also the depth fallback and the walls
             WindowState = "free-floating portal " + behind.ToString("0.00", C) + " m behind the hive (" + wallNote + "; " + why + "), width " +
                           width.ToString("0.00", C) + " m rim to rim" + fit + ", centre " + (cy - Room.FloorY).ToString("0.00", C) + " m up, bottom " +
                           (cy - halfH - Room.FloorY).ToString("0.00", C) + " m, slid " + shift.ToString("0.00", C) + " m, max swell x" +
@@ -631,6 +632,7 @@ namespace VirtualBeeSwarm.AR
             wt.SetPositionAndRotation(pos - Vector3.up * (outerC.y * s0 * k), rot);
             wt.localScale = _winLocalScale * k;
             window.MaxSize = 1f;
+            RoomAware.PortalKeeper.Fit(window, why); // [RoomAware] hook: never in real furniture or hidden behind it
             WindowState = "free-standing portal beside the hive (room too low over the roof; " + why + "), width " + width.ToString("0.00", C) + " m";
             LogLine("window " + WindowState);
             return true;
