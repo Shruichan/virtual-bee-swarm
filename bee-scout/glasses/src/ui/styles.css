@@ -1,0 +1,163 @@
+/*
+ * The WebView fills the whole screen, so the .app background (padded by the safe-area insets
+ * in App.tsx) also shows behind the status bar and the home indicator. <MentraProvider>
+ * mirrors the Mentra App's theme as <html class="dark">.
+ */
+:root {
+  color-scheme: light;
+  --background: #fffaf0;
+  --foreground: #1d1a14;
+  --muted: #6f675a;
+  --accent: #d98e04;
+  --surface: #f6ecd6;
+  --good: #2e9d4f;
+  --wait: #d98e04;
+  --bad: #d0453a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --background: #14120e;
+  --foreground: #f4efe4;
+  --muted: #a39a8a;
+  --accent: #f0a91c;
+  --surface: #221f19;
+  --good: #4cc26f;
+  --wait: #f0a91c;
+  --bad: #f06a5f;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  box-sizing: border-box;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 24px;
+}
+
+.pad {
+  padding: 24px 16px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+p {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.caption {
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.warn {
+  margin-top: 8px;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.slow {
+  color: var(--bad);
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+  background: var(--bad);
+}
+
+.dot.open {
+  background: var(--good);
+}
+
+.dot.connecting {
+  background: var(--wait);
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  flex: 1;
+  font-size: 1rem;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #1d1a14;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary {
+  flex: 0 0 auto;
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+button:disabled {
+  opacity: 0.55;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+.log {
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}

@@ -303,7 +303,9 @@ namespace VirtualBeeSwarm.Tests
             // group reset puts everything back
             var lid = hive.GetComponentsInChildren<ArtAnimProp>(true).Single(prop => prop.trigger == ArtAnimProp.Trigger.Beat && prop.beat == GameBeat.Escape);
             var mapPreview = new SerializedObject(map).FindProperty("mapRoot").objectReferenceValue as GameObject;
-            var crashDust = new SerializedObject(launch).FindProperty("dustPuff").objectReferenceValue as ParticleSystem;
+            AR.Touchdown.Burst(rocket);
+            var crashDust = GameObject.Find("Touchdown (runtime)").GetComponentInChildren<ParticleSystem>();
+            Assert.Greater(crashDust.particleCount, 0, "landing effects are active before replay");
             var meadow = Bloom.MeadowField.Instance;
             escape.DeliverEndCard();
             Assert.IsTrue(escape.EndCardShown, "the previous contract is visible before reset");
@@ -317,7 +319,7 @@ namespace VirtualBeeSwarm.Tests
             Assert.IsFalse(launch.MoonAwardVisible, "the previous Moon award is cleared");
             Assert.That(Vector3.Distance(rocket.position, rocketItem.HomePosition), Is.LessThan(0.01f), "the rocket is returned to its pad");
             Assert.That(Vector3.Distance(rocket.localScale, restingScale), Is.LessThan(0.001f), "the rocket returns to its resting size");
-            if (crashDust != null) Assert.AreEqual(0, crashDust.particleCount, "reset clears crash dust");
+            Assert.AreEqual(0, crashDust.particleCount, "reset clears crash dust");
             if (Bloom.MeadowLayout.Active && meadow != null)
                 Assert.That(meadow.Health, Is.EqualTo(0.3f).Within(0.001f), "the meadow immediately starts fresh");
             yield return null;

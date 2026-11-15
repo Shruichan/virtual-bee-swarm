@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+*.zip
+.env
+.env.local
+.DS_Store
+
+# Holds the HIVE token. Never commit it: the repo is public.
+src/config.local.ts

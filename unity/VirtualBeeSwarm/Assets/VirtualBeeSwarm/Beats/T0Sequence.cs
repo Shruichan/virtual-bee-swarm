@@ -27,7 +27,6 @@ namespace VirtualBeeSwarm
         [SerializeField] float launchSeconds = 3f;
         [Tooltip("Where it crashes back (on the table).")]
         [SerializeField] Transform crashSpot;
-        [SerializeField] ParticleSystem dustPuff;
 
         [Header("Moon")]
         [SerializeField] GameObject moon;
@@ -42,7 +41,7 @@ namespace VirtualBeeSwarm
 
         IPassthroughDimmer _dimmer;
         Vector3 _rocketHomePos, _earthHome, _moonHome, _moonScale = Vector3.one;
-        Vector3 _crashSpotHome, _dustHome;
+        Vector3 _crashSpotHome;
         Quaternion _rocketHomeRot;
         float _dim;
         bool _launched, _landed;
@@ -68,7 +67,6 @@ namespace VirtualBeeSwarm
             _hive = FindAnyObjectByType<HiveBody>();
             if (rocket != null) { _rocketHomePos = rocket.localPosition; _rocketHomeRot = rocket.localRotation; }
             if (crashSpot != null) _crashSpotHome = crashSpot.localPosition;
-            if (dustPuff != null) _dustHome = dustPuff.transform.localPosition;
             if (earth != null) _earthHome = earth.localPosition;
             if (moon != null) { _moonScale = moon.transform.localScale; _moonHome = moon.transform.localPosition; }
             SetActive(flame, false);
@@ -129,7 +127,7 @@ namespace VirtualBeeSwarm
                     rocket.localScale = _launchScale;
                 }
                 if (earth != null) earth.localPosition = _earthHome;
-                if (dustPuff != null) dustPuff.Clear();
+                AR.Touchdown.ClearDust();
                 if (beeswax != null) beeswax.SetDusty(false);
             }
             else
@@ -267,11 +265,7 @@ namespace VirtualBeeSwarm
             }
             _landed = true;
             SetActive(flame, false);
-            if (dustPuff != null)
-            {
-                if (rocket != null) dustPuff.transform.position = _crashPose.position;
-                dustPuff.Emit(38);
-            }
+            AR.Touchdown.Burst(rocket, 2.8f);
             SetActive(moon, false);
             RestoreMeadow(); // the sound director plays the crash on the Moon-to-Meadow change
             if (rocket != null)
@@ -446,11 +440,7 @@ namespace VirtualBeeSwarm
                 fx.Burst(origin, 30, new Color(1f, 0.74f, 0.22f), 0.95f, 0.85f, 0.024f, 0.45f);
                 fx.Ring(origin, -flyAway, 18, new Color(1f, 0.94f, 0.70f), 1.15f, 0.55f, 0.022f);
             }
-            else if (dustPuff != null)
-            {
-                dustPuff.transform.position = origin;
-                dustPuff.Emit(24);
-            }
+            else AR.Touchdown.Burst(rocket, 0.7f);
             Debug.Log("[VBS][T0] small rocket revealed beside hive at " + rocket.position.ToString("F2"));
         }
 
@@ -590,11 +580,7 @@ namespace VirtualBeeSwarm
             if (window != null) window.NormalSize();
             SetActive(flame, false);
             SetActive(moon, false);
-            if (dustPuff != null)
-            {
-                dustPuff.Clear(true);
-                dustPuff.transform.localPosition = _dustHome;
-            }
+            AR.Touchdown.ClearDust();
             if (crashSpot != null) crashSpot.localPosition = _crashSpotHome;
             _crashPose = default;
             if (rocket != null)
