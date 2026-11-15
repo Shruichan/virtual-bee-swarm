@@ -215,7 +215,7 @@ describe("claude path", () => {
     });
   });
 
-  test("field rules: topic only for what_if, answer only for ask (non-empty, <= 25 words)", async () => {
+  test("field rules: topic only for what_if, answer only for ask (non-empty, <= 30 words)", async () => {
     mockClient(() => reply({ intent: "what_if", topic: null, answer: null }));
     expect(await route("what if aliens land", ctx())).toMatchObject({ intent: "unknown", topic: null });
     mockClient(() => reply({ intent: "ack", topic: "fire", answer: "Sure." }));
@@ -226,7 +226,7 @@ describe("claude path", () => {
     mockClient(() => reply({ intent: "ask", topic: "winter", answer: `"${long}"` }));
     const r = await route("tell me everything", ctx());
     expect(r.topic).toBeNull();
-    expect(r.answer!.split(" ").length).toBe(25);
+    expect(r.answer!.split(" ").length).toBe(30);
     expect(r.answer!.endsWith(".")).toBe(true);
     expect(r.answer).not.toContain('"');
   });
