@@ -18,11 +18,11 @@ export const DEFAULT_TIMEOUT_MS = 6000;
 export const DEFAULT_WHISPER_URL = "http://127.0.0.1:8242/transcribe";
 export const DEFAULT_ELEVENLABS_MODEL = "scribe_v3"; // latest batch Scribe (ElevenLabs models page, 2026-11)
 /** Words the players and Beeswax actually say; both providers are biased toward them. */
-export const KEYTERMS = ["Beeswax", "smoker", "syrup", "hive", "wasps", "hornet", "pebbles", "fire", "put it out"];
+export const KEYTERMS = ["Beeswax", "smoker", "syrup", "hive", "wasps", "hornet", "pebbles", "fire", "put it out", "drone", "drones", "banana", "bananas", "sting", "wildfire", "varroa", "mites", "queen", "pollen", "foulbrood"];
 
 const MIN_BYTES = (STT_SAMPLE_RATE / 10) * 2; // 100 ms: ElevenLabs' minimum, and anything shorter is a click
 /** Tunables (tests shorten them). hedgeMs: in auto mode, start the fallback if the primary hasn't answered by then. */
-export const sttLimits = { hedgeMs: 2500, maxSeconds: 30, healthTtlMs: 15_000, healthTimeoutMs: 1500 };
+export const sttLimits = { hedgeMs: Number(process.env.STT_HEDGE_MS) || 2500, maxSeconds: 30, healthTtlMs: 15_000, healthTimeoutMs: 1500 };
 
 // ---------------------------------------------------------------- config
 

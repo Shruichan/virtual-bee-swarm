@@ -47,6 +47,7 @@ import { beatName, createState, grievances, recordChoice, remember, rememberHear
 import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
 import { monitorHtml } from "./monitor";
+import type * as AskModule from "./ask";
 
 // ---------------------------------------------------------------- injected dependencies
 // director/tts/stt/router are other builders' modules, and lines.ts holds the data tables. They are injected so
@@ -90,6 +91,8 @@ export interface HiveDeps {
   stations: Partial<Record<Station, StationEntryLike>>;
   scenes: Partial<Record<Scene, SceneEntryLike>>;
   ackLines: string[];
+  /** ask.ts: ASK BEESWAX (map/field questions skip the router; router answers are vetted). Absent = off. */
+  ask?: typeof AskModule;
 }
 
 const OFFLINE_JUDGE: HiveDeps["judge"] = async () => ({
@@ -237,6 +240,17 @@ export async function loadDeps(): Promise<HiveDeps> {
     };
   } catch (err) {
     log("WARNING: src/router.ts failed to load; voice intents use keywords only:", err);
+  }
+  try {
+    const ask = (await importSibling("ask")) as typeof AskModule;
+    if (typeof ask.answer !== "function") throw new Error("no answer() export");
+    deps.ask = ask;
+    const warmRest = deps.prewarm;
+    deps.prewarm = async () => {
+      await Promise.allSettled([warmRest?.(), ask.prewarm()]);
+    };
+  } catch (err) {
+    log("WARNING: src/ask.ts failed to load; ASK BEESWAX questions go through the router:", err);
   }
   return deps;
 }
@@ -531,6 +545,7 @@ export function startHive(opts: HiveOptions): Hive {
       onMic: (ws, pcm) => micFrame(ws, pcm),
       onListenEnd: (ws, cancel) => finishListen(ws, cancel ? "cancel" : "end"),
       onClientClose: (ws) => finishListen(ws, "closed"),
+      onLog: (role, text) => chipAsked(role, text),
     },
     { token, host: opts.host ?? hostname(), heartbeatMs: opts.heartbeatMs },
   );
@@ -1234,6 +1249,9 @@ export function startHive(opts: HiveOptions): Hive {
     if (group !== state.group_id) return;
     if (!stt.text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
+      // ASK BEESWAX: a press with nothing in it gets "Didn't catch that" instead of silence (no Claude call).
+      if (deps.ask && source === "quest" && stt.error !== "no_audio" && deps.ask.ASK_BEATS.includes(beatName(state)) && bus.count("quest") > 0)
+        sayReply({ line_id: null, text: deps.ask.cannedText("ask_not_heard") }, "room");
       return;
     }
     // Glasses talking over the bus get their ear reply over the bus too.
@@ -1259,7 +1277,9 @@ export function startHive(opts: HiveOptions): Hive {
     const recent = state.memory.heard.slice(-5);
     rememberHeard(state, text);
     const beat = beatName(state);
+    if (deps.ask?.wants(text, beat)) return askTurn(text, source, t0, group, beat, earReply, operator);
     const r = await safeRoute(text, { beat, recent });
+    deps.ask?.fixRouted(text, r); // canned/vetted answers; a lost question says "ask me again", not a random ack
     latency(operator ? "board.route" : "voice.route", r.ms);
     const intent: Intent = { type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) };
     if (r.topic === "custom") intent.custom_prompt = r.custom_prompt ?? null;
@@ -1379,11 +1399,75 @@ export function startHive(opts: HiveOptions): Hive {
     return { line_id: id, text: lineText(id) };
   }
 
+  /** ASK BEESWAX card: a poked chip arrives as the Quest log line "ask.chip <question>" and is answered like a spoken
+   *  question (canned match, 0 ms, audio from memory), so the chips have Beeswax's voice without new clips. */
+  function chipAsked(role: Role, text: string): void {
+    if (role !== "quest" || !deps.ask || !text.startsWith("ask.chip ")) return;
+    const q = cleanText(text.slice(9), 120);
+    if (!q || !deps.ask.ASK_BEATS.includes(beatName(state))) return;
+    bus.broadcast({ type: "transcript", text: q, final: true, source: "quest", ms: 0, stt: "chip" });
+    void understand(q, "quest", Date.now(), state.group_id).catch((e) => log("ask.chip failed:", e));
+  }
+
+  /** ASK BEESWAX (map/field): ask.ts answers instead of the router; the first live answer of a group gets the filler. */
+  async function askTurn(
+    text: string,
+    source: VoiceSource,
+    t0: number,
+    group: string,
+    beat: BeatName,
+    earReply: ((r: UtteranceResponse) => void) | undefined,
+    operator: boolean,
+  ): Promise<Understood | null> {
+    const ask = deps.ask!;
+    const toRoom = beat !== "field" && (operator || bus.count("quest") > 0);
+    const onLive = () => toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
+    const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive });
+    latency("ask.route", a.ms);
+    const name: IntentName = a.kind === "ack" ? "ack" : a.kind === "echo" || a.kind === "not_heard" ? "unknown" : "ask";
+    const route: Routed = { intent: name, topic: null, answer: a.text || null, ms: a.ms, path: a.path === "claude" ? "claude" : "keyword", error: a.error };
+    bus.broadcast({ type: "intent", name, topic: null, text, path: route.path, ms: Math.round(a.ms) });
+    observe(`ask ${operator ? "operator" : source}: "${text.slice(0, 80)}" -> ${a.kind}${a.ask_id ? `/${a.ask_id}` : ""} via ${a.path} ${a.ms} ms${a.error ? ` (${a.error})` : ""}${a.text ? ` "${a.text}"` : ""}`);
+    const response: UtteranceResponse = { intent: name, topic: null, line_id: null, audio_url: null, caption: "" };
+    if (group !== state.group_id) return null;
+    if (a.kind !== "echo") {
+      const reply: Reply = a.line_id ? lineReply(a.line_id, "room_ack_grievance") : a.text ? { line_id: null, text: a.text } : ackReply();
+      if (toRoom) sayReply(reply, "room");
+      else {
+        Object.assign(response, earVersion(reply));
+        if (earReply) earReply(response);
+        else bus.say("ear", response.line_id, { audio_url: response.audio_url, caption: response.caption }, false);
+      }
+    }
+    latency("ask.total", Date.now() - t0);
+    return { route, response };
+  }
+
+  /** Live text with ask.ts loaded: its cached audio, or TTS once the first chunk is in (1.2 s at most), else the caption
+   *  alone (Unity shows it and flaps his mouth), never a stream that ends silent. */
+  async function speakPrimed(text: string): Promise<void> {
+    const group = state.group_id;
+    const audio = await deps.ask!.prepareSpeech(text, (t) => deps.ttsPcm(t)).catch(() => null);
+    if (group !== state.group_id) {
+      // reset while waiting: start the prepared stream and drop it at once, so its finally closes the TTS stream
+      if (audio) void (async () => { for await (const _ of audio) break; })().catch(() => {});
+      return;
+    }
+    if (!audio) {
+      observe(`tts: no audio in ${deps.ask!.askLimits.firstChunkMs} ms, caption only: "${text.slice(0, 60)}"`);
+      return bus.say("room", null, { caption: text });
+    }
+    const tts_id = shortId("t");
+    bus.say("room", null, { tts_id, caption: text });
+    void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => audio);
+  }
+
   /** Play a reply from Beeswax on the Quest: a pre-rendered line, or live TTS (caption only when TTS is down). */
   function sayReply(reply: Reply, channel: "room"): void {
     if (reply.line_id) return bus.say(channel, reply.line_id);
     if (!reply.text) return;
     if (!ttsAvailable()) return bus.say(channel, null, { caption: reply.text });
+    if (deps.ask) return void speakPrimed(reply.text);
     const tts_id = shortId("t");
     bus.say(channel, null, { tts_id, caption: reply.text });
     void bus.enqueueRoomTts(tts_id, reply.text, deps.ttsSampleRate, () => deps.ttsPcm(reply.text));
@@ -1623,6 +1707,8 @@ export function startHive(opts: HiveOptions): Hive {
   bus.start();
   if (opts.prewarmOnStart === false) scheduleWarm();
   else void warmUp("start");
+  // ASK BEESWAX's canned answers are spoken from memory: render them once (about 750 characters, no new clips).
+  if (deps.ask && ttsAvailable() && process.env.ASK_WARM_AUDIO !== "0") void deps.ask.warmAudio((t) => deps.ttsPcm(t));
   // The relay changes state on its own too (first frame, failure, idle stop), so poll it.
   const orbisPoll = relayUrl ? setInterval(() => void relay("/orbis/status"), opts.orbisPollMs ?? 3000) : null;
 

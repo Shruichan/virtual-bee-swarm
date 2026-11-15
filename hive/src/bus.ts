@@ -96,6 +96,8 @@ export interface BusHooks {
   onMic?(ws: Client, pcm: Uint8Array): void;
   onListenEnd?(ws: Client, cancel: boolean): void;
   onClientClose?(ws: Client): void;
+  /** A client log line (the Quest uses "ask.chip <question>" for a poked ASK BEESWAX chip). */
+  onLog?(role: Role, text: string): void;
 }
 
 export const VOICE_ROLES: readonly Role[] = ["quest", "glasses"];
@@ -628,6 +630,7 @@ export class Bus {
 
       case "log": {
         this.observe({ type: "log", text: str(m.text), source: role }, ws);
+        this.hooks.onLog?.(role, str(m.text));
         return;
       }
 
