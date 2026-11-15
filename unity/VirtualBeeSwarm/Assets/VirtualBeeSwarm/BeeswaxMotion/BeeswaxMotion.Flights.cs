@@ -245,8 +245,11 @@ namespace VirtualBeeSwarm
             fl.table = MotionCurves.ArcTable(fl.Path, 64, out fl.length);
         }
 
+        partial void AvoidObstacles(Flight fl); // [BeeswaxBody hook] BeeswaxBody/BeeswaxMotion.Avoid.cs: over / around what is in the way
+
         void StartFlight(Flight fl, string why)
         {
+            AvoidObstacles(fl); // [BeeswaxBody hook]
             _fl = fl;
             fl.order = _orderSerial;
             _govOff = Vector3.zero; // it starts from where he really is

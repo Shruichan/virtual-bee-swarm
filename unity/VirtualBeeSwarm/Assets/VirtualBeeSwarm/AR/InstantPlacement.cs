@@ -26,6 +26,11 @@ namespace VirtualBeeSwarm.AR
         TextMesh _ghostText;
         GamePointer[] _pointers = new GamePointer[0];
         bool _lastFit;
+        // steadiness: depth-sensor hits are noisy frame to frame, so the plate holds through short misses, eases to the
+        // new spot and only flips green/red once a result has held (it used to blink on/off and red/green every frame)
+        const float HoldMiss = 0.35f, HoldFit = 0.2f;
+        float _lastShowAt = -10f, _fitSince;
+        bool _rawFit;
         public bool Aiming { get; private set; }
         public ArHitStatus LastStatus { get; private set; } = ArHitStatus.NotReady;
         public int Placements { get; private set; }
@@ -98,15 +103,30 @@ namespace VirtualBeeSwarm.AR
             bool show = hit.status == ArHitStatus.Hit && (hit.point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
             fits = fits && show && hit.normal.y > 0.9f;
             if (meadow && Mathf.Abs(hit.point.y - Bloom.MeadowLayout.FloorY) > 0.1f) fits = false;
-            if (_ghost.activeSelf != show) _ghost.SetActive(show);
-            if (!show) return;
-
-            _ghost.transform.SetPositionAndRotation(hit.point, Quaternion.LookRotation(fwd, Vector3.up));
-            if (fits != _lastFit || _ghostText.text.Length == 0)
+            float now = Time.time;
+            if (!show)
             {
-                _lastFit = fits;
-                GameMaterials.Tint(_ghostRenderer, fits ? fitColor : noFitColor);
-                _ghostText.text = fits ? (desktop ? "DELIVER HERE\nrelease L" : "DELIVER HERE\npinch") : "doesn't fit here";
+                if (_ghost.activeSelf && now - _lastShowAt > HoldMiss) _ghost.SetActive(false);
+                return;
+            }
+            bool wasShown = _ghost.activeSelf;
+            _lastShowAt = now;
+            if (!wasShown) _ghost.SetActive(true);
+
+            var rot = Quaternion.LookRotation(fwd, Vector3.up);
+            if (!wasShown || (hit.point - _ghost.transform.position).sqrMagnitude > 0.5f * 0.5f) _ghost.transform.SetPositionAndRotation(hit.point, rot);
+            else
+            {
+                float k = 1f - Mathf.Exp(-Time.deltaTime * 14f);
+                _ghost.transform.SetPositionAndRotation(Vector3.Lerp(_ghost.transform.position, hit.point, k), Quaternion.Slerp(_ghost.transform.rotation, rot, k));
+            }
+            if (fits != _rawFit) { _rawFit = fits; _fitSince = now; }
+            bool shownFit = !wasShown || now - _fitSince >= HoldFit ? fits : _lastFit;
+            if (shownFit != _lastFit || _ghostText.text.Length == 0)
+            {
+                _lastFit = shownFit;
+                GameMaterials.Tint(_ghostRenderer, shownFit ? fitColor : noFitColor);
+                _ghostText.text = shownFit ? (desktop ? "DELIVER HERE\nrelease L" : "DELIVER HERE\npinch") : "doesn't fit here";
             }
             if (place && fits)
             {

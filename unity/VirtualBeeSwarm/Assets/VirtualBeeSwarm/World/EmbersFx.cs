@@ -97,7 +97,7 @@ namespace VirtualBeeSwarm
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.55f, 0.1f, 1f), new Color(1f, 0.85f, 0.3f, 1f));
             main.gravityModifier = -0.02f;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 80;
+            main.maxParticles = QuestPerf.Particles(80);
             main.scalingMode = ParticleSystemScalingMode.Hierarchy;
 
             var emission = ps.emission;
@@ -147,7 +147,7 @@ namespace VirtualBeeSwarm
             main.startColor = color;
             main.gravityModifier = gravity;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 40;
+            main.maxParticles = QuestPerf.Particles(40);
 
             var emission = ps.emission;
             emission.rateOverTime = 0f;
