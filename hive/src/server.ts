@@ -1446,14 +1446,18 @@ export function startHive(opts: HiveOptions): Hive {
     return { route, response };
   }
 
+  function discardPrimedSpeech(audio: AsyncIterable<Uint8Array>): void {
+    // Consume the buffered head so an early exit runs the iterator's cleanup for the provider stream.
+    void (async () => { for await (const _ of audio) break; })().catch(() => {});
+  }
+
   /** Live text with ask.ts loaded: its cached audio, or TTS once the first chunk is in (1.2 s at most), else the caption
    *  alone (Unity shows it and flaps his mouth), never a stream that ends silent. */
   async function speakPrimed(text: string): Promise<void> {
     const group = state.group_id;
     const audio = await deps.ask!.prepareSpeech(text, (t) => deps.ttsPcm(t)).catch(() => null);
     if (group !== state.group_id) {
-      // reset while waiting: start the prepared stream and drop it at once, so its finally closes the TTS stream
-      if (audio) void (async () => { for await (const _ of audio) break; })().catch(() => {});
+      if (audio) discardPrimedSpeech(audio);
       return;
     }
     if (!audio) {
@@ -1462,7 +1466,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     const tts_id = shortId("t");
     bus.say("room", null, { tts_id, caption: text });
-    void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => audio);
+    void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => audio, () => discardPrimedSpeech(audio));
   }
 
   /** Play a reply from Beeswax on the Quest: a pre-rendered line, or live TTS (caption only when TTS is down). */

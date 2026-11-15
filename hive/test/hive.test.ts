@@ -398,6 +398,48 @@ describe("scan pipeline", () => {
     expect(order).toEqual(["tts.start:t-a", "tts.end:t-a", "tts.start:t-b", "tts.end:t-b", "tts.start:t-c", "tts.end:t-c"]);
   });
 
+  test("group reset cancels stalled and queued room voice so the next group can speak", async () => {
+    hive = makeHive();
+    const quest = await connect("quest");
+    const board = await connect("board");
+    const blocked = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const active = hive.bus.enqueueRoomTts("old-active", "old active", 16000, async function* () {
+      yield new Uint8Array([1, 1]);
+      blocked.resolve();
+      await release.promise;
+      yield new Uint8Array([2, 2]);
+    });
+    let discarded = false;
+    const queued = hive.bus.enqueueRoomTts("old-queued", "old queued", 16000, async function* () {
+      yield new Uint8Array([3, 3]);
+    }, () => { discarded = true; });
+    let next: Promise<void> | undefined;
+
+    try {
+      await blocked.promise;
+      board.send({ type: "group.reset" });
+      await quest.waitFor("group.reset");
+      const resetIndex = quest.events.findIndex((e) => e.kind === "json" && e.msg.type === "group.reset");
+      next = hive.bus.enqueueRoomTts("new", "new group", 16000, async function* () {
+        yield new Uint8Array([4, 4]);
+      });
+      await quest.waitFor("tts.end", (m) => m.tts_id === "new");
+      expect(discarded).toBe(true);
+      release.resolve();
+      await Promise.all([active, queued, next]);
+      const afterReset = quest.events.slice(resetIndex + 1);
+      expect(afterReset.filter((e) => e.kind === "json" && e.msg.type.startsWith("tts."))
+        .map((e) => e.kind === "json" && `${e.msg.type}:${e.msg.tts_id}`)).toEqual(["tts.start:new", "tts.end:new"]);
+      expect(afterReset.filter((e) => e.kind === "bin").map((e) => e.kind === "bin" && [...e.data])).toEqual([
+        [BINARY_KIND.TTS_PCM16, 4, 4],
+      ]);
+    } finally {
+      release.resolve();
+      await Promise.all([active, queued, next]);
+    }
+  });
+
   test("live line with no Quest connected goes to the ear as an mp3 at /audio/<id>.mp3", async () => {
     hive = makeHive({
       ttsAvailable: () => true,
