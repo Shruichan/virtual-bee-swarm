@@ -290,9 +290,7 @@ namespace VirtualBeeSwarm
             dustGo.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
             _dust = dustGo.AddComponent<ParticleSystem>();
             _dust.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            EmbersFx.ConfigurePuff(_dust, _dotMat, new Color(0.7f, 0.64f, 0.56f, 0.8f), 0.25f, 0.03f, 0.9f, 0.08f);
-            var dustMain = _dust.main;
-            dustMain.maxParticles = QuestPerf.Particles(72);
+            AR.Touchdown.ConfigureCloud(_dust, _dotMat);
 
             _audio = gameObject.GetComponent<AudioSource>();
             if (_audio == null) _audio = gameObject.AddComponent<AudioSource>();
@@ -1534,7 +1532,14 @@ namespace VirtualBeeSwarm
             GameSound.Cue("touchdown_light", t);
             if (_dust == null) return;
             _dust.transform.position = t.position + Vector3.up * 0.01f;
-            _dust.Emit(Mathf.Max(1, dustParticles / 3));
+            if (!_dust.isPlaying) _dust.Play(false);
+            var gold = new ParticleSystem.EmitParams
+            {
+                startColor = new Color32(255, 220, 119, 225),
+                startSize = 0.055f,
+                startLifetime = 0.40f,
+            };
+            _dust.Emit(gold, Mathf.Max(1, dustParticles / 3));
         }
 
         void StepItems(float now)

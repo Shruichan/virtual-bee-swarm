@@ -27,7 +27,6 @@ namespace VirtualBeeSwarm
         [SerializeField] float launchSeconds = 3f;
         [Tooltip("Where it crashes back (on the table).")]
         [SerializeField] Transform crashSpot;
-        [SerializeField] ParticleSystem dustPuff;
 
         [Header("Moon")]
         [SerializeField] GameObject moon;
@@ -95,7 +94,7 @@ namespace VirtualBeeSwarm
                         rocket.SetLocalPositionAndRotation(_launchPose.position, _launchPose.rotation);
                 }
                 if (earth != null) earth.localPosition = _earthHome;
-                if (dustPuff != null) dustPuff.Clear();
+                AR.Touchdown.ClearDust();
                 if (beeswax != null) beeswax.SetDusty(false);
             }
             else
@@ -202,11 +201,7 @@ namespace VirtualBeeSwarm
             }
             _landed = true;
             SetActive(flame, false);
-            if (dustPuff != null)
-            {
-                if (rocket != null) dustPuff.transform.position = _crashPose.position;
-                dustPuff.Emit(38);
-            }
+            AR.Touchdown.Burst(rocket, 2.8f);
             SetActive(moon, false);
             RestoreMeadow(); // the sound director plays the crash on the Moon-to-Meadow change
             if (rocket != null)

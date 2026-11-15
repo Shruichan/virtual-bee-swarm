@@ -36,6 +36,8 @@ namespace VirtualBeeSwarm.Bloom
         public static event Action<Pose> HivePoseSet;
         public static Transform Anchor { get; private set; }
 
+        static Vector3 _rocketPreferredLocal, _rocketPreferredScale = Vector3.one;
+
         static readonly CultureInfo C = CultureInfo.InvariantCulture;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -47,6 +49,8 @@ namespace VirtualBeeSwarm.Bloom
             RigStats = "not applied";
             HivePoseSet = null;
             Anchor = null;
+            _rocketPreferredLocal = Vector3.zero;
+            _rocketPreferredScale = Vector3.one;
         }
 
         public static float FloorY
@@ -101,28 +105,184 @@ namespace VirtualBeeSwarm.Bloom
             float side = -1f;
             if (rocket != null && hive != null) side = Vector3.Dot(rocket.position - hive.position, right) > 0f ? -1f : 1f;
             float shift = 0.15f * Scale + width * 0.5f + 0.15f;
-            var scene = MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
+            var scene = ScannedRoom();
+            Quaternion rotation = Quaternion.LookRotation(Vector3.Cross(right, Vector3.up), Vector3.up);
+            Vector3 half = new Vector3(width * 0.5f, halfHeight, 0.08f);
             for (int i = 0; i < 2; i++, side = -side)
             {
                 var point = center + right * (side * shift);
-                if (scene != null && !WindowFits(scene, point, right, width * 0.5f, halfHeight)) continue;
+                if (!RoomBoxFits(scene, point, rotation, half)) continue;
                 position = point;
                 return true;
             }
             return false;
         }
 
-        static bool WindowFits(BloomScene scene, Vector3 pos, Vector3 right, float halfWidth, float halfHeight)
+        internal static BloomScene ScannedRoom() => MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
+
+        // Loose flowers can overlap the scenery; solid props need their entire footprint clear.
+        internal static bool RoomBoxFits(BloomScene scene, Vector3 centre, Quaternion rotation, Vector3 half)
         {
-            for (int x = -1; x <= 1; x++)
+            if (scene == null) return true;
+            const float margin = 0.06f;
+            Vector3 padded = half + Vector3.one * margin;
+            if (scene.FloorPolygon.Count >= 3)
             {
-                Vector3 column = pos + x * (halfWidth + 0.07f) * right;
-                if (!scene.InFloor(column)) return false;
-                for (int y = -1; y <= 1; y++)
-                    if (scene.InVolume(column + y * (halfHeight + 0.07f) * Vector3.up, 0.05f)) return false;
+                if (!scene.InFloor(centre)) return false;
+                Quaternion toBox = Quaternion.Inverse(rotation);
+                var floorBox = new Bounds(Vector3.zero, new Vector3(padded.x * 2f, 0.02f, padded.z * 2f));
+                Vector3 previous = OnFloor(scene.FloorPolygon[scene.FloorPolygon.Count - 1]);
+                foreach (var point in scene.FloorPolygon)
+                {
+                    Vector3 next = OnFloor(point);
+                    Vector3 edge = next - previous;
+                    if (edge.sqrMagnitude > 1e-6f &&
+                        floorBox.IntersectRay(new Ray(previous, edge.normalized), out var hit) && hit <= edge.magnitude) return false;
+                    previous = next;
+                }
+
+                Vector3 OnFloor(Vector2 point)
+                {
+                    Vector3 offset = toBox * (new Vector3(point.x, centre.y, point.y) - centre);
+                    offset.y = 0f;
+                    return offset;
+                }
+            }
+            foreach (var volume in scene.Volumes)
+                if (Overlap(centre, rotation, padded, volume.center, volume.rotation, volume.half)) return false;
+            return true;
+        }
+
+        internal static bool VisibleInRoom(BloomScene scene, Vector3 eye, Vector3 target)
+        {
+            if (scene == null) return true;
+            Vector3 delta = target - eye;
+            float distance = delta.magnitude;
+            if (distance < 0.001f) return true;
+            foreach (var volume in scene.Volumes)
+            {
+                Quaternion local = Quaternion.Inverse(volume.rotation);
+                var box = new Bounds(Vector3.zero, volume.half * 2f);
+                var ray = new Ray(local * (eye - volume.center), local * (delta / distance));
+                if (box.IntersectRay(ray, out var hit) && hit < distance) return false;
             }
             return true;
         }
+
+        static bool Overlap(Vector3 a, Quaternion ar, Vector3 ah, Vector3 b, Quaternion br, Vector3 bh)
+        {
+            Vector3 d = b - a;
+            if (Mathf.Abs(d.y) >= ah.y + bh.y) return false;
+            Vector3 ax = ar * Vector3.right, az = ar * Vector3.forward;
+            Vector3 bx = br * Vector3.right, bz = br * Vector3.forward;
+            return OverlapsOn(ax) && OverlapsOn(az) && OverlapsOn(bx) && OverlapsOn(bz);
+
+            bool OverlapsOn(Vector3 axis)
+            {
+                float aSpan = ah.x * Mathf.Abs(Vector3.Dot(ax, axis)) + ah.z * Mathf.Abs(Vector3.Dot(az, axis));
+                float bSpan = bh.x * Mathf.Abs(Vector3.Dot(bx, axis)) + bh.z * Mathf.Abs(Vector3.Dot(bz, axis));
+                return Mathf.Abs(Vector3.Dot(d, axis)) < aSpan + bSpan;
+            }
+        }
+
+        // Keep the first delivery, liftoff and the return on the same clear pad. Only call while placing the ride.
+        internal static void FitRocketHome(BloomScene scene, Transform rocket, Vector3 eye)
+        {
+            if (scene == null || rocket == null || rocket.parent != Anchor ||
+                !rocket.TryGetComponent(out DeliveryItem item) || item.job >= 0) return;
+            if (!item.measured) item.Measure();
+            Vector3 scale = Vector3.Scale(Anchor.lossyScale, _rocketPreferredScale);
+            Vector3 fullCentre = Vector3.Scale(item.localBounds.center, scale);
+            Vector3 fullHalf = Vector3.Scale(item.localBounds.extents,
+                new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+            Transform hive = Anchor.Find("Hive");
+            Bounds hiveBounds = default;
+            bool hasHive = hive != null && WorldBounds(hive, out hiveBounds);
+            Quaternion upright = rocket.rotation;
+            Vector3 preferred = Anchor.TransformPoint(_rocketPreferredLocal);
+            Camera camera = Camera.main;
+            Vector3 fallback = preferred;
+            float fallbackScale = 0f;
+            foreach (float factor in RocketScaleFactors)
+            {
+                if (!FindPad(fullCentre * factor, fullHalf * factor, out var pivot, out bool inView)) continue;
+                if (inView)
+                {
+                    SetPad(pivot, factor, true);
+                    return;
+                }
+                if (fallbackScale == 0f)
+                {
+                    fallback = pivot;
+                    fallbackScale = factor;
+                }
+            }
+            if (fallbackScale > 0f) SetPad(fallback, fallbackScale, false);
+            else Debug.Log("[VBS][Meadow] no clear scanned rocket pad after compact search");
+
+            void SetPad(Vector3 pivot, float factor, bool inView)
+            {
+                rocket.position = pivot;
+                Vector3 localScale = _rocketPreferredScale * factor;
+                if (rocket.localScale != localScale)
+                {
+                    rocket.localScale = localScale;
+                    item.Measure();
+                }
+                item.RecordHome();
+                Debug.Log("[VBS][Meadow] rocket pad " + V(pivot) + ", clear for touchdown and crash, model scale x" +
+                          factor.ToString("0.00", C) + (inView ? ", in view" : ", outside the starting view"));
+            }
+
+            // Try the full-size model first, then smaller sizes if only out-of-view pads fit.
+            bool FindPad(Vector3 c, Vector3 h, out Vector3 best, out bool bestInView)
+            {
+                best = preferred;
+                bestInView = false;
+                float bestCost = float.PositiveInfinity;
+                foreach (float side in RocketSides)
+                    foreach (float x in RocketSideOffsets)
+                        foreach (float z in RocketDepthOffsets)
+                        {
+                            float dx = _rocketPreferredLocal.x * Scale * (side - 1f) + x;
+                            Vector3 pivot = preferred + Anchor.right * dx + Anchor.forward * z;
+                            float cost = new Vector2(dx, z).sqrMagnitude;
+                            if (bestInView && cost >= bestCost) continue;
+                            Vector3 centre = pivot + upright * c;
+                            bool inView = InHorizontalView(centre) && VisibleInRoom(scene, eye, centre);
+                            if ((!inView && bestInView) || (inView == bestInView && cost >= bestCost) || !Fits(centre, h)) continue;
+                            float away = hasHive && Vector3.Dot(pivot - hive.position, upright * Vector3.right) < 0f ? -1f : 1f;
+                            Quaternion roll = Quaternion.Euler(0f, 0f, -18f * away); // the tilt used by T0Sequence
+                            Vector3 rolledX = roll * Vector3.right;
+                            Vector3 rolledY = roll * Vector3.up;
+                            Vector3 tiltedHalf = new Vector3(Mathf.Abs(rolledX.x) * h.x + Mathf.Abs(rolledY.x) * h.y,
+                                Mathf.Abs(rolledX.y) * h.x + Mathf.Abs(rolledY.y) * h.y, h.z);
+                            Vector3 tiltedCentre = roll * c;
+                            tiltedCentre.y = c.y - h.y + tiltedHalf.y;
+                            if (!Fits(pivot + upright * tiltedCentre, tiltedHalf)) continue;
+                            best = pivot;
+                            bestCost = cost;
+                            bestInView = inView;
+                        }
+                return !float.IsPositiveInfinity(bestCost);
+            }
+
+            bool InHorizontalView(Vector3 centre)
+            {
+                if (camera == null) return true;
+                Vector3 viewport = camera.WorldToViewportPoint(centre);
+                return viewport.z > camera.nearClipPlane && viewport.x >= 0.08f && viewport.x <= 0.92f;
+            }
+
+            bool Fits(Vector3 centre, Vector3 half) =>
+                RoomBoxFits(scene, centre, upright, half) &&
+                (!hasHive || !Overlap(centre, upright, half + Vector3.one * 0.06f, hiveBounds.center, Quaternion.identity, hiveBounds.extents));
+        }
+
+        static readonly float[] RocketScaleFactors = { 1f, 0.9f, 0.8f, 0.7f, 0.6f };
+        static readonly float[] RocketSides = { 1f, -1f };
+        static readonly float[] RocketSideOffsets = { 0f, -0.2f, 0.2f, -0.4f, 0.4f, -0.6f, 0.6f, -0.8f, 0.8f };
+        static readonly float[] RocketDepthOffsets = { 0f, -0.25f, 0.25f, -0.5f, 0.5f, -0.75f, 0.75f };
         public static float WindowBehindHive => 0.25f * Scale + 0.25f;
 
         // ------------------------------------------------------------------ the hook
@@ -175,6 +335,7 @@ namespace VirtualBeeSwarm.Bloom
             {
                 Vector3 best = fwd;
                 (int hive, int yard) bestFit = (-1, -1);
+                float bestYard = float.NegativeInfinity;
                 foreach (float turn in PlacementTurns)
                 {
                     Vector3 direction = Quaternion.Euler(0f, turn, 0f) * fwd;
@@ -184,13 +345,16 @@ namespace VirtualBeeSwarm.Bloom
                     {
                         Vector3 candidate = centre + right * offset;
                         var fit = Fit(scene, candidate, right, direction, s);
-                        if (fit.hive < bestFit.hive || (fit.hive == bestFit.hive && fit.yard <= bestFit.yard)) continue;
+                        // Open meadow at the edge is expendable when there is equally safe space for the hive in view.
+                        float yard = fit.yard - Mathf.Max(0f, Mathf.Abs(turn) - 25f) * 0.42f;
+                        if (fit.hive < bestFit.hive || (fit.hive == bestFit.hive && yard <= bestYard)) continue;
                         bestFit = fit;
+                        bestYard = yard;
                         best = direction;
                         p = candidate;
-                        if (bestFit == (9, 35)) break;
+                        if (bestFit.hive == 9 && bestYard == 35f) break;
                     }
-                    if (bestFit == (9, 35)) break;
+                    if (bestFit.hive == 9 && bestYard == 35f) break;
                 }
                 LastFit = "open floor " + (bestFit.yard * 100f / 35).ToString("0", C) + "% at " +
                           Vector3.SignedAngle(fwd, best, Vector3.up).ToString("0", C) + " deg from the view";
@@ -346,6 +510,11 @@ namespace VirtualBeeSwarm.Bloom
                 rocket.localScale *= f;
                 Remeasure(rocket);
                 parts.Add("rocket " + rb.size.y.ToString("0.00", C) + " -> " + (rb.size.y * f).ToString("0.00", C) + " m");
+            }
+            if (rocket != null)
+            {
+                _rocketPreferredLocal = rocket.localPosition;
+                _rocketPreferredScale = rocket.localScale;
             }
             // the hand props (each child of a station's "Props": smoker, honey jar, sprayer, ...) grow toward
             // meadow.propSize (largest side), by at most meadow.propScale on top of the rig scale
