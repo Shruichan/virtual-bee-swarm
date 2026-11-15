@@ -114,7 +114,7 @@ namespace VirtualBeeSwarm
             bool honey = choice == GameIds.Choice.StoreHoney;
             if (honey) _triedHoney = true;
             Transform prop = honey ? honeyJar : syrupBottle;
-            if (prop != null && pourPoint != null)
+            if (prop != null && pourPoint != null && !(correct && SetupByHand)) // HANDSON hook: the player just poured
             {
                 Vector3 home = prop.position;
                 Quaternion rot = prop.rotation;

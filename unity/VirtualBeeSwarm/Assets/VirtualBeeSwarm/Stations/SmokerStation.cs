@@ -53,7 +53,7 @@ namespace VirtualBeeSwarm
                     if (swarm != null) swarm.Spike(0.8f);
                     break;
                 case GameIds.Choice.Smoker:
-                    for (int k = 0; k < 3; k++)
+                    for (int k = 0; k < 3 && !SetupByHand; k++) // HANDSON hook: the player just pumped them
                     {
                         if (smokePuff != null) smokePuff.Emit(puffParticles);
                         GameSound.Cue("smoker_puff", smokePuff != null ? smokePuff.transform : null);

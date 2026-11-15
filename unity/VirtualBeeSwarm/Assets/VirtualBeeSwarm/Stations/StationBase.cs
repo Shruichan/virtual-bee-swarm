@@ -45,6 +45,11 @@ namespace VirtualBeeSwarm
         public bool Busy { get; private set; }
         public bool Choosing { get; private set; }
 
+        /// <summary>HandsOn: true = this poke was taken as an order / a hand step, not a pick.</summary>
+        public static System.Func<StationBase, string, bool> PickGate; // HANDSON hook
+        /// <summary>HandsOn: the player just did the right choice's set-up by hand (skip the automatic version).</summary>
+        public static bool SetupByHand; // HANDSON hook
+
         Coroutine _intro, _offerWait;
         bool _correctPending;   // the right choice is playing out (hexagon not lit yet)
         bool _timeoutPending;   // max duration hit while a wrong choice was playing: solve right after it
@@ -55,6 +60,7 @@ namespace VirtualBeeSwarm
         protected abstract GameLine Prompt { get; }
         /// <summary>v2: the "Off the record?" hint (no id = none).</summary>
         protected virtual GameLine Hint => default;
+        public void RestartPickClock() { if (_offeredAt >= 0f) _offeredAt = Time.time; _hintSaid = true; } // HANDSON hook: a hand step is under way
 
         public override bool Handles(GameBeat beat) => beat == BeatOf(station);
 
@@ -297,6 +303,7 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBS][Delivery] poke on " + b.ChoiceId + " ignored: still flying");
                 return;
             }
+            if (PickGate != null && PickGate(this, b.ChoiceId)) return; // HANDSON hook
             Choose(b.ChoiceId);
         }
 
