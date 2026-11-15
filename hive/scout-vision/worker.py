@@ -5,6 +5,7 @@
     uv run python worker.py --source data/test.mp4 --print                  # a video file, paced in real time
     uv run python worker.py --source webcam:0 --print
     uv run python worker.py --source data/test/beehive --print              # an image folder
+    uv run python worker.py --match detect/card_images --print              # SIFT card matcher drives the scores (train/)
 
 API (CORS *):  GET /health   POST /enrol {label, seconds}   POST /clear {label}   POST /reload
                GET /slides.json   GET /img/<label>/<file>
@@ -36,6 +37,7 @@ from scout_vision.recognizer import (BACKGROUND, CLASSES, DEFAULT_BG_FLOOR, DEFA
 from scout_vision.sources import Source
 
 from detect import ScoutTracker, scores_from_boxes  # printed station-card tags (AprilTag 25h9), detect/
+from train.matcher import CardMatcher, Vote, scores_from as match_scores  # SIFT matcher for the printed pictures
 
 TEST = ROOT / "data" / "test"
 CREDITS = ROOT / "data" / "web" / "credits.csv"
@@ -99,6 +101,17 @@ class Worker:
         self.ema_at = 0.0
         self.detector = load_detector(args.detector) if args.detector else None
         self.markers = None if args.no_markers else ScoutTracker()
+        self.matcher = CardMatcher(args.match) if args.match else None
+        self.vote = Vote(need=args.vote_need, n=args.vote_n)
+        if self.matcher:
+            print(f"[match] refs {self.matcher.files}", file=sys.stderr, flush=True)
+
+    def reload_matcher(self) -> dict:
+        if not self.args.match:
+            return {}
+        self.matcher = CardMatcher(self.args.match)  # picks up replaced <label>.* pictures
+        print(f"[match] reloaded {self.matcher.files}", file=sys.stderr, flush=True)
+        return self.matcher.files
 
     def frame_image(self, rgb) -> Image.Image:
         return center_crop(Image.fromarray(rgb), self.args.crop)
@@ -153,6 +166,18 @@ class Worker:
                 top, scores = scores_from_boxes(mboxes)
                 self.ema, self.ema_at = scores, at
                 return top, scores, [b.to_json() for b in mboxes]
+        if self.matcher is not None:
+            # SIFT + homography against the six exact pictures; a class needs 3 of the last 5 frames to score high.
+            try:
+                found = self.matcher.detect(rgb)
+            except Exception as e:  # noqa: BLE001 - never let the matcher stop the worker
+                print(f"[match] {e}", file=sys.stderr, flush=True)
+                found = []
+            found = [{k: b[k] for k in ("label", "score", "x", "y", "w", "h", "via")} for b in self.vote.apply(found, at)]
+            if found or not self.args.match_fallback:
+                top, scores = match_scores(found)
+                self.ema, self.ema_at = scores, at
+                return top, scores, found
         h, w = rgb.shape[:2]
         det = []
         if self.detector is not None:
@@ -302,7 +327,7 @@ def make_handler(worker: Worker):
             path = urlparse(self.path).path
             body = self._body()
             if path == "/reload":
-                return self._json(200, {"ok": True, "refs": worker.rec.reload()})
+                return self._json(200, {"ok": True, "refs": worker.rec.reload(), "match": worker.reload_matcher()})
             if path in ("/enrol", "/clear"):
                 label = body.get("label")
                 if label not in CLASSES:
@@ -337,6 +362,12 @@ def main() -> None:
     ap.add_argument("--detector", default=os.environ.get("SCOUT_DETECTOR"), help="module:function returning boxes")
     ap.add_argument("--no-markers", action="store_true", default=os.environ.get("SCOUT_MARKERS", "1") == "0",
                     help="disable the printed station-card tags (detect/); SCOUT_MARKERS=0 does the same")
+    ap.add_argument("--match", default=os.environ.get("SCOUT_MATCH"),
+                    help="folder with one <label>.jpg/png picture per class: the SIFT card matcher (train/matcher.py) drives top/scores/boxes")
+    ap.add_argument("--match-fallback", action="store_true", default=os.environ.get("SCOUT_MATCH_FALLBACK") == "1",
+                    help="with --match: use the DINOv2 classifier on frames where no card matched (default: background)")
+    ap.add_argument("--vote-need", type=int, default=3, help="--match: frames a class must appear in ...")
+    ap.add_argument("--vote-n", type=int, default=5, help="... out of the last this many, before its score is reported high")
     ap.add_argument("--loop", action="store_true", help="loop a file/folder source")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds per image (folder source)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SCOUT_VISION_PORT", 8242)))
