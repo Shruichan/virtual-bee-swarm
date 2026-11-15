@@ -1,0 +1,20 @@
+[
+  {"id": "scout_booth_intro", "kind": "intro", "text": "Hi, I'm Beeswax. Walk up to something and stare at it. I'll do the rest."},
+  {"id": "scout_chime_ask", "kind": "chime", "text": "Bee fact found! Would you like to learn more?"},
+  {"id": "scout_silence_yes", "kind": "silence", "text": "I'll take that as a yes."},
+  {"id": "scout_booth_no", "kind": "no", "text": "Fine. The next one's better anyway."},
+
+  {"id": "scout_next_native_flower", "kind": "direction", "label": "native_flower", "text": "Your next adventure: the flower. Look down at it."},
+  {"id": "scout_next_honey_jar", "kind": "direction", "label": "honey_jar", "text": "Now go to your next adventure: one big step to your left."},
+  {"id": "scout_next_bug_spray", "kind": "direction", "label": "bug_spray", "text": "Next adventure: one more step to your left. Brace yourself."},
+  {"id": "scout_next_bee_hotel", "kind": "direction", "label": "bee_hotel", "text": "Last one for now: one big step to your left."},
+  {"id": "scout_next_pebble_dish", "kind": "direction", "label": "pebble_dish", "text": "Bonus round: one step to your left. Look for the water."},
+  {"id": "scout_next_beehive", "kind": "direction", "label": "beehive", "text": "One more to your left. Headquarters."},
+  {"id": "scout_booth_done", "kind": "done", "text": "You found them all. Bee Scout badge earned. Go tell a human."},
+
+  {"id": "scout_dir_left", "kind": "direction", "text": "A bit to your left."},
+  {"id": "scout_dir_right", "kind": "direction", "text": "A bit to your right."},
+  {"id": "scout_dir_closer", "kind": "direction", "text": "Come closer. I don't bite. I can't, actually."},
+  {"id": "scout_dir_down", "kind": "direction", "text": "Look down at it, like you're reading the label."},
+  {"id": "scout_dir_lost", "kind": "direction", "text": "Left. Your other left."}
+]
