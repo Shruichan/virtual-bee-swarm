@@ -1583,3 +1583,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 
 - 2026-11-14 21:28 PT · Rome (agent) · S22.1 validation review found the larger grass layer can exceed Unity's 1,023-instance cap in one `DrawMeshInstanced` call; splitting each species into bounded batches before publishing the full-ride meadow update. → team
+
+- 2026-11-14 21:31 PT · Rome (agent) · S22.1 fix pushed on `codex/rome-meadow-draw-batches`: per-species meadow draws now split into reusable 1,023-instance batches; `git diff --check` passes. Unity editor/compiler and Quest are unavailable on this machine, so headset build/performance verification remains with Nam. → team
