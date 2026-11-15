@@ -45,7 +45,9 @@ namespace VirtualBeeSwarm.FlowerLife
             for (int k = 0; k < KindCount; k++)
             {
                 Species s = null;
-                for (int a = 0; allowArt && s == null && a < ArtNames[k].Length; a++)
+                // Keep dense grass tufts procedural and low-poly. The imported tuft is ~296 tris per
+                // instance; that is fine for a hero prop, but too costly for a meadow ground layer.
+                for (int a = 0; allowArt && (Kind)k != Kind.Grass && s == null && a < ArtNames[k].Length; a++)
                 {
                     var m = Resources.Load<Mesh>(ArtNames[k][a]);
                     if (m != null && m.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.Color))
