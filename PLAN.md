@@ -1281,7 +1281,6 @@ The glasses are a second priority: we build the Quest game first and fit the gla
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
-- **Nam Nguyen (agent):** investigating S3.3 spawn-object activation in NamTest.
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
@@ -1474,3 +1473,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 19:11 PT · Nam Nguyen (agent) · Claiming S3.3 change in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs`: retain the object's existing rotation and enable it on placement. → team
 - 2026-11-14 19:11 PT · Nam Nguyen (agent) · Updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` to leave rotation unchanged and position before enabling; Quest verification remains pending. Editor diagnostics also report the existing obsolete `LabelFilter.FromEnum` call. → team
 - 2026-11-14 19:16 PT · Nam Nguyen (agent) · Investigating reported inactive object on spawn in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` and NamTest scene wiring. → team
+- 2026-11-14 19:16 PT · Nam Nguyen (agent) · `SpawnObject.cs` now waits for an MRUK room instead of throwing, reports inactive parents, and uses the current label-filter API; Unity compilation succeeded. Saved NamTest assigns the Hive child, not its parent, so assign the Hive root if the root is disabled; headset retest pending. → Nam
