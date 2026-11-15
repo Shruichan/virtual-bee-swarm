@@ -48,10 +48,10 @@
 - [ ] Say "what if it rains" in the headset and see the transcript appear on the Board within a few seconds. TODO: if the venue is loud, decide between push-to-talk and always listening.
 - [ ] Quest volume high enough to hear Beeswax over the hall.
 
-**Table**
-- [ ] Mat/table spot marked with tape so the hive lands in the same place every time.
-- [ ] Hive placed on the real table and lined up. Check it stays put after a recenter.
-- [ ] Light on the table is bright and even (hand tracking and passthrough both get worse in dim light).
+**Play area**
+- [ ] Mark the player spot and clear the floor and cable paths.
+- [ ] Check that the default meadow rig stands clear of furniture and the order tickets and lever are within reach.
+- [ ] Keep the play area brightly and evenly lit for hand tracking.
 - [ ] Props in their start spots (TODO: only if physical props made it): honey jar, syrup bottle, pebble dish, deep bowl, smoker.
 - [ ] Face-cover wipes, tissues. Cables taped down.
 - [ ] Stopwatch on someone's phone.
@@ -69,29 +69,26 @@
 ### Before the clock (≤ 60 s)
 
 **Mediator:**
-> "Hi! I'm the union mediator. These bees have a union, and the union just voted to move to the Moon. You've got four minutes to fix their hive. Everything happens on this table. Heads up: Beeswax is a scripted character. Near the end he'll ask you for a 'what if.' Say it out loud and the window shows it."
+> "Hi! I'm the union mediator. Poke SIGN HERE when the bee hands you the clipboard. Once the hive arrives, you have four minutes to fix it or we're headed to the Moon. When Beeswax asks for a what-if, pinch and hold to talk."
 
-TODO: add one line on how to talk ("pinch and hold to talk" or "just talk") once that's decided.
-
-Fit the headset. **Spotter:** "Can you see the table? Hold up your hands. Great."
+Fit the headset. **Spotter** — "Can you see the meadow? Hold up your hands."
 **Operator:** Board mode SOLO (or DUO if glasses), window LIVE and `ready`, Quest connected.
 
 ### On the clock
 
 | Time | Beat | Player does | Beeswax (in game) | Mediator (only if needed) | Operator |
 |---|---|---|---|---|---|
-| 0:00–0:15 | Hook | Looks at the hive and rocket | "The union voted. Fix my hive in four minutes, or we're moving to the Moon." | Nothing. | Watch the beat change on the Board. |
-| 0:15–0:35 | Meet + window | Watches Beeswax, sees the meadow window | "Four things are killing my hive. Fix them and the door opens." / "See that window?…" | Host, quietly to the other judge: "That's the meadow window. A world model is making it live." [CLIPS: "…it's footage we generated for each scene."] | Window shows `ready`. |
-| 0:35–1:05 | 1. Smoker | Picks swat / spray / smoker | Reacts to the choice | Stuck for 10 s: "Which one would *you* want, if you were a bee?" | |
-| 1:05–1:45 | 2. Lift + feed | Lifts the hive (it comes up way too easily), then honey or syrup | "We're starving." / honey: "...Grievance filed." | Not lifting: "Try lifting it. Heavy?" | Watch the window morph (sick or recovering). |
-| 1:45–2:20 | 3. Wasps | Bigger or smaller door | "Smaller door, fewer guards needed to hold it." | | |
-| +30 s | Hornet (only if ahead, only if shipped) | Fist, then hums | "My cousins in Japan do this…" "Make a FIST!" "Now HUM!" | "Make a fist! Now hum, loud!" | Mic not picking it up: use the Board's hum slider. |
-| 2:20–2:55 | 4. Heat | Deep bowl / pebbles / nothing | "Pebbles! Somewhere to land…" | | |
+| 0:00–0:15 | Hook | Signs the worker bee's clipboard and watches the hive arrive | Speaks from inside the hive | Point out SIGN HERE if needed | Watch the beat change on the Board. |
+| 0:15–0:35 | Meet + window | Watches Beeswax emerge and the evacuation rocket arrive | Gives the four-minute ultimatum | | Check the window is ready. |
+| 0:35–1:05 | 1. Smoker | Orders the smoker and pumps the lever | Reacts to the choice | "Which one would you want if you were a bee?" | |
+| 1:05–1:45 | 2. Lift + feed | Lifts the hive, orders syrup, and pours it into the roof feeder | Explains what store honey can do | "Try lifting it. Heavy?" | |
+| 1:45–2:20 | 3. Wasps | Orders the reducer and slots it into the entrance | "Smaller door, fewer guards needed to hold it." | | |
+| 2:20–2:55 | 4. Heat | Sets down the pebble dish and pumps water | "Pebbles! Somewhere to land…" | | |
 | 2:55–3:20 | What-if | Asks Beeswax "What if a fire starts?", then "Put it out!" | "Don't. Say. That." / "Okay. It's out." | Freezes: "Ask him what happens if there's a fire." Not heard: "Louder, he's a bee." | Not heard twice: trigger fire from the Board (TODO Rome: what-if buttons). Same for "put it out." |
-| 3:20–3:40 | Hive saved | Watches the door open and the bees head out to work | "Motion carried. The union votes to stay." | | Note the score time (and wrong picks, if the card counts them). |
-| 3:40–4:15 | T-0 + map | Watches the launch, the Moon, the crash | "TAKE ME TO THE MOON!" / "...Not one flower." / map line (TODO: final wording) | Nothing. Let the Moon play. | |
+| 3:20–3:40 | Hive saved | Watches the bees fly out and gets the scorecard | "Motion carried. No ravaging today. Cancel the evacuation." | | |
+| 3:40–4:15 | T-0 + map | Pulls the launch lever, watches the Moon and crash, and gets the new contract | "TAKE ME TO THE MOON!" / "...Not one flower." | Let the Moon play. | |
 
-**Running long?** Skip the hornet first. Never cut the honey mistake, the fire, or the Moon.
+**Running long?** Keep the honey mistake, fire, and Moon. Beeswax grants an extension if the boarding clock runs out.
 
 ### After the headset comes off (60 to 90 s)
 
@@ -114,8 +111,8 @@ For "we have two minutes." Skips stations 1, 3 and 4, keeps the three things peo
 
 | Time | Beat | Operator (Board) | Mediator |
 |---|---|---|---|
-| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** (TODO Rome/U1: confirm the Board can jump beats with `beat.set`, and that Unity starts station 2 cleanly) | Short intro: "The bees' union voted to move to the Moon. Fix the hive. Beeswax is scripted." |
-| 0:00–0:40 | Station 2: lift + feed | (nothing) | If they pick syrup: "Now try the honey." |
+| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | "Beeswax needs us to save his hive or we have to evacuate to the Moon. Check how heavy the hive feels." |
+| 0:00–0:40 | Station 2: lift + feed | (nothing) | If they go straight to syrup, cover the honey mistake in the recap. |
 | 0:40–1:10 | What-if | Jump to the **what-if** beat | "Ask him: what if a fire starts?" |
 | 1:10–1:50 | T-0 | Jump to **T-0** | Nothing. Let the Moon play. |
 | 1:50–2:00 | Off | | "Did you pick the honey? It sounds like the nice option, and it can kill a hive. Questions?" |
@@ -133,7 +130,7 @@ TODO: run this cut once on Saturday with a stopwatch.
 | Player talks, no transcript on the Board | Mic, noise, or speech-to-text down | Mediator: "Louder, he's a bee." Then operator triggers the beat from the Board. | "The hall's loud. Let's try once more." |
 | Transcript shows up but nothing happens | Intent missed (said something we don't handle) | Mediator: "Ask him 'what if a fire starts.'" Operator triggers it if needed. | |
 | Board says the Quest is disconnected (Hive down) | Server crashed, tunnel down, or hotspot dropped | Don't stop the demo. Unity keeps going on its offline timers, lines are in the app, window plays clips. Operator: check the hotspot, restart `bun run start`, the headset reconnects by itself. TODO U1: confirm what triggers the fire beat when the Hive is down. | "The server dropped, so it's running offline. You're seeing the same game minus voice." |
-| Hive is floating or off the table | Tracking lost or recenter | Spotter: TODO (U1: how to re-place the hive). Restart the beat if it's early. | |
+| Hive is floating or inside furniture | Room tracking or placement | Check tracking and recenter in the clear play area. Restart the app if placement remains wrong. | |
 | Hands not tracking | Light or hands out of view | Spotter: "Bring your hands up in front of you." Floating buttons are the fallback. | |
 | Headset battery under ~20% | | Finish this group plugged in, then charge. Swap order with talk time. | |
 | App crashed | | Relaunch from the headset library. Board → RESET GROUP. If it keeps crashing, reinstall the locked APK. | "We'll restart it. Takes 20 seconds." |

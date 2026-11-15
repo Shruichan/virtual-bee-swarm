@@ -329,7 +329,7 @@ namespace VirtualBeeSwarm
 
             bool correct = GameIds.IsCorrect(station, choice);
             if (correct) _correctPending = true;
-            if (delivery != null) delivery.OnChoiceMade(choice, correct); // stamp, same frame as the poke
+            if (delivery != null) delivery.OnChoiceMade(choice, correct, SetupByHand); // stamp (or keep the prop where the player put it)
             var stakes = VirtualBeeSwarm.Stakes.StakesDirector.Instance; // the dark swarm as the meter (V19)
             if (stakes != null) stakes.ReportChoice(station, choice, correct);
             GameLines.TryGetOutcome(station, choice, out var outcome);

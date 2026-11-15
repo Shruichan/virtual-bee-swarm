@@ -459,7 +459,7 @@ describe("window, beats and score", () => {
     expect(hive.state.scene).toBe("meadow");
   });
 
-  test("smoker starts the score clock (hook and meet don't); escape logs the score and blooms; t0 is the Moon; a re-sent beat changes nothing", async () => {
+  test("the clock starts at smoker, escape blooms, and the window reaches the Moon at liftoff", async () => {
     hive = makeHive();
     const quest = await connect("quest");
     const board = await connect("board");
@@ -484,10 +484,20 @@ describe("window, beats and score", () => {
     expect(h.solved).toEqual(["smoker"]);
     quest.send({ type: "beat.set", n: 9, name: "escape" }); // Unity reconnect re-sends its beat
     await setBeat(quest, board, "t0", 10);
+    expect(hive.state.scene).toBe("full_bloom"); // Beeswax is still boarding and the player can pull the launch lever
+    quest.send({ type: "orbis.request", scene: "moon" }); // Unity fires this cue at liftoff
     await quest.waitFor("orbis", (m) => m.scene === "moon");
     expect(board.of("log").filter((m) => m.text.startsWith("score: "))).toHaveLength(1);
     await setBeat(quest, board, "map", 11);
     await quest.waitFor("orbis", (m) => m.scene === "full_bloom" && idx(quest, (x) => x === m) > idx(quest, (x) => x.scene === "moon"));
+  });
+
+  test("a Board-only rehearsal can still cue the Moon by jumping to t0", async () => {
+    hive = makeHive();
+    const board = await connect("board");
+    board.send({ type: "beat.request", n: 10 });
+    expect((await board.waitFor("beat.set", (m) => m.n === 10)).name).toBe("t0");
+    await board.waitFor("orbis", (m) => m.scene === "moon");
   });
 
   test("group.reset clears the v3 memory, stops the embers and puts the window back on the meadow", async () => {

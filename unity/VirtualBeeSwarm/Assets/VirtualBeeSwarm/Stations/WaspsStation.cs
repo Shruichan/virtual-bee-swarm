@@ -11,7 +11,7 @@ namespace VirtualBeeSwarm
     public class WaspsStation : StationBase
     {
         [SerializeField] Transform[] wasps = new Transform[0];
-        [SerializeField] int guardsAtSmallDoor = 10;
+        [SerializeField] int guardsAtSmallDoor = 2;
         [SerializeField] int guardsAtNormalDoor = 4;
 
         protected override GameLine Prompt => GameLines.WaspsPrompt;
@@ -45,16 +45,18 @@ namespace VirtualBeeSwarm
             yield return SayLine(stinger);
         }
 
-        enum WaspState { Hidden, Buzz, Raid, Leave }
+        enum WaspState { Hidden, Arrive, Buzz, Raid, Leave }
         WaspState _state = WaspState.Hidden;
         float _stateSince;
         Vector3[] _leaveFrom;
+        FutureWindow _window;
 
         protected override void Awake()
         {
             station = GameStation.Wasps;
             base.Awake();
             _leaveFrom = new Vector3[wasps.Length];
+            _window = FindAnyObjectByType<FutureWindow>(FindObjectsInactive.Include);
             SetWaspsVisible(false);
         }
 
@@ -66,7 +68,7 @@ namespace VirtualBeeSwarm
                 swarm.SetGuardCount(guardsAtNormalDoor);
                 swarm.SetMode(SwarmMode.Guard);
             }
-            SetState(WaspState.Buzz);
+            SetState(_window != null && hive != null ? WaspState.Arrive : WaspState.Buzz);
         }
 
         protected override IEnumerator ShowOutcome(string choice, bool correct)
@@ -83,7 +85,7 @@ namespace VirtualBeeSwarm
             {
                 if (hive != null) hive.SetDoor(HiveBody.DoorSize.Small);
                 GameSound.Cue("door_narrow", hive != null ? hive.DoorPoint : null);
-                if (swarm != null) swarm.SetGuardCount(guardsAtSmallDoor);
+                if (swarm != null) swarm.SetGuardCount(Mathf.Min(guardsAtSmallDoor, Mathf.Max(0, guardsAtNormalDoor - 1)));
                 yield return Wait(1.2f);
                 SetState(WaspState.Leave);
             }
@@ -111,7 +113,7 @@ namespace VirtualBeeSwarm
         {
             _state = s;
             _stateSince = Time.time;
-            SetWaspsVisible(s != WaspState.Hidden);
+            SetWaspsVisible(s != WaspState.Hidden && s != WaspState.Arrive);
             if (s == WaspState.Leave)
                 for (int i = 0; i < wasps.Length; i++)
                     if (wasps[i] != null) _leaveFrom[i] = wasps[i].position;
@@ -122,6 +124,15 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < wasps.Length; i++)
                 if (wasps[i] != null && wasps[i].gameObject.activeSelf != on) wasps[i].gameObject.SetActive(on);
         }
+
+        Vector3 WindowPoint(int index)
+        {
+            Transform pane = _window.PaneTransform;
+            return pane.position + pane.right * ((index - (wasps.Length - 1) * 0.5f) * 0.055f);
+        }
+
+        static Vector3 Arc(Vector3 from, Vector3 to, float k) =>
+            Vector3.Lerp(from, to, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.28f);
 
         protected override void Update()
         {
@@ -142,6 +153,12 @@ namespace VirtualBeeSwarm
                 Vector3 p;
                 switch (_state)
                 {
+                    case WaspState.Arrive:
+                        float flyAge = age - i * 0.12f;
+                        if (flyAge < 0f) continue;
+                        float flight = Mathf.Clamp01(flyAge / 1.4f);
+                        p = Arc(WindowPoint(i), hover, Mathf.SmoothStep(0f, 1f, flight));
+                        break;
                     case WaspState.Raid:
                         float k = Mathf.Clamp01((age - i * 0.25f) / 0.8f);
                         p = Vector3.Lerp(hover, doorPos - outward * 0.05f, k);
@@ -149,18 +166,22 @@ namespace VirtualBeeSwarm
                         break;
                     case WaspState.Leave:
                         float kl = Mathf.Clamp01((age - i * 0.2f) / 2f);
-                        Vector3 away = doorPos + outward * 0.4f + Vector3.up * 0.6f + door.right * ((i - wasps.Length * 0.5f) * 0.25f);
-                        p = Vector3.Lerp(_leaveFrom[i], away, kl * kl);
+                        Vector3 away = _window != null ? WindowPoint(i)
+                            : doorPos + outward * 0.4f + Vector3.up * 0.6f + door.right * ((i - wasps.Length * 0.5f) * 0.25f);
+                        p = Arc(_leaveFrom[i], away, kl * kl);
                         if (kl >= 1f && w.gameObject.activeSelf) w.gameObject.SetActive(false);
                         break;
                     default:
                         p = hover + Random.insideUnitSphere * 0.004f;
                         break;
                 }
-                Vector3 dir = p - w.position;
+                bool arriving = _state == WaspState.Arrive && !w.gameObject.activeSelf;
+                Vector3 dir = arriving ? hover - p : p - w.position;
                 w.position = p;
                 if (dir.sqrMagnitude > 1e-7f) w.rotation = Quaternion.LookRotation(dir, Vector3.up);
+                if (arriving) w.gameObject.SetActive(true);
             }
+            if (_state == WaspState.Arrive && age >= 1.4f + (wasps.Length - 1) * 0.12f) SetState(WaspState.Buzz);
         }
     }
 }

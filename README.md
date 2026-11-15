@@ -1,33 +1,43 @@
-# Virtual Bee Swarm
+# HONEYMOON
 
-Team **Angry Virtual Bee Swarm**'s project for [Immerse the Bay 2026](https://immerse-the-bay-2026.devpost.com/), Stanford XR's hackathon (Nov 13–15, 2026). This year's theme is *Take Me To The Moon*.
+We made HONEYMOON, a mixed-reality game for Meta Quest, as Angry Virtual Bee Swarm. This year's theme was *Take Me To The Moon*. [Immerse the Bay 2026](https://immerse-the-bay-2026.devpost.com/)
 
+A worker bee brings you a clipboard. Sign it and the crew delivers a sick hive to your room. Beeswax climbs out and gives you four minutes to calm the bees, feed them, fend off wasps, and cool the hive. Ask a what-if and watch it play out in the meadow window. Save the hive and Earth cancels the evacuation. Beeswax takes the rocket anyway.
 
+## Play in Unity
 
-## Project
+1. Add `unity/VirtualBeeSwarm` in Unity Hub using **Unity 6000.2.9f1**.
+2. Choose **Virtual Bee Swarm → Build Scene**, open the generated scene, and press Play.
+3. Click **SIGN HERE** to start or press **F2** to run the full demo. The scripted ride works offline.
 
-**The plan, task claims, and team chat live in [PLAN.md](PLAN.md). Read it before you start, and keep it updated.** AI agents: see [AGENTS.md](AGENTS.md).
+For headset controls, APK builds, and smoke tests, see the [Unity setup guide](unity/VirtualBeeSwarm/README.md).
 
-## Team
+## Run the Hive
 
-- _add names_
+Create `hive/.env` from `hive/.env.example` and set `HIVE_TOKEN` to the shared local value. Start it from a terminal.
 
-## Setup
+```sh
+cd hive
+bun install
+bun run start
+```
 
-_TBD_
+The default port is `8240`. The Hive handles speech, the Beat Board, and window cues. Live video and the glasses miniapp have their own setup. [Orbis relay](hive/orbis-relay/README.md) · [Mentra Live](glasses/README.md)
+
+## Contributing
+
+The team is Rome, dartiros, Nam Nguyen, and Adityash. Read the plan and claim your part before making changes. [Team plan and live log](PLAN.md) · [Agent instructions](AGENTS.md)
 
 ## AI services used
 
-Cited here per the event rules. Amounts are filled in before submission.
-
 | Service | What it does in the project | Paid by |
 |---|---|---|
-| Anthropic Claude (Haiku 5.5 / Sonnet 5.5) | Beeswax's scan verdicts and live lines | team |
-| ElevenLabs | Beeswax's designed voice (pre-rendered lines + live lines) | team |
-| Visko Orbis via Reactor | The live "your yard, to a bee" world in the window | sponsor keys |
+| Anthropic Claude (Haiku 5.5 / Sonnet 5.5) | Scan verdicts, voice intent routing, and live answers | team |
+| ElevenLabs | Beeswax's recorded and live voice, plus Scribe transcription | team |
+| Visko Orbis via Reactor | Live scenes in the meadow window | sponsor keys |
 | Attractor Labs SATIE | Sound design (hive moods, hornet, stings) | sponsor credits |
 | MentraOS | Glasses speech-to-text and photo upload | platform |
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT. [License](LICENSE)

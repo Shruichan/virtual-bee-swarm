@@ -33,7 +33,7 @@ namespace VirtualBeeSwarm
         /// <summary>Meadow: crews x crew.scale; slots spread with the rig (the props are ~3.5x bigger on the floor).</summary>
         static float CrewK => Bloom.MeadowLayout.Active ? Bloom.MeadowTuning.CrewScale : 1f; // only with the big rig on the floor
         static float SlotK => Bloom.MeadowLayout.Active ? Mathf.Max(1f, Bloom.MeadowLayout.Scale * 0.6f) : 1f;
-        static int Crewed(int n) => Mathf.Clamp(Mathf.RoundToInt(n * CrewK), 1, MaxCrew);
+        static int Crewed(int n) => n == 1 ? 1 : Mathf.Clamp(Mathf.RoundToInt(n * CrewK), 1, MaxCrew);
         const int MaxJobs = 32;
         const int TrailPoints = 49;
 
@@ -730,7 +730,7 @@ namespace VirtualBeeSwarm
 
             if (Mode == DeliveryMode.Swirl)
             {
-                if (j.crew == 0) j.crew = AllocBees(ji, Mathf.Max(6, Mathf.Min(want, 12)), worldPos);
+                if (j.crew == 0) j.crew = AllocBees(ji, want == 1 ? 1 : Mathf.Clamp(want, 6, 12), worldPos);
                 j.phase = Phase.SwirlIn;
                 j.duration = swirlSeconds;
                 t.SetPositionAndRotation(worldPos, worldRot);
@@ -821,7 +821,7 @@ namespace VirtualBeeSwarm
 
             if (Mode == DeliveryMode.Swirl)
             {
-                if (j.crew == 0) j.crew = AllocBees(ji, Mathf.Max(6, Mathf.Min(want, 12)), t.position);
+                if (j.crew == 0) j.crew = AllocBees(ji, want == 1 ? 1 : Mathf.Clamp(want, 6, 12), t.position);
                 j.phase = Phase.SwirlOut;
                 j.duration = swirlSeconds;
                 Log((repo ? "swirl-repo " : "swirl-return ") + t.name);
@@ -1398,6 +1398,9 @@ namespace VirtualBeeSwarm
                 Vector3 sway = t.right * (Mathf.Sin(now * 3f + chain + link * 0.4f) * 0.004f * link);
                 return baseP + Vector3.up * (0.022f * SlotK * (link + 1)) + inward * (0.06f * link) + sway;
             }
+            if (n == 1)
+                return t.position + Vector3.up * (item.Top + 0.02f + 0.006f * Mathf.Sin(now * 11f + ph));
+
             // meadow: big crews stack in rings of ~12 (the bottom ring widest), spread with the rig
             int rings = Mathf.Max(1, (n + 11) / 12), ring = k % rings, inRing = Mathf.Max(1, (n - ring + rings - 1) / rings);
             float r = Mathf.Clamp(item.Radius + 0.015f, 0.035f, 0.12f * SlotK) * (1f - 0.18f * ring);
@@ -1549,7 +1552,12 @@ namespace VirtualBeeSwarm
                 Vector3 p = _bPos[b];
                 Vector3 fwd = _bVel[b];
                 if (j.phase == Phase.Depart || j.phase == Phase.Ring) fwd = p - _bFrom[b];
-                if (fwd.sqrMagnitude < 1e-8f || j.phase == Phase.Hold)
+                if (j.phase == Phase.Hold && j.crew == 1 && j.item != null)
+                {
+                    fwd = -j.item.transform.forward;
+                    fwd.y = 0f;
+                }
+                else if (fwd.sqrMagnitude < 1e-8f || j.phase == Phase.Hold)
                 {
                     Vector3 c = j.item != null ? j.item.transform.position : p;
                     Vector3 radial = p - c;

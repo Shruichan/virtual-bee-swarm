@@ -4,7 +4,7 @@ using UnityEngine;
 namespace VirtualBeeSwarm
 {
     /// <summary>
-    /// The SIGN HERE clipboard (V14): START when deliveries are on. Four bees park it, held still, in front of the
+    /// The SIGN HERE clipboard (V14): START when deliveries are on. One worker bee parks it, held still, in front of the
     /// player in pre; a fingertip poke, a pointer click (mouse, controller or hand ray + pinch) or N / Space signs it.
     /// IntroSequence places it, reacts to <see cref="Signed"/> and sends it back out through the window.
     /// Pivot = bottom edge centre, local +Z = away from the player (art slot SignHere, yaw 180, faces the player).

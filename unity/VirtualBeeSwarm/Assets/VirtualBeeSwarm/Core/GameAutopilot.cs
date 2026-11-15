@@ -259,7 +259,9 @@ namespace VirtualBeeSwarm
             if (forceHornet) director.Hornet = GameDirector.HornetMode.Always;
 
             yield return StartShow();
+            yield return WaitBeat(GameBeat.Meet);
             yield return WaitBeat(GameBeat.Smoker);
+            if (_failed) yield break;
             yield return Station<SmokerStation>(GameIds.Choice.Swat);
             yield return WaitBeat(GameBeat.Feed);
             if (_failed) yield break;
@@ -297,15 +299,16 @@ namespace VirtualBeeSwarm
             yield return WaitBeat(GameBeat.WhatIf);
             var whatIf = FindAnyObjectByType<WhatIfBeat>();
             var embers = FindAnyObjectByType<EmbersFx>();
+            if (!Check(whatIf != null, "what-if beat exists") || !Check(embers != null, "embers effect exists")) yield break;
             yield return Seconds(2f);
-            if (whatIf != null && whatIfHandsOff && net != null && !net.Online)
+            if (whatIfHandsOff && net != null && !net.Online)
             {
                 yield return WaitFor(() => whatIf.FireStarted, "offline auto fire");
                 yield return WaitFor(() => embers != null && embers.Emitting, "embers emitting");
                 yield return WaitFor(() => whatIf.FireOut, "offline auto put-out");
                 Check(net.CurrentScene == GameIds.Scene.FireOut, "window scene = fire_out (is " + net.CurrentScene + ")");
             }
-            else if (whatIf != null)
+            else
             {
                 yield return WaitFor(() => whatIf.PromptDone, "what-if prompt + room_whatif_notfire");
                 yield return Seconds(1f);
@@ -327,11 +330,13 @@ namespace VirtualBeeSwarm
             if (escape != null) Debug.Log("[VBSAutopilot] " + escape.LastScore + " (time scale x" + Time.timeScale + ")");
 
             yield return WaitBeat(GameBeat.T0);
+            yield return WaitFor(() => net != null && net.CurrentScene == GameIds.Scene.Moon, "Moon after liftoff");
             yield return WaitBeat(GameBeat.Map);
             Check(director.SolvedStations == 4, "4 stations solved (" + director.SolvedStations + ")");
             var map = FindAnyObjectByType<LevelMap>();
-            yield return WaitFor(() => map == null || map.UnloadDone, "unload (room_end_contract)");
-            Check(escape == null || escape.EndCardShown, "end card shown");
+            if (!Check(map != null, "level map exists")) yield break;
+            yield return WaitFor(() => map.UnloadDone, "unload (room_end_contract)");
+            Check(escape != null && escape.EndCardShown, "end card shown");
             yield return Seconds(2f);
 
             director.ResetToPre();
@@ -356,14 +361,16 @@ namespace VirtualBeeSwarm
 
         /// <summary>
         /// START: with deliveries on/swirl, wait for the SIGN HERE clipboard to park and sign it like a poke (V14);
-        /// VBS_AUTOPILOT_PRE_IDLE="0,10" first waits that many seconds after it lands, per run (exercises the room_pre
-        /// nudge). Delivery off, or no clipboard within 5 s: director.Next, as before.
+        /// VBS_AUTOPILOT_PRE_IDLE="0,10" first waits that many seconds after it lands, per run.
+        /// With deliveries off, use the ordinary START path.
         /// </summary>
         IEnumerator StartShow()
         {
             var intro = FindAnyObjectByType<IntroSequence>();
-            if (intro != null && intro.SignHereShown)
+            if (!Check(intro != null, "intro exists")) yield break;
+            if (BeeDelivery.Mode != DeliveryMode.Off)
             {
+                if (!Check(intro.SignHereShown, "clipboard is the start prompt")) yield break;
                 float from = Time.realtimeSinceStartup;
                 while (!intro.SignHereReady && Time.realtimeSinceStartup - from < 5f) yield return null;
                 float idle = PreIdleSeconds(_run);
@@ -371,14 +378,10 @@ namespace VirtualBeeSwarm
                 {
                     Debug.Log("[VBSAutopilot] leaving the clipboard unsigned for " + idle.ToString("0.#") + " s");
                     yield return Seconds(idle);
-                    while (net != null && net.IsSpeaking && director.Beat == GameBeat.Pre) yield return null; // let room_pre finish
                 }
-                if (intro.SignHereNow("autopilot"))
-                {
+                if (Check(intro.SignHereNow("autopilot"), "SIGN HERE accepts the player's signature"))
                     Debug.Log("[VBSAutopilot] signed the SIGN HERE clipboard");
-                    yield break;
-                }
-                Debug.Log("[VBSAutopilot] SIGN HERE not ready after " + (Time.realtimeSinceStartup - from).ToString("0.0") + " s: START by key");
+                yield break;
             }
             if (director.Beat == GameBeat.Pre) director.Next("autopilot start");
         }
