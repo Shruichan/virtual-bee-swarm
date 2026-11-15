@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { INTENTS, WHATIF_TOPICS, type BeatName } from "../src/protocol";
 import {
+  GREETING_REPLY,
   ROUTER_SCHEMA,
   SYSTEM_PROMPT,
   cleanAnswer,
@@ -136,6 +137,16 @@ describe("keyword fast path", () => {
       expect(r).toEqual({ intent: intent as any, topic: (topic ?? null) as any, answer: null });
     });
   }
+
+  test("a bare greeting gets Beeswax's greeting and an invitation, in any beat", () => {
+    for (const t of ["Hey Beeswax!", "hi", "Hello, Beeswax.", "Beeswax?", "hey bee's wax", "Mister Beeswax"])
+      for (const beat of ["meet", "smoker", "whatif", "map"] as BeatName[])
+        expect({ t, beat, r: keywordRoute(t, beat) }).toEqual({ t, beat, r: { intent: "ask", topic: null, answer: GREETING_REPLY } });
+    expect(keywordRoute("bee", "meet")?.answer ?? null).not.toBe(GREETING_REPLY); // too easy to hear in noise
+    // a greeting with a question after it is a question, not a greeting
+    expect(keywordRoute("hey beeswax why do bees like bananas", "map")?.answer ?? null).not.toBe(GREETING_REPLY);
+    expect(keywordRoute("hey beeswax what if a fire starts", "whatif")).toMatchObject({ intent: "what_if", topic: "fire" });
+  });
 
   test("route() takes the keyword path without calling Claude", async () => {
     const calls = mockClient(() => reply({ intent: "unknown", topic: null, answer: null }));
