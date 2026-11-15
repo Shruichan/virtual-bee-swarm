@@ -259,6 +259,7 @@ namespace VirtualBeeSwarm.EditorTools
         {
             PlayerSettings.companyName = CompanyName;
             PlayerSettings.productName = ProductName;
+            ConfigureAppIcon();
 
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, PackageId);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, PackageId);
@@ -288,6 +289,23 @@ namespace VirtualBeeSwarm.EditorTools
                     .SequenceEqual(new[] { TextureCompressionFormat.ASTC }))
                 PlayerSettings.Android.textureCompressionFormats = new[] { TextureCompressionFormat.ASTC };
             EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
+        }
+
+        const string AppIconPath = "Assets/VirtualBeeSwarm/Art/Logo/app-icon.png";
+
+        /// <summary>The game logo as the default icon (every platform; Android has no icons of its own, so the APK
+        /// gets it too). Leaves the setting alone when it already is that texture.</summary>
+        public static void ConfigureAppIcon()
+        {
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(AppIconPath);
+            if (icon == null)
+            {
+                s_Notes.Add($"app icon: {AppIconPath} not found, the icon was left as it is");
+                return;
+            }
+            var current = PlayerSettings.GetIcons(NamedBuildTarget.Unknown, IconKind.Any);
+            if (current != null && current.Length > 0 && current[0] == icon) return;
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
         }
 
         // ------------------------------------------------------------------ audio
