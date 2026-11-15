@@ -12,6 +12,20 @@ A worker bee brings you a clipboard. Sign it and the crew delivers a sick hive t
 
 For headset controls, APK builds, and smoke tests, see the [Unity setup guide](unity/VirtualBeeSwarm/README.md).
 
+## Where things are
+
+| Folder | What's in it |
+|---|---|
+| [`art/`](art/) | Blender sources, bee artwork, music masters, and meadow OBJ exports. |
+| [`unity/VirtualBeeSwarm/`](unity/VirtualBeeSwarm/) | The Unity project to open. Its imported art lives in [`Assets/VirtualBeeSwarm/Art/`](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Art/). |
+| [`unity/BeeswaxClient/`](unity/BeeswaxClient/) | The local Unity package for the Hive connection, voice, and offline station choices. Edit station data in [`hive/lines/stations.json`](hive/lines/stations.json) and sync the package copy. |
+| [`hive/`](hive/) | The backend, operator board, and dialogue data. |
+| [`glasses/`](glasses/) | The Mentra glasses app. |
+
+In Unity's `Art/` folder, `Bee/` is the low-poly fallback for the swarm, `WorkerBee/` is the animated worker model, and `BeeVAT/` is the baked animation used by the swarm. The import and animation scripts are in [`ArtAnim/`](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/ArtAnim/).
+
+Beeswax's Blender source and export notes are in [`art/blender/beeswax/`](art/blender/beeswax/). The tracked FBX is under [Unity's Beeswax rig](unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Art/Beeswax/Rig/).
+
 ## Run the Hive
 
 Create `hive/.env` from `hive/.env.example` and set `HIVE_TOKEN` to the shared local value. Start it from a terminal.
