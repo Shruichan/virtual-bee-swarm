@@ -252,6 +252,8 @@ namespace VirtualBeeSwarm
             Vector3 d = p - _followFrom;
             d.y = 0f;
             bool away = d.magnitude > followMoveMeters || Vector3.Angle(f, _followFwd) > followTurnDegrees;
+            // [RoomAware] hook (Rome): the room fit may turn the rig up to ~60 deg off the view; turning to face it isn't turning away
+            if (away && d.magnitude <= followMoveMeters && Vector3.Angle(f, Flat(rigAnchor.forward)) <= followTurnDegrees) away = false;
             if (!away || moving) { _stillSince = away ? Time.unscaledTime : -1f; return; }
             if (_stillSince < 0f) _stillSince = Time.unscaledTime;
             if (Time.unscaledTime - _stillSince < followSettleSeconds) return;
@@ -260,6 +262,19 @@ namespace VirtualBeeSwarm
             _followFwd = f;
             _stillSince = -1f;
             Debug.Log("[VBS] rig follows the player (moved or turned before signing)");
+        }
+
+        // [RoomAware] hook (Rome): the room scan / depth keep-outs arrive after the automatic placement; RigFit asks for
+        // one more automatic placement while the rig is still the auto-placed one that follows the player.
+        public bool AutoFollowing => _follow && !Holding && Allowed;
+
+        public void ReplaceAuto(string why)
+        {
+            if (!AutoFollowing) return;
+            PlaceInFront(headsetDistance, headsetBelowEyes);
+            var head = Head();
+            if (head != null) StartFollowing(head);
+            Debug.Log("[VBS] rig placed again (" + why + ")");
         }
 
         void Save()
