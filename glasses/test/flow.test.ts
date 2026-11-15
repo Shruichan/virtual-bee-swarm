@@ -37,10 +37,12 @@ const fieldGuideReply = {
   verdict: "good",
   line_id: null,
   audio_url: null,
-  caption: "Likely lavender. Choose locally native flowers, and avoid spraying them while they bloom.",
+  caption: "Likely lavender. Look for whorls of tiny flowers; compare its shape with the next bloom you spot.",
   path: "claude",
   ms: 0,
 }
+let fieldGuideSequence: string[] = []
+let fieldGuideScanCount = 0
 const FIRE_REPLY = {intent: "what_if", topic: "fire", line_id: null, audio_url: null, caption: "Don't. Say. That."}
 let utteranceReply: unknown = FIRE_REPLY
 let utteranceStatus = 200
@@ -72,7 +74,11 @@ beforeAll(async () => {
             const notNow = {item: "unclear", verdict: "roast", line_id: NOT_NOW, audio_url: null, caption: "", path: "operator", ms: 0}
             return Response.json(notNow, {status: 409})
           }
-          return Response.json(body?.field_guide === true ? fieldGuideReply : scanReply)
+          if (body?.field_guide === true) {
+            const caption = fieldGuideSequence[fieldGuideScanCount++] ?? fieldGuideReply.caption
+            return Response.json({...fieldGuideReply, caption})
+          }
+          return Response.json(scanReply)
         case "/glasses/utterance":
           await sleep(utteranceDelayMs)
           return Response.json(utteranceReply, {status: utteranceStatus})
@@ -100,6 +106,8 @@ afterEach(() => {
   hits = []
   scanDelayMs = 0
   scanRefused = false
+  fieldGuideSequence = []
+  fieldGuideScanCount = 0
   utteranceReply = FIRE_REPLY
   utteranceStatus = 200
   utteranceDelayMs = 0
@@ -194,6 +202,24 @@ test("field guide: button scan works outside game scan beats and speaks a likely
   const scan = hits.find((h) => h.path === "/glasses/scan")!
   expect(scan.body).toMatchObject({field_guide: true, photo_url: "https://photos.example/p1.jpg"})
   expect(fake.leds).toContainEqual(expect.objectContaining({color: "green"}))
+})
+
+test("field guide: simulated flower, pollinator, and unclear scans all produce audio guidance", async () => {
+  const fake = await boot({photoMs: 20}, {fieldGuideMode: true})
+  await questBeat(fake, "hook")
+  const replies = [
+    "Likely lavender. Look for whorls of tiny flowers; compare its shape with the next bloom you spot.",
+    "This looks like a bumblebee. Notice its fuzzy body; compare colors from a distance and don't approach it.",
+    "I can't identify the insect from this view. Try again with it centered; don't touch or collect it.",
+  ]
+  fieldGuideSequence = replies
+  for (const caption of replies) {
+    fake.press()
+    await until(() => fake.audio.some((a) => a.kind === "speak" && a.text === caption), 3000, "simulated field-guide audio")
+    await until(() => fake.status.last?.scanning === false, 1000, "scan done")
+  }
+  expect(hits.filter((h) => h.path === "/glasses/scan")).toHaveLength(3)
+  expect(hits.filter((h) => h.path === "/glasses/scan").every((h) => h.body.field_guide === true)).toBe(true)
 })
 
 test("outside a scan beat: no hold-still, no photo, the Hive's line plays", async () => {

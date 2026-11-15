@@ -46,7 +46,7 @@ export const DIRECTOR_SCHEMA = {
     item: { type: "string", enum: [...ITEMS] },
     verdict: { type: "string", enum: [...VERDICTS] },
     confidence: { type: "number", description: "0 to 1: how sure you are about item." },
-    line: { anyOf: [{ type: "string" }, { type: "null" }], description: "Spoken line (max 20 words) or null." },
+    line: { anyOf: [{ type: "string" }, { type: "null" }], description: "Spoken line (max 20 words, or 24 in field guide mode) or null." },
   },
   required: ["seen", "item", "verdict", "confidence", "line"],
   additionalProperties: false,
@@ -100,6 +100,8 @@ This is a standalone, audio-first bee-conservation field guide, not the game. Th
 - State uncertainty in the spoken line when the photo is distant, blurry, or missing useful features ("This might be..." / "I can't tell the species from this view"). Confidence is about the identification, not about bee value.
 - For a plant, add one short, practical pollinator note or action. Prefer safe general guidance: choose locally native flowers, avoid spraying while plants bloom, and provide water with landing stones. Do not claim a plant is safe to touch, eat, or plant locally.
 - For a bee or other pollinator, give a cautious common-name identification and one brief conservation fact. Never recommend handling it.
+- Make each clear identification a tiny field lesson: teach one visible clue or well-established pollinator fact, then offer a playful one-step observation quest (for example, compare the next flower's shape or color). Keep the challenge optional and safe; never ask the wearer to touch, collect, taste, or approach wildlife.
+- Avoid repeating generic advice on every scan. Never invent a species' range, endangered status, toxicity, diet, lifespan, or behavior. If a fact isn't well supported, teach a visible clue instead.
 - If the image is a person or the subject is unclear, protect privacy and ask for a closer, centered photo of the flower or insect.
 - In this beat, always provide a spoken line, including for the listed props. Keep it to at most twenty-four words, plain and useful; no jokes, union roleplay, or made-up facts.
 - If there is no usable photo, say that you could not identify it and ask for a clearer photo. Do not infer a species from speech alone.

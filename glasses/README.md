@@ -1,9 +1,10 @@
 # Bee Scout: plant and pollinator IDs in your ear
 
 Mentra Live has no display, so Bee Scout is built around a button, camera, LED, and audio. Point at a
-flower or pollinator and press once. Beeswax speaks a likely identification, says when the picture
-isn't clear enough for a confident ID, and adds one short bee-friendly observation or action. It
-doesn't ask the wearer to read the phone during a scan.
+flower or pollinator and press once. Beeswax speaks a likely identification, teaches a visible
+clue or a well-supported pollinator fact, and gives an optional one-step observation quest. If the
+picture isn't clear enough, it says so and asks for a retry. It doesn't ask the wearer to read the
+phone during a scan.
 
 The same app can still connect to the Quest demo: the glasses play ear asides and send the scout's
 plea during the plea beat. Field guide scans run independently of the Quest beat clock and do not
@@ -57,7 +58,7 @@ end up on the same Hive as the Quest. To force one host, set `hosts` in `config.
 4. Every save rebuilds and reloads on the phone. `console.log` from the background shows up in
    the `bun dev` terminal (lines start with `[beeswax]`).
 
-Open the **Beeswax** tile in the Mentra App for the status page: Hive connection and host, beat,
+Open the **Bee Scout** tile in the Mentra App for the status page: Hive connection and host, beat,
 glasses and cloud state, last line, latest latency per hop, and a log. **Test scan** runs the
 same flow as a button press (handy to test the Hive without the glasses); **Replay** replays.
 
