@@ -8,6 +8,7 @@ import {Led} from "./led"
 import {LiveStream} from "./live"
 import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest} from "./protocol"
 import {Scanner} from "./scan"
+import {Scout} from "./scout"
 import {Transcript} from "./transcript"
 import {describe} from "./util"
 import {VOCABULARY, Voice} from "./voice"
@@ -73,6 +74,8 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
   // In scout mode the camera streams the whole time; a photo warm-up would fight it for the camera.
   if (config.fieldGuideMode && !config.scoutMode) scanner.warmCamera()
   const live = config.scoutMode ? new LiveStream(session.stream, config, log) : null
+  // Scout mode: presses and final transcripts go to the Hive's /scout game, not the scanner or Voice.
+  const scout = config.scoutMode ? new Scout({hive, led: session.led, log}) : null
 
   const voice = new Voice({
     hive,
@@ -90,7 +93,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
 
   // UI first: the Mentra App holds UI requests until this handler returns.
   session.ui.onOpen(push)
-  session.ui.on("press", () => void scanner.press("ui"))
+  session.ui.on("press", () => (scout ? scout.button() : void scanner.press("ui")))
   session.ui.on("replay", () => ear.replay())
 
   ear.onLine = (ref, caption) => {
@@ -114,6 +117,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     status.bus = state
     status.host = hive.host
     push()
+    if (state === "open") scout?.busOpen()
   }
   bus.onMessage = (msg: BusMessage) => {
     switch (msg.type) {
@@ -122,7 +126,9 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
       case "beat.set":
         return setBeat(msg.n)
       case "say":
-        if (msg.channel === "ear") void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption})
+        if (msg.channel !== "ear") return
+        scout?.said(msg)
+        void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption})
         return
       case "group.reset":
         log(`new group ${msg.group_id ?? ""}`)
@@ -163,6 +169,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     sub("button", () =>
       session.input.onButtonPress((p) => {
         if (p.pressType === "long") ear.replay()
+        else if (scout) scout.button()
         else void scanner.press(p.buttonId || "button")
       }),
     ),
@@ -170,7 +177,8 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     sub("transcription", () =>
       session.transcription.forLanguage("en-US", (data) => {
         transcript.push(data)
-        voice.heard(data)
+        if (scout) scout.heard(data)
+        else voice.heard(data)
       }),
     ),
     sub("cloud status", () =>
