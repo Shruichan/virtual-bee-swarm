@@ -81,7 +81,7 @@ setInterval(() => {
 
 // ------------------------------------------------------------------ fake game state + frames
 // --no-glasses-mute: act like a Hive without POST /scout/glasses-mute (the judge screen shows it unavailable)
-const state: ScoutState = { phase: MODE === "slides" ? "looking" : "intro", found: [], skipped: [], offer: null, current: null, started_at: MODE === "slides" ? Date.now() : null, practice: opt.practice === "1" };
+const state: ScoutState = { phase: MODE === "slides" ? "looking" : MODE === "quiet" ? "waiting" : "intro", found: [], skipped: [], offer: null, current: null, started_at: MODE === "slides" ? Date.now() : null, practice: opt.practice === "1" };
 if (!opt["no-glasses-mute"]) (state as ScoutState & { glasses_muted?: boolean }).glasses_muted = false;
 function pushState(patch: Partial<ScoutState>) {
   Object.assign(state, patch);
@@ -374,6 +374,11 @@ Bun.serve({
     }
     if (p === "/scout/teacher" && req.method === "POST") {
       setTimeout(() => say("scout_teacher"), 400); // like the game: the voiced line comes back as a say event
+      return json(state);
+    }
+    if (p === "/scout/stop" && req.method === "POST") {
+      target = SCOUT_BACKGROUND;
+      pushState({ phase: "waiting", found: [], skipped: [], offer: null, started_at: null });
       return json(state);
     }
     if (p === "/scout/reset" && req.method === "POST") {
