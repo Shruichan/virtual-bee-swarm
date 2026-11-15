@@ -515,10 +515,16 @@ namespace VirtualBeeSwarm.AR
                 float dP = Vector3.Dot(pos - eye, fwd), dR = Vector3.Dot(rocket.position - eye, fwd);
                 if (dR > 0.2f && dP > dR)
                 {
-                    float lat = Vector3.Dot(rocket.position - eye, right) * (dP / dR) - Vector3.Dot(pos - eye, right);
-                    float rocketHalf = 0.3f * (dP / dR);
-                    float need = width * 0.5f + 0.15f + rocketHalf - Mathf.Abs(lat);
-                    if (need > 0f) shift = -Mathf.Sign(lat == 0f ? 1f : lat) * need;
+                    float projection = dP / dR;
+                    bool measured = rocket.TryGetComponent(out DeliveryItem body) && body.measured;
+                    float projectedTop = measured ? eye.y + (rocket.position.y + body.Top - eye.y) * projection : float.PositiveInfinity;
+                    if (projectedTop >= cy - halfH)
+                    {
+                        float lat = Vector3.Dot(rocket.position - eye, right) * projection - Vector3.Dot(pos - eye, right);
+                        float rocketHalf = (measured ? body.Radius : 0.3f) * projection;
+                        float need = width * 0.5f + 0.15f + rocketHalf - Mathf.Abs(lat);
+                        if (need > 0f) shift = -Mathf.Sign(lat == 0f ? 1f : lat) * need;
+                    }
                 }
             }
             pos += right * shift;
