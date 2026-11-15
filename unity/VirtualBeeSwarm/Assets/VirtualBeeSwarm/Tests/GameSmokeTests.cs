@@ -221,6 +221,11 @@ namespace VirtualBeeSwarm.Tests
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
 
+            var rainCloud = UnityEngine.Object.FindAnyObjectByType<DeliveryRainCloud>();
+            Assert.IsNotNull(rainCloud, "rain cloud controller");
+            net.RequestScene(GameIds.Scene.FireOut, sendToHive: false);
+            Assert.IsFalse(rainCloud.Busy, "the finale's window preview cannot bring the room's rain crew");
+
             Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.GreaterThan(10f), "crash tilt stays through the contract");
 
             // Rehearsal controls can revisit a station without changing the score or finishing an abandoned flight.

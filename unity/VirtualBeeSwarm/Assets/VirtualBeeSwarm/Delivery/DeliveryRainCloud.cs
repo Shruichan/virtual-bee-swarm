@@ -66,6 +66,8 @@ namespace VirtualBeeSwarm
 
         void HandleScene(string scene)
         {
+            // Ask Beeswax may show a fire recovery clip during the finale without starting a room effect.
+            if (_director != null && (_director.Beat == GameBeat.Map || _director.Beat == GameBeat.Field)) return;
             if (scene == GameIds.Scene.FireOut) Bring();
             else if (scene == GameIds.Scene.WhatIfFire) EmberBurst();
         }
