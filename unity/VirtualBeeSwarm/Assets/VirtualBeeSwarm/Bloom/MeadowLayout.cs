@@ -62,22 +62,46 @@ namespace VirtualBeeSwarm.Bloom
         /// <summary>The swarm's orbits widen with the rig, so the bees fly round the big hive, not inside it.</summary>
         public static float SwarmSpread => Active ? Mathf.Lerp(1f, Scale, 0.75f) : 1f;
 
-        /// <summary>The meadow window's centre height (ArRig): above the big hive's roof, under the ceiling.</summary>
-        public static float WindowCentreY => FloorY + Mathf.Clamp(MeadowTuning.HiveStand + 0.31f * Scale + 0.45f, 1.2f, 1.9f);
+        /// <summary>The meadow window's centre height (ArRig): its bottom just over the roof line the player sees.</summary>
+        public static float WindowCentreY => FloorY + Mathf.Clamp(WindowLowest + WindowWidth * 0.33f, 1.2f, 1.9f);
+        /// <summary>The window's lowest bottom edge (m above the floor): from 1.5-1.75 m eyes 0.55 m from the hive front,
+        /// the 1.23 m roof hides a wall ~2 m behind the hive only below ~0.8 m.</summary>
+        const float WindowLowest = 0.95f;
+
+        /// <summary>ArRig: the window's bottom edge (world y) at this spot on the wall: just above the line from the
+        /// player's eyes over the hive roof's back edge (so the roof never overlaps it from the player's spot), and never
+        /// below WindowLowest.</summary>
+        public static float WindowBottomY(Vector3 windowPos)
+        {
+            float floor = FloorY, low = floor + WindowLowest;
+            if (!Active || Anchor == null) return RoofY + 0.15f;
+            var hive = Anchor.Find("Hive");
+            Vector3 fwd = Anchor.forward; fwd.y = 0f;
+            if (fwd.sqrMagnitude < 1e-6f) return low;
+            fwd.Normalize();
+            var cam = Camera.main;
+            Vector3 eye = cam != null ? cam.transform.position : Anchor.position - fwd * 0.7f + Vector3.up * 1.65f;
+            Vector3 back = (hive != null ? hive.position : Anchor.position) + fwd * (0.11f * Scale); // the roof's back edge
+            float dRoof = Vector3.Dot(back - eye, fwd), dWall = Vector3.Dot(windowPos - eye, fwd);
+            if (dRoof < 0.1f || dWall <= dRoof) return Mathf.Max(low, RoofY + 0.15f);
+            float y = eye.y + (RoofY - eye.y) * (dWall / dRoof);
+            return Mathf.Max(low, Mathf.Min(y + 0.12f, RoofY + 0.15f));
+        }
         public static float WindowWidth => MeadowTuning.WindowWidth;
         /// <summary>The big hive's roof (world y): the window's bottom stays above it.</summary>
         public static float RoofY => FloorY + MeadowTuning.HiveStand + 0.31f * Scale;
 
-        /// <summary>ArRig: how far to slide the window (width m) along the wall (its right axis) so the hive roof doesn't
-        /// cover it, to the side away from the rocket: clear of the roof when the ceiling is too low to lift it above.</summary>
+        /// <summary>ArRig: how far to slide the window (width m) along the wall (its right axis). Over the roof line it stays
+        /// centred behind the hive, straight ahead; only under a ceiling too low for that it slides clear of the roof, to
+        /// the side away from the rocket.</summary>
         public static float WindowSideShift(Vector3 windowRight, float width, bool clearsRoof)
         {
-            if (!Active || Anchor == null) return 0f;
+            if (!Active || Anchor == null || clearsRoof) return 0f;
             var rocket = Anchor.Find("HONEYMOON-1");
             var hive = Anchor.Find("Hive");
             float side = -1f;
             if (rocket != null && hive != null) side = Vector3.Dot(rocket.position - hive.position, windowRight) > 0f ? -1f : 1f;
-            return side * (clearsRoof ? 0.4f : 0.15f * Scale + width * 0.5f + 0.15f);
+            return side * (0.15f * Scale + width * 0.5f + 0.15f);
         }
         public static float WindowBehindHive => 0.25f * Scale + 0.25f;
 
@@ -276,6 +300,14 @@ namespace VirtualBeeSwarm.Bloom
         {
             var parts = new List<string>();
             var rocket = anchor.Find("HONEYMOON-1");
+            if (rocket != null && MeadowTuning.RocketX > 0f)
+            {
+                // beside the hive and a step behind it, so from the player's spot it stands whole in view: not cut off at
+                // the edge of the view, not behind the hive's roof corner, nose under eye height
+                var lp = rocket.localPosition;
+                rocket.localPosition = new Vector3(Mathf.Sign(lp.x == 0f ? 1f : lp.x) * MeadowTuning.RocketX / Scale, lp.y, MeadowTuning.RocketZ / Scale);
+                parts.Add("rocket at " + MeadowTuning.RocketX.ToString("0.00", C) + " m right, " + MeadowTuning.RocketZ.ToString("0.00", C) + " m back");
+            }
             if (rocket != null && MeadowTuning.RocketHeight > 0.1f && WorldBounds(rocket, out var rb) && rb.size.y > 0.05f)
             {
                 float f = Mathf.Clamp(MeadowTuning.RocketHeight / rb.size.y, 0.5f, 4f);
