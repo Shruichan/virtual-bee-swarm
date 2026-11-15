@@ -43,7 +43,18 @@ export class LiveStream {
       const v = res.resolvedConfig?.video
       this.set("live", `${res.status} in ${Date.now() - t0} ms${v ? ` (${v.width}x${v.height} @ ${v.fps} fps)` : ""}`)
     } catch (err) {
-      this.set("failed", describe(err))
+      const why = describe(err)
+      this.set("failed", why)
+      // A stream left over from an earlier session (e.g. another network) keeps the camera busy:
+      // stop whatever stream is active, then retry.
+      if (/camera_busy/i.test(why)) {
+        this.log("stream: camera busy, stopping any leftover stream")
+        try {
+          await this.stream.stop()
+        } catch (e) {
+          this.log(`stream: leftover stop failed: ${describe(e)}`)
+        }
+      }
       // The glasses may still be joining Wi-Fi: try again in 5 s until stopped.
       if (!this.stopped) this.retry = setTimeout(() => void this.start(), 5000)
     }
