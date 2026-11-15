@@ -1,13 +1,12 @@
-"""Printable Bee Scout station cards: big object photo + name + an AprilTag "station badge".
+"""Bee Scout station cards: the station's game-art picture big and centred, its name below, the logo in a corner.
 
-    uv run python -m detect.make_cards                       # -> out/cards/<label>.png (Letter, 300 dpi),
-                                                             #    out/cards/screen/<label>.png (1920x1080),
-                                                             #    out/cards/station_cards.pdf (one card per page)
-    uv run python -m detect.make_cards --config my.json --out out/cards2
+    uv run python -m detect.make_cards        # -> out/cards/screen/<label>.png (1920 x 1080, full-screen viewing)
+                                              #    out/cards/print/<label>.png (US Letter landscape, 300 dpi)
+                                              #    out/cards/station_cards.pdf (US Letter, one card per page)
+                                              #    out/cards/contact_sheet.jpg
 
-US Letter landscape at 300 dpi. Print at 100% ("actual size", not "fit to page") so the tag's black square
-comes out at tag_cm (cards.json). The badge's white field is the tag's quiet zone: keep it white, don't
-laminate with a glossy film if you can avoid it (glare hides the tag), and don't trim into it.
+Pictures come from detect/card_images (station_art/render_dart.py + compose.py: dartiros' models rendered in one
+style). Names, order and pictures are in detect/cards.json. No markers on the cards.
 """
 
 from __future__ import annotations
@@ -17,165 +16,106 @@ import json
 import math
 from pathlib import Path
 
-import cv2
-import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from .markers import FAMILY, TAG_IDS, tag_cells
-
 ROOT = Path(__file__).resolve().parent.parent
-DPI = 300
-PAGE = (3300, 2550)  # 11 x 8.5 in landscape
-MARGIN = 110
-INK = (43, 33, 24)
-HONEY = (242, 183, 5)
-HONEY_DARK = (196, 128, 0)
-CREAM = (255, 248, 231)
-QUIET_CELLS = 1.0  # white quiet zone around the tag's black square, in tag cells (the spec minimum; the honey frame beyond it is light too)
-
+CREAM = (255, 243, 214)
+COMB = (247, 228, 186)
+INK = (74, 42, 20)
+HONEY = (232, 150, 20)
+LOGO = Path("/Users/aditya/Downloads/logo_trans_-_background.png")
 FONT_DIRS = ["/System/Library/Fonts/Supplemental", "/System/Library/Fonts", "/Library/Fonts", "/usr/share/fonts/truetype/dejavu"]
 FONT_BOLD = ["Arial Rounded Bold.ttf", "SFNSRounded.ttf", "DejaVuSans-Bold.ttf"]
-FONT_REG = ["Avenir Next.ttc", "Helvetica.ttc", "DejaVuSans.ttf"]
 
 
-def font(names: list[str], size: int) -> ImageFont.FreeTypeFont:
+def font(size: int) -> ImageFont.FreeTypeFont:
     for d in FONT_DIRS:
-        for n in names:
+        for n in FONT_BOLD:
             p = Path(d) / n
             if p.exists():
                 return ImageFont.truetype(str(p), size)
     return ImageFont.load_default(size)
 
 
-def cm(v: float) -> int:
-    return int(round(v / 2.54 * DPI))
+def hexagon(cx: float, cy: float, r: float) -> list[tuple[float, float]]:
+    return [(cx + r * math.cos(math.radians(30 + 60 * k)), cy + r * math.sin(math.radians(30 + 60 * k))) for k in range(6)]
 
 
-def tag_pil(tag_id: int, side_px: int, family: str) -> Image.Image:
-    d = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, family))
-    n = tag_cells(family)
-    cell = max(1, side_px // n)
-    img = cv2.aruco.generateImageMarker(d, tag_id, n * cell)  # exact multiple: crisp cell edges
-    return Image.fromarray(img).convert("RGB")
-
-
-def cover(im: Image.Image, w: int, h: int) -> Image.Image:
-    s = max(w / im.width, h / im.height)
-    im = im.resize((math.ceil(im.width * s), math.ceil(im.height * s)), Image.LANCZOS)
-    l, t = (im.width - w) // 2, (im.height - h) // 2
-    return im.crop((l, t, l + w, t + h))
-
-
-def hexagon(cx: float, cy: float, r: float, rot: float = 30) -> list[tuple[float, float]]:
-    return [(cx + r * math.cos(math.radians(rot + 60 * k)), cy + r * math.sin(math.radians(rot + 60 * k))) for k in range(6)]
-
-
-def honeycomb(draw: ImageDraw.ImageDraw, x0: int, y0: int, cols: int, rows: int, r: int, color) -> None:
+def honeycomb(d: ImageDraw.ImageDraw, x0: float, y0: float, cols: int, rows: int, r: float, width: int) -> None:
     w = math.sqrt(3) * r
     for j in range(rows):
         for i in range(cols):
-            cx = x0 + i * w + (w / 2 if j % 2 else 0)
-            cy = y0 + j * 1.5 * r
-            draw.polygon(hexagon(cx, cy, r * 0.92), outline=color, width=6)
+            d.polygon(hexagon(x0 + i * w + (w / 2 if j % 2 else 0), y0 + j * 1.5 * r, r * 0.92), outline=COMB, width=width)
 
 
-def render_card(card: dict, cfg: dict, number: int) -> tuple[Image.Image, int]:
-    family = cfg.get("family", FAMILY)
-    label = card["label"]
-    tag_id = card.get("tag_id", TAG_IDS[label])
-    n = tag_cells(family)
-    tag_px = cm(float(cfg.get("tag_cm", 9.0)))
-    tag_px -= tag_px % n
-    cell = tag_px // n
-    white = tag_px + int(2 * QUIET_CELLS * cell)  # tag + quiet zone
-    frame = 46  # honey frame thickness
-    badge_w = white + 2 * frame
-    tab_h = 150  # "SCOUT STATION" tab above the white field
+def logo_badge(size: int, logo: Path) -> Image.Image | None:
+    """The logo cropped to a circle with a honey ring (the source PNG has a patterned, not transparent, background)."""
+    if not logo.exists():
+        return None
+    im = Image.open(logo).convert("RGB")
+    s = min(im.size)
+    im = im.crop(((im.width - s) // 2, (im.height - s) // 2, (im.width + s) // 2, (im.height + s) // 2)).resize((size, size), Image.LANCZOS)
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, size - 1, size - 1), fill=255)
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    out.paste(im, (0, 0), mask)
+    ImageDraw.Draw(out).ellipse((0, 0, size - 1, size - 1), outline=HONEY, width=max(3, size // 28))
+    return out
 
-    W, H = PAGE
-    page = Image.new("RGB", PAGE, CREAM)
+
+def render_card(card: dict, number: int, W: int, H: int, root: Path, logo: Path) -> Image.Image:
+    u = H / 1080  # layout unit: 1 = one pixel on a 1080-tall screen card
+    page = Image.new("RGB", (W, H), CREAM)
     d = ImageDraw.Draw(page)
-    honeycomb(d, -40, H - 330, 9, 4, 95, (247, 226, 170))
-    honeycomb(d, W - 760, -60, 6, 3, 95, (247, 226, 170))
-
-    # right column: the badge, vertically centred under its tab
-    bx1 = W - MARGIN
-    bx0 = bx1 - badge_w
-    body_h = white + 2 * frame
-    by0 = (H - (body_h + tab_h + 210)) // 2 + tab_h
-    by1 = by0 + body_h
-    # tab: a stretched hexagon ribbon
-    tw = badge_w * 0.78
-    tcx = (bx0 + bx1) / 2
-    ty0, ty1 = by0 - tab_h - 10, by0 + 20
-    tab = [(tcx - tw / 2, ty0), (tcx + tw / 2, ty0), (tcx + tw / 2 + 60, (ty0 + ty1) / 2), (tcx + tw / 2, ty1),
-           (tcx - tw / 2, ty1), (tcx - tw / 2 - 60, (ty0 + ty1) / 2)]
-    d.polygon(tab, fill=INK)
-    ft = font(FONT_BOLD, 84)
-    txt = f"SCOUT STATION {number}"
-    tl = d.textlength(txt, font=ft)
-    d.text((tcx - tl / 2, (ty0 + ty1) / 2 - 10), txt, font=ft, fill=HONEY, anchor="lm")
-    d.rounded_rectangle((bx0, by0, bx1, by1), radius=70, fill=HONEY, outline=INK, width=10)
-    d.rectangle((bx0 + frame, by0 + frame, bx1 - frame, by1 - frame), fill=(255, 255, 255))
-    page.paste(tag_pil(tag_id, tag_px, family), (bx0 + frame + (white - tag_px) // 2, by0 + frame + (white - tag_px) // 2))
-    # small hexagon "studs" on the badge's frame corners (decoration outside the white field)
-    for (sx, sy) in [(bx0 + frame / 2, by0 + frame / 2), (bx1 - frame / 2, by0 + frame / 2),
-                     (bx0 + frame / 2, by1 - frame / 2), (bx1 - frame / 2, by1 - frame / 2)]:
-        d.polygon(hexagon(sx, sy, 34), fill=HONEY_DARK, outline=INK, width=5)
-    fc = font(FONT_BOLD, 70)
-    cap = "Scout, look here!"
-    d.text(((bx0 + bx1) / 2, by1 + 95), cap, font=fc, fill=INK, anchor="mm")
-
-    # left column: header, photo, name
-    lx0, lx1 = MARGIN, bx0 - 90
-    fh = font(FONT_BOLD, 74)
-    d.text((lx0, MARGIN + 30), "BEE SCOUT", font=fh, fill=HONEY_DARK, anchor="lm")
-    py0 = MARGIN + 110
-    name_h = 300
-    py1 = H - MARGIN - name_h - 40
+    honeycomb(d, W - 330 * u, -40 * u, 5, 3, 70 * u, max(2, int(5 * u)))
+    honeycomb(d, -60 * u, H - 170 * u, 5, 3, 70 * u, max(2, int(5 * u)))
+    b = logo_badge(int(130 * u), logo)
+    if b is not None:
+        page.paste(b, (int(40 * u), int(36 * u)), b)
+    d.text((int(190 * u), int(101 * u)), "BEE SCOUT", font=font(int(54 * u)), fill=INK, anchor="lm")
+    d.text((W - int(48 * u), int(101 * u)), f"STATION {number}", font=font(int(40 * u)), fill=HONEY, anchor="rm")
     src = Path(card["image"])
-    if not src.is_absolute():
-        root = Path(cfg.get("image_root", "."))
-        src = (root if root.is_absolute() else ROOT / root) / src
-    photo = cover(Image.open(src).convert("RGB"), lx1 - lx0, py1 - py0)
-    mask = Image.new("L", photo.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, photo.width - 1, photo.height - 1), radius=60, fill=255)
-    page.paste(photo, (lx0, py0), mask)
-    d.rounded_rectangle((lx0, py0, lx1, py1), radius=60, outline=INK, width=10)
+    src = src if src.is_absolute() else root / src
+    side = int(min(W * 0.9, H - 330 * u))
+    art = Image.open(src).convert("RGB").resize((side, side), Image.LANCZOS)  # same cream background as the page
+    page.paste(art, ((W - side) // 2, int(140 * u)))
     name = card["name"]
-    size = 210
-    fn = font(FONT_BOLD, size)
-    while d.textlength(name, font=fn) > lx1 - lx0 and size > 90:
-        size -= 10
-        fn = font(FONT_BOLD, size)
-    d.text((lx0, py1 + 40 + name_h / 2 - 30), name, font=fn, fill=INK, anchor="lm")
-    if card.get("credit"):
-        d.text((lx0, H - MARGIN + 30), card["credit"], font=font(FONT_REG, 34), fill=(120, 105, 90), anchor="lm")
-    return page, tag_px
+    size = int(120 * u)
+    fn = font(size)
+    while d.textlength(name, font=fn) > W * 0.9 and size > 40:
+        size -= 6
+        fn = font(size)
+    d.text((W / 2, H - int(100 * u)), name, font=fn, fill=INK, anchor="mm")
+    return page
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=Path(__file__).with_name("cards.json"))
     ap.add_argument("--out", type=Path, default=ROOT / "out" / "cards")
+    ap.add_argument("--logo", type=Path, default=LOGO)
     args = ap.parse_args()
     cfg = json.loads(args.config.read_text())
-    args.out.mkdir(parents=True, exist_ok=True)
-    pages = []
+    root = ROOT / cfg.get("image_root", "detect/card_images")
+    (args.out / "screen").mkdir(parents=True, exist_ok=True)
+    (args.out / "print").mkdir(parents=True, exist_ok=True)
+    pages, thumbs = [], []
     for i, card in enumerate(cfg["cards"], 1):
-        page, tag_px = render_card(card, cfg, i)
-        p = args.out / f"{card['label']}.png"
-        page.save(p, dpi=(DPI, DPI))
-        pages.append(page)
-        screen = Image.new("RGB", (1920, 1080), CREAM)  # full-screen viewing: the card letterboxed
-        fit = page.resize((round(1080 * PAGE[0] / PAGE[1]), 1080), Image.LANCZOS)
-        screen.paste(fit, ((1920 - fit.width) // 2, 0))
-        (args.out / "screen").mkdir(exist_ok=True)
+        screen = render_card(card, i, 1920, 1080, root, args.logo)
         screen.save(args.out / "screen" / f"{card['label']}.png")
-        print(f"{p}  tag id {card.get('tag_id', TAG_IDS[card['label']])}, black square {tag_px / DPI * 2.54:.1f} cm")
+        page = render_card(card, i, 3300, 2550, root, args.logo)  # US Letter landscape at 300 dpi
+        page.save(args.out / "print" / f"{card['label']}.png", dpi=(300, 300))
+        pages.append(page)
+        thumbs.append(screen.resize((640, 360), Image.LANCZOS))
+        print(args.out / "screen" / f"{card['label']}.png")
     pdf = args.out / "station_cards.pdf"
-    pages[0].save(pdf, save_all=True, append_images=pages[1:], resolution=DPI)
+    pages[0].save(pdf, save_all=True, append_images=pages[1:], resolution=300)
+    sheet = Image.new("RGB", (1310, 360 * 3 + 40), (255, 255, 255))
+    for k, t in enumerate(thumbs):
+        sheet.paste(t, (10 + (k % 2) * 650, 10 + (k // 2) * 370))
+    sheet.save(args.out / "contact_sheet.jpg", quality=90)
     print(pdf)
+    print(args.out / "contact_sheet.jpg")
 
 
 if __name__ == "__main__":
