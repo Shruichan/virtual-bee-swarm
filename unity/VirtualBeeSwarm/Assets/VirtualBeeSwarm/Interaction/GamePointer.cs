@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.XR;
 using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
@@ -67,9 +68,9 @@ namespace VirtualBeeSwarm
                 }
                 else if (_directGrab)
                 {
-                    if (TryGetHandPoint(out var hp)) _grab.UpdateGrab(hp);
+                    if (TryGetHandPoint(out var hp)) UpdateCurrentGrab(hp);
                 }
-                else if (HasRay) _grab.UpdateGrab(ray.GetPoint(_grabDistance));
+                else if (HasRay) UpdateCurrentGrab(ray.GetPoint(_grabDistance));
                 DrawRay(HasRay, ray, _grabDistance);
                 return;
             }
@@ -130,6 +131,22 @@ namespace VirtualBeeSwarm
             }
             else if (target != null) target.Click();
             else if (lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+        }
+
+        void UpdateCurrentGrab(Vector3 point)
+        {
+            var hive = source != Source.Mouse ? _grab as HiveBody : null;
+            bool waitingForLift = hive != null && !hive.LiftReported;
+            _grab.UpdateGrab(point);
+            if (!waitingForLift || !hive.LiftReported) return;
+
+            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
+            if (!(GameHands.For(hand) is IControllerPoseSource input) || !input.IsController(hand)) return;
+
+            var device = InputDevices.GetDeviceAtXRNode(hand == GameHand.Left ? XRNode.LeftHand : XRNode.RightHand);
+            if (device.isValid && (device.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
+                device.TryGetHapticCapabilities(out var haptics) && haptics.supportsImpulse && haptics.numChannels > 0)
+                device.SendHapticImpulse(0, 0.25f, 0.09f);
         }
 
         void BeginDirectGrab(IGameGrabTarget target, Vector3 point)

@@ -49,6 +49,7 @@ namespace VirtualBeeSwarm
         public bool Grabbable => LiftEnabled && isActiveAndEnabled;
         public bool Held { get; private set; }
         public float LiftHeight { get; private set; }
+        internal bool LiftReported => _liftReported;
         public Transform DoorPoint => doorPoint != null ? doorPoint : transform;
         public Transform SwarmCenter => swarmCenter != null ? swarmCenter : transform;
         public float HeatGlow { get; private set; }
