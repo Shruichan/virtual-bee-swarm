@@ -12,15 +12,17 @@ namespace VirtualBeeSwarm.Dressing
     /// bumblebee that drifts in through the meadow window in the calm moments (meet, after a right pick, the unload),
     /// flies a lazy figure-8 over the table, sits on the nest or a tuft for 3 s and leaves ("twenty thousand kinds of
     /// bee"); a tiny wasp that sniffs the syrup once it's set down (it sets up the raid); grass tufts around the hive's
-    /// foot, two more sprouting per fix; and the SEEDS MEADOW MIX packet that a crew of 3 clips onto the end card (the
-    /// contract card when the build has one, else the score card).
+    /// foot, two more sprouting per fix; an optional shallow water dish and cavity-nesting block as habitat prompts;
+    /// and the SEEDS MEADOW MIX packet that a crew of 3 clips onto the end card (the contract card when the build has
+    /// one, else the score card).
     ///
     /// No edits elsewhere: installs itself into any scene with a GameDirector (like StakesDirector), listens to
     /// BeatChanged / GroupResetDone, GameNet.VoiceLineStarted, BeeDelivery.Landed and the "[VBS] choice ..." log line.
     /// Everything hangs off the TableAnchor (follows placement). Cheap: one instanced draw for the tufts, three skinned
     /// insects (renderers off while hidden), no colliders, no lights, nothing allocated per frame.
     /// Switches (tuning.json): dressing.on, dressing.nest, dressing.tufts, dressing.solitary, dressing.visitors,
-    /// dressing.wasp, dressing.seed (all default true). Env VBS_DRESSING=off|on wins; VBS_DRESSING_FLAGS="nest=false,...".
+    /// dressing.wasp, dressing.seed, dressing.habitat (all default true). Env VBS_DRESSING=off|on wins;
+    /// VBS_DRESSING_FLAGS="nest=false,habitat=false,...".
     /// </summary>
     [DefaultExecutionOrder(60)]
     public class DressingDirector : MonoBehaviour
@@ -28,10 +30,12 @@ namespace VirtualBeeSwarm.Dressing
         public static bool AutoInstall = true;
         public static DressingDirector Instance { get; private set; }
 
-        public static bool On = true, Nest = true, Tufts = true, Solitary = true, Visitors = true, Wasp = true, Seed = true;
+        public static bool On = true, Nest = true, Tufts = true, Solitary = true, Visitors = true, Wasp = true, Seed = true, Habitat = true;
 
         [Header("Layout (TableAnchor space; the player stands at -Z)")]
         [SerializeField] Vector3 nestPosition = new Vector3(-0.3f, 0f, 0.21f);
+        [SerializeField] Vector3 waterDishPosition = new Vector3(0.29f, 0f, 0.18f);
+        [SerializeField] Vector3 beeHotelPosition = new Vector3(-0.25f, 0f, -0.18f);
         [SerializeField] float tuftHeight = 0.06f;
         [Header("Insects")]
         [SerializeField] float solitaryScale = 0.8f;
@@ -129,6 +133,7 @@ namespace VirtualBeeSwarm.Dressing
                 case "visitors": Visitors = b; return true;
                 case "wasp": Wasp = b; return true;
                 case "seed": Seed = b; return true;
+                case "habitat": Habitat = b; return true;
             }
             return false;
         }
@@ -167,6 +172,7 @@ namespace VirtualBeeSwarm.Dressing
 
             var parts = new List<string>();
             if (Nest && _art.nest != null) parts.Add(BuildNest());
+            if (Habitat) BuildHabitatProps(parts);
             if (Tufts) parts.Add("tufts round the hive (" + DressingTufts.BaseCount + " + " + DressingTufts.PerFix + " per fix, once it lands)");
             if (Solitary && _nest != null && _art.solitaryBee != null)
                 _solitary = Spawn(_art.solitaryBee, "solitary bee", solitaryScale, 0.004f, 1f, parts);
@@ -265,6 +271,22 @@ namespace VirtualBeeSwarm.Dressing
             _tufts.SetFixes(_fixes);
             return DressingTufts.BaseCount + " tufts (+" + DressingTufts.PerFix + " per fix, " + src + ") round a hive foot of " +
                    _foot.size.x.ToString("0.00") + " x " + _foot.size.z.ToString("0.00") + " m";
+        }
+
+        void BuildHabitatProps(List<string> parts)
+        {
+            AddHabitatProp(parts, "pollinator water dish", "Habitat/pollinator_water_dish.obj", "Habitat/pollinator_water_dish.mtl",
+                waterDishPosition, Quaternion.identity);
+            // The block's openings face +Z in the source mesh; turn them toward the player at -Z.
+            AddHabitatProp(parts, "solitary bee nest block", "Habitat/solitary_bee_nest_block.obj", "Habitat/solitary_bee_nest_block.mtl",
+                beeHotelPosition, Quaternion.Euler(0f, 180f, 0f));
+        }
+
+        void AddHabitatProp(List<string> parts, string label, string objPath, string mtlPath, Vector3 position, Quaternion rotation)
+        {
+            var obj = Resources.Load<TextAsset>(objPath);
+            var mtl = Resources.Load<TextAsset>(mtlPath);
+            if (DressingHabitatMesh.Create(label, obj, mtl, _root, position, rotation) != null) parts.Add(label);
         }
 
         DressingCritter Spawn(GameObject prefab, string label, float scale, float wobble, float rate, List<string> parts)
