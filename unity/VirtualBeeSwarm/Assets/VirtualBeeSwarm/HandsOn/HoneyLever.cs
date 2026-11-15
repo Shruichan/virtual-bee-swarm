@@ -216,7 +216,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _pop = 1f;
                 _flashAt = Time.time;
                 Pulls++;
-                GameSound.Cue("lever_snap", _head);
+                GameSound.Cue("touchdown_light", _head); // "lever_snap" has no voice in SatieScene (it was silent)
                 Debug.Log("[VBS][HandsOn] lever pulled (" + Pulls + ")");
                 Pulled?.Invoke();
             }

@@ -48,6 +48,13 @@ namespace VirtualBeeSwarm
                     if (swarm != null) swarm.Spike(1f);
                     break;
                 case GameIds.Choice.SprayWater:
+                    // spray from the delivered bottle's nozzle (the builder parks the puff at a fixed spot)
+                    var nozzle = SprayNozzle();
+                    if (waterPuff != null && nozzle != null)
+                    {
+                        if (!_puffHomeSaved) { _puffHome = waterPuff.transform.localPosition; _puffHomeSaved = true; }
+                        waterPuff.transform.position = nozzle.position;
+                    }
                     GameSound.Cue("water_spray", waterPuff != null ? waterPuff.transform : null);
                     if (waterPuff != null) waterPuff.Emit(puffParticles);
                     if (swarm != null) swarm.Spike(0.8f);
@@ -77,6 +84,20 @@ namespace VirtualBeeSwarm
         {
             if (smokePuff != null) smokePuff.Clear();
             if (waterPuff != null) waterPuff.Clear();
+            if (waterPuff != null && _puffHomeSaved) waterPuff.transform.localPosition = _puffHome;
+        }
+
+        Vector3 _puffHome;
+        bool _puffHomeSaved;
+        Transform _sprayPoint;
+
+        /// <summary>The authored SprayBottle's SprayPoint (found once), or null if the art has none.</summary>
+        Transform SprayNozzle()
+        {
+            if (_sprayPoint != null) return _sprayPoint;
+            foreach (var t in GetComponentsInChildren<Transform>(true))
+                if (t.name == "SprayPoint") { _sprayPoint = t; break; }
+            return _sprayPoint;
         }
     }
 }
