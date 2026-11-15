@@ -108,6 +108,11 @@ export class Ear {
     this.cancel((j) => j.filler)
   }
 
+  /** Cut whatever is playing or queued, keep the replay line (a question barged in). */
+  stop(): void {
+    this.cancel(() => true)
+  }
+
   /** Cut everything (group reset). */
   clear(): void {
     this.cancel(() => true)

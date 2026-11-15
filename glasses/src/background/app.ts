@@ -8,7 +8,7 @@ import {Led} from "./led"
 import {LiveStream} from "./live"
 import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest} from "./protocol"
 import {Scanner} from "./scan"
-import {Scout} from "./scout"
+import {isAskLine, isScoutStop, Scout} from "./scout"
 import {Transcript} from "./transcript"
 import {describe} from "./util"
 import {VOCABULARY, Voice} from "./voice"
@@ -83,7 +83,7 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
   // Mirror the stream state to the Hive log so the laptop can see it without the phone's status page.
   if (live) live.onState = (state, detail) => void hive.send("/glasses/event", {kind: "stream", state, detail: detail ?? null})
   // Scout mode: presses and final transcripts go to the Hive's /scout game, not the scanner or Voice.
-  const scout = config.scoutMode ? new Scout({hive, led: session.led, log}) : null
+  const scout = config.scoutMode ? new Scout({hive, led: session.led, log, stopEar: () => ear.stop(), stopOnPartial: config.scoutStopOnPartial}) : null
 
   const voice = new Voice({
     hive,
@@ -108,7 +108,10 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     status.lastLine = {id: ref.line_id, caption, at: Date.now()}
     push()
   }
-  ear.onSpeak = (caption) => voice.noteSaid(caption)
+  ear.onSpeak = (caption) => {
+    voice.noteSaid(caption)
+    scout?.noteSaid(caption)
+  }
   ear.onSpeakEnd = (caption) => voice.noteDone(caption)
 
   const setBeat = (n: unknown) => {
@@ -135,8 +138,14 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
         return setBeat(msg.n)
       case "say":
         if (msg.channel !== "ear") return
+        if (scout && isScoutStop(msg)) {
+          log("scout: stop (Beeswax cut off)")
+          ear.clear() // drop the current line and the queue
+          return
+        }
         scout?.said(msg)
-        void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption})
+        // an Ask Beeswax answer cuts whatever is still playing or queued (barge-in)
+        void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption}, scout && isAskLine(msg) ? {interrupt: "all"} : {})
         return
       case "group.reset":
         log(`new group ${msg.group_id ?? ""}`)

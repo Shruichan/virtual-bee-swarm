@@ -33,7 +33,7 @@ const START_RX =
   /^(?:why|how|what|what's|whats|who|who's|where|where's|when|which|whose|is|are|am|do|does|did|can|could|would|will|should|was|were|have|has|tell me|explain|i wonder|i want to know|i wanna know)\b/;
 /** A question or request anywhere ("so the pebbles are for what", "and tell me about honey"). */
 const ANY_RX =
-  /\b(?:why|how come|how do|how does|how did|how many|how much|how long|how big|what is|what's|what are|what do|what does|what happens|what if|tell me (?:more )?about|tell me why|explain|i wonder)\b/;
+  /\b(?:why|how come|how do|how does|how did|how many|how much|how long|how big|what is|what's|what are|what do|what does|what happens|what if|tell me (?:more )?about|tell me why|explain|i wonder)\b|\b(?:for what|what for)$/;
 
 /** Is this transcript a question or a request for more info? Two words minimum ("why though"), three for most. */
 export function looksLikeQuestion(text: string): boolean {
@@ -75,12 +75,19 @@ export function isEcho(text: string, captions: readonly string[]): boolean {
 
 export type AskRoute = "echo" | "game" | "ask";
 
+/** Not a question even right after "Got any questions?": thanks, okay, no questions, fillers. */
+const NOT_A_QUESTION_RX =
+  /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|beeswax)\s*)*(?:thanks|thank you|thank you beeswax|ok(?:ay)?|cool|nice|great|awesome|got it|i'?m good|i'?m fine|all good|no questions?|nothing|not really|that'?s all|that'?s it|bye|goodbye|wow|yay)?(?: (?:thanks|thank you|beeswax))?$/;
+
 /** Where a final transcript goes. `answer` = the game's own yes/no/rude reading (classifyAnswer). Short yes/no
- *  answers stay with the game, Beeswax's own voice is dropped, questions go to Ask Beeswax, the rest to the game. */
-export function routeUtterance(text: string, o: { answer: ScoutAnswer; captions: readonly string[] }): AskRoute {
+ *  answers stay with the game, Beeswax's own voice is dropped, questions go to Ask Beeswax, the rest to the game.
+ *  `expectQuestion`: Beeswax just asked "Got any questions?", so anything that isn't clearly yes/no/thanks is one. */
+export function routeUtterance(text: string, o: { answer: ScoutAnswer; captions: readonly string[]; expectQuestion?: boolean }): AskRoute {
   if (isEcho(text, o.captions)) return "echo";
-  const words = norm(text).replace(LEAD_RX, "").split(" ").filter(Boolean).length;
+  const t = norm(text).replace(LEAD_RX, "");
+  const words = t.split(" ").filter(Boolean).length;
   if (o.answer !== "other" && words <= 4) return "game";
+  if (o.expectQuestion) return !t || NOT_A_QUESTION_RX.test(t) ? "game" : "ask";
   return looksLikeQuestion(text) ? "ask" : "game";
 }
 
@@ -528,6 +535,8 @@ export class AskAudio {
 /** The game's Ask Beeswax API (scout/game). Optional so this works before that branch lands. */
 export interface AnswerGame {
   state(): ScoutState;
+  /** When the last line sent is expected to finish playing (ScoutGame.busyUntil). */
+  readonly busyUntil?: number;
   beginAnswer?(): boolean;
   endAnswer?(audioMs?: number): void;
   interrupt?(): void;
@@ -581,17 +590,25 @@ export interface AskStats {
   error?: string;
 }
 
+/** After a "Got any questions?" line (scout_any_q_*) ends, utterances count as questions for this long. */
+export const ANY_Q_WINDOW_MS = 8000;
+export const ANY_Q_PREFIX = "scout_any_q";
 /** Captions this recent count for the echo check. */
 const ECHO_WINDOW_MS = 25_000;
 /** From the say to the first sound in the ear, roughly (phone fetch + player start). */
 const PLAYER_START_MS = 700;
 const KEEP_ASKS = 12;
+/** Same estimate as scout.ts estimateMs. */
+const estimateSpeechMs = (text: string) => Math.round((text.length / 14.4) * 1000 + 300);
 
 export class ScoutAsk {
   readonly mode: AskAudioMode;
   private readonly now: () => number;
   private readonly facts: Record<ScoutLabel, AskFact[]>;
   private lastFound: ScoutLabel | null = null;
+  /** Until when an utterance counts as a question by default (after scout_any_q_*). */
+  private anyQUntil = 0;
+  private anyQFrom = 0;
   private captions: { text: string; at: number }[] = [];
   private recent: string[] = [];
   private audios = new Map<string, AskAudio>();
@@ -609,13 +626,23 @@ export class ScoutAsk {
   /** Feed every game event: remembers the last found card and what Beeswax said (echo check). */
   event(e: ScoutEvent): void {
     if (e.type === "found") this.lastFound = e.label;
-    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) this.noteSaid(e.caption, e.at);
+    else if (e.type === "say" && e.caption && !e.line_id.startsWith("scout_ask_")) {
+      this.noteSaid(e.caption, e.at);
+      // the line plays after the fact lines queued before it: the game's busyUntil already includes it
+      if (e.line_id.startsWith(ANY_Q_PREFIX)) {
+        const len = estimateSpeechMs(e.caption);
+        const ends = Math.max(this.d.game.busyUntil ?? 0, Math.max(e.at, this.now()) + len);
+        this.anyQFrom = ends - len - 500; // not while the fact before it is still playing
+        this.anyQUntil = ends + ANY_Q_WINDOW_MS;
+      }
+    }
     else if (e.type === "state" && e.state.phase === "intro") this.reset(); // game restarted
   }
 
   /** Forget the last card (game restarted). */
   reset(): void {
     this.lastFound = null;
+    this.anyQUntil = 0;
     this.recent = [];
   }
 
@@ -633,8 +660,14 @@ export class ScoutAsk {
     return this.captions.filter((c) => now - c.at <= ECHO_WINDOW_MS).map((c) => c.text);
   }
 
+  /** Is an utterance now a question by default (just after "Got any questions?")? */
+  get expectingQuestion(): boolean {
+    const now = this.now();
+    return now >= this.anyQFrom && now <= this.anyQUntil;
+  }
+
   route(text: string, answer: ScoutAnswer): AskRoute {
-    return routeUtterance(text, { answer, captions: this.recentCaptions() });
+    return routeUtterance(text, { answer, captions: this.recentCaptions(), expectQuestion: this.expectingQuestion });
   }
 
   audio(id: string): AskAudio | undefined {
@@ -650,6 +683,7 @@ export class ScoutAsk {
     const t0 = this.now();
     const ms = () => this.now() - t0;
     this.current?.abort();
+    this.anyQUntil = 0;
     const ac = new AbortController();
     this.current = ac;
     const id = `${(t0 % 1e8).toString(36)}${(this.seq++ % 36).toString(36)}`;
@@ -815,7 +849,7 @@ export class ScoutAsk {
     if (!firstSent) {
       // no audio at all (TTS down): the glasses speak the caption with the phone's voice
       sendSay(text, null);
-      audioMs = Math.round((text.length / 14.4) * 1000 + 300);
+      audioMs = estimateSpeechMs(text);
       audioStartAt = this.now();
     } else if (this.mode === "progressive") {
       // dashboard: the full caption (the glasses already got the say with the first sentence)

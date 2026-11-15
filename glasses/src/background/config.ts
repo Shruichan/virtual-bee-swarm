@@ -46,6 +46,8 @@ export interface Config {
   /** Where the glasses publish video, e.g. rtmp://<laptop-LAN-ip>:1935/scout (MediaMTX). */
   streamUrl: string
   stream: {width: number; height: number; fps: number; bitrate: number}
+  /** Scout: also cut Beeswax on a partial transcript (3+ words) that looks like a question, not only on a final one. */
+  scoutStopOnPartial: boolean
 }
 
 export type LocalConfig = Partial<Omit<Config, "photo" | "stream">> & {
@@ -73,6 +75,7 @@ export const DEFAULTS: Config = {
   scoutMode: false,
   streamUrl: "",
   stream: {width: 1280, height: 720, fps: 10, bitrate: 1_200_000},
+  scoutStopOnPartial: false,
 }
 
 export function makeConfig(local: LocalConfig): Config {

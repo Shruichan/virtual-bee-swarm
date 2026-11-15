@@ -85,7 +85,8 @@ export interface ScoutSlide { label: ScoutClass | null; at: number }
 
 // ------------------------------------------------------------------ the game
 
-export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done";
+/** answering: Ask Beeswax (scout/ask) is answering a question; frames are ignored until it ends. */
+export type ScoutPhase = "intro" | "looking" | "offering" | "telling" | "done" | "answering";
 export type ScoutAnswer = "yes" | "no" | "rude" | "other";
 
 export interface ScoutState {
@@ -108,6 +109,16 @@ export type ScoutBlockReason = "already_found" | "skipped" | "busy" | "cooldown"
 
 /** POST /scout/practice (token): turn practice mode on or off. Returns ScoutState. */
 export interface ScoutPractice { on: boolean }
+
+// ------------------------------------------------------------------ interruptions, Ask Beeswax, teacher button
+
+/** The bus `say` that tells the glasses to cut the ear (stop the current line, drop the queue):
+ *  {type:"say", channel:"ear", line_id:null, tts_id:SCOUT_STOP_ID, audio_url:null, caption:""}. Glasses in scout mode
+ *  call Ear.clear() on it and play nothing; older builds see an empty say and play nothing either. */
+export const SCOUT_STOP_ID = "scout_stop";
+
+/** POST /scout/teacher (token): Beeswax says SCOUT_TEACHER_LINE (the judge screen's button). Returns ScoutState. */
+export const SCOUT_TEACHER_LINE = "scout_teacher";
 
 // ------------------------------------------------------------------ booth mode (pitch/scout-booth.md)
 
@@ -135,7 +146,7 @@ export const SCOUT_BOOTH_ORDER: readonly ScoutLabel[] = ["native_flower", "honey
 export const SCOUT_BOOTH_JUDGE_ORDER: readonly ScoutLabel[] = SCOUT_BOOTH_ORDER.slice(0, 4);
 
 export const SCOUT_BOOTH_TUNING = {
-  offerTimeoutMs: 4000, // no answer to scout_chime_ask -> scout_silence_yes, then the fact (silence = yes)
+  offerTimeoutMs: 4000, // (unused now: booth no longer asks; it plays the fact straight away)
   gapMs: 1500, //          after a station's lines end, before the next chime (direction cues don't count)
   cueEveryMs: 8000, //     at most one direction cue (scout_dir_*) this often
   lostMs: 10_000, //       expected object not seen for this long -> scout_dir_lost
@@ -149,13 +160,14 @@ export const SCOUT_BOOTH_TUNING = {
 /** Booth line ids. Placeholders live in hive/lines/scout_lines_booth.json (loaded after scout_lines.json; it wins
  *  on an id clash). An empty text skips the line (e.g. when the facts already end with the direction). */
 export const SCOUT_BOOTH_LINES = {
-  intro: "scout_booth_intro",
+  intro: "scout_booth_intro", //                   + scout_booth_intro_2, _3 when they exist
+  // Booth now plays "Bee fact found!" + the fact straight away (like practice), so these three are no longer said:
   chimeAsk: "scout_chime_ask", //                  "Bee fact found! Would you like to learn more?" (one line)
   silenceYes: "scout_silence_yes", //              "I'll take that as a yes."
   no: "scout_booth_no", //                         short reply to "no", then on to the next station anyway
   rude: "scout_rude", //                           shared with demo mode
   next: (l: ScoutLabel) => `scout_next_${l}`, //   direction to station `l` ("One big step to your left.")
-  done: "scout_booth_done", //                     after the last station's fact
+  done: "scout_booth_done", //                     after the last station's fact (+ _2, _3 when they exist)
   dir: { left: "scout_dir_left", right: "scout_dir_right", closer: "scout_dir_closer", up: "scout_dir_up", lost: "scout_dir_lost" },
 } as const;
 
@@ -168,6 +180,8 @@ export type ScoutEvent =
   | { type: "state"; state: ScoutState }
   | { type: "latency"; hop: ScoutHop; ms: number }
   | { type: "slide"; label: ScoutClass | null; at: number }
+  /** Beeswax was cut off (ScoutGame.interrupt(), POST /scout/reset): the glasses ear dropped what it was playing. */
+  | { type: "stop"; at: number }
   /** An object was seen steadily (>= steadyMs) but stayed silent, once per look. */
   | { type: "blocked"; label: ScoutLabel; reason: ScoutBlockReason; score: number; at: number };
 
@@ -191,22 +205,27 @@ export const SCOUT_TUNING = {
 /** Line ids in hive/lines/scout_lines.json. Audio is served at GET /scout/audio/<id>.mp3. */
 export const SCOUT_LINES = {
   intro: ["scout_intro_1", "scout_intro_2"],
+  /** Every intro line the game plays, in order, when it exists (practice and demo). */
+  introAll: ["scout_intro_1", "scout_intro_2", "scout_intro_3"],
+  /** "Any questions?" after each fact in practice and booth; the game takes turns among those that exist.
+   *  Then Ask Beeswax (scout/ask) answers through ScoutGame.beginAnswer/endAnswer. */
+  anyQ: ["scout_any_q_1", "scout_any_q_2", "scout_any_q_3"],
   chime: "scout_chime", //                       the "Bee fact found!" sting (voice + sound), before every hook
   hook: (l: ScoutLabel) => `scout_hook_${l}`, // one line, ends with a question
   fact: (l: ScoutLabel) => `scout_fact_${l}`, // the deeper fact after "yes"
   no: ["scout_no_1", "scout_no_2"],
   rude: "scout_rude", //                         "be quiet", "go away", "shut up"
   silence: "scout_silence", //                   no answer within offerTimeoutMs
-  idle: "scout_idle",
+  idle: "scout_idle", //                         no longer said (the idle nudge was removed)
   progress: (found: number) => `scout_progress_${found}`, // after facts 1..5 ("Three down. Three to go.")
-  done: "scout_done", //                         all six: the contract
+  done: "scout_done", //                         all six: the finale (+ scout_done_2, _3 when they exist)
 } as const;
 
 /** One entry in hive/lines/scout_lines.json. */
 export interface ScoutLine {
   id: string;
   text: string; //   what Beeswax says (caption); "" for a pure sound effect
-  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done" | "direction";
+  kind: "intro" | "chime" | "hook" | "fact" | "no" | "rude" | "silence" | "idle" | "progress" | "done" | "direction" | "teacher" | "any_q";
   label?: ScoutLabel;
   source?: string; // the URL backing the fact (facts only)
 }
