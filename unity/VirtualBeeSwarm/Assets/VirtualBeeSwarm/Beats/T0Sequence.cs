@@ -434,11 +434,7 @@ namespace VirtualBeeSwarm
                 fx.Burst(origin, 30, new Color(1f, 0.74f, 0.22f), 0.95f, 0.85f, 0.024f, 0.45f);
                 fx.Ring(origin, -flyAway, 18, new Color(1f, 0.94f, 0.70f), 1.15f, 0.55f, 0.022f);
             }
-            else if (dustPuff != null)
-            {
-                dustPuff.transform.position = origin;
-                dustPuff.Emit(24);
-            }
+            else AR.Touchdown.Burst(rocket, 0.7f);
             Debug.Log("[VBS][T0] small rocket revealed beside hive at " + rocket.position.ToString("F2"));
         }
 
