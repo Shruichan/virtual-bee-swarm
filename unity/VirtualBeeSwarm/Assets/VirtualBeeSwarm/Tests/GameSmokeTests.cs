@@ -152,7 +152,7 @@ namespace VirtualBeeSwarm.Tests
                     "the order board follows the meadow's reachable choice row");
             }
 
-            yield return PlayStation<SmokerStation>(director, GameIds.Choice.Swat, GameIds.Choice.Smoker);
+            yield return PlayStation<SmokerStation>(director, forceOffline ? GameIds.Choice.SprayWater : GameIds.Choice.Swat, GameIds.Choice.Smoker);
             yield return WaitForBeat(director, GameBeat.Feed, 30f);
             // the feed station waits for a lift (or gives up after 20 s): lift through the hive's grab API
             var hive = UnityEngine.Object.FindAnyObjectByType<HiveBody>();
@@ -176,7 +176,7 @@ namespace VirtualBeeSwarm.Tests
             Assert.IsTrue(hornet.Cooked, "hornet cooked");
 
             yield return WaitForBeat(director, GameBeat.Heat, 30f);
-            yield return PlayStation<HeatStation>(director, GameIds.Choice.DeepBowl, GameIds.Choice.PebbleDish);
+            yield return PlayStation<HeatStation>(director, forceOffline ? GameIds.Choice.Nothing : GameIds.Choice.DeepBowl, GameIds.Choice.PebbleDish);
 
             // what-if: the offline keys' code path
             yield return WaitForBeat(director, GameBeat.WhatIf, 30f);
