@@ -210,7 +210,16 @@ export type OrbisState = "off" | "priming" | "ready" | "failed" | "ended";
  *  Frames: wss://<host>/orbis/frames. `fallback_clip` = clip name for `scene` (Unity plays it when live is down). */
 export interface OrbisRequest { type: "orbis.request"; want?: "live" | "clips" | "off"; stage?: number; scene?: Scene }
 //   v2.1: `want` is optional. A request carrying `scene`/`stage` only switches the scene; only `want` changes live/clips/off.
-export interface OrbisStatus { type: "orbis"; state: OrbisState; stage: number; scene: Scene | null; fallback_clip: string | null }
+export interface OrbisStatus {
+  type: "orbis";
+  state: OrbisState;
+  stage: number;
+  scene: Scene | null;
+  fallback_clip: string | null;
+  /** v2.3 (additive): show this scene's recorded clip for this many seconds before live frames, even while they flow
+   *  (a question's window moment: the clip answers at once, the live stream catches up with a cut). */
+  clip_first_s?: number;
+}
 
 /** Anyone → Hive → board/monitor: one measured hop. */
 export interface Latency { type: "latency"; hop: string; ms: number; source: Role | "hive" }
