@@ -83,6 +83,11 @@ namespace VirtualBeeSwarm.Capture
                 size = new Vector2Int(640, 360);
                 supersample = 1;
                 maxSeconds = 300;
+                // pol-flow: the wide 3/4 view sits inside the fixture room (back-right corner), not at the default stand-in spot
+                float hx = fixture.Width * 0.5f - 0.3f, backZ = fixture.WallZ - fixture.Depth + 0.3f;
+                widePos = new Vector3(hx, Mathf.Min(fixture.Ceiling - 0.25f, 2.1f), backZ);
+                wideLook = new Vector3(0f, 1.0f, fixture.WallZ * 0.45f);
+                wideFov = 72f;
             }
             Time.captureFramerate = fps;
             Application.targetFrameRate = -1;
@@ -371,6 +376,8 @@ namespace VirtualBeeSwarm.Capture
             if (frame % _every != 0) return;
             for (int i = 0; i < _cams.Count; i++)
             {
+                // pol-flow: the extra views copied the POV while LoadWall had it culled to the wall layer only; mirror it every frame
+                if (_cams[i] != _pov) _cams[i].cullingMask = _pov.cullingMask;
                 _cams[i].Render();
                 Graphics.Blit(_ss[i], _out[i]); // 2x2 box downsample (bilinear at the texel corners)
                 string path = Path.Combine(_dir, _views[i], "f_" + frame.ToString("000000") + ".png");
