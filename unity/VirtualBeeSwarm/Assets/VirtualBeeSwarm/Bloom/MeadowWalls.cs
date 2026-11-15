@@ -133,6 +133,8 @@ namespace VirtualBeeSwarm.Bloom
         {
             ok = false;
             var r = default(BloomRect);
+            // meadow: the portal floats in the meadow, off the wall (ArRig), so the wall vines grow right across the wall
+            if (MeadowLayout.Active) return r;
             var w = Object.FindAnyObjectByType<FutureWindow>(FindObjectsInactive.Include);
             if (w == null || !w.gameObject.activeInHierarchy || w.PaneTransform == null) return r;
             var t = w.PaneTransform;

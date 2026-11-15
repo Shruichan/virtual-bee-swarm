@@ -33,6 +33,12 @@ namespace VirtualBeeSwarm
         public bool ShowingOrbis { get; private set; }
         public Transform PaneTransform => fallbackPane != null ? fallbackPane.transform : transform;
         public string Scene => _scene;
+        /// <summary>The honeycomb rim, halo, vignette, swirl and flare (null if the pane has no mesh).</summary>
+        public PortalFx Fx => _fx;
+        /// <summary>Largest size factor Grow / SwellToMoon may reach (ArRig sets it so the free-floating portal stays
+        /// under the ceiling and over the hive roof). Default: no limit.</summary>
+        public float MaxSize { get; set; } = float.MaxValue;
+        PortalFx _fx;
 
         Vector3 _baseScale = Vector3.one;
         float _open, _openTarget, _size = 1f, _sizeTarget = 1f;
@@ -52,6 +58,10 @@ namespace VirtualBeeSwarm
             if (fallbackNoise == null) fallbackNoise = GameMeshes.CreateNoiseTexture();
             SceneColors("", out _toA, out _toB, out _toFlicker);
             _fromA = _toA; _fromB = _toB;
+            // built at portalRoot's base scale, before ApplyOpen squashes it
+            Vector3 toPlayer = -transform.forward;
+            _fx = PortalFx.Build(portalRoot, fallbackPane, toPlayer);
+            if (_fx != null) Debug.Log("[VBS][Portal] " + _fx.Summary);
             ApplyOpen(0f);
         }
 
@@ -80,8 +90,18 @@ namespace VirtualBeeSwarm
         // ------------------------------------------------------------ API
         public void Open() => _openTarget = 1f;
         public void Close() => _openTarget = 0f;
-        public void Grow() => _sizeTarget = growScale;
-        public void SwellToMoon() => _sizeTarget = moonScale;
+        public void Grow()
+        {
+            _sizeTarget = Mathf.Min(growScale, Mathf.Max(1f, MaxSize));
+            if (_fx != null) _fx.Flare(2.8f, 80); // the escape: the portal flares
+        }
+
+        public void SwellToMoon()
+        {
+            _sizeTarget = Mathf.Min(moonScale, Mathf.Max(1f, MaxSize));
+            if (_fx != null) _fx.Flare(1.5f, 30);
+        }
+
         public void NormalSize() => _sizeTarget = 1f;
 
         /// <summary>Show this texture instead of the Hive's live/clip picture (null: back to the Hive's).</summary>
@@ -109,6 +129,7 @@ namespace VirtualBeeSwarm
             _scene = scene;
             SceneColors(scene, out _toA, out _toB, out _toFlicker);
             _morphStart = Time.time;
+            if (_fx != null && _open > 0.05f) _fx.Swirl(Color.Lerp(_toA, _toB, 0.5f)); // ripple/swirl into the new scene
         }
 
         // ------------------------------------------------------------ frame
@@ -120,6 +141,7 @@ namespace VirtualBeeSwarm
             _size = Mathf.MoveTowards(_size, _sizeTarget, dt * 0.8f);
             if (_open != prevOpen || _size != prevSize) ApplyOpen(_open);
             if (_open <= 0.001f) return;
+            Color glowNow = glowColor;
 
             // live / clip picture from the Hive (or the override in front of it)
             Texture tex = _override != null ? _override : net != null ? net.OrbisTexture : null;
@@ -169,7 +191,15 @@ namespace VirtualBeeSwarm
                 g.a = Mathf.Min(1f, g.a * (1f + 1.5f * flare * flare));
                 if (_toFlicker) g = Color.Lerp(g, new Color(1f, 0.3f, 0.05f, g.a), 0.7f);
                 GameMaterials.Tint(glow, g);
+                glowNow = g;
             }
+            else
+            {
+                float flare = 1f - Mathf.Clamp01((Time.time - _morphStart) / flareSeconds);
+                glowNow.a *= _open * (0.7f + 0.3f * Mathf.Sin(Time.time * 2f)) * (1f + 1.5f * flare * flare);
+                if (_toFlicker) glowNow = Color.Lerp(glowNow, new Color(1f, 0.3f, 0.05f, glowNow.a), 0.7f);
+            }
+            if (_fx != null) _fx.Tick(_open, glowNow);
         }
 
         void ApplyOpen(float open)

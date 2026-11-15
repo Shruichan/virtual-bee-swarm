@@ -18,6 +18,9 @@ namespace VirtualBeeSwarm.Title
     ///             shows through; the sphere stays put in the world, only the video moves), and bursts into petals and
     ///             pollen (0.65 s) onto the room the hook is already turning into the meadow. It runs alongside the hook:
     ///             it adds no time to it.
+    ///   wall      (title.wall, default on) inside the globe the player stands in a documentary wall instead: rows of
+    ///             bee monitors scrolling round them (<see cref="TitleWall"/>, two mosaic videos prepared in pre), held
+    ///             wallSeconds, then the rows fold in and burst. The dive then lasts <see cref="DiveSeconds"/> (~5 s).
     ///   comfort   (StakesFlags.Comfort) no wrap: the globe just dissolves where it is, with a small burst.
     ///   clips     StreamingAssets/globe_*.mp4 (on Android the names in <see cref="AndroidClips"/>), else meadow.mp4 +
     ///             full_bloom.mp4; globe_flight.mp4 is kept for the dive (prepared in pre, it plays inside the sphere);
@@ -50,6 +53,14 @@ namespace VirtualBeeSwarm.Title
         [SerializeField] float comfortSeconds = 0.7f;
         [SerializeField, Range(0f, 0.7f)] float insideAlpha = 0.7f;
         [SerializeField] float insideRadius = 1.6f;
+        [Tooltip("title.wall: how long the player stands in the documentary wall before it collapses (s).")]
+        [SerializeField] float wallSeconds = 3.8f;
+        [SerializeField] float wallRevealSeconds = 0.8f;
+        [Tooltip("The globe's own footage fades out over this while the wall lights up (s).")]
+        [SerializeField] float wallCrossSeconds = 0.45f;
+        [Tooltip("Nearer than most rooms' walls (and the vines on them), so the screens stay in front.")]
+        [SerializeField] float wallRadius = 1.4f;
+        [SerializeField] int wallRows = 11;
         [SerializeField] Vector2Int videoSize = new Vector2Int(832, 480);
         [SerializeField] KeyCode diveKey = KeyCode.I;
         [SerializeField] bool log = true;
@@ -72,6 +83,7 @@ namespace VirtualBeeSwarm.Title
 
         // where it is
         Vector3 _pos, _from, _centre, _placeEye;
+        float _meshScale = 2f; // localScale per metre of radius
         float _radius = 0.21f, _fromRadius, _shownAt, _stateAt, _hover, _hoverGoal, _swap;
         bool _placed, _inside;
 
@@ -92,6 +104,17 @@ namespace VirtualBeeSwarm.Title
         RenderTexture _flightRt;
         string _flightUrl;
         bool _flightReady, _flightBad, _flightOn, _flightShown;
+        // title.wall: the documentary wall the globe opens into (decided at each Show; never in comfort mode)
+        TitleWall _wall;
+        bool _wallOn, _sphereGone;
+
+        /// <summary>True from START until the burst has finished (or comfort's dissolve).</summary>
+        public bool Diving => _state == State.Approach || _state == State.Inside || _state == State.Burst || _state == State.Comfort;
+
+        /// <summary>START to the end of the burst, as things stand (the wall holds longer than the bee flight).</summary>
+        public float DiveSeconds => StakesFlags.Comfort ? comfortSeconds : approachSeconds + InsideSeconds + burstSeconds;
+
+        float InsideSeconds => _wallOn ? wallSeconds : insideSeconds;
 
         static readonly int TexId = Shader.PropertyToID("_MainTex");
         static readonly int AlphaId = Shader.PropertyToID("_Alpha");
@@ -171,6 +194,7 @@ namespace VirtualBeeSwarm.Title
                 if (o != null) Destroy(o);
             foreach (var m in _beeMats) if (m != null) Destroy(m);
             _burst?.Destroy();
+            _wall?.Destroy();
         }
 
         void Build()
@@ -195,7 +219,10 @@ namespace VirtualBeeSwarm.Title
 
             var sphere = new GameObject("GlobeSphere");
             sphere.transform.SetParent(transform, false);
-            sphere.AddComponent<MeshFilter>().sharedMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            var sphereMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            sphere.AddComponent<MeshFilter>().sharedMesh = sphereMesh;
+            // the built-in sphere here is radius 1 (bounds 2 m), not 0.5: scale by its real size, or the ball shows twice as big
+            _meshScale = 1f / Mathf.Max(0.01f, sphereMesh != null ? sphereMesh.bounds.extents.x : 0.5f);
             var mr = sphere.AddComponent<MeshRenderer>();
             mr.sharedMaterial = _mat;
             mr.shadowCastingMode = ShadowCastingMode.Off;
@@ -234,6 +261,7 @@ namespace VirtualBeeSwarm.Title
             _beePrev = new Vector3[_bees.Count];
 
             _burst = new GlobeBurst(transform);
+            _wall = new TitleWall(transform, wallRadius, wallRows, Log);
 
             _rt = new RenderTexture(videoSize.x, videoSize.y, 0) { name = "VBS_GlobeVideo", wrapMode = TextureWrapMode.Clamp };
             _rt.Create();
@@ -339,7 +367,9 @@ namespace VirtualBeeSwarm.Title
             transform.rotation = Quaternion.identity;
             if (_mat != null) _mat.SetTexture(TexId, _hasFrame ? (Texture)_rt : Still);
             StartFootage();
-            if (!StakesFlags.Comfort) PrepareFlight(); // comfort never wraps: no second decoder idling
+            _wallOn = GlobeFlags.Wall && !StakesFlags.Comfort && _wall != null && _wall.Usable;
+            if (_wallOn) _wall.Prepare(); // the wall replaces the bee flight: two strip decoders instead of one
+            else if (!StakesFlags.Comfort) PrepareFlight(); // comfort never wraps: no second decoder idling
             Log("up (" + why + "), " + Usable() + " clip(s)" + (_cur >= 0 ? ", first " + Path.GetFileName(_urls[_cur]) : ""));
         }
 
@@ -352,6 +382,7 @@ namespace VirtualBeeSwarm.Title
             SetVisible(false);
             if (_vp != null) _vp.Stop();
             StopFlight();
+            _wall?.Stop();
             _loading = -1;
             Log("down (" + why + ")");
         }
@@ -376,7 +407,9 @@ namespace VirtualBeeSwarm.Title
         void OnApplicationPause(bool paused)
         {
             // headset off and on again: the held flight player can go stale
-            if (!paused && _state == State.Showing && !StakesFlags.Comfort) PrepareFlight();
+            if (paused || _state != State.Showing || StakesFlags.Comfort) return;
+            if (_wallOn) _wall.Prepare();
+            else PrepareFlight();
         }
 
         // ------------------------------------------------------------------ START
@@ -411,7 +444,7 @@ namespace VirtualBeeSwarm.Title
             _col.enabled = false;
             _hoverGoal = 0f;
             _from = _sphere.position;
-            _fromRadius = _sphere.localScale.x * 0.5f;
+            _fromRadius = _sphere.localScale.x / _meshScale;
             _stateAt = Time.time;
             if (StakesFlags.Comfort || head == null)
             {
@@ -421,7 +454,9 @@ namespace VirtualBeeSwarm.Title
                 return;
             }
             _state = State.Approach;
-            if (_flightVp != null && _flightReady && !_flightBad)
+            _sphereGone = false;
+            if (_wallOn) _wall.Play();
+            else if (_flightVp != null && _flightReady && !_flightBad)
             {
                 _flightVp.Play();
                 _flightOn = true;
@@ -473,7 +508,7 @@ namespace VirtualBeeSwarm.Title
             float r = _radius * pop;
             SetLook(Mathf.Clamp01((t - _shownAt) / fadeInSeconds), false, 0f);
             _sphere.position = c;
-            _sphere.localScale = Vector3.one * (r * 2f);
+            _sphere.localScale = Vector3.one * (r * _meshScale);
             _col.center = transform.InverseTransformPoint(c);
             _col.radius = r;
             _hover = Mathf.MoveTowards(_hover, _hoverGoal, Time.deltaTime * 5f);
@@ -553,7 +588,7 @@ namespace VirtualBeeSwarm.Title
                     _centre = Vector3.Lerp(_from, eye, e);
                     float r = Mathf.Lerp(_fromRadius, insideRadius * 0.75f, e * e);
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     bool inside = head != null && Vector3.Distance(head.position, _centre) < r * 0.97f;
                     SetLook(Mathf.Lerp(1f, insideAlpha, e), inside, 0f, e); // soft rim while it grows: no hard edge across the ceiling
                     if (_mat != null) _mat.SetFloat(GlowId, 0.3f * (1f - e));
@@ -564,17 +599,34 @@ namespace VirtualBeeSwarm.Title
                         _state = State.Inside;
                         _stateAt = t;
                         _centre = eye;
-                        Log("inside the globe");
+                        if (_wallOn) _wall.Show(eye, transform.rotation);
+                        Log(_wallOn ? "inside the globe: the documentary wall" : "inside the globe");
                     }
                     break;
                 }
                 case State.Inside:
                 {
-                    k = Mathf.Clamp01((t - _stateAt) / insideSeconds);
+                    k = Mathf.Clamp01((t - _stateAt) / InsideSeconds);
                     float r = Mathf.Lerp(insideRadius * 0.75f, insideRadius, k);
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
-                    SetLook(insideAlpha, head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, 0f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
+                    if (_wallOn)
+                    {
+                        // the globe's footage gives way to the wall lighting up round the player
+                        float since = t - _stateAt;
+                        float fade = Mathf.Clamp01(since / wallCrossSeconds);
+                        SetLook(insideAlpha * (1f - fade), true, 0f);
+                        if (fade >= 1f && !_sphereGone)
+                        {
+                            _sphereGone = true;
+                            _sphere.gameObject.SetActive(false);
+                            if (_vp != null) _vp.Stop(); // the wall's two strips are the only decoders left
+                            _loading = -1;
+                        }
+                        float rev = Mathf.Clamp01(since / wallRevealSeconds);
+                        _wall.Tick(Time.deltaTime, insideAlpha, rev * rev * (3f - 2f * rev), 0f, 1f);
+                    }
+                    else SetLook(insideAlpha, head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, 0f);
                     if (k >= 1f)
                     {
                         _state = State.Burst;
@@ -589,8 +641,9 @@ namespace VirtualBeeSwarm.Title
                     k = Mathf.Clamp01((t - _stateAt) / burstSeconds);
                     float r = Mathf.Lerp(insideRadius, insideRadius * 1.5f, 1f - (1f - k) * (1f - k));
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
-                    SetLook(insideAlpha * (1f - 0.3f * k), head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, k);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
+                    if (_wallOn) _wall.Tick(Time.deltaTime, insideAlpha, 1f, 1f - (1f - k) * (1f - k), 1f + 5f * k); // the rows race and fold in
+                    else SetLook(insideAlpha * (1f - 0.3f * k), head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, k);
                     if (k >= 1f) Done();
                     break;
                 }
@@ -599,7 +652,7 @@ namespace VirtualBeeSwarm.Title
                     k = Mathf.Clamp01((t - _stateAt) / comfortSeconds);
                     float r = _fromRadius * (1f + 0.15f * k);
                     _sphere.position = _from;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     SetLook(1f - 0.4f * k, false, k);
                     TickStand(_from, _fromRadius, t, 1f - k);
                     TickBees(head, _from, _fromRadius, t, k);
@@ -617,6 +670,7 @@ namespace VirtualBeeSwarm.Title
             SetVisible(false);
             if (_vp != null) _vp.Stop();
             StopFlight();
+            _wall?.Stop();
             _loading = -1;
             Log("gone");
         }
@@ -634,7 +688,7 @@ namespace VirtualBeeSwarm.Title
                 foreach (var f in Directory.GetFiles(dir))
                 {
                     string ext = Path.GetExtension(f).ToLowerInvariant();
-                    if (ext == ".webm" || ext == ".mp4") files.Add(f);
+                    if ((ext == ".webm" || ext == ".mp4") && !Path.GetFileName(f).StartsWith("wall_strip_", StringComparison.Ordinal)) files.Add(f); // TitleWall's
                 }
                 files.Sort(ByHiveFirst);
                 foreach (var f in files) Add(f, false);

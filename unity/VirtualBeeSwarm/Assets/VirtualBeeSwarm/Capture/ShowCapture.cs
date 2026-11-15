@@ -22,9 +22,9 @@ namespace VirtualBeeSwarm.Capture
     /// camera (standing eye height, the player's head for the game) and a wide 3/4 camera, inside a stand-in room
     /// (floor, table, wall, warm light) that also takes the stakes dim. Voice lines are held for their clip length in
     /// game time (the player has no audio) and logged to lines.tsv; every log line goes to events.tsv with its frame.
-    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS ("pov,wide"), VBS_CAPTURE_MAX_SECONDS (stop early),
-    /// VBS_CAPTURE_EVERY (write every Nth frame; the clock still runs at fps);
-    /// VBS_CAPTURE_ROOM (opt into one of the 20 desktop room playtest fixtures, e.g. 01);
+    /// Env: VBS_CAPTURE_OUT (output folder), VBS_CAPTURE_VIEWS (pov, wide, povup, top, corner, pal),
+    /// VBS_CAPTURE_MAX_SECONDS (stop early), VBS_CAPTURE_EVERY (write every Nth frame, with the same game clock),
+    /// VBS_CAPTURE_ROOM (one of the 20 desktop room fixtures, e.g. 01);
     /// while a file <out>/hold exists the capture waits (an encoder working through the frames).
     /// </summary>
     [DefaultExecutionOrder(10000)]
@@ -233,6 +233,7 @@ namespace VirtualBeeSwarm.Capture
         void SetUpCameras()
         {
             if (int.TryParse(Environment.GetEnvironmentVariable("VBS_CAPTURE_MAX_SECONDS"), out int maxS) && maxS > 0) maxSeconds = maxS;
+            if (GetComponent<ClipProbe>() == null) gameObject.AddComponent<ClipProbe>(); // "[VBS][Clip]" prop-through-prop list
             if (int.TryParse(Environment.GetEnvironmentVariable("VBS_CAPTURE_EVERY"), out int every) && every > 1) _every = every;
             var env = Environment.GetEnvironmentVariable("VBS_CAPTURE_VIEWS");
             var want = string.IsNullOrEmpty(env) ? new[] { "pov", "wide" } : env.Split(',');
@@ -258,6 +259,24 @@ namespace VirtualBeeSwarm.Capture
                     cam.tag = "Untagged";
                     cam.transform.SetPositionAndRotation(widePos, Quaternion.LookRotation(wideLook - widePos, Vector3.up));
                     cam.fieldOfView = wideFov;
+                }
+                else if (v == "povup") // the player's spot looking straight ahead (headset-wide fov): what's over the hive roof
+                {
+                    cam = new GameObject("PovUpCamera").AddComponent<Camera>();
+                    cam.CopyFrom(_pov);
+                    cam.tag = "Untagged";
+                    var ahead = povLook - povPos;
+                    ahead.y = 0f;
+                    cam.transform.SetPositionAndRotation(povPos, Quaternion.LookRotation(ahead, Vector3.up) * Quaternion.Euler(8f, 0f, 0f));
+                    cam.fieldOfView = 80f;
+                }
+                else if (v == "pal") // [Pals] up close on Beeswax and the ghost hand (Pals/PalCam)
+                {
+                    cam = new GameObject("PalCamera").AddComponent<Camera>();
+                    cam.CopyFrom(_pov);
+                    cam.tag = "Untagged";
+                    cam.fieldOfView = 50f;
+                    cam.gameObject.AddComponent<VirtualBeeSwarm.Pals.PalCam>();
                 }
                 else if (v == "top" || v == "corner") // meadow: straight down over the room / a high 3/4 view of the floor
                 {

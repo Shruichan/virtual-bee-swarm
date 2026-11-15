@@ -10,7 +10,7 @@ namespace VirtualBeeSwarm.Meta
     /// grip = fist, B/Y = push-to-talk, pose from the OVRCameraRig controller anchors.
     /// Registers at priority 10 (wins over XRControllerHandSource). Fields left empty are found at runtime.
     /// </summary>
-    public class OvrHandPoseSource : MonoBehaviour, IHandPoseSource, IControllerPoseSource
+    public class OvrHandPoseSource : MonoBehaviour, IHandPoseSource, IControllerPoseSource, VirtualBeeSwarm.Pals.IHandPalmSource // [Pals hook] palm pose
     {
         [SerializeField] OVRCameraRig rig;
         [SerializeField] OVRHand leftHand;
@@ -28,6 +28,7 @@ namespace VirtualBeeSwarm.Meta
         {
             public bool ok;
             public Transform wrist, knuckle, indexTip, middleTip, ringTip, littleTip;
+            public Transform indexBase, littleBase; // [Pals hook] palm width (may be missing: the palm is then unknown)
         }
 
         readonly Bones[] _bones = new Bones[2];
@@ -165,6 +166,29 @@ namespace VirtualBeeSwarm.Meta
             return false;
         }
 
+        // ------------------------------------------------------------ [Pals hook] palm (Pals/PalHands)
+        /// <summary>Hands only: palm centre, its normal (out of the palm, from the bone positions, so either skeleton works),
+        /// the finger direction, and whether the fingers are straight. Controllers: false.</summary>
+        public bool TryGetPalm(GameHand hand, out Vector3 centre, out Vector3 normal, out Vector3 fingers, out bool open)
+        {
+            centre = normal = fingers = default;
+            open = false;
+            if (!HandTracked(hand) || !TryBones(hand, out var b) || b.indexBase == null || b.littleBase == null) return false;
+            Vector3 w = b.wrist.position, k = b.knuckle.position;
+            float len = Vector3.Distance(w, k);
+            if (len < 0.01f) return false;
+            fingers = (k - w) / len;
+            Vector3 across = b.indexBase.position - b.littleBase.position; // little finger -> index finger
+            Vector3 n = Vector3.Cross(fingers, across);
+            if (n.sqrMagnitude < 1e-8f) return false;
+            normal = n.normalized * (hand == GameHand.Right ? 1f : -1f);
+            centre = Vector3.Lerp(w, k, 0.55f) + normal * 0.01f;
+            float tips = (Vector3.Distance(w, b.middleTip.position) + Vector3.Distance(w, b.ringTip.position) +
+                          Vector3.Distance(w, b.littleTip.position)) / 3f;
+            open = tips > len * 1.75f;
+            return true;
+        }
+
         // ------------------------------------------------------------ skeleton
         bool TryBones(GameHand hand, out Bones b)
         {
@@ -184,6 +208,8 @@ namespace VirtualBeeSwarm.Meta
             var middleId = xr ? OVRSkeleton.BoneId.XRHand_MiddleTip : OVRSkeleton.BoneId.Hand_MiddleTip;
             var ringId = xr ? OVRSkeleton.BoneId.XRHand_RingTip : OVRSkeleton.BoneId.Hand_RingTip;
             var littleId = xr ? OVRSkeleton.BoneId.XRHand_LittleTip : OVRSkeleton.BoneId.Hand_PinkyTip;
+            var indexBaseId = xr ? OVRSkeleton.BoneId.XRHand_IndexProximal : OVRSkeleton.BoneId.Hand_Index1; // [Pals hook]
+            var littleBaseId = xr ? OVRSkeleton.BoneId.XRHand_LittleProximal : OVRSkeleton.BoneId.Hand_Pinky1; // [Pals hook]
             var bones = s.Bones;
             for (int k = 0; k < bones.Count; k++)
             {
@@ -196,6 +222,8 @@ namespace VirtualBeeSwarm.Meta
                 else if (id == middleId) nb.middleTip = bone.Transform;
                 else if (id == ringId) nb.ringTip = bone.Transform;
                 else if (id == littleId) nb.littleTip = bone.Transform;
+                else if (id == indexBaseId) nb.indexBase = bone.Transform; // [Pals hook]
+                else if (id == littleBaseId) nb.littleBase = bone.Transform; // [Pals hook]
             }
             nb.ok = nb.wrist != null && nb.knuckle != null && nb.indexTip != null && nb.middleTip != null &&
                     nb.ringTip != null && nb.littleTip != null;
