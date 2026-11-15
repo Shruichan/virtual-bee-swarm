@@ -5,6 +5,7 @@
 // and the mp3 URL ends in /scout/audio/<id>.mp3 when there is one.
 import type {LedModule} from "@mentra/miniapp/background"
 import type {Hive} from "./hive"
+import {SCOUT_STOP_ID} from "../../../hive/src/scout-protocol"
 import {describe, type Log} from "./util"
 
 export interface ScoutSayLike {
@@ -18,6 +19,11 @@ export function scoutLineId(msg: ScoutSayLike): string | null {
   if (typeof msg.tts_id === "string" && msg.tts_id.startsWith("scout_")) return msg.tts_id
   const m = typeof msg.audio_url === "string" ? /\/scout\/audio\/(scout_[a-z0-9_]+)\.mp3(?:[?#].*)?$/.exec(msg.audio_url) : null
   return m ? m[1]! : null
+}
+
+/** The Hive's "cut the ear now" say: tts_id SCOUT_STOP_ID, no audio (ScoutGame.interrupt(), POST /scout/reset). */
+export function isScoutStop(msg: ScoutSayLike): boolean {
+  return msg.tts_id === SCOUT_STOP_ID
 }
 
 export interface ScoutDeps {

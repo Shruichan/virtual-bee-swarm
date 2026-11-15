@@ -8,7 +8,7 @@ import {Led} from "./led"
 import {LiveStream} from "./live"
 import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest} from "./protocol"
 import {Scanner} from "./scan"
-import {Scout} from "./scout"
+import {isScoutStop, Scout} from "./scout"
 import {Transcript} from "./transcript"
 import {describe} from "./util"
 import {VOCABULARY, Voice} from "./voice"
@@ -135,6 +135,11 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
         return setBeat(msg.n)
       case "say":
         if (msg.channel !== "ear") return
+        if (scout && isScoutStop(msg)) {
+          log("scout: stop (Beeswax cut off)")
+          ear.clear() // drop the current line and the queue
+          return
+        }
         scout?.said(msg)
         void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption})
         return

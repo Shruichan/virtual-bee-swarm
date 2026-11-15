@@ -286,5 +286,11 @@
     "voice": "beeswax-cute-sassy",
     "chars": 72,
     "hash": "31d71fa4e9a3"
+  },
+  "scout_teacher": {
+    "ms": 2654,
+    "voice": "placeholder",
+    "chars": 40,
+    "hash": "99cc05415f55"
   }
 }

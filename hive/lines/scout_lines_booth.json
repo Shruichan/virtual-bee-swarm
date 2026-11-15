@@ -34,5 +34,6 @@
   {"id": "scout_dir_right", "kind": "direction", "text": "A little to your right."},
   {"id": "scout_dir_closer", "kind": "direction", "text": "Closer. Bees are small. So are my eyes."},
   {"id": "scout_dir_up", "kind": "direction", "text": "Lift your chin a little so I can see it."},
-  {"id": "scout_dir_lost", "kind": "direction", "text": "Hey! Where'd you go? I'm a bee, not a bloodhound. Find the next picture."}
+  {"id": "scout_dir_lost", "kind": "direction", "text": "Hey! Where'd you go? I'm a bee, not a bloodhound. Find the next picture."},
+  {"id": "scout_teacher", "kind": "teacher", "text": "Ask your teacher for another assignment!"}
 ]

@@ -17,6 +17,8 @@ import {
   SCOUT_BOOTH_TUNING,
   SCOUT_LABELS,
   SCOUT_LINES,
+  SCOUT_STOP_ID,
+  SCOUT_TEACHER_LINE,
   SCOUT_TUNING,
   type ScoutAnswer,
   type ScoutBlockReason,
@@ -60,6 +62,8 @@ export interface ScoutGameDeps {
   now?: () => number;
   /** Sends one line to the glasses (the routes broadcast it on the bus). */
   say?: (s: ScoutSay) => void;
+  /** Tells the glasses to cut the ear now (interrupt()). */
+  stop?: () => void;
   event?: (e: ScoutEvent) => void;
   /** Absolute mp3 URL for a line id, or null (the glasses then speak the caption). */
   audioUrl?: (id: string) => string | null;
@@ -76,8 +80,12 @@ export const SKIP_REOFFER_MS = 60_000;
 export const IDLE_EVERY_MS = 60_000;
 /** Practice mode: the pause after a line before the next chime (demo mode uses tuning.gapMs). */
 export const PRACTICE_GAP_MS = 1000;
-/** Practice mode: looking away from the last find this long lets it fire again without a slide change. */
-export const PRACTICE_LOOK_AWAY_MS = 8000;
+/** Practice rediscovery: the last card fires again once its fact ended this long ago AND it was out of view
+ *  (another class top-1) for PRACTICE_OUT_OF_VIEW_MS. Another card firing in between, or a slide change, frees it at once. */
+export const PRACTICE_REFIRE_MS = 20_000;
+export const PRACTICE_OUT_OF_VIEW_MS = 3000;
+/** An answer (beginAnswer) that never calls endAnswer gives up after this long. */
+export const ANSWER_MAX_MS = 30_000;
 /** Frames further apart than this break a steady look (the worker stalled). */
 export const FRAME_STALE_MS = 1500;
 
@@ -115,9 +123,14 @@ export class ScoutGame {
   private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
   private mode: ScoutMode = "demo";
   private lastFind: { label: ScoutLabel; at: number } | null = null;
-  /** Practice: since when the frames' top-1 has not been the last find, and whether that lasted PRACTICE_LOOK_AWAY_MS. */
+  /** Practice: since when the frames' top-1 has not been the last find, whether that lasted PRACTICE_OUT_OF_VIEW_MS,
+   *  and when the last find's fact ends. */
   private awaySince: number | null = null;
   private lookedAway = false;
+  private lastFactEnd = 0;
+  /** Ask Beeswax: when the answer began, and when its audio ends (null until endAnswer). */
+  private answerStartedAt = 0;
+  private answerEndsAt: number | null = null;
   /** Booth: the station order, the index of the station Beeswax waits for, the last cue, the last sighting. */
   private order: ScoutLabel[] = [...SCOUT_BOOTH_JUDGE_ORDER];
   private station = 0;
@@ -156,7 +169,7 @@ export class ScoutGame {
   }
 
   /** POST /scout/practice: screen-test mode. A steady look plays the chime and the fact straight away (no offer),
-   *  1 s gap, and the same object fires again once the slide changes or after 8 s of looking away. */
+   *  1 s gap. The same card fires again after another card, a slide change, or 20 s + 3 s out of view. */
   setPractice(on: boolean): void {
     this.setMode(on ? "practice" : "demo");
   }
@@ -195,6 +208,14 @@ export class ScoutGame {
     this.lastIdleAt = -Infinity;
     this.lastCueAt = -Infinity;
     this.lastSeenNext = now;
+    // practice rediscovery state
+    this.lastFind = null;
+    this.awaySince = null;
+    this.lookedAway = false;
+    this.lastFactEnd = 0;
+    this.lastSlide = null;
+    this.answerEndsAt = null;
+    this.blockedKey = "";
     this.phase = "intro";
     if (this.mode === "booth") this.say(SCOUT_BOOTH_LINES.intro);
     else for (const id of SCOUT_LINES.intro) this.say(id);
@@ -295,11 +316,71 @@ export class ScoutGame {
     this.emit({ type: "slide", label, at });
   }
 
+  // ------------------------------------------------------------ Ask Beeswax API (branch scout/ask). Keep stable.
+
+  /** An answer starts: phase "answering", frames ignored, any open offer dropped (not counted as skipped).
+   *  Does NOT cut audio: call interrupt() first to stop the current line. Returns false only when an answer is
+   *  already running (one at a time); the caller should then not speak. */
+  beginAnswer(): boolean {
+    this.tick();
+    if (this.phase === "answering") return false;
+    this.phase = "answering";
+    this.offer = null;
+    this.run = null;
+    this.answerStartedAt = this.now();
+    this.answerEndsAt = null;
+    this.changed();
+    return true;
+  }
+
+  /** The answer is done being sent. `audioMs` = how much of it is still to play in the ear (0 = finished);
+   *  the game stays in "answering" until then, then back to looking (the usual gap applies). No-op otherwise. */
+  endAnswer(audioMs = 0): void {
+    if (this.phase !== "answering") return;
+    const now = this.now();
+    const end = now + Math.max(0, Number.isFinite(audioMs) ? audioMs : 0);
+    this.answerEndsAt = end;
+    this.busyUntil = Math.max(this.busyUntil, end);
+    this.mainUntil = Math.max(this.mainUntil, end);
+    this.tick();
+  }
+
+  /** Cut Beeswax off now: busy-until = now, emits {type:"stop"} and tells the glasses to drop the ear's line and queue.
+   *  The phase is untouched (telling/intro then end on the next tick; an offer keeps its timeout from now). */
+  interrupt(): void {
+    const now = this.now();
+    this.busyUntil = now;
+    this.mainUntil = now;
+    if (this.lastFactEnd > now) this.lastFactEnd = now;
+    if (this.phase === "offering") this.offerDeadline = Math.min(this.offerDeadline, now + this.offerTimeout());
+    try {
+      this.d.stop?.();
+    } catch (err) {
+      log("scout: stop failed:", err);
+    }
+    this.emit({ type: "stop", at: now });
+    this.tick();
+  }
+
+  /** POST /scout/teacher: "Ask your teacher for another assignment!" (queued after whatever is playing). */
+  teacher(): void {
+    this.tick();
+    this.say(SCOUT_TEACHER_LINE);
+    this.changed();
+  }
+
   /** Time-driven transitions: lines ending, offer timeout, idle / lost nudges. Safe to call any time. */
   tick(): void {
     const now = this.now();
     const booth = this.mode === "booth";
-    if ((this.phase === "intro" || this.phase === "telling") && now >= this.busyUntil) {
+    if (this.phase === "answering") {
+      const done = this.answerEndsAt !== null ? now >= this.answerEndsAt && now >= this.busyUntil : now - this.answerStartedAt >= ANSWER_MAX_MS;
+      if (done) {
+        if (this.answerEndsAt === null) log("scout: answer never ended, back to looking");
+        this.answerEndsAt = null;
+        this.toLooking(now);
+      }
+    } else if ((this.phase === "intro" || this.phase === "telling") && now >= this.busyUntil) {
       this.toLooking(now);
     } else if (this.phase === "offering" && now >= this.offerDeadline) {
       if (booth) {
@@ -418,8 +499,12 @@ export class ScoutGame {
   private eligible(label: ScoutLabel): boolean {
     if (this.mode === "practice") {
       // Practice: anything goes, except repeating the last find before the slide has changed.
+      // Practice: the last card is blocked until the slide changes, or 20 s after its fact ended + 3 s out of view.
+      // Another card firing in between replaces lastFind, which frees it at once.
       const last = this.lastFind;
-      return !(last && last.label === label && !this.lookedAway && (!this.lastSlide || this.lastSlide.recvAt <= last.at));
+      if (!last || last.label !== label) return true;
+      if (this.lastSlide && this.lastSlide.recvAt > last.at) return true;
+      return this.lookedAway && this.now() - this.lastFactEnd >= PRACTICE_REFIRE_MS;
     }
     if (this.found.includes(label)) return false;
     const skippedAt = this.skipped.get(label);
@@ -428,11 +513,15 @@ export class ScoutGame {
     return SCOUT_LABELS.every((l) => l === label || this.found.includes(l));
   }
 
+  private offerTimeout(): number {
+    return this.mode === "booth" ? this.booth.offerTimeoutMs : this.tuning.offerTimeoutMs;
+  }
+
   private gapMs(): number {
     return this.mode === "practice" ? PRACTICE_GAP_MS : this.tuning.gapMs;
   }
 
-  /** Practice: latch "looked away" once the last find hasn't been top-1 for PRACTICE_LOOK_AWAY_MS (props, no slides). */
+  /** Practice: latch "looked away" once the last find hasn't been top-1 for PRACTICE_OUT_OF_VIEW_MS (props, no slides). */
   private trackLookAway(top: ScoutClass | null, now: number): void {
     const last = this.lastFind;
     if (!last || top === null) return;
@@ -440,7 +529,7 @@ export class ScoutGame {
       this.awaySince ??= now;
       return;
     }
-    if (this.awaySince !== null && now - this.awaySince >= PRACTICE_LOOK_AWAY_MS) this.lookedAway = true;
+    if (this.awaySince !== null && now - this.awaySince >= PRACTICE_OUT_OF_VIEW_MS) this.lookedAway = true;
     this.awaySince = null;
   }
 
@@ -468,6 +557,7 @@ export class ScoutGame {
     if (this.mode === "practice") {
       // Practice: no hook, no offer; the fact straight away. found/progress are left alone.
       this.sayFact(label);
+      this.lastFactEnd = this.busyUntil;
       this.latency("found_to_say", this.now() - now);
       this.changed();
       return;
@@ -707,6 +797,8 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     audioUrl: (id) => (existsSync(join(audioDir(), `${id}.mp3`)) ? `${ctx.base()}/scout/audio/${id}.mp3` : null),
     // line_id stays null (no embedded clip in the glasses); tts_id carries the scout line id so the glasses can
     // light the LED per line even when audio_url is null. Ear lines never use tts_id otherwise.
+    stop: () =>
+      ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: SCOUT_STOP_ID, audio_url: null, caption: "" }, ["glasses"]),
     say: (s) =>
       ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
   });
@@ -860,7 +952,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
   });
 
   app.post("/scout/reset", (c) => {
+    game.interrupt(); // cut whatever is playing, then start over (practice state included)
     game.start();
+    return c.json({ ok: true, ...game.state() });
+  });
+
+  app.post("/scout/teacher", (c) => {
+    game.teacher();
     return c.json({ ok: true, ...game.state() });
   });
 

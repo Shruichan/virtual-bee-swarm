@@ -6,7 +6,7 @@ import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
 import {Scout, scoutLineId} from "../src/background/scout"
-import {fakeSession, sleep, until} from "./fakes"
+import {fakeSession, sleep, until, type FakeOptions} from "./fakes"
 
 const TOKEN = "test-token"
 setQuiet(true)
@@ -53,8 +53,8 @@ afterEach(() => {
 
 const paths = () => hits.map((h) => h.path)
 
-async function boot(cfg: Partial<LocalConfig> = {}) {
-  const fake = fakeSession()
+async function boot(cfg: Partial<LocalConfig> = {}, opts: FakeOptions = {}) {
+  const fake = fakeSession(opts)
   app = start(fake.session, makeConfig({hiveToken: TOKEN, hosts: [base], fieldGuideMode: false, ...cfg}))
   await until(() => fake.status.last?.bus === "open", 5000, "bus open")
   return fake
@@ -118,6 +118,22 @@ describe("scout mode", () => {
       {color: "orange", ontime: 300, offtime: 200, count: 4},
       {color: "green", ontime: 3000, offtime: 0, count: 1},
     ])
+  })
+})
+
+describe("scout stop", () => {
+  test("a scout_stop say cuts the current line and drops the queue; it plays nothing itself", async () => {
+    const fake = await boot({scoutMode: true, streamUrl: "rtmp://127.0.0.1:1935/scout"}, {speakMs: 400})
+    sayOnBus("scout_chime", "Bee fact found!")
+    sayOnBus("scout_fact_beehive", "Queued fact that never plays.")
+    await until(() => fake.audio.length >= 1, 2000, "chime starts")
+    sayOnBus("scout_stop", "")
+    await sleep(600)
+    expect(fake.audio.map((a) => (a.kind === "speak" ? a.text : a.kind))).toEqual(["Bee fact found!"])
+    expect(fake.status.last?.log.some((l) => l.includes("scout: stop"))).toBe(true)
+    sayOnBus("scout_teacher", "Ask your teacher for another assignment!")
+    await until(() => fake.audio.length >= 2, 2000, "next line plays")
+    expect(fake.audio[1]).toMatchObject({kind: "speak", text: "Ask your teacher for another assignment!"})
   })
 })
 
