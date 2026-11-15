@@ -38,9 +38,21 @@ export interface Config {
   voice: boolean
   /** Per host try for /glasses/utterance. */
   utteranceTimeoutMs: number
+  /**
+   * Live Bee Scout (scout/live): stream the camera to `streamUrl` the whole time, and route answers
+   * and button presses to the Hive's /scout game instead of the photo scanner.
+   */
+  scoutMode: boolean
+  /** Where the glasses publish video, e.g. rtmp://<laptop-LAN-ip>:1935/scout (MediaMTX). */
+  streamUrl: string
+  stream: {width: number; height: number; fps: number; bitrate: number}
 }
 
-export type LocalConfig = Partial<Omit<Config, "photo">> & {hiveToken: string; photo?: Partial<PhotoConfig>}
+export type LocalConfig = Partial<Omit<Config, "photo" | "stream">> & {
+  hiveToken: string
+  photo?: Partial<PhotoConfig>
+  stream?: Partial<Config["stream"]>
+}
 
 export const DEFAULTS: Config = {
   hosts: ["https://beeswax-venue.drori.dev", "https://beeswax.drori.dev"],
@@ -58,6 +70,9 @@ export const DEFAULTS: Config = {
   giveUpMs: 25_000,
   voice: true,
   utteranceTimeoutMs: 6000,
+  scoutMode: false,
+  streamUrl: "",
+  stream: {width: 1280, height: 720, fps: 15, bitrate: 2_000_000},
 }
 
 export function makeConfig(local: LocalConfig): Config {
@@ -67,6 +82,7 @@ export function makeConfig(local: LocalConfig): Config {
     ...local,
     hosts: hosts.length ? hosts : DEFAULTS.hosts,
     photo: {...DEFAULTS.photo, ...local.photo},
+    stream: {...DEFAULTS.stream, ...local.stream},
   }
 }
 

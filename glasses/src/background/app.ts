@@ -5,6 +5,7 @@ import {CONFIG, type Config} from "./config"
 import {Ear} from "./ear"
 import {Bus, Hive} from "./hive"
 import {Led} from "./led"
+import {LiveStream} from "./live"
 import {BEATS, SCAN_BEATS, type BeatName, type BusMessage, type LatencyRequest} from "./protocol"
 import {Scanner} from "./scan"
 import {Transcript} from "./transcript"
@@ -69,7 +70,9 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
       push()
     },
   })
-  if (config.fieldGuideMode) scanner.warmCamera()
+  // In scout mode the camera streams the whole time; a photo warm-up would fight it for the camera.
+  if (config.fieldGuideMode && !config.scoutMode) scanner.warmCamera()
+  const live = config.scoutMode ? new LiveStream(session.stream, config, log) : null
 
   const voice = new Voice({
     hive,
@@ -190,9 +193,11 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
 
   if (!status.tokenSet) log("no hiveToken in src/config.local.ts: the Hive will refuse us")
   bus.start()
+  if (live) void live.start()
 
   return {
     stop() {
+      if (live) void live.stop()
       voice.stop()
       bus.stop()
       for (const off of offs) {
