@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, IDLE_EVERY_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
-import { SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel } from "../src/scout-protocol";
+import { SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel } from "../src/scout-protocol";
 import { makeHive, TestClient, TOKEN } from "./helpers";
 
 const LINES = loadScoutLines();
@@ -706,8 +706,12 @@ describe("booth mode", () => {
   test("mode, order and next in the state; start plays the one booth intro", () => {
     const s = setup();
     s.game.setMode("booth");
-    expect(s.game.state()).toMatchObject({ mode: "booth", practice: false, next: "native_flower", order: [...SCOUT_BOOTH_ORDER] });
-    expect(SCOUT_BOOTH_ORDER.slice(0, 4)).toEqual(["native_flower", "honey_jar", "bug_spray", "bee_hotel"]);
+    expect(s.game.state()).toMatchObject({ mode: "booth", practice: false, next: "native_flower", order: [...SCOUT_BOOTH_JUDGE_ORDER] });
+    expect(SCOUT_BOOTH_JUDGE_ORDER).toEqual(["native_flower", "honey_jar", "bug_spray", "bee_hotel"]);
+    s.game.setMode("booth", SCOUT_BOOTH_ORDER); // all six only when asked
+    expect(s.game.state().order).toEqual([...SCOUT_BOOTH_ORDER]);
+    s.game.setMode("booth");
+    expect(s.game.state().order).toEqual([...SCOUT_BOOTH_JUDGE_ORDER]);
     s.game.start();
     expect(s.ids()).toEqual(["scout_booth_intro"]);
     expect(s.game.state().phase).toBe("intro");
@@ -797,6 +801,18 @@ describe("booth mode", () => {
     expect(s.game.state().next).toBe("bug_spray");
   });
 
+  test("judge order by default: the finale lands after station 4 (bee_hotel)", () => {
+    const s = boothReady();
+    for (const l of SCOUT_BOOTH_JUDGE_ORDER) {
+      expect(s.game.state().next).toBe(l);
+      s.game.force();
+      s.game.button();
+      s.advance(5000);
+    }
+    expect(s.ids().slice(-2)).toEqual(["scout_fact_bee_hotel", "scout_booth_done"]);
+    expect(s.game.state()).toMatchObject({ phase: "done", next: null });
+  });
+
   test("after the last station: fact, scout_booth_done, phase done", () => {
     const s = boothReady(["honey_jar", "bug_spray"]);
     expect(s.game.state().next).toBe("honey_jar");
@@ -825,7 +841,7 @@ describe("booth mode", () => {
     expect(s.ids()).toEqual(["scout_chime_ask"]);
   });
 
-  test("direction cues: left, right, closer, down; at most one every 8 s", () => {
+  test("direction cues: left, right, closer, up; at most one every 8 s", () => {
     const s = boothReady();
     s.see([box("native_flower", 0.15)], 500);
     expect(s.ids()).toEqual(["scout_dir_left"]);
@@ -837,8 +853,8 @@ describe("booth mode", () => {
     s.see([box("native_flower", 0.5, 0.5, 0.04, 0.05)], 200);
     expect(s.ids().at(-1)).toBe("scout_dir_closer");
     s.advance(B.cueEveryMs);
-    s.see([box("native_flower", 0.5, 0.1)], 200); // top edge: the camera aims below the gaze
-    expect(s.ids().at(-1)).toBe("scout_dir_down");
+    s.see([box("native_flower", 0.5, 0.1)], 200); // top edge: the camera aims below the gaze, so lift the head
+    expect(s.ids().at(-1)).toBe("scout_dir_up");
     expect(s.events.some((e) => e.type === "found")).toBe(false);
   });
 
