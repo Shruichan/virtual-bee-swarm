@@ -42,7 +42,7 @@ namespace VirtualBeeSwarm.HandsOn
         HoneyLever _lever;
         OrderBoard _board;
         SetupSocket _socket;
-        HandsOnPrompt _prompt, _leverNote;
+        HandsOnPrompt _prompt;
         Renderer[] _puffs;
         float[] _puffAt;
         Vector3[] _puffFrom, _puffTo;
@@ -58,6 +58,7 @@ namespace VirtualBeeSwarm.HandsOn
         float _stepAt, _assistAt, _hintAt, _fill;
         int _pumps, _sub;
         bool _orderHinted, _autoCarrying, _launchPulled;
+        bool _smokerDockPending;
         int _launchTick;
         readonly HashSet<StationBase> _byHand = new HashSet<StationBase>();
         bool _autoExpectHand;
@@ -150,14 +151,13 @@ namespace VirtualBeeSwarm.HandsOn
             _lever = HoneyLever.Build(_table, leverPosition, leverLeft);
             _lever.transform.localScale = Vector3.one * controlScale;
             _lever.Pulled += HandlePulled;
-            _lever.Refused += HandleRefused;
             _board = OrderBoard.Build(_table, boardPosition);
             _board.transform.localScale = Vector3.one * controlScale;
             _board.Ordered += Order;
             if (leverPosition.y > 0f)
             {
-                AddControlStake(_lever.transform);
-                AddControlStake(_board.transform);
+                AddControlStake(_lever.VisualRoot, leverPosition.y);
+                AddControlStake(_board.transform, boardPosition.y);
             }
             // The socket ring, labels and effects place themselves in world space but size themselves locally: give them
             // a parent that undoes the meadow rig's scale, like the lever and board (else ~3x on the floor layout, and the
@@ -167,7 +167,6 @@ namespace VirtualBeeSwarm.HandsOn
             handScale.localScale = Vector3.one * controlScale;
             _socket = SetupSocket.Build(handScale);
             _prompt = HandsOnPrompt.Build(handScale, "[VBS] HandsOnPrompt");
-            _leverNote = HandsOnPrompt.Build(handScale, "[VBS] LeverNote", 0.002f);
 
             var fx = new GameObject("[VBS] HandsOnFx").transform;
             fx.SetParent(handScale, false); // the pour stream and fallback water: sized in metres
@@ -188,10 +187,10 @@ namespace VirtualBeeSwarm.HandsOn
             _stream.gameObject.SetActive(false);
         }
 
-        void AddControlStake(Transform control)
+        void AddControlStake(Transform parent, float localHeight)
         {
-            float height = _table.TransformVector(Vector3.up * control.localPosition.y).y;
-            HandsOnKit.Prim(PrimitiveType.Cube, "MeadowStake", control,
+            float height = _table.TransformVector(Vector3.up * localHeight).y;
+            HandsOnKit.Prim(PrimitiveType.Cube, "MeadowStake", parent,
                 Vector3.down * (height * 0.5f), new Vector3(0.04f, height, 0.04f), HandsOnKit.Wood);
         }
 
@@ -267,6 +266,7 @@ namespace VirtualBeeSwarm.HandsOn
             if (_auto != null) { StopCoroutine(_auto); _auto = null; }
             _autoCarrying = false;
             _pouring = false;
+            _smokerDockPending = false;
             if (_carry != null) _carry.Disarm();
             _carry = null;
             _item = null;
@@ -276,6 +276,11 @@ namespace VirtualBeeSwarm.HandsOn
             _socket.Hide();
             _board.Hide();
             _stream.gameObject.SetActive(false);
+            for (int i = 0; i < _puffs.Length; i++)
+            {
+                _puffAt[i] = -1f;
+                _puffs[i].gameObject.SetActive(false);
+            }
             if (!WaitingForLaunch) _prompt.Hide();
         }
 
@@ -361,7 +366,8 @@ namespace VirtualBeeSwarm.HandsOn
             if (st.Station == GameStation.Smoker)
             {
                 _lever.Live = true;
-                _lever.ShowCradle(_sd != null && _sd.Active);
+                _smokerDockPending = _sd != null && _sd.Active && _item != null;
+                _lever.ShowCradle(_smokerDockPending);
                 ShowAtLever("PULL THE LEVER 3 TIMES\nTO SMOKE THE HIVE");
                 return;
             }
@@ -419,6 +425,14 @@ namespace VirtualBeeSwarm.HandsOn
             Transform spot = _sd != null ? _sd.Spot : null;
             switch (_cur.Station)
             {
+                case GameStation.Smoker:
+                    if (_smokerDockPending && _item != null && _sd.Active && _sd.AcceptsPoke(_ordered) &&
+                        Vector3.Distance(_item.position, _lever.CradlePose.position) <= 0.01f)
+                    {
+                        _smokerDockPending = false;
+                        BeeDelivery.Instance?.PlayDockTouchdown(_item);
+                    }
+                    break;
                 case GameStation.Feed:
                 {
                     Vector3 d = _item.position - spot.position;
@@ -456,8 +470,8 @@ namespace VirtualBeeSwarm.HandsOn
                             _socket.StopSweep();
                             Log("dish set down");
                             BeeDelivery.Instance?.PlayManualTouchdown(_item);
-                            if (!HandsOnTuning.HeatPump) { Succeed("POOL'S OPEN.\nNO DIVING."); return; }
                             _sub = 1;
+                            if (!HandsOnTuning.HeatPump) { Succeed("POOL'S OPEN.\nNO DIVING."); return; }
                             _lever.Live = true;
                             _hintAt = now + HandsOnTuning.HintSeconds;
                             Progress();
@@ -512,12 +526,6 @@ namespace VirtualBeeSwarm.HandsOn
             _water.gameObject.SetActive(true);
         }
 
-        void HandleRefused()
-        {
-            if (_lever.Live) return;
-            _leverNote.Show("NOT YET.\nUNION RULES.", _lever.transform, new Vector3(0f, 0.34f, -0.02f), 1.6f);
-        }
-
         /// <summary>The hand step is done: now the station's own right-choice outcome plays (stamp, crew, line, hexagon).</summary>
         void Succeed(string cheer)
         {
@@ -525,15 +533,14 @@ namespace VirtualBeeSwarm.HandsOn
             Transform spot = _sd != null ? _sd.Spot : null;
             Transform at = st.Station == GameStation.Smoker || spot == null ? _lever.transform : spot;
             if (_carry != null) _carry.Disarm();
-            if (_item != null && spot != null && st.Station != GameStation.Smoker && st.Station != GameStation.Heat)
+            if (_item != null && spot != null && (st.Station == GameStation.Feed || st.Station == GameStation.Wasps))
                 _item.SetPositionAndRotation(spot.position, spot.rotation);
-            _lever.Live = false;
+            _lever.Live = WaitingForLaunch;
             _stream.gameObject.SetActive(false);
             if (_socket.Visible) _socket.Burst(HandsOnKit.Good);
             if (!string.IsNullOrEmpty(cheer) && at != null)
                 _prompt.Show(cheer, at, at == _lever.transform ? new Vector3(0f, 0.36f, -0.02f) : Vector3.up * 0.2f, 2.2f, HandsOnKit.Good);
             else _prompt.Hide();
-            GameSound.Cue("touchdown_heavy", at); // "setup_done" has no voice (was silent): a seated thunk
             _step = Step.Done;
             Log("set-up done at " + GameIds.StationName(st.Station) + " in " + (Time.time - _stepAt).ToString("0.0") + " s");
             _byHand.Add(st);
@@ -546,7 +553,7 @@ namespace VirtualBeeSwarm.HandsOn
             var st = _cur;
             Log("crew assist at " + GameIds.StationName(st.Station) + " after " + (Time.time - _stepAt).ToString("0.0") + " s");
             if (_carry != null) _carry.Disarm();
-            _lever.Live = false;
+            _lever.Live = WaitingForLaunch;
             _socket.Hide();
             _stream.gameObject.SetActive(false);
             Transform at = st.Station == GameStation.Smoker ? _lever.transform : _sd != null && _sd.Spot != null ? _sd.Spot : _lever.transform;
@@ -595,6 +602,7 @@ namespace VirtualBeeSwarm.HandsOn
             WaitingForLaunch = true;
             _launchPulled = false;
             _stepAt = Time.time;
+            _lever.ShowCradle(false);
             _lever.Live = true;
             if (display != null) display.text = "PULL!";
             ShowAtLever("PULL FOR LIFTOFF");
@@ -616,7 +624,7 @@ namespace VirtualBeeSwarm.HandsOn
             if (!pulled && _step != Step.Setup) Log("T-0 wait ended without a pull");
             WaitingForLaunch = false;
             _launchPulled = false;
-            if (_step != Step.Setup) _lever.Live = false;
+            _lever.Live = _step == Step.Setup && (_cur is SmokerStation || _cur is HeatStation && _sub == 1);
             if (pulled) _prompt.Show("LIFTOFF!", _lever.transform, new Vector3(0f, 0.36f, -0.02f), 1.5f, HandsOnKit.Good);
             else if (_step != Step.Setup) _prompt.Hide();
         }

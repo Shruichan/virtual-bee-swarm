@@ -289,9 +289,8 @@ namespace VirtualBeeSwarm
             _dust = dustGo.AddComponent<ParticleSystem>();
             _dust.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             EmbersFx.ConfigurePuff(_dust, _dotMat, new Color(0.7f, 0.64f, 0.56f, 0.8f), 0.25f, 0.03f, 0.9f, 0.08f);
-            var dshape = _dust.shape;
-            dshape.angle = 80f;
-            dshape.radius = 0.04f;
+            var dustMain = _dust.main;
+            dustMain.maxParticles = QuestPerf.Particles(72);
 
             _audio = gameObject.GetComponent<AudioSource>();
             if (_audio == null) _audio = gameObject.AddComponent<AudioSource>();
@@ -565,6 +564,25 @@ namespace VirtualBeeSwarm
             Touchdown(di);
         }
 
+        /// <summary>Notify listeners that a tool is seated without creating a second crew flight.</summary>
+        public void FinishManualPlacement(Transform item, Pose pose)
+        {
+            var data = Register(item);
+            if (data == null) return;
+            if (data.job >= 0) Release(item, hide: false);
+            item.SetPositionAndRotation(pose.position, pose.rotation);
+            PlayManualTouchdown(item); // the dish already made contact before the pump step
+            Landed?.Invoke(item);
+        }
+
+        /// <summary>A carried tool touches its cradle without leaving the parked delivery state.</summary>
+        public void PlayDockTouchdown(Transform item)
+        {
+            if (item == null || _dust == null || Mode == DeliveryMode.Off) return;
+            AR.Touchdown.EmitCloud(_dust, item, 0.7f, dustParticles);
+            GameSound.Cue("touchdown_light", item);
+        }
+
         /// <summary>Drop the item from the system: flights snap (no callback), its crew leaves at once. hide: SetActive(false).</summary>
         public void Release(Transform item, bool hide)
         {
@@ -607,6 +625,7 @@ namespace VirtualBeeSwarm
             }
             if (_trail != null) { _trail.enabled = false; _trail.positionCount = 0; }
             if (_dust != null) _dust.Clear();
+            AR.Touchdown.ClearDust();
             RecountInFlight();
         }
 
@@ -1465,6 +1484,7 @@ namespace VirtualBeeSwarm
         {
             var t = item.transform;
             Log("touchdown " + t.name);
+            if (!item.castShadow) return; // menus and held props have no support surface
             GameSound.Cue(item.Heavy ? "touchdown_heavy" : "touchdown_light", t);
             if (TouchdownHook != null) { TouchdownHook(t, item.weight); return; }
             if (ArActive && Mode != DeliveryMode.Off)
@@ -1476,10 +1496,7 @@ namespace VirtualBeeSwarm
             item.squashUntil = _now + squashSeconds;
             t.localScale = Vector3.Scale(item.restScale, squash);
             if (_dust != null && Mode != DeliveryMode.Off)
-            {
-                _dust.transform.position = t.position + Vector3.up * 0.01f;
-                _dust.Emit(dustParticles);
-            }
+                AR.Touchdown.EmitCloud(_dust, t, item.Heavy ? 2.5f : 1f + Mathf.Clamp01(item.weight), dustParticles);
             if (thunkClip != null && _audio != null)
             {
                 _audio.transform.position = t.position;

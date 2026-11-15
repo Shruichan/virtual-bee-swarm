@@ -60,7 +60,8 @@ materials and meshes are kept.
 - Use **ORDER UP** to order a smoker and pump it with the honey-dipper lever. Lift the hive and pour syrup into the
   feeder. Fit the entrance reducer, then set down the pebble dish and pull the lever to fill it.
 - The hive makes a sound when you lift it. With a Touch controller, the hand lifting it gets one short pulse.
-  The pebble dish gives a little dust and a thunk when it snaps into place.
+  Landed props kick up dust at their contact point. The lever appears for smoke, water and liftoff, then folds away.
+  The used station tools also disappear once their outcomes play. The filled pebble dish stays in the meadow.
 - Hold a pinch to ask the future window a **what if**, or use B/Y on a controller. Ask about a fire, then say
   **put it out**. Beeswax demonstrates and clears the fire if the player stays quiet, including when the Hive is down.
 - After the hive is saved, pull the lever to launch the rocket. The Moon appears at liftoff. The map and final

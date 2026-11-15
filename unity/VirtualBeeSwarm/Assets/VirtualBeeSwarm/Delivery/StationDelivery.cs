@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -309,7 +310,11 @@ namespace VirtualBeeSwarm
             if (Active)
             {
                 Attach();
-                for (int i = 0; i < _n; i++) Delivery.Release(_item[i], hide: true);
+                for (int i = 0; i < _n; i++)
+                {
+                    if (_collider[i] != null) _collider[i].enabled = true;
+                    Delivery.Release(_item[i], hide: true);
+                }
             }
             else Detach();
         }
@@ -423,7 +428,56 @@ namespace VirtualBeeSwarm
                 _gone[i] = true;
                 Delivery.HaulAway(_item[i], repo: true);
             }
-            else if (!_rightSent) LandRight(i);
+            else
+            {
+                if (!_rightSent) LandRight(i);
+                if (station != GameStation.Heat)
+                {
+                    StopToolExit();
+                    _toolExit = StartCoroutine(FadeSpentTool(i));
+                }
+            }
+        }
+
+        Coroutine _toolExit;
+        Transform _stowingTool;
+        Vector3 _stowingScale;
+
+        IEnumerator FadeSpentTool(int i)
+        {
+            var tool = _item[i];
+            while (tool != null && Delivery != null && Delivery.IsFlying(tool)) yield return null;
+            // Leave the contact beat visible before removing the finished tool.
+            yield return new WaitForSeconds(0.14f);
+            if (tool != null && tool.gameObject.activeInHierarchy && Delivery != null)
+            {
+                if (_collider[i] != null) _collider[i].enabled = false;
+                Delivery.Release(tool, hide: false);
+                HideStamp(i);
+                _stowingTool = tool;
+                _stowingScale = tool.localScale;
+                const float seconds = 0.32f;
+                for (float t = 0f; t < seconds && tool != null; t += Time.deltaTime)
+                {
+                    tool.localScale = _stowingScale * (1f - Mathf.SmoothStep(0f, 1f, t / seconds));
+                    yield return null;
+                }
+                if (tool != null)
+                {
+                    Delivery.Release(tool, hide: true);
+                    Debug.Log("[VBS][Delivery] stowed spent tool " + tool.name);
+                }
+            }
+            _toolExit = null;
+            _stowingTool = null;
+        }
+
+        void StopToolExit()
+        {
+            if (_toolExit != null) StopCoroutine(_toolExit);
+            if (_stowingTool != null) _stowingTool.localScale = _stowingScale;
+            _toolExit = null;
+            _stowingTool = null;
         }
 
         void LandRight(int i, bool alreadyPlaced = false)
@@ -431,9 +485,13 @@ namespace VirtualBeeSwarm
             if (_rightSent) return;
             _rightSent = true;
             string id = _choice[i];
-            Delivery.Deliver(_item[i], spot, DeliveryStyle.Crown, 0, () => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down"));
-            // Complete the placement and notify listeners without another visible flight.
-            if (alreadyPlaced) Delivery.Finish(_item[i]);
+            void LogSetDown() => Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + id + " set down");
+            if (alreadyPlaced)
+            {
+                Delivery.FinishManualPlacement(_item[i], new Pose(spot.position, spot.rotation));
+                LogSetDown();
+            }
+            else Delivery.Deliver(_item[i], spot, DeliveryStyle.Crown, 0, LogSetDown);
             for (int k = 0; k < _n; k++)
             {
                 if (k == i || _gone[k]) continue;
@@ -446,6 +504,7 @@ namespace VirtualBeeSwarm
         /// <summary>StationBase.OnExit (before props are hidden): the right one ends on its spot if solved, the rest are gone, no bees left.</summary>
         public void OnStationExit(bool solved)
         {
+            StopToolExit();
             Resolve();
             RestoreAll();
             ClearHint(false);
@@ -467,6 +526,7 @@ namespace VirtualBeeSwarm
         /// <summary>StationBase.OnResetState (before OnStationReset): everything back to the builder's layout.</summary>
         public void ResetItems()
         {
+            StopToolExit();
             Resolve();
             RestoreAll();
             ClearHint(false);
@@ -923,6 +983,10 @@ namespace VirtualBeeSwarm
             catch (Exception e) { Debug.LogException(e); }
         }
 
-        void OnDisable() => RestoreAll();
+        void OnDisable()
+        {
+            StopToolExit();
+            RestoreAll();
+        }
     }
 }

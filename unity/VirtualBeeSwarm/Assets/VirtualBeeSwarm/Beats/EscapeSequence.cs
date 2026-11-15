@@ -60,7 +60,14 @@ namespace VirtualBeeSwarm
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
             if (delivery == null) delivery = FindAnyObjectByType<BeeDelivery>();
-            if (scoreCard != null) { FitCard(scoreCard.transform); _cardScale = scoreCard.transform.localScale; BuildEndPanel(scoreCard.transform); }
+            if (scoreCard != null)
+            {
+                FitCard(scoreCard.transform);
+                _cardScale = scoreCard.transform.localScale;
+                BuildEndPanel(scoreCard.transform);
+                if (!scoreCard.TryGetComponent<DeliveryItem>(out var item)) item = scoreCard.AddComponent<DeliveryItem>();
+                item.castShadow = false; // the score and contract are held in the air
+            }
             SetActive(scoreCard, false);
         }
 
