@@ -304,6 +304,7 @@ namespace VirtualBeeSwarm
             float _spread = Bloom.MeadowLayout.SwarmSpread; // meadow: orbit the scaled-up hive, not inside it
             float bl = beeLength * (_spread > 1.01f ? 1.4f : 1f); // meadow: bees that read across the room
             var clearance = MeasureHive(bl);
+            bool touch = Mode != SwarmMode.Ball && SwarmTouch.SwarmTouchField.Begin(0, Mode == SwarmMode.Angry || agit > 0.6f ? SwarmTouch.TouchMood.Angry : SwarmTouch.TouchMood.Pet); // [SwarmTouch hook] hands part the bees
             for (int i = 0; i < _n; i++)
             {
                 float ph = _phase[i];
@@ -405,8 +406,9 @@ namespace VirtualBeeSwarm
                 if (s1 < 0.0009f && s1 > 1e-8f) steer += d1 * (0.6f / s1) * 0.01f;
                 if (s2 < 0.0009f && s2 > 1e-8f) steer += d2 * (0.6f / s2) * 0.01f;
                 v += steer * dt;
-                float vm = v.magnitude;
-                if (vm > maxSpeed) v *= maxSpeed / vm;
+                float tw = touch ? SwarmTouch.SwarmTouchField.Push(0, i, ref p, ref v, dt) : 0f; // [SwarmTouch hook]
+                float vm = v.magnitude, cap = maxSpeed * (1f + 3f * tw); // [SwarmTouch hook] a parted bee may outrun the mode for a moment
+                if (vm > cap) v *= cap / vm;
                 p += v * dt;
                 if (_spread > 1.01f) // meadow: no bee closer than 0.45 m to the face (comfort: 0.8 m)
                 {

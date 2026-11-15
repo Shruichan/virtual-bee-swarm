@@ -516,6 +516,7 @@ namespace VirtualBeeSwarm.Stakes
             bool anyIn = false, anyAlive = false;
             Color dark = darkColor * brightness, gold = goldColor * brightness;
             int drawn = 0;
+            bool touch = SwarmTouch.SwarmTouchField.Begin(1, SwarmTouch.TouchMood.Aloof); // [SwarmTouch hook] hands part the band
             for (int i = 0; i < _n; i++)
             {
                 byte st = _state[i];
@@ -568,8 +569,9 @@ namespace VirtualBeeSwarm.Stakes
                     Vector3 target = SlotWorld(i, now);
                     Vector3 v = _vel[i];
                     v += ((target - _pos[i]) * 5f - v * 2.2f) * dt;
-                    float vm = v.magnitude;
-                    if (vm > 0.9f) v *= 0.9f / vm;
+                    float tw = touch ? SwarmTouch.SwarmTouchField.Push(1, i, ref _pos[i], ref v, dt) : 0f; // [SwarmTouch hook]
+                    float vm = v.magnitude, cap = 0.9f * (1f + 3f * tw); // [SwarmTouch hook]
+                    if (vm > cap) v *= cap / vm;
                     _vel[i] = v;
                     p = _pos[i] + v * dt;
                 }
