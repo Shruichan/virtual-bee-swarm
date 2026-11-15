@@ -11,7 +11,7 @@
 // Sound: off on every load. The page makes no sound at all until someone turns it on (button or M); the
 // camera <video> never carries audio (no audio track is requested, and it stays muted). The glasses speak regardless.
 //   boxes=1 draw the detection boxes (boxes=0 hides them); default off, B toggles, the choice is remembered here
-// Keys: M = sound on/off, B = boxes on/off, F = full screen, Esc = close the lessons panel.
+// Keys: M = Mac sound on/off, G = glasses sound on/off (POST /scout/glasses-mute), B = boxes on/off, F = full screen, Esc = close the lessons panel.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -162,13 +162,18 @@ const SHOW = `<!doctype html>
   @keyframes medalin { from { transform: scale(.7) rotate(-20deg); } }
   @keyframes shine { from { transform: rotate(-120deg); opacity: 0; } 50% { opacity: 1; } }
   @keyframes ribin { from { transform: translateY(-40%); opacity: 0; } }
-  #sound { display: flex; align-items: center; gap: .5rem; padding: .55rem 1.2rem .55rem .9rem; border-radius: 99rem; border: 0; cursor: pointer;
-    background: transparent; box-shadow: inset 0 0 0 .12rem rgba(85, 41, 15, .25); font-size: 1.15rem; font-weight: 700; color: var(--ink-soft); }
-  #sound svg { width: 1.6rem; height: 1.6rem; }
-  #sound .on { display: none; }
-  #sound[aria-pressed="true"] { background: var(--brown); color: var(--paper); box-shadow: none; }
-  #sound[aria-pressed="true"] .on { display: inline; } #sound[aria-pressed="true"] .off { display: none; }
-  #sound:focus-visible { outline: .2rem solid var(--honey); outline-offset: .2rem; }
+  /* two sound switches, stacked: this computer and the glasses */
+  .sw { display: flex; flex-direction: column; gap: .35rem; }
+  .tog { display: flex; align-items: center; gap: .45rem; padding: .3rem .95rem .3rem .7rem; border-radius: 99rem; border: 0; cursor: pointer; white-space: nowrap;
+    background: rgba(255, 253, 248, .55); box-shadow: inset 0 0 0 .12rem rgba(85, 41, 15, .25); font-size: 1.05rem; font-weight: 700; color: var(--ink-soft); }
+  .tog svg { width: 1.3rem; height: 1.3rem; flex: none; }
+  .tog .on { display: none; }
+  .tog b { font-weight: 800; color: var(--brown); }
+  .tog[aria-pressed="true"] { background: var(--brown); color: var(--paper); box-shadow: none; }
+  .tog[aria-pressed="true"] b { color: var(--butter); }
+  .tog[aria-pressed="true"] .on { display: inline; } .tog[aria-pressed="true"] .off { display: none; }
+  .tog:disabled { cursor: default; opacity: .5; }
+  .tog:focus-visible { outline: .2rem solid var(--honey); outline-offset: .2rem; }
 
   /* ---------------------------------------------------------------- live layout */
   main { display: grid; grid-template-columns: minmax(0, 1fr) 30rem; gap: 2.2rem; padding: .8rem 2.2rem 2rem; min-height: 0; align-items: center; }
@@ -348,10 +353,16 @@ const SHOW = `<!doctype html>
   <div id="case" aria-label="Badges earned"><ol id="slots"></ol></div>
   <div class="tools">
     <div id="today" title="Bee facts found on this screen today">${DAISY_ICON}<span><b id="todayn">0</b> <span id="todayt">bee facts found today</span></span></div>
-    <button id="sound" type="button" aria-pressed="false" title="Play Beeswax's voice on this screen (M)">
+    <div class="sw">
+      <button id="sound" class="tog" type="button" aria-pressed="false" title="Beeswax's voice on this computer (M)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/>
-      </svg><span id="soundt">Sound off</span></button>
+      </svg><span>Mac sound: <b id="soundt">off</b></span></button>
+      <button id="gsound" class="tog" type="button" aria-pressed="true" title="Beeswax's voice in the glasses (G)" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/>
+      </svg><span>Glasses sound: <b id="gsoundt">&hellip;</b></span></button>
+    </div>
   </div>
 </header>
 <main>
@@ -770,6 +781,7 @@ const SHOW = `<!doctype html>
 
   function onState(st) {
     S = st;
+    glassesState(st);
     var found = Array.isArray(st.found) ? st.found : [];
     // a new journey (reset, start, mode switch): the case empties
     if ((journey !== null && st.started_at && st.started_at !== journey) || (st.phase === "intro" && !found.length)) clearCase();
@@ -810,12 +822,40 @@ const SHOW = `<!doctype html>
     mirror = !!on;
     var b = $("sound");
     b.setAttribute("aria-pressed", mirror ? "true" : "false");
-    b.title = (mirror ? "Sound on: Beeswax's voice plays on this screen. Click or press M to mute." : "Sound off: this screen is silent. Click or press M to hear Beeswax.");
-    $("soundt").textContent = mirror ? "Sound on" : "Sound off";
+    b.title = (mirror ? "Mac sound on: Beeswax's voice plays on this computer. Click or press M to mute." : "Mac sound off: this computer is silent. Click or press M to hear Beeswax.");
+    $("soundt").textContent = mirror ? "on" : "off";
     if (!mirror) { queue = []; cur = null; audio.pause(); audio.muted = true; audio.removeAttribute("src"); audio.load(); }
   }
   $("sound").addEventListener("click", function () { setMirror(!mirror); });
   setMirror(false); // always start silent
+
+  // ------------------------------------------------------------------ glasses sound: POST /scout/glasses-mute, state.glasses_muted
+  // Unavailable (disabled) until the Hive reports glasses_muted, or when the route 404s.
+  var gMuted = null, gAvail = false, gBusy = false;
+  function renderG() {
+    var b = $("gsound");
+    b.disabled = !gAvail || gBusy;
+    b.setAttribute("aria-pressed", gAvail && gMuted === false ? "true" : "false");
+    $("gsoundt").textContent = !gAvail ? "unavailable" : gMuted ? "off" : "on";
+    b.title = !gAvail ? "This Hive can't mute the glasses yet" : gMuted ? "Glasses are silent. Click or press G to let Beeswax speak in the glasses." : "Beeswax speaks in the glasses. Click or press G to mute them.";
+  }
+  function glassesState(st) { if (st && typeof st.glasses_muted === "boolean") { gMuted = st.glasses_muted; gAvail = true; renderG(); } }
+  function toggleGlasses() {
+    if (!gAvail || gBusy) return;
+    var want = !gMuted;
+    gBusy = true; gMuted = want; renderG();
+    fetch("/scout/glasses-mute?" + TQ, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ muted: want }) })
+      .then(function (r) {
+        if (r.status === 404) { gAvail = false; return null; }
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json().catch(function () { return null; });
+      })
+      .then(function (j) { if (j) glassesState(j.state || j); })
+      .catch(function () { gMuted = !want; })
+      .then(function () { gBusy = false; renderG(); });
+  }
+  $("gsound").addEventListener("click", toggleGlasses);
+  fetch("/scout/state?" + TQ, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) { glassesState(st); renderG(); }).catch(function () { renderG(); });
 
   // ------------------------------------------------------------------ Hive events (SSE, named events)
   function handle(ev) {
@@ -920,6 +960,7 @@ const SHOW = `<!doctype html>
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
     else if (e.key === "b" || e.key === "B") setBoxes(!showBoxes, true);
+    else if (e.key === "g" || e.key === "G") toggleGlasses();
     else if (e.key === "Escape") hideTeacher();
     else if (e.key === "f" || e.key === "F") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); }
   });
