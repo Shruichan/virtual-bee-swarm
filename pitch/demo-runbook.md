@@ -2,7 +2,7 @@
 
 > Judging is Sun 10 AM to 12 PM. Hacking ends and Devpost closes at 9:00 AM, so setup is 9:00 to 10:00.
 > TODO: judging format (pairs or solo? open hall or booths? minutes per group?). Fill in once someone reads the dashboard. The full run below is about 4 minutes in the headset plus 2 minutes of talk. **If a judge says "we have two minutes," use the [2-minute judge cut](#2-minute-judge-cut).**
-> **At the table, use `demo-card.md`** (one card). This file is for setup and for the night before.
+> Use the current run order below during rehearsal. The two-minute judge cut is an operator rehearsal path.
 > Print this or keep it open on a second phone. **Never put the Hive token on a screen judges can see**, and never write it in this file.
 
 ## Roles
@@ -11,7 +11,7 @@
 |---|---|---|
 | **Mediator** (wears the "union mediator" lanyard) | TODO | Greets judges, does the 30 s intro, fits the headset, says the nudge lines below, does the after-pitch. The only person talking to the player. |
 | **Operator** | Rome (TODO confirm) | Laptop + Beat Board. Watches the run, steps in only when something fails. Doesn't talk unless asked a backend question. |
-| **Spotter** | TODO | Stands next to the player. Safety (cables, table edges), hands over props, resets the table between groups. |
+| **Spotter** | TODO | Stands next to the player. Keeps the play area clear and checks room placement between groups. |
 | **Host** | TODO | Talks to the second judge or anyone waiting. Points at the cast screen and explains what they're seeing. Takes the questions while the player is still in the headset. |
 
 ## The night before / Sunday morning
@@ -45,14 +45,13 @@
 
 **Voice**
 - [ ] Mic permission granted on the headset (no popup).
-- [ ] Say "what if it rains" in the headset and see the transcript appear on the Board within a few seconds. TODO: if the venue is loud, decide between push-to-talk and always listening.
+- [ ] On a connected Quest, hold push-to-talk, say "what if it rains", then release. Confirm the transcript on the Board. Rehearse both fire commands and one Ask Beeswax question after the finale.
 - [ ] Quest volume high enough to hear Beeswax over the hall.
 
 **Play area**
-- [ ] Mark the player spot and clear the floor and cable paths.
-- [ ] Check that the default meadow rig stands clear of furniture and the order tickets and lever are within reach.
-- [ ] Keep the play area brightly and evenly lit for hand tracking.
-- [ ] Props in their start spots (TODO: only if physical props made it): honey jar, syrup bottle, pebble dish, deep bowl, smoker.
+- [ ] Clear the floor around the player. Confirm the hive stands on the floor, outside walls and furniture, with the window visible. Recheck after recentering.
+- [ ] Confirm the clipboard, order tickets, lever and setup sockets are reachable. Check hand tracking and controller input in the same rehearsal.
+- [ ] Keep the play area evenly lit for tracking and passthrough.
 - [ ] Face-cover wipes, tissues. Cables taped down.
 - [ ] Stopwatch on someone's phone.
 
@@ -69,38 +68,41 @@
 ### Before the clock (≤ 60 s)
 
 **Mediator:**
-> "Hi! I'm the union mediator. Poke SIGN HERE when the bee hands you the clipboard. Once the hive arrives, you have four minutes to fix it or we're headed to the Moon. When Beeswax asks for a what-if, pinch and hold to talk."
+> "Sign the clipboard to become the beekeeper. You have four minutes to fix the hive. Poke an order ticket and the crew will bring your tool. When Beeswax asks for a what-if, hold push-to-talk, speak, then let go."
 
-Fit the headset. **Spotter** — "Can you see the meadow? Hold up your hands."
-**Operator:** Board mode SOLO (or DUO if glasses), window LIVE and `ready`, Quest connected.
+On the what-if beat, hold a pinch or controller trigger, or use the controller talk button. For desktop rehearsal, hold T.
+
+Fit the headset. **Spotter:** "Can you see the hive on the floor? Hold up your hands."
+**Operator:** Confirm the Quest is connected. Set the Board to SOLO, or DUO when using glasses. Use LIVE if the relay passed rehearsal and shows `ready`, or select CLIPS.
 
 ### On the clock
 
 | Time | Beat | Player does | Beeswax (in game) | Mediator (only if needed) | Operator |
 |---|---|---|---|---|---|
-| 0:00–0:15 | Hook | Signs the worker bee's clipboard and watches the hive arrive | Speaks from inside the hive | Point out SIGN HERE if needed | Watch the beat change on the Board. |
-| 0:15–0:35 | Meet + window | Watches Beeswax emerge and the evacuation rocket arrive | Gives the four-minute ultimatum | | Check the window is ready. |
-| 0:35–1:05 | 1. Smoker | Orders the smoker and pumps the lever | Reacts to the choice | "Which one would you want if you were a bee?" | |
-| 1:05–1:45 | 2. Lift + feed | Lifts the hive, orders syrup, and pours it into the roof feeder | Explains what store honey can do | "Try lifting it. Heavy?" | |
-| 1:45–2:20 | 3. Wasps | Orders the reducer and slots it into the entrance | "Smaller door, fewer guards needed to hold it." | | |
-| 2:20–2:55 | 4. Heat | Sets down the pebble dish and pumps water | "Pebbles! Somewhere to land…" | | |
-| 2:55–3:20 | What-if | Asks Beeswax "What if a fire starts?", then "Put it out!" | "Don't. Say. That." / "Okay. It's out." | Freezes: "Ask him what happens if there's a fire." Not heard: "Louder, he's a bee." | Not heard twice: trigger fire from the Board (TODO Rome: what-if buttons). Same for "put it out." |
-| 3:20–3:40 | Hive saved | Watches the bees fly out and gets the scorecard | "Motion carried. No ravaging today. Cancel the evacuation." | | |
-| 3:40–4:15 | T-0 + map | Pulls the launch lever, watches the Moon and crash, and gets the new contract | "TAKE ME TO THE MOON!" / "...Not one flower." | Let the Moon play. | |
+| 0:00–0:15 | Title + hook | Signs the clipboard. The crew flies the title out and opens the window. | "Signed. Crew, cut the window!" | Nothing. | Watch the beat change on the Board. |
+| 0:15–0:35 | Meet + forecast | Watches the Paris forecast and sees the evacuation rocket arrive. | "You humans get the Moon." | If explaining the window to another judge, match the explanation to the selected mode. | Verify the window is playing. |
+| 0:35–1:05 | 1. Smoker | Orders the smoker and pulls the lever for three puffs. | Explains the alarm scent. | If needed: "Try the honey-dipper lever." | |
+| 1:05–1:45 | 2. Lift + feed | Lifts the hive. Orders store honey for the scripted mistake, then carries syrup over the roof feeder. | "We're starving." / "…Honey. From a STORE." | If needed: "Lift the hive, then try the syrup in the feeder." | Watch the sick and recovery scenes. |
+| 1:45–2:20 | 3. Wasps | Orders the smaller entrance reducer and slots it into the hive door. | "Smaller door, fewer guards needed to hold it." | | |
+| +30 s | Hornet (only if enabled) | Fist, then hums. | "Make a FIST!" / "Now HUM!" | If needed: "Make a fist, then hum." | If mic fails, use the Board's hum slider. |
+| 2:20–2:55 | 4. Heat | Sets down the shallow pebble dish, then pumps water with the lever. | "Pebbles! Somewhere to land." | | |
+| 2:55–3:20 | What-if | Holds push-to-talk, asks "What if a fire starts?", and releases. Repeats with "Put it out." | "Don't. Say. That." / "Fire brigade! …It's out." | If needed: "Hold, speak, then let go." | Connected with no response: Board **FIRE** and **PUT IT OUT**. Offline: use local release or timers. |
+| 3:20–3:40 | Hive saved | Watches the hive open, queen emerge, and swarm fly out. Looks at the scorecard. | "Motion carried. No ravaging today. Cancel the evacuation." | | Note the score time. |
+| 3:40–4:15 | T-0 + map | Pulls the launch lever, sees the Moon and crash, and reads the final contract. Can ask a bee question at the end if online. | "TAKE ME TO THE MOON!" / "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five." | Let the Moon play. | The rocket auto-launches if nobody pulls. |
 
 **Running long?** Keep the honey mistake, fire, and Moon. Beeswax grants an extension if the boarding clock runs out.
+
+If the connected Ask Beeswax rehearsal passed, offer one bee question before the headset comes off.
 
 ### After the headset comes off (60 to 90 s)
 
 **Mediator:**
 > "So: every station is real beekeeping. Did you pick the honey? It sounds like the nice option. Store honey can carry a disease that kills hives."
-> [LIVE] "That window was Visko's Orbis world model, making the meadow live. When you said 'fire,' we changed its prompt mid-stream, and it morphed from the frame it was showing. It never cuts."
-> [CLIPS] "That window was footage we generated with Visko Orbis for each scene. The live stream is off today because TODO."
-> "All of Beeswax's own lines are pre-recorded, the AI only picks from a list, and if the Wi-Fi dies the demo still finishes. Questions?"
+> [LIVE] "That window was Visko's Orbis world model, making the meadow live. When you said 'fire,' we changed its prompt mid-stream, and it morphed from the frame it was showing."
+> [CLIPS] "That window played footage we generated with Visko Orbis for each scene."
+> "Beeswax uses prerecorded dialogue for the ride. The connected game can answer bee questions. If the connection drops, local lines, clips and timers keep the ride moving."
 
 If they picked syrup: "Nice. The honey sounds like the kind option, and it can carry spores of a disease that kills hives. The spores last for decades." TODO: once the Sat 6 PM run has a real count ("N of M people picked the honey"), say that instead.
-If there's time and the window is live: "Want to give Beeswax one more what-if?" TODO: list which what-ifs actually work (rain, clover, spray, winter are written, none tested). If none work besides fire, skip this line.
-
 Then go to `judge-qa.md`.
 
 ---
@@ -111,8 +113,8 @@ For "we have two minutes." Skips stations 1, 3 and 4, keeps the three things peo
 
 | Time | Beat | Operator (Board) | Mediator |
 |---|---|---|---|
-| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | "Beeswax needs us to save his hive or we have to evacuate to the Moon. Check how heavy the hive feels." |
-| 0:00–0:40 | Station 2: lift + feed | (nothing) | If they go straight to syrup, cover the honey mistake in the recap. |
+| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | Short intro: "The bees' union voted to move to the Moon. Fix the hive. Beeswax is scripted." |
+| 0:00–0:40 | Station 2: lift + feed | Make sure the station and order board open before starting the cut. | For the scripted mistake, ask them to order store honey first, then recover with syrup. |
 | 0:40–1:10 | What-if | Jump to the **what-if** beat | "Ask him: what if a fire starts?" |
 | 1:10–1:50 | T-0 | Jump to **T-0** | Nothing. Let the Moon play. |
 | 1:50–2:00 | Off | | "Did you pick the honey? It sounds like the nice option, and it can kill a hive. Questions?" |
@@ -129,9 +131,9 @@ TODO: run this cut once on Saturday with a stopwatch.
 | Session ends right after the fire prompt | Orbis moderation | Same as above. Use CLIPS for the fire for the rest of the day. | Same. |
 | Player talks, no transcript on the Board | Mic, noise, or speech-to-text down | Mediator: "Louder, he's a bee." Then operator triggers the beat from the Board. | "The hall's loud. Let's try once more." |
 | Transcript shows up but nothing happens | Intent missed (said something we don't handle) | Mediator: "Ask him 'what if a fire starts.'" Operator triggers it if needed. | |
-| Board says the Quest is disconnected (Hive down) | Server crashed, tunnel down, or hotspot dropped | Don't stop the demo. Unity keeps going on its offline timers, lines are in the app, window plays clips. Operator: check the hotspot, restart `bun run start`, the headset reconnects by itself. TODO U1: confirm what triggers the fire beat when the Hive is down. | "The server dropped, so it's running offline. You're seeing the same game minus voice." |
-| Hive is floating or inside furniture | Room tracking or placement | Check tracking and recenter in the clear play area. Restart the app if placement remains wrong. | |
-| Hands not tracking | Light or hands out of view | Spotter: "Bring your hands up in front of you." Floating buttons are the fallback. | |
+| Board says the Quest is disconnected (Hive down) | Server crashed, tunnel down, or hotspot dropped | Don't stop the demo. Unity plays local lines and clips. On the what-if beat, release the talk input once to start fire and again to put it out, or let the timers run. Operator: check the hotspot and Hive. | "The server dropped, so the ride switched to its offline controls and prerecorded audio." |
+| Hive floats, overlaps a wall or blocks a prop | Placement or recenter | Pause the demo and move clear of obstacles. Re-place the floor-standing hive or reset the group before continuing. | |
+| Hands not tracking | Light or hands out of view | Spotter: "Bring your hands up in front of you." Try controller input. Crew assistance keeps the station moving if needed. | |
 | Headset battery under ~20% | | Finish this group plugged in, then charge. Swap order with talk time. | |
 | App crashed | | Relaunch from the headset library. Board → RESET GROUP. If it keeps crashing, reinstall the locked APK. | "We'll restart it. Takes 20 seconds." |
 | Judge doesn't want to wear the headset | | A teammate plays, the judge watches the cast and calls out the what-if for the player to repeat. [GLASSES] Offer the glasses role instead. | |
@@ -140,7 +142,7 @@ TODO: run this cut once on Saturday with a stopwatch.
 
 1. [ ] Board → **RESET GROUP**. Headset goes back to the start. TODO U1: confirm reset puts Unity back to the `pre` beat with all four hexagons off.
 2. [ ] Window: still `ready`? Session time under ~10 min? Otherwise OFF → LIVE. Long gap expected: OFF.
-3. [ ] Props back to their start spots. Hive lined up with the tape.
+3. [ ] Check the hive and play area are clear, and the clipboard is reachable from the start position.
 4. [ ] Headset: wipe the face cover, check battery, plug in if under 40%.
 5. [ ] Board mode SOLO or DUO for the next group.
 6. [ ] Write one line in the notes: time, what broke, what they laughed at, anything a judge asked that we couldn't answer. (This is how `judge-qa.md` gets better during the morning.)
