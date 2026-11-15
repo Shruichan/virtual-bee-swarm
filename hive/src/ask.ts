@@ -38,7 +38,7 @@ export const DEFAULT_MODEL = "claude-haiku-5-5";
 export const REFUSE_LINE = "room_whatif_refuse";
 export const FILLER_LINE = "room_live_filler";
 /** Tunables (tests shorten them). */
-export const askLimits = { hedgeMs: 1600, deadlineMs: 2600, firstChunkMs: 1200, echoMs: 12_000, cacheMax: 64, audioMaxBytes: 16 * 1024 * 1024 };
+export const askLimits = { hedgeMs: 1600, deadlineMs: 2600, firstChunkMs: Math.min(15000, Math.max(250, Number(process.env.ASK_TTS_FIRST_CHUNK_MS) || 1200)), echoMs: 12_000, cacheMax: 64, audioMaxBytes: 16 * 1024 * 1024 };
 const MAX_TOKENS = 200;
 const WARM_FOR_MS = 40 * 60_000; // below the Hive's 50 min re-warm, like router.ts
 
