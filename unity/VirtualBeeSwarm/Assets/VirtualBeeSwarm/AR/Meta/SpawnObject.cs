@@ -1,16 +1,16 @@
 using UnityEngine;
+using Meta.XR.MRUtilityKit;
 
 namespace VirtualBeeSwarm.AR
 {
-    /// <summary>
-    /// Optional generic scene-object placement on the already calibrated table during pre. HivePlacement remains responsible
-    /// for the hive rig's two-point calibration and grab-and-drop fallback.
-    /// </summary>
     public class SpawnObject : MonoBehaviour
     {
         [Header("Raycasting")]
+        [SerializeField] private Transform rightHandRayStart;
+        [SerializeField] private Transform leftHandRayStart;
         [SerializeField] private float rayLength = 1f;
         [SerializeField, Range(0f, 90f)] private float maxHorizontalAngle = 20f;
+        [SerializeField] private MRUKAnchor.SceneLabels labelFilter = MRUKAnchor.SceneLabels.TABLE;
 
         [Header("Spawning")]
         [SerializeField] private bool isSpawning;
@@ -56,12 +56,24 @@ namespace VirtualBeeSwarm.AR
             }
 
             if (arRig == null) arRig = ArRig.Instance;
-            IEnvRaycaster raycaster = arRig != null ? arRig.Raycaster : null;
-            if (raycaster == null || !raycaster.Enabled || arRig.Placement == null ||
-                !arRig.Placement.Allowed || !arRig.Room.HasTable) return;
+            if (arRig != null)
+            {
+                IEnvRaycaster raycaster = arRig.Raycaster;
+                if (raycaster == null || !raycaster.Enabled || arRig.Placement == null ||
+                    !arRig.Placement.Allowed || !arRig.Room.HasTable) return;
 
-            if (TryHandSpawn(GameHand.Left, raycaster)) return;
-            TryHandSpawn(GameHand.Right, raycaster);
+                if (TryHandSpawn(GameHand.Left, raycaster)) return;
+                TryHandSpawn(GameHand.Right, raycaster);
+                return;
+            }
+
+            if (leftHandRayStart == null) leftHandRayStart = GameObject.Find("LeftHandAnchor")?.transform;
+            if (rightHandRayStart == null) rightHandRayStart = GameObject.Find("RightHandAnchor")?.transform;
+            MRUKRoom room = MRUK.Instance != null ? MRUK.Instance.GetCurrentRoom() : null;
+            if (room == null) return;
+
+            if (TryHandSpawn(leftHandRayStart, room)) return;
+            TryHandSpawn(rightHandRayStart, room);
         }
 
         bool TryHandSpawn(GameHand hand, IEnvRaycaster raycaster)
@@ -69,19 +81,41 @@ namespace VirtualBeeSwarm.AR
             if (!GameHands.TryGetPointerRay(hand, out Ray ray)) return false;
 
             if (!raycaster.Raycast(ray, rayLength, out ArHit hit) || hit.status != ArHitStatus.Hit) return false;
-
             float angle = Vector3.Angle(hit.normal, Vector3.up);
             if (angle > maxHorizontalAngle || !arRig.Room.InsideTable(hit.point)) return false;
 
             float tableY = arRig.Room.Table.Y;
             if (Mathf.Abs(hit.point.y - tableY) > 0.05f) return false;
             hit.point.y = tableY;
+            return SpawnAt(hit.point, ray.direction);
+        }
 
+        bool TryHandSpawn(Transform handRayStart, MRUKRoom room)
+        {
+            if (handRayStart == null) return false;
+
+            Ray ray = new Ray(handRayStart.position, handRayStart.forward);
+            if (!room.Raycast(
+                    ray,
+                    rayLength,
+                    new LabelFilter(labelFilter),
+                    out RaycastHit hit,
+                    out _))
+            {
+                return false;
+            }
+
+            if (Vector3.Angle(hit.normal, Vector3.up) > maxHorizontalAngle) return false;
+            return SpawnAt(hit.point, ray.direction);
+        }
+
+        bool SpawnAt(Vector3 hitPoint, Vector3 rayDirection)
+        {
             Vector3 direction = targetLookPosition != null
-                ? targetLookPosition.position - hit.point
-                : (Camera.main != null ? Camera.main.transform.position - hit.point : -ray.direction);
+                ? targetLookPosition.position - hitPoint
+                : (Camera.main != null ? Camera.main.transform.position - hitPoint : -rayDirection);
             direction.y = 0f;
-            if (direction.sqrMagnitude < 1e-6f) direction = Vector3.ProjectOnPlane(-ray.direction, Vector3.up);
+            if (direction.sqrMagnitude < 1e-6f) direction = Vector3.ProjectOnPlane(-rayDirection, Vector3.up);
             if (direction.sqrMagnitude < 1e-6f) direction = Vector3.forward;
             Quaternion rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
 
@@ -94,9 +128,10 @@ namespace VirtualBeeSwarm.AR
             }
 
             gameObjectToSpawn.SetActive(true);
-            gameObjectToSpawn.transform.position = hit.point;
+            gameObjectToSpawn.transform.position = hitPoint;
             gameObjectToSpawn.transform.rotation = rotation;
-            if (arRig.TableAnchor != null) gameObjectToSpawn.transform.SetParent(arRig.TableAnchor, true);
+            if (arRig != null && arRig.TableAnchor != null)
+                gameObjectToSpawn.transform.SetParent(arRig.TableAnchor, true);
 
             if (_nextSpawnIndex != 0)
             {
