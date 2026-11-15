@@ -1,0 +1,3 @@
+[test]
+# bun test loads hive/.env, which can hold real keys; the preload drops them so no test can spend money.
+preload = ["./test/preload.ts"]

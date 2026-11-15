@@ -1,0 +1,25 @@
+# MediaMTX for Live Bee Scout: the glasses publish RTMP, the vision worker reads RTSP,
+# the /scout dashboard plays WebRTC. Run: mediamtx bee-scout/ops/scout-mediamtx.yml (scout-up.sh does this)
+# Ports must match SCOUT_PORTS in hive/src/scout-protocol.ts.
+logLevel: info
+rtmp: yes
+rtmpAddress: :1935
+rtsp: yes
+rtspAddress: :8554
+webrtc: yes
+webrtcAddress: :8889
+hls: no
+moq: no
+srt: yes
+srtAddress: :8890
+# scout = the glasses; scouttest = ffmpeg test patterns (dashboard work), never collides with the glasses.
+paths:
+  # Mentra Live appends "/stream" to the RTMP URL it's given, so the glasses publish to scout/stream.
+  scout/stream:
+    source: publisher
+  # Readers (vision worker, dashboard) use "scout": a relay of scout/stream.
+  scout:
+    source: rtsp://127.0.0.1:8554/scout/stream
+    rtspTransport: tcp
+  scouttest:
+    source: publisher

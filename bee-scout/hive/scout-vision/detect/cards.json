@@ -1,0 +1,48 @@
+{
+  "_comment": "Station cards for make_cards.py, in booth station order. image: file under image_root (relative to hive/scout-vision). These exact files are also the reference photos for the image matcher. The cartoon game-art renders live in station_art/renders/. sign: the big trail-sign label printed under the photo (for OCR from ~1 m).",
+  "image_root": "detect/card_images",
+  "cards": [
+    {
+      "label": "native_flower",
+      "name": "Sunflower",
+      "image": "native_flower.jpg",
+      "credit": "Fir0002 (flagstaffotos.com.au), GFDL 1.2, Wikimedia Commons: Sunflower sky backdrop.jpg",
+      "sign": "SUNFLOWER"
+    },
+    {
+      "label": "honey_jar",
+      "name": "Honeycomb",
+      "image": "honey_jar.jpg",
+      "credit": "Skander zarrad, CC BY-SA 4.0, Wikimedia Commons: Un détail sur le plateau d'une ruche avec les alvéoles remplies de miel.jpg",
+      "sign": "HONEYCOMB"
+    },
+    {
+      "label": "bug_spray",
+      "name": "Bug spray",
+      "image": "bug_spray.jpg",
+      "credit": "Shell Oil Company via DPLA, public domain, Wikimedia Commons: Shell Tox Aerosol Insecticide - DPLA - 68498813d587ef22a5652c7e01915dab (page 2).jpg (cropped, brand marks removed)",
+      "sign": "BUG SPRAY"
+    },
+    {
+      "label": "bee_hotel",
+      "name": "Bee hotel",
+      "image": "bee_hotel.jpg",
+      "credit": "Daniel Ballmer, CC BY-SA 4.0, Wikimedia Commons: Wildbienenlöcher.jpg",
+      "sign": "BEE HOTEL"
+    },
+    {
+      "label": "pebble_dish",
+      "name": "Bee water dish",
+      "image": "pebble_dish.jpg",
+      "credit": "Fred Cherrygarden, CC BY-SA 4.0, Wikimedia Commons: Honeybee Drinking Fountain.jpg",
+      "sign": "WATER DISH"
+    },
+    {
+      "label": "beehive",
+      "name": "Beehive",
+      "image": "beehive.jpg",
+      "credit": "Alabama Extension, CC0, Wikimedia Commons",
+      "sign": "BEEHIVE"
+    }
+  ]
+}
