@@ -16,6 +16,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { VoiceSettings } from "@elevenlabs/elevenlabs-js/api/types/VoiceSettings";
 import type { ScoutLine } from "../src/scout-protocol";
 
 const HIVE = resolve(import.meta.dir, "..");
@@ -25,7 +26,7 @@ export const SCOUT_AUDIO_DIR = join(HIVE, "lines", "scout_audio");
 export const SCOUT_MANIFEST_FILE = join(SCOUT_AUDIO_DIR, "manifest.json");
 
 /** Bump to force a re-render of everything (e.g. the ding or the encode settings changed). */
-const RENDER_VERSION = 3;
+const RENDER_VERSION = 4;
 const PLACEHOLDER_VOICES = ["Rocko (English (US))", "Ralph", "Fred"];
 const PLACEHOLDER_RATE = 185; // words per minute, close to Harry's 14.4 characters a second
 
@@ -89,7 +90,7 @@ function pickSayVoice(): string {
   return PLACEHOLDER_VOICES.find((v) => have.includes(`${v} `)) ?? "Alex";
 }
 
-const TARGET_LUFS = -16;
+const TARGET_LUFS = -18; // calmer than the ride lines (-16); the team found Beeswax shouty
 const LOUDNORM = `loudnorm=I=${TARGET_LUFS}:TP=-1.5:LRA=11`;
 const ENCODE = ["-ac", "1", "-ar", "44100", "-codec:a", "libmp3lame", "-b:a", "64k"];
 
@@ -117,8 +118,8 @@ function encode(input: string, out: string, ding: boolean, gainDb = 0): void {
   // E6 then A6, about 0.3 s together, each with a quick decay, then a short breath before the voice.
   const fmt = "aformat=sample_rates=44100:channel_layouts=mono";
   const graph = [
-    `sine=f=1318.5:d=0.12,${fmt},volume=0.35,afade=t=out:st=0.02:d=0.10[n1]`,
-    `sine=f=1760:d=0.2,${fmt},volume=0.35,afade=t=out:st=0.03:d=0.17[n2]`,
+    `sine=f=1318.5:d=0.12,${fmt},volume=0.25,afade=t=out:st=0.02:d=0.10[n1]`,
+    `sine=f=1760:d=0.2,${fmt},volume=0.25,afade=t=out:st=0.03:d=0.17[n2]`,
     `anullsrc=r=44100:cl=mono:d=0.08,${fmt}[gap]`,
     `[0:a]aresample=44100,${fmt}[v]`,
     `[v]${voiceFx},aresample=44100,${fmt}[vn]`,
@@ -127,10 +128,30 @@ function encode(input: string, out: string, ding: boolean, gainDb = 0): void {
   run(["ffmpeg", "-y", "-v", "error", "-i", input, "-filter_complex", graph, "-map", "[out]", ...ENCODE, out]);
 }
 
+/** Calm, conversational delivery (team feedback: with the voice's saved settings every line sounded shouted).
+ *  Trial on four lines, saved settings vs stability 0.6/0.7/0.75/0.85 (style 0.15/0.05/0/0, similarity 0.75, boost on):
+ *  0.85 / style 0 had the lowest median pitch and energy swing and the second-lowest pitch spread and peaks; the saved
+ *  settings had the widest pitch spread (the "shouty" proxy). Whisper read every variant correctly. */
+export const VOICE_SETTINGS: VoiceSettings = { stability: 0.85, similarityBoost: 0.75, style: 0, useSpeakerBoost: true };
+
+/** One ElevenLabs render (mp3 44.1 kHz 64 kbps) with explicit voice settings. src/tts.ts has no settings knob. */
+export async function elevenBytes(text: string, settings: VoiceSettings = VOICE_SETTINGS): Promise<Uint8Array> {
+  const { ElevenLabsClient } = await import("@elevenlabs/elevenlabs-js");
+  const { TTS_MODEL } = await import("../src/tts");
+  const client = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY!.trim() });
+  const stream = await client.textToSpeech.convert(
+    process.env.ELEVENLABS_VOICE_ID!.trim(),
+    { text: text.replace(/\s+/g, " ").trim(), modelId: TTS_MODEL, outputFormat: "mp3_44100_64", voiceSettings: settings },
+    { maxRetries: 1, timeoutInSeconds: 60 },
+  );
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (!bytes.length) throw new Error("TTS returned no audio");
+  return bytes;
+}
+
 async function renderEleven(text: string, tmp: string): Promise<string> {
-  const { ttsBytes, TTS_MODEL } = await import("../src/tts");
   const file = join(tmp, "eleven.mp3");
-  writeFileSync(file, await ttsBytes(text, { format: "mp3_44100_64", model: TTS_MODEL, timeoutMs: 60_000 }));
+  writeFileSync(file, await elevenBytes(text));
   return file;
 }
 
