@@ -497,6 +497,17 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     });
     const post = (path: string, body: unknown) =>
       app.request(`${path}?token=t`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    // the judge screen's feed: heard events, question: true only for wake-word questions
+    let feed = "";
+    const sse = (await app.request("/scout/events?token=t")).body!.getReader();
+    void (async () => {
+      for (let r = await sse.read(); !r.done; r = await sse.read()) feed += new TextDecoder().decode(r.value);
+    })().catch(() => {});
+    const heardEvents = () =>
+      feed
+        .split("\n")
+        .filter((l) => l.startsWith("data: ") && l.includes('"type":"heard"'))
+        .map((l) => JSON.parse(l.slice(6)));
     try {
       const plain = await (await post("/scout/utterance", { text: "why do bees need pebbles", at: Date.now() })).json();
       expect(plain.routed).toBeUndefined(); // no wake word: only shown as heard
@@ -514,6 +525,12 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
       expect(mp3.status).toBe(200);
       expect((await app.request("/scout/ask-stats")).status).toBe(401);
       expect((await app.request("/scout/ask-stats?token=t")).status).toBe(200);
+
+      await sleep(20);
+      const hs = heardEvents();
+      expect(hs.find((h) => h.text === "why do bees need pebbles")?.question).toBeUndefined();
+      expect(hs.find((h) => h.text === "Hey Beeswax, why do bees need pebbles?")?.question).toBe(true);
+      void sse.cancel();
 
       const y = await (await post("/scout/utterance", { text: "yes" })).json();
       expect(y.routed).toBeUndefined();
