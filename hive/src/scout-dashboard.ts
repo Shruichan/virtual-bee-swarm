@@ -123,6 +123,25 @@ const DASHBOARD = `<!doctype html>
   #nostream code { color: var(--amber); font: 600 1rem ui-monospace, Menlo, monospace; }
   #nostream a { color: var(--honey); }
 
+  /* detection boxes + latency readout */
+  #boxes { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  #latro { right: 1rem; bottom: 1rem; padding: .55rem .9rem; border-radius: .8rem; background: rgba(10, 7, 3, .8); border: 1px solid rgba(255,255,255,.08);
+    backdrop-filter: blur(6px); min-width: 12.5rem; }
+  #latro small { display: block; font-size: .68rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: .15rem; }
+  #latro div { display: flex; justify-content: space-between; gap: 1rem; font-size: .9rem; font-weight: 600; color: var(--dim); }
+  #latro b { color: var(--meadow); font-weight: 900; font-size: 1.05rem; }
+  #latro b.slow { color: var(--amber); } #latro b.none { color: var(--mute); }
+  #bigclock { position: fixed; z-index: 30; top: 1rem; right: 1.6rem; display: none; padding: 1rem 1.6rem; border-radius: 1rem; background: #000; border: 2px solid var(--honey);
+    text-align: center; box-shadow: 0 1rem 3rem rgba(0,0,0,.7); }
+  #bigclock.on { display: block; }
+  #bigclock b { display: block; font: 800 4.6rem/1 ui-monospace, Menlo, monospace; color: #fff; letter-spacing: .02em; }
+  #bigclock span { display: block; margin-top: .5rem; color: var(--dim); font-size: .9rem; max-width: 30rem; }
+  /* with boxes on screen the gold box carries the moment; the banner shrinks to one pill where the guess chip sits */
+  #found.compact { place-items: end start; padding: 0 0 1rem 1rem; }
+  #found.compact .dim, #found.compact .rays, #found.compact .bit, #found.compact .obj, #found.compact .sub { display: none; }
+  #found.compact .box { transform-origin: left bottom; }
+  #found.compact .kicker { font-size: 1.45rem; padding: .45rem 1.2rem; }
+
   /* found banner */
   #found { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity .35s; overflow: hidden; }
   #found.on { opacity: 1; }
@@ -336,11 +355,13 @@ const DASHBOARD = `<!doctype html>
   <section class="left">
     <div id="vidwrap">
       <video id="video" autoplay muted playsinline></video>
+      <canvas id="boxes"></canvas>
       <div id="nostream"><div><div class="hexbig"><i></i></div><h2>Waiting for the glasses stream</h2><p id="nsmsg">Connecting...</p><p id="nshelp"></p></div></div>
       <div class="ov" id="livetag"><i></i><span id="livetxt">Glasses camera</span></div>
       <div class="ov" id="slidetag"></div>
       <button class="ov ghost" id="micbtn">Glasses mic: off</button>
       <div class="ov none" id="guess"><div class="ring"><b class="num" id="gpct">0%</b></div><div class="what"><small>The AI sees</small><span id="gname">-</span></div></div>
+      <div class="ov" id="latro" title="Video: WebRTC network + jitter buffer + decode, measured by this browser (from MediaMTX on). AI: from the vision worker reading the frame to its result on this screen. For true glass-to-screen delay press T and point the glasses at the clock."><small>Delay on this laptop</small><div><span>Video playback</span><b id="lvid" class="none">-</b></div><div><span>Frame &rarr; AI result</span><b id="lai" class="none">-</b></div></div>
       <div id="found"><div class="dim"></div><div class="rays"></div><div class="box"><div class="kicker">Bee fact found!</div><div class="obj" id="fobj">-</div><div class="sub num" id="fsub"></div></div></div>
     </div>
     <div class="tilesrow"><div class="cardhead"><span class="label">Scout progress</span><span class="meta num" id="progtxt">0 of 6 facts found</span></div><div class="tiles" id="tiles"></div></div>
@@ -384,6 +405,7 @@ const DASHBOARD = `<!doctype html>
   <button class="ghost" id="checksbtn" title="Slide check panel (S)">Slide check</button>
   <button class="ghost" id="enrolbtn" title="Enrol references (E)">Calibrate</button>
 </footer>
+<div id="bigclock"><b id="bigtime">00:00:00.000</b><span>Point the glasses at this clock: the video shows it a little late. The gap is the full glass-to-screen delay. (T hides it)</span></div>
 <aside id="enrol">
   <div class="cardhead"><h2>Calibrate</h2><button class="ghost" id="enrolclose">Close (Esc)</button></div>
   <p>Point the glasses at one object, pick its label, press Enrol. The vision worker saves frames from the live stream as references. Use Background for the table, people and walls.</p>
@@ -391,7 +413,7 @@ const DASHBOARD = `<!doctype html>
   <div id="enrolmsg"></div>
   <div class="label">References per label</div>
   <table id="reftable"></table>
-  <p class="kbd">Keys: M mirror audio &middot; S slide check &middot; E calibrate &middot; Esc close</p>
+  <p class="kbd">Keys: M mirror audio &middot; S slide check &middot; T latency clock &middot; E calibrate &middot; Esc close</p>
 </aside>
 <script>
 (function () {
@@ -482,13 +504,15 @@ const DASHBOARD = `<!doctype html>
     var lead = top[0];
     CLASSES.forEach(function (c) { bars[c].row.classList.toggle("lead", !!lead && lead.label === c); });
     checkFrame(fr, lead);
+    if (Array.isArray(fr.boxes)) { bx.list = fr.boxes.filter(function (b) { return b && b.label !== CFG.BACKGROUND && b.w > 0 && b.h > 0; }); bx.at = Date.now(); }
+    if (typeof fr.at === "number") { var lag = Date.now() - fr.at; if (lag >= 0 && lag < 60000) { aiLag.push(lag); if (aiLag.length > 15) aiLag.shift(); } }
     $("fps").textContent = (fr.fps || 0).toFixed(1) + " fps \\u00b7 " + Math.round(fr.frame_ms || 0) + " ms/frame";
     $("scorecard").classList.remove("stale");
     showGuess(lead || null);
   }
   function showGuess(g) {
     var box = $("guess");
-    if (!g) { box.className = "ov none"; return; }
+    if (!g || boxesFresh()) { box.className = "ov none"; return; } // boxes on the video replace the guess chip
     var bg = g.label === CFG.BACKGROUND;
     box.className = "ov" + (bg ? " bg" : g.score >= CFG.MIN_SCORE ? " strong" : "");
     box.querySelector(".ring").style.setProperty("--p", String(Math.round(Math.max(0, Math.min(1, g.score)) * 100)));
@@ -499,9 +523,84 @@ const DASHBOARD = `<!doctype html>
     if (lastFrameAt && Date.now() - lastFrameAt > 3000) { $("scorecard").classList.add("stale"); showGuess(null); }
   }, 1000);
 
+  // ------------------------------------------------------------------ detection boxes over the video
+  var BOXCOL = { beehive: "#ffb020", native_flower: "#d68bff", honey_jar: "#ff8a3d", pebble_dish: "#5ec8ff", bug_spray: "#ff5a5a", bee_hotel: "#8fd16f" };
+  var bx = { list: [], at: 0, flash: null }, disp = {}, aiLag = [];
+  var BOX_HOLD_MS = 600, BOX_FADE_MS = 400;
+  function boxesFresh() { return bx.list.length > 0 && Date.now() - bx.at < BOX_HOLD_MS; }
+  var bc = $("boxes"), bg = bc.getContext("2d");
+  function vrect(W, H) { // where the video actually is inside the element (object-fit: contain letterboxing)
+    var vw = video.videoWidth || 16, vh = video.videoHeight || 9, k = Math.min(W / vw, H / vh);
+    return { x: (W - vw * k) / 2, y: (H - vh * k) / 2, w: vw * k, h: vh * k };
+  }
+  function rrect(x, y, w, h, r) { bg.beginPath(); bg.moveTo(x + r, y); bg.arcTo(x + w, y, x + w, y + h, r); bg.arcTo(x + w, y + h, x, y + h, r); bg.arcTo(x, y + h, x, y, r); bg.arcTo(x, y, x + w, y, r); bg.closePath(); }
+  function drawBoxes() {
+    var d = devicePixelRatio || 1, W = bc.clientWidth * d, H = bc.clientHeight * d;
+    if (bc.width !== Math.round(W) || bc.height !== Math.round(H)) { bc.width = Math.round(W); bc.height = Math.round(H); }
+    bg.clearRect(0, 0, bc.width, bc.height);
+    var now = Date.now(), age = now - bx.at, alpha = age < BOX_HOLD_MS ? 1 : Math.max(0, 1 - (age - BOX_HOLD_MS) / BOX_FADE_MS);
+    if (alpha <= 0 || !bx.list.length || !playing) { disp = {}; requestAnimationFrame(drawBoxes); return; }
+    var r = vrect(bc.width, bc.height), rem = parseFloat(getComputedStyle(document.documentElement).fontSize) * d, seen = {}, count = {};
+    var flash = bx.flash && now < bx.flash.until ? bx.flash.label : null;
+    bx.list.forEach(function (b) {
+      count[b.label] = (count[b.label] || 0) + 1;
+      var key = b.label + ":" + count[b.label];
+      var t = { x: r.x + b.x * r.w, y: r.y + b.y * r.h, w: b.w * r.w, h: b.h * r.h }, p = disp[key];
+      if (!p) p = disp[key] = t; else { p.x += (t.x - p.x) * 0.35; p.y += (t.y - p.y) * 0.35; p.w += (t.w - p.w) * 0.35; p.h += (t.h - p.h) * 0.35; }
+      seen[key] = 1;
+      var gold = flash === b.label, c = gold ? "#ffd36b" : BOXCOL[b.label] || "#e8dcc4", lw = (gold ? 5 : 3) * d;
+      bg.save(); bg.globalAlpha = alpha;
+      if (gold) { bg.shadowColor = "rgba(255, 211, 107, .9)"; bg.shadowBlur = 28 * d; }
+      bg.strokeStyle = c; bg.lineWidth = lw; rrect(p.x, p.y, p.w, p.h, 6 * d); bg.stroke();
+      bg.shadowBlur = 0;
+      if (gold) { bg.fillStyle = "rgba(255, 211, 107, .12)"; rrect(p.x, p.y, p.w, p.h, 6 * d); bg.fill(); }
+      var txt = (gold ? "BEE FACT FOUND \u00b7 " : "") + short(b.label) + " " + pct(b.score) + (b.via === "marker" ? " \u00b7 marker" : "");
+      var fs = Math.round((gold ? 1.15 : 1) * rem);
+      bg.font = "800 " + fs + "px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+      var tw = bg.measureText(txt).width + fs * 0.9, th = fs * 1.55, ty = p.y - th - lw / 2;
+      if (ty < r.y) ty = p.y + lw / 2; // no room above: tag inside the box
+      var tx = Math.min(Math.max(p.x - lw / 2, 0), bc.width - tw);
+      bg.fillStyle = c; rrect(tx, ty, tw, th, 4 * d); bg.fill();
+      bg.fillStyle = "#170f04"; bg.textBaseline = "middle"; bg.fillText(txt, tx + fs * 0.45, ty + th / 2 + d);
+      bg.restore();
+    });
+    for (var k in disp) if (!seen[k]) delete disp[k];
+    requestAnimationFrame(drawBoxes);
+  }
+
+  // ------------------------------------------------------------------ latency readout
+  function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function showLat(id, ms, slowAt) { var e = $(id); if (ms == null) { e.textContent = "-"; e.className = "none"; return; } e.textContent = Math.round(ms) + " ms"; e.className = ms > slowAt ? "slow" : ""; }
+  var vstat = null;
+  setInterval(function () {
+    showLat("lai", lastFrameAt && Date.now() - lastFrameAt < 3000 ? median(aiLag) : null, 400);
+    if (!pc || !playing) { showLat("lvid", null); vstat = null; return; }
+    pc.getStats().then(function (st) {
+      var v = null, rtt = null;
+      st.forEach(function (r) {
+        if (r.type === "inbound-rtp" && r.kind === "video") v = r;
+        if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded" && typeof r.currentRoundTripTime === "number") rtt = r.currentRoundTripTime;
+      });
+      if (!v) return;
+      var cur = { jb: v.jitterBufferDelay || 0, jn: v.jitterBufferEmittedCount || 0, dt: v.totalDecodeTime || 0, dn: v.framesDecoded || 0 };
+      if (vstat && cur.jn > vstat.jn && cur.dn > vstat.dn) { // averages over the last second
+        var ms = ((cur.jb - vstat.jb) / (cur.jn - vstat.jn) + (cur.dt - vstat.dt) / (cur.dn - vstat.dn) + (rtt || 0) / 2) * 1000 + 16;
+        showLat("lvid", ms, 400);
+      }
+      vstat = cur;
+    }).catch(function () {});
+  }, 1000);
+  var bigOn = false;
+  function tickBig() { if (!bigOn) return; var d = new Date(), ms = d.getMilliseconds(); $("bigtime").textContent = hhmmss(d.getTime()) + "." + (ms < 10 ? "00" : ms < 100 ? "0" : "") + ms; requestAnimationFrame(tickBig); }
+  function toggleBig() { bigOn = !bigOn; $("bigclock").classList.toggle("on", bigOn); tickBig(); }
+
   // ------------------------------------------------------------------ found banner
   var foundTimer = null;
   function onFound(ev) {
+    var boxed = boxesFresh() && bx.list.some(function (b) { return b.label === ev.label; });
+    bx.flash = { label: ev.label, until: Date.now() + 3000 };
+    $("found").classList.toggle("compact", boxed);
+    $("found").querySelector(".kicker").textContent = boxed ? "Bee fact found: " + short(ev.label) : "Bee fact found!";
     $("fobj").textContent = name(ev.label);
     $("fsub").textContent = pct(ev.score) + " match \\u00b7 spotted in " + secs(ev.look_ms || 0);
     var f = $("found");
@@ -933,10 +1032,12 @@ const DASHBOARD = `<!doctype html>
     if (e.target && (e.target.tagName === "SELECT" || e.target.tagName === "INPUT")) return;
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
     else if (e.key === "s" || e.key === "S") $("checksbtn").click();
+    else if (e.key === "t" || e.key === "T") toggleBig();
     else if (e.key === "e" || e.key === "E") openEnrol(!$("enrol").classList.contains("on"));
     else if (e.key === "Escape") openEnrol(false);
   });
   renderState();
+  requestAnimationFrame(drawBoxes);
 })();
 </script>
 </body>

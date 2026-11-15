@@ -23,6 +23,7 @@ import {
   SCOUT_LINES,
   type ScoutAnswer,
   type ScoutBlockReason,
+  type ScoutBox,
   type ScoutClass,
   type ScoutEvent,
   type ScoutHop,
@@ -98,9 +99,20 @@ setInterval(() => {
   const all = CLASSES.map((label) => ({ label, score: Math.round(level[label] * 1000) / 1000 })).sort((a, b) => b.score - a.score);
   const top = all.slice(0, 3);
   const scores = Object.fromEntries(all.map((x) => [x.label, x.score]));
+  // Fake detector boxes: the object the wearer looks at drifts around the frame (head movement), the look-alike
+  // shows up as a smaller second box when it scores high enough.
+  const t = Date.now();
+  const boxes: ScoutBox[] = [];
+  const box = (label: ScoutClass, cx: number, cy: number, w: number, h: number) =>
+    boxes.push({ label, score: Math.round(level[label] * 1000) / 1000, x: Math.max(0, cx - w / 2), y: Math.max(0, cy - h / 2), w, h, via: "detector" });
+  if (target !== SCOUT_BACKGROUND && level[target] > 0.35) {
+    box(target, 0.5 + 0.17 * Math.sin(t / 1700), 0.52 + 0.09 * Math.sin(t / 2300), 0.3 + 0.02 * Math.sin(t / 900), 0.44 + 0.02 * Math.sin(t / 1100));
+    const other = CONFUSE[target];
+    if (other && level[other] > 0.3) box(other, 0.22 + 0.05 * Math.sin(t / 2100), 0.3 + 0.04 * Math.sin(t / 1500), 0.16, 0.22);
+  }
   fps = Math.max(5, Math.min(9.5, fps + (Math.random() - 0.5) * 0.4));
   state.current = top[0]!;
-  emit({ type: "frame", frame: { at: Date.now(), frame_ms: 38 + Math.random() * 22, fps, top, scores, source: "rtsp://127.0.0.1:8554/scout" } });
+  emit({ type: "frame", frame: { at: Date.now() - jitter(110, 190), frame_ms: 38 + Math.random() * 22, fps, top, scores, boxes, source: "rtsp://127.0.0.1:8554/scout" } });
   if (MODE === "slides") slideGame(top);
 }, 200);
 
