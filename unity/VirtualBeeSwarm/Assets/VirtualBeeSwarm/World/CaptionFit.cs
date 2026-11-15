@@ -33,6 +33,7 @@ namespace VirtualBeeSwarm
             public Transform root;     // what moves and scales (Beeswax's Caption, or the text itself)
             public Transform stage;    // the direction it centres on (null: its parent)
             public bool applied;
+            public bool faceHead;      // Beeswax's caption: re-turned to the head here, after his body's late animation
             public Vector3 naturalLocalPos, naturalLocalScale, appliedLocalPos, appliedLocalScale;
             public Quaternion naturalLocalRot, appliedLocalRot;
             public float loggedK = 1f, loggedYaw;
@@ -65,6 +66,7 @@ namespace VirtualBeeSwarm
                     foreach (var t in bw.GetComponentsInChildren<TextMesh>(true))
                         if (t.transform.parent != null && t.transform.parent.name.StartsWith("Caption")) { tm = t; break; }
                 if (tm != null) Add("beeswax caption", tm, root != null ? root : tm.transform.parent, null);
+                if (_entries.Count > 0) _entries[_entries.Count - 1].faceHead = true;
             }
             foreach (var tm in FindObjectsByType<TextMesh>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (tm.name == "Instructions") Add("pre instructions", tm, tm.transform, tm.transform.parent);
@@ -128,6 +130,25 @@ namespace VirtualBeeSwarm
 
         void Fit(Entry e, Vector3 head)
         {
+            // BeeswaxController turns his caption to the head in Update, but his body (banking, turning, the rig's
+            // animation) still moves after that, which rolled the card or turned it edge-on: face the head again,
+            // upright (yaw only), as the last word this frame
+            bool faced = false;
+            if (e.faceHead)
+            {
+                Vector3 away = e.root.position - head;
+                away.y = 0f;
+                if (away.sqrMagnitude > 1e-4f)
+                {
+                    var want = Quaternion.LookRotation(away, Vector3.up);
+                    if (Quaternion.Angle(want, e.root.rotation) > 0.5f) { e.root.rotation = want; faced = true; }
+                }
+            }
+            FitScaleAndSide(e, head, faced);
+        }
+
+        void FitScaleAndSide(Entry e, Vector3 head, bool faced)
+        {
             Bounds lb = e.renderer.localBounds; // the text mesh, in the TextMesh's own space
             if (lb.size.x < 1e-4f) return;
             Transform tt = e.text.transform;
@@ -157,7 +178,12 @@ namespace VirtualBeeSwarm
                 if (c > lim) yaw = lim - c;
                 else if (c < -lim) yaw = -lim - c;
             }
-            if (k >= 0.999f && Mathf.Abs(yaw) < 0.05f) { Log(e, a * 2f, 0f, 1f); return; } // fits as it is
+            if (k >= 0.999f && Mathf.Abs(yaw) < 0.05f) // fits as it is
+            {
+                if (faced) { e.applied = true; e.appliedLocalPos = e.root.localPosition; e.appliedLocalScale = e.root.localScale; e.appliedLocalRot = e.root.localRotation; }
+                Log(e, a * 2f, 0f, 1f);
+                return;
+            }
 
             var root = e.root;
             if (k < 0.999f) root.localScale = e.naturalLocalScale * k;
