@@ -4,10 +4,42 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { classifyAnswer, estimateMs, loadScoutLines, ScoutGame, IDLE_EVERY_MS, SKIP_REOFFER_MS, type ScoutSay } from "../src/scout";
-import { SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel } from "../src/scout-protocol";
+import { SCOUT_BOOTH_JUDGE_ORDER, SCOUT_BOOTH_LINES, SCOUT_BOOTH_ORDER, SCOUT_BOOTH_TUNING, SCOUT_LABELS, SCOUT_TUNING, type ScoutClass, type ScoutEvent, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 import { makeHive, TestClient, TOKEN } from "./helpers";
 
-const LINES = loadScoutLines();
+/** The real lines (both files): only for the "every id the game says exists" checks. Content checks live in scout-lines.test.ts. */
+const REAL = loadScoutLines();
+
+/** A fixed line set for the logic tests, so content edits (new _2 fact lines, rewrites) never break them.
+ *  One fact line per object; the two-line-fact tests add a _2 themselves. */
+function fixtureLines(): ScoutLine[] {
+  const L: ScoutLine[] = [
+    { id: "scout_intro_1", kind: "intro", text: "Intro one." },
+    { id: "scout_intro_2", kind: "intro", text: "Intro two." },
+    { id: "scout_chime", kind: "chime", text: "Bee fact found!" },
+    { id: "scout_no_1", kind: "no", text: "No one." },
+    { id: "scout_no_2", kind: "no", text: "No two." },
+    { id: "scout_rude", kind: "rude", text: "Rude." },
+    { id: "scout_silence", kind: "silence", text: "Silence." },
+    { id: "scout_idle", kind: "idle", text: "Idle." },
+    { id: "scout_done", kind: "done", text: "Done." },
+    { id: SCOUT_BOOTH_LINES.intro, kind: "intro", text: "Booth intro." },
+    { id: SCOUT_BOOTH_LINES.chimeAsk, kind: "chime", text: "Bee fact found! Would you like to learn more?" },
+    { id: SCOUT_BOOTH_LINES.silenceYes, kind: "silence", text: "I'll take that as a yes." },
+    { id: SCOUT_BOOTH_LINES.no, kind: "no", text: "Booth no." },
+    { id: SCOUT_BOOTH_LINES.done, kind: "done", text: "Booth done." },
+  ];
+  for (let n = 1; n <= 5; n++) L.push({ id: `scout_progress_${n}`, kind: "progress", text: `Progress ${n}.` });
+  for (const [k, id] of Object.entries(SCOUT_BOOTH_LINES.dir)) L.push({ id, kind: "direction", text: `Direction ${k}.` });
+  for (const l of SCOUT_LABELS) {
+    // The hook ends in words that would read as "yes" if the mic heard it back (the echo test needs that).
+    L.push({ id: `scout_hook_${l}`, kind: "hook", label: l, text: `Hook ${l}. Want to hear more?` });
+    L.push({ id: `scout_fact_${l}`, kind: "fact", label: l, text: `Fact ${l}.` });
+    L.push({ id: SCOUT_BOOTH_LINES.next(l), kind: "direction", label: l, text: `Go to ${l}.` });
+  }
+  return L;
+}
+const LINES = fixtureLines();
 const T = SCOUT_TUNING;
 
 function setup(opts: { durationMs?: number } = {}) {
@@ -101,7 +133,7 @@ describe("answer classification", () => {
 
 describe("lines file", () => {
   test("every line the game can say exists", () => {
-    const have = new Set(LINES.map((l) => l.id));
+    const have = new Set(REAL.map((l) => l.id));
     const need = ["scout_intro_1", "scout_intro_2", "scout_chime", "scout_no_1", "scout_no_2", "scout_rude", "scout_silence", "scout_idle", "scout_done"];
     for (const l of SCOUT_LABELS) need.push(`scout_hook_${l}`, `scout_fact_${l}`);
     for (let n = 1; n <= 5; n++) need.push(`scout_progress_${n}`);
@@ -281,7 +313,7 @@ describe("offers and answers", () => {
     const s = ready();
     s.look("beehive", T.steadyMs + 100);
     const hook = LINES.find((l) => l.id === "scout_hook_beehive")!.text;
-    const echo = hook.split(/[.!?]\s*/).filter(Boolean).at(-1)!; // "Want the gossip"
+    const echo = hook.split(/[.!?]\s*/).filter(Boolean).at(-1)!; // "Want to hear more": would read as yes
     expect(s.game.utterance(echo)).toBe("other");
     expect(s.game.state().phase).toBe("offering");
   });
@@ -480,7 +512,7 @@ describe("/scout routes", () => {
 
     const busSay = await glasses.waitFor("say", (m) => m.tts_id === "scout_hook_honey_jar");
     expect(busSay).toMatchObject({ channel: "ear", line_id: null, audio_url: null });
-    expect(busSay.caption.toLowerCase()).toContain("honey");
+    expect(busSay.caption.length).toBeGreaterThan(0); // the real Hive loads the real lines
 
     const ans = await (await post("/scout/utterance", { text: "yes please", at: Date.now() })).json();
     expect(ans).toMatchObject({ answer: "yes", phase: "telling" });
@@ -693,11 +725,10 @@ function boothReady(order?: ScoutLabel[]) {
 
 describe("booth lines", () => {
   test("every booth line id has a placeholder; the booth file is merged in", () => {
-    const have = new Map(LINES.map((l) => [l.id, l]));
+    const have = new Map(REAL.map((l) => [l.id, l]));
     const need: string[] = [SCOUT_BOOTH_LINES.intro, SCOUT_BOOTH_LINES.chimeAsk, SCOUT_BOOTH_LINES.silenceYes, SCOUT_BOOTH_LINES.no, SCOUT_BOOTH_LINES.rude, SCOUT_BOOTH_LINES.done];
     need.push(...Object.values(SCOUT_BOOTH_LINES.dir), ...SCOUT_LABELS.map((l) => SCOUT_BOOTH_LINES.next(l)));
     for (const id of need) expect(have.get(id)?.text, id).toBeTruthy();
-    expect(have.get("scout_chime_ask")!.text).toContain("learn more");
     expect(have.has("scout_hook_beehive")).toBe(true); // the main file is still there
   });
 });
