@@ -114,7 +114,7 @@ For "we have two minutes." Skips stations 1, 3 and 4, keeps the three things peo
 
 | Time | Beat | Operator (Board) | Mediator |
 |---|---|---|---|
-| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | Short intro: "The bees' union voted to move to the Moon. Fix the hive. Beeswax is scripted." |
+| Before | Intro, headset on | Board → RESET GROUP, then jump to **station 2** | Short intro: "Fix the hive before Earth has to evacuate to the Moon. Order supplies from the bee crew." |
 | 0:00–0:40 | Station 2: lift + feed | Make sure the station and order board open before starting the cut. | For the scripted mistake, ask them to order store honey first, then recover with syrup. |
 | 0:40–1:10 | What-if | Jump to the **what-if** beat | "Ask him: what if a fire starts?" |
 | 1:10–1:50 | T-0 | Jump to **T-0** | Nothing. Let the Moon play. |
