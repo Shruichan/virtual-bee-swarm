@@ -45,6 +45,8 @@ namespace VirtualBeeSwarm
         Quaternion _rocketHomeRot;
         float _dim;
         bool _launched, _landed;
+        bool _hasLaunchPose;
+        Pose _launchPose;
 
         public override bool Handles(GameBeat beat) => beat == GameBeat.T0;
 
@@ -78,6 +80,26 @@ namespace VirtualBeeSwarm
 
         protected override void OnEnter(GameBeat beat)
         {
+            if (_hasLaunchPose)
+            {
+                // A Board replay starts from the launch pad again. Keep the crash pose through the normal finale.
+                if (rocket != null)
+                {
+                    var item = rocket.GetComponent<DeliveryItem>();
+                    if (item != null && item.hasHome)
+                        rocket.SetPositionAndRotation(item.HomePosition, item.HomeRotation);
+                    else
+                        rocket.SetLocalPositionAndRotation(_launchPose.position, _launchPose.rotation);
+                }
+                if (earth != null) earth.localPosition = _earthHome;
+                if (dustPuff != null) dustPuff.Clear();
+                if (beeswax != null) beeswax.SetDusty(false);
+            }
+            else
+            {
+                if (rocket != null) _launchPose = new Pose(rocket.localPosition, rocket.localRotation);
+                _hasLaunchPose = true;
+            }
             _launched = _landed = false;
             StartCoroutine(Run());
         }
@@ -267,6 +289,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnResetState()
         {
+            _hasLaunchPose = false;
             SetDim(0f);
             SetActive(flame, false);
             SetActive(moon, false);

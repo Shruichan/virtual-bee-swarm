@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 
 namespace VirtualBeeSwarm.Ask
 {
@@ -35,11 +36,15 @@ namespace VirtualBeeSwarm.Ask
     /// </summary>
     public sealed class AskFlow
     {
-        public const string StatusIdle = "Hold the pinch and talk";
-        public const string StatusListening = "Listening...";
-        public const string StatusShort = "Hold the pinch while you talk";
-        public const string StatusNotHeard = "Didn't catch that. Hold the pinch while you talk.";
+        public const string StatusIdle = "Hold to talk. Say “Hey Beeswax,” then ask.";
+        public const string StatusListening = "Listening. Release to send.";
+        public const string StatusShort = "Hold while you talk, then release.";
+        public const string StatusNotHeard = "Didn't catch that. Try again or pick a question.";
         public const string StatusOffline = "Can't reach the hive. Poke a question.";
+        public const string StatusMicPermission = "Allow microphone access or pick a question.";
+        public const string StatusMicUnavailable = "Mic unavailable. Pick a question.";
+        public const string StatusWakeWaiting = "Let Beeswax finish, then hold to talk.";
+        public const string StatusWakeMissing = "Start with “Hey Beeswax,” then ask a question.";
         public static readonly string[] StatusThinking = { "Checking the spreadsheet", "Checking the spreadsheet.", "Checking the spreadsheet..", "Checking the spreadsheet..." };
 
         public bool BargeIn = true;
@@ -62,6 +67,9 @@ namespace VirtualBeeSwarm.Ask
         float _releasedAt = -1f, _thinkingSince = -1f, _nextTilt = -1f, _dotsAt = -1f, _answerAt = -1f, _emptyAt = -1f, _awaitEndedAt = -1f;
         int _dots;
         bool _expectReply, _sawAwaiting, _noCount, _refusal, _silentOk, _wasAwaiting;
+        static readonly Regex WakePrefix = new Regex(
+            @"^\s*[""“']?hey[\s,.!?]+bee(?:['’]?s|z)[\s-]*wax\b[\s,.:;!?…–—""'”]*(.*)$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
         // ------------------------------------------------------------ open / close
         public AskCue Open()
@@ -102,6 +110,35 @@ namespace VirtualBeeSwarm.Ask
             return StartThinking(now);
         }
 
+        public AskCue MicrophoneUnavailable(bool hasPermission)
+        {
+            return State == AskState.Idle
+                ? SetStatus(hasPermission ? StatusMicUnavailable : StatusMicPermission)
+                : AskCue.None;
+        }
+
+        public AskCue WaitForVoice()
+        {
+            return IsOpen ? SetStatus(StatusWakeWaiting) : AskCue.None;
+        }
+
+        public AskCue WakeRejected(bool heardWords)
+        {
+            if (!IsOpen || !_expectReply) return AskCue.None;
+            _expectReply = false;
+            State = AskState.Idle;
+            return StopThinking() | SetStatus(heardWords ? StatusWakeMissing : StatusNotHeard);
+        }
+
+        public static string WakeQuestion(string text)
+        {
+            var match = WakePrefix.Match(text ?? "");
+            if (!match.Success) return "";
+            string question = match.Groups[1].Value.Trim();
+            foreach (char c in question) if (char.IsLetterOrDigit(c)) return question;
+            return "";
+        }
+
         /// <summary>A press while the Hive is unreachable: Beeswax says so (the card's chips still work).</summary>
         public AskCue OfflinePress(float now)
         {
@@ -130,6 +167,7 @@ namespace VirtualBeeSwarm.Ask
         public AskCue Transcript(string text, bool final, float now)
         {
             if (!final || !IsOpen || !_expectReply) return AskCue.None;
+            _sawAwaiting = true; // Fast replies may arrive before Tick sees the pending flag.
             if (string.IsNullOrEmpty(text) || text.Trim().Length == 0)
             {
                 _noCount = true;

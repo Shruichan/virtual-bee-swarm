@@ -13,7 +13,7 @@ def dot(a,b): return sum(x*y for x,y in zip(a,b))
 
 def load(name):
     colors={}; mat=None
-    for line in (ROOT/f"{name}.mtl").read_text().splitlines():
+    for line in (ROOT/"meadow.mtl").read_text().splitlines():
         p=line.split()
         if len(p)==2 and p[0]=="newmtl": mat=p[1]
         elif len(p)==4 and p[0]=="Kd": colors[mat]=tuple(round(255*float(x)) for x in p[1:])

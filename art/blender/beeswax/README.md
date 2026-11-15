@@ -1,6 +1,6 @@
 # Beeswax animations
 
-Import Beeswax.fbx as a Generic rig. Hover is the flight loop. The game moves Beeswax through the room. Keep Hover looping on the base layer and use masked Override layers for gestures. The clips are baked, so masks keep one gesture from resetting unrelated bones. Give each bone one driver. If the Animator runs Hover, leave the controller's direct wing animation fields unassigned.
+The tracked [Beeswax.fbx](../../../unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Art/Beeswax/Rig/Beeswax.fbx) is imported as a Generic rig. To try a new export from `Beeswax.blend`, set `VBS_BEESWAX_FBX` to the new FBX before running the Beeswax rig builder. Hover is the flight loop. The game moves Beeswax through the room. Keep Hover looping on the base layer and use masked Override layers for gestures. The clips are baked, so masks keep one gesture from resetting unrelated bones. Give each bone one driver. If the Animator runs Hover, leave the controller's direct wing animation fields unassigned.
 
 | Clip | When to use it |
 |---|---|

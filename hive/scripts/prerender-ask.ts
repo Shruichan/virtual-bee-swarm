@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ASK_CANNED } from "../src/ask";
-import { TTS_MODEL, ttsAvailable, ttsBytes } from "../src/tts";
+import { TTS_MODEL, elevenLabsAvailable, ttsBytes } from "../src/tts";
 
 const UNITY = join(resolve(import.meta.dir, ".."), "out", "unity");
 const { values: args } = parseArgs({ options: { force: { type: "boolean", default: false }, "dry-run": { type: "boolean", default: false } } });
@@ -20,7 +20,7 @@ const jobs = Object.values(ASK_CANNED).filter((c) => {
 const chars = jobs.reduce((n, c) => n + c.text.length, 0);
 console.log(`${jobs.length} ask lines to render (${chars} characters, ${TTS_MODEL})`);
 if (args["dry-run"]) process.exit(0);
-if (!ttsAvailable()) throw new Error("set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID");
+if (!elevenLabsAvailable()) throw new Error("set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID");
 mkdirSync(UNITY, { recursive: true });
 for (const c of jobs) {
   const mp3 = await ttsBytes(c.text, { format: "mp3_44100_128", timeoutMs: 60_000 });

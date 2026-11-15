@@ -54,6 +54,16 @@ namespace VirtualBeeSwarm.Editor
                 scenePath = BuildGameScene.BuildScene(SmokeScene, offline: !online, withRig: false);
                 var scene = EditorSceneManager.OpenScene(scenePath);
 
+                // The silent desktop smoke player has no Meta audio native plugin. Keep the SDK
+                // from creating a default room whose Update would call the missing plugin every frame.
+                var roomType = Type.GetType("MetaXRAudioRoomAcousticProperties, Meta.XR.Audio");
+                if (roomType != null)
+                {
+                    var room = Object.FindAnyObjectByType(roomType) as Behaviour;
+                    if (room == null) room = (Behaviour)new GameObject("Disabled Meta Audio Room").AddComponent(roomType);
+                    room.enabled = false;
+                }
+
                 if (online)
                 {
                     RemoveComponent("Beeswax.HumDetector, Beeswax.Client");

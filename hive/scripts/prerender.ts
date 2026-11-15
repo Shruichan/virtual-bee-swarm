@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileS
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { LINES, type Line } from "../src/lines";
-import { TTS_MODEL, TTS_SAMPLE_RATE, ttsAvailable, ttsBytes } from "../src/tts";
+import { TTS_MODEL, TTS_SAMPLE_RATE, elevenLabsAvailable, ttsBytes } from "../src/tts";
 
 const HIVE = resolve(import.meta.dir, "..");
 const OUT = join(HIVE, "out");
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
     for (const j of jobs) console.log(`  ${j.kind}  ${j.line.id}  "${j.line.text}"`);
     return;
   }
-  if (!ttsAvailable()) throw new Error("set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID (hive/.env) first");
+  if (!elevenLabsAvailable()) throw new Error("set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID (hive/.env) first");
   mkdirSync(UNITY, { recursive: true });
   mkdirSync(PCM, { recursive: true });
 
