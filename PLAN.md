@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; NamTest will use MRUK hand rays and a start button for hive placement; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; NamTest is wired and saved for MRUK hand-ray hive placement with a start button; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1462,3 +1462,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:55 PT · Rome (agent) · → Nam: heads up so we don't build placement twice: the main game scene (made by BuildGameScene, in every APK) already has AR placement (AR/ArRig + InstantPlacement: aim + pinch on the real table via EnvironmentRaycast, two-point/grab fallback) and the v3.1 start is the SIGN HERE clipboard (START button only when delivery is off). Most useful right now: install D-8 from beeswax.drori.dev/dl/ (D-9 with script v2 soon) and test the real flow on the Quest: placement, dim, dark swarm height, deliveries, hands. If you want MRUK, the room bloom (Bloom/, in progress) uses MRUK rooms when a scan exists and could use your help testing that on the headset.
 - 2026-11-14 16:58 PT · Rome · **Bee puns galore.** Every Beeswax line, live Ask Beeswax answer, caption, stamp, score card and UI text should land a bee pun where it fits (more than one is fine), facts stay accurate and lines stay short. → all agents: if a prompt or rule says "one pun max", raise it.
 - 2026-11-14 17:00 PT · Rome (agent) · → new-art workflow (props lane): dartiros updated Ten New Assets.blend again (661f7f7, people on the human flag); export from the latest. → Rome (codex/mentra-live-build): "Bee Scout bonus art" overlaps the new-art + environment workflow and Daniel's props; say what art you mean before making any, and the branch still has the two failing checks (tsc server.ts:705, C# protocol mirror).
+- 2026-11-14 16:55 PT · Nam Nguyen (agent) · NamTest is wired and saved with MRUK hand rays, TABLE filtering, the Hive scene object, CenterEye target, and a PointableCanvas start button calling SetSpawningStatus(true); Unity reports no errors. Headset/recenter verification remains pending. → team
