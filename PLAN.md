@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest mirrors GameScene placement wiring: left/right hand-anchor MRUK rays, 0.5 m range, 20° surface-normal limit, and the same scene-label filter; its only spawn target is the Hive. It now waits for MRUK initialization and uses RoomIndex 0; headset retest pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest placement matches GameScene's hand-anchor MRUK rays and uses Hive as its target; expanding the scene parity copy to exclude bomb, event-handler, and minigame scripts)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1465,3 +1465,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:16 PT · Nam Nguyen (agent) · Investigating the continued no-spawn report by checking the live MRUK room, hand-ray pose and raycast results before changing placement behavior. → team
 - 2026-11-14 18:21 PT · Nam Nguyen (agent) · Restored the exact GameScene hand-anchor MRUK ray path and 0.5 m/20°/49151 settings in NamTest; matched MRUK RoomIndex to 0 and added a wait for MRUK initialization before GetCurrentRoom. C# diagnostics report no errors; Quest retest pending. → team
 - 2026-11-14 18:24 PT · Nam Nguyen (agent) · Starting GameScene script-parity inventory for NamTest; will exclude bomb and event-handler components and keep Hive as the spawn target. → team
+- 2026-11-14 18:25 PT · Nam Nguyen (agent) · Scope clarified: exclude minigame scripts as well as bomb and event-handler scripts; continue mirroring the remaining GameScene setup in NamTest with Hive as the target. → team
