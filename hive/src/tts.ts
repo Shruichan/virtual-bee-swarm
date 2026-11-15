@@ -14,7 +14,7 @@ export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
 const LIVE_VOICE_SPEED = 1.0;
 /** Calmer delivery (Rome, 04:00): steadier, not over-acted. Live speech and rendered clips use the same settings. */
-const CALM_VOICE = { stability: 0.4, similarityBoost: 0.8, style: 0.3, useSpeakerBoost: true }; // Rome: 0.6/0 sounded robotic; looser = warmer, still no shouting (speakable() strips caps)
+const CALM_VOICE = {}; // like Bee Scout (Adityash): the designed voice's own defaults sound natural; overrides made Beeswax robotic
 
 /** Timeouts (ms) and the text cap. Mutable so tests can shorten them. */
 export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, maxChars: 500 };
