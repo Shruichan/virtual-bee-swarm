@@ -210,24 +210,29 @@ export class ScoutGame {
     this.trackLookAway(best?.label ?? null, now);
     if (this.mode === "booth") return this.boothFrame(f, top, now);
     const second = top[1]?.score ?? 0;
-    const counts = best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
+    const byClass = !!best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
+    // The winner: the clear top-1, else the most central AprilTag (a marker box is certain whatever the scores say).
+    const markers = (Array.isArray(f.boxes) ? f.boxes : []).filter((b) => b && b.via === "marker" && isLabel(b.label));
+    const tag = markers.length ? markers.reduce((a, b) => (centerDist(b) < centerDist(a) ? b : a)) : null;
+    const win: { label: ScoutLabel; score: number } | null =
+      byClass && best ? { label: best.label as ScoutLabel, score: best.score } : tag ? { label: tag.label as ScoutLabel, score: Math.max(tag.score, f.scores?.[tag.label] ?? 0) } : null;
     if (this.phase !== "looking") {
       this.run = null;
       // Seen clearly while Beeswax was busy (intro / offer / fact): tell the dashboard, once per busy stretch.
-      if (counts && best && isLabel(best.label) && best.label !== this.offer) this.blocked(best.label, "busy", best.score, `${this.phase}:${this.busyUntil}`);
+      if (win && win.label !== this.offer) this.blocked(win.label, "busy", win.score, `${this.phase}:${this.busyUntil}`);
       return;
     }
-    if (!counts || !best || !isLabel(best.label)) {
+    if (!win) {
       this.run = null;
       return;
     }
-    const lookMs = this.extendRun(best.label, best.score, f, now);
-    if (lookMs < this.tuning.steadyMs) return;
-    const reason: ScoutBlockReason | null = !this.eligible(best.label)
-      ? this.found.includes(best.label) ? "already_found" : "skipped"
+    const lookMs = this.extendRun(win.label, win.score, f, now);
+    if (lookMs < this.steadyFor(markers, win.label)) return;
+    const reason: ScoutBlockReason | null = !this.eligible(win.label)
+      ? this.found.includes(win.label) ? "already_found" : "skipped"
       : now < this.busyUntil + this.gapMs() ? "cooldown" : null;
-    if (reason) this.blocked(best.label, reason, best.score, String(this.run!.since));
-    else this.foundIt(best.label, best.score, lookMs, now - this.run!.firstAt);
+    if (reason) this.blocked(win.label, reason, win.score, String(this.run!.since));
+    else this.foundIt(win.label, win.score, lookMs, now - this.run!.firstAt);
   }
 
   /** A final transcript from the glasses. Returns how it was read. */
@@ -370,9 +375,14 @@ export class ScoutGame {
     }
     const score = byBox && box ? Math.max(box.score, eScore) : eScore;
     const lookMs = this.extendRun(e, score, f, now);
-    if (lookMs < t.steadyMs) return;
+    if (lookMs < this.steadyFor(boxes, e)) return;
     if (now < this.mainUntil + this.booth.gapMs) return this.blocked(e, "cooldown", score, String(this.run!.since));
     this.foundIt(e, score, lookMs, now - this.run!.firstAt);
+  }
+
+  /** How long a look must hold: markerSteadyMs when an AprilTag box for `label` backs this frame, else steadyMs. */
+  private steadyFor(boxes: readonly ScoutBox[], label: ScoutLabel): number {
+    return boxes.some((b) => b.via === "marker" && b.label === label) ? this.tuning.markerSteadyMs : this.tuning.steadyMs;
   }
 
   /** Which direction cue a box needs, or null when it is centered and big enough. */
