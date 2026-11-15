@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 // Render the Live Bee Scout lines (lines/scout_lines.json) to lines/scout_audio/<id>.mp3 + manifest.json.
-//   bun scripts/scout-render.ts                 Harry's voice (needs ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID,
-//                                               from the env or hive/.env); same model as prerender.ts (TTS_MODEL)
+//   bun scripts/scout-render.ts                 ElevenLabs (needs ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID, from the
+//                                               env or hive/.env); same model as prerender.ts (TTS_MODEL). The manifest
+//                                               names the voice from VOICE_NAMES, or --voice-name
+//   bun scripts/scout-render.ts --voice-id ID   override ELEVENLABS_VOICE_ID for this run
 //   bun scripts/scout-render.ts --placeholder   macOS `say` + ffmpeg, dev only (never overwrites a Harry render
 //                                               of unchanged text unless --all)
 //   bun scripts/scout-render.ts --all           re-render every line, not just changed ones
 //   bun scripts/scout-render.ts --only id,id    re-render just these ids
-// Output: mp3, mono, 44.1 kHz, 64 kbps. scout_chime gets a two-note ding in front of the voice.
-// manifest.json: { "<id>": { ms, voice: "harry" | "placeholder", chars, hash } }. The game uses ms for timing.
+// Output: mp3, mono, 44.1 kHz, 64 kbps, loudness-normalized to -16 LUFS. scout_chime gets a two-note ding in
+// front of the voice. manifest.json: { "<id>": { ms, voice, chars, hash } }. The game uses ms for timing.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,11 +23,15 @@ export const SCOUT_AUDIO_DIR = join(HIVE, "lines", "scout_audio");
 export const SCOUT_MANIFEST_FILE = join(SCOUT_AUDIO_DIR, "manifest.json");
 
 /** Bump to force a re-render of everything (e.g. the ding or the encode settings changed). */
-const RENDER_VERSION = 1;
+const RENDER_VERSION = 3;
 const PLACEHOLDER_VOICES = ["Rocko (English (US))", "Ralph", "Fred"];
 const PLACEHOLDER_RATE = 185; // words per minute, close to Harry's 14.4 characters a second
 
-export type ScoutVoice = "harry" | "placeholder";
+/** ElevenLabs voice ids -> the name written to the manifest. Voice ids aren't secret; the API key is. */
+export const VOICE_NAMES: Record<string, string> = { QDutJflVBVtxM2TBSenF: "beeswax-cute-sassy" };
+export const PLACEHOLDER = "placeholder";
+/** "placeholder", or the ElevenLabs voice's name (e.g. "beeswax-cute-sassy", "harry"). */
+export type ScoutVoice = string;
 export interface ManifestEntry { ms: number; voice: ScoutVoice; chars: number; hash: string }
 export type ScoutManifest = Record<string, ManifestEntry>;
 
@@ -70,12 +76,29 @@ function pickSayVoice(): string {
   return PLACEHOLDER_VOICES.find((v) => have.includes(`${v} `)) ?? "Alex";
 }
 
+const TARGET_LUFS = -16;
+const LOUDNORM = `loudnorm=I=${TARGET_LUFS}:TP=-1.5:LRA=11`;
 const ENCODE = ["-ac", "1", "-ar", "44100", "-codec:a", "libmp3lame", "-b:a", "64k"];
 
+/** Integrated loudness (LUFS) of a file. */
+function lufs(file: string): number {
+  const p = Bun.spawnSync(["ffmpeg", "-hide_banner", "-i", file, "-af", "loudnorm=print_format=json", "-f", "null", "-"], { stderr: "pipe" });
+  const m = p.stderr.toString().match(/"input_i"\s*:\s*"(-?[\d.]+)"/);
+  return m ? Number(m[1]) : NaN;
+}
+
+/** encode(), then one gain correction when single-pass loudnorm misses (it does on very short clips). */
+function encodeLevel(input: string, out: string, ding: boolean): void {
+  encode(input, out, ding);
+  const off = TARGET_LUFS - lufs(out);
+  if (Number.isFinite(off) && Math.abs(off) > 0.7) encode(input, out, ding, off);
+}
+
 /** Any audio file -> the shipped mp3 format, with the two-note ding in front when `ding`. */
-function encode(input: string, out: string, ding: boolean): void {
+function encode(input: string, out: string, ding: boolean, gainDb = 0): void {
+  const voiceFx = gainDb ? `${LOUDNORM},volume=${gainDb.toFixed(1)}dB,alimiter=limit=0.89:level=false` : LOUDNORM;
   if (!ding) {
-    run(["ffmpeg", "-y", "-v", "error", "-i", input, ...ENCODE, out]);
+    run(["ffmpeg", "-y", "-v", "error", "-i", input, "-af", voiceFx, ...ENCODE, out]);
     return;
   }
   // E6 then A6, about 0.3 s together, each with a quick decay, then a short breath before the voice.
@@ -85,14 +108,15 @@ function encode(input: string, out: string, ding: boolean): void {
     `sine=f=1760:d=0.2,${fmt},volume=0.35,afade=t=out:st=0.03:d=0.17[n2]`,
     `anullsrc=r=44100:cl=mono:d=0.08,${fmt}[gap]`,
     `[0:a]aresample=44100,${fmt}[v]`,
-    `[n1][n2][gap][v]concat=n=4:v=0:a=1[out]`,
+    `[v]${voiceFx},aresample=44100,${fmt}[vn]`,
+    `[n1][n2][gap][vn]concat=n=4:v=0:a=1[out]`,
   ].join(";");
   run(["ffmpeg", "-y", "-v", "error", "-i", input, "-filter_complex", graph, "-map", "[out]", ...ENCODE, out]);
 }
 
-async function renderHarry(text: string, tmp: string): Promise<string> {
+async function renderEleven(text: string, tmp: string): Promise<string> {
   const { ttsBytes, TTS_MODEL } = await import("../src/tts");
-  const file = join(tmp, "harry.mp3");
+  const file = join(tmp, "eleven.mp3");
   writeFileSync(file, await ttsBytes(text, { format: "mp3_44100_64", model: TTS_MODEL, timeoutMs: 60_000 }));
   return file;
 }
@@ -109,12 +133,16 @@ async function main(): Promise<void> {
       placeholder: { type: "boolean", default: false },
       all: { type: "boolean", default: false },
       only: { type: "string" },
+      "voice-id": { type: "string" },
+      "voice-name": { type: "string" },
     },
   });
   loadHiveEnv();
-  const harryReady = Boolean(process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim());
-  const voice: ScoutVoice = args.placeholder ? "placeholder" : "harry";
-  if (voice === "harry" && !harryReady) {
+  if (args["voice-id"]) process.env.ELEVENLABS_VOICE_ID = args["voice-id"];
+  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim() ?? "";
+  const elevenReady = Boolean(process.env.ELEVENLABS_API_KEY?.trim() && voiceId);
+  const voice: ScoutVoice = args.placeholder ? PLACEHOLDER : (args["voice-name"] ?? VOICE_NAMES[voiceId] ?? "harry");
+  if (voice !== PLACEHOLDER && !elevenReady) {
     throw new Error("set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID (env or hive/.env), or pass --placeholder");
   }
 
@@ -131,13 +159,13 @@ async function main(): Promise<void> {
     const prev = old[line.id];
     const file = join(SCOUT_AUDIO_DIR, `${line.id}.mp3`);
     const fresh = prev && existsSync(file) && prev.hash === lineHash(line);
-    // A placeholder run never replaces a current Harry render; a Harry run replaces placeholders.
-    const keep = fresh && (prev.voice === voice || prev.voice === "harry");
+    // A placeholder run never replaces a current real-voice render; a real-voice run replaces everything else.
+    const keep = fresh && (prev.voice === voice || (voice === PLACEHOLDER && prev.voice !== PLACEHOLDER));
     if (prev && existsSync(file)) manifest[line.id] = prev;
     if (only ? only.includes(line.id) : args.all || !keep) jobs.push(line);
   }
 
-  const sayVoice = voice === "placeholder" ? pickSayVoice() : "";
+  const sayVoice = voice === PLACEHOLDER ? pickSayVoice() : "";
   console.log(`${lines.length} lines, ${jobs.length} to render (${voice}${sayVoice ? `: ${sayVoice}` : ""})`);
   const tmp = mkdtempSync(join(tmpdir(), "scout-render-"));
   const failed: string[] = [];
@@ -145,8 +173,8 @@ async function main(): Promise<void> {
     for (const line of jobs) {
       const out = join(SCOUT_AUDIO_DIR, `${line.id}.mp3`);
       try {
-        const raw = voice === "harry" ? await renderHarry(line.text, tmp) : renderSay(line.text, sayVoice, tmp);
-        encode(raw, out, line.kind === "chime");
+        const raw = voice === PLACEHOLDER ? renderSay(line.text, sayVoice, tmp) : await renderEleven(line.text, tmp);
+        encodeLevel(raw, out, line.kind === "chime");
         manifest[line.id] = { ms: durationMs(out), voice, chars: line.text.length, hash: lineHash(line) };
         console.log(`  ${line.id}  ${manifest[line.id]!.ms} ms`);
       } catch (e) {
