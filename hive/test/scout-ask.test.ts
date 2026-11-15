@@ -157,7 +157,21 @@ describe("spoken text", () => {
     expect(cleanSpoken('*buzzes* "Hi" class 🐝 (laughs) see https://x.org now')).toBe("Hi class see now");
     const long = `${"word ".repeat(30).trim()}. ${"more ".repeat(20).trim()}.`;
     expect(clipWords(long, MAX_ANSWER_WORDS).split(" ").length).toBe(30);
-    expect(clipWords("one two three four", 2)).toBe("one two.");
+    expect(clipWords("one two three four", 2)).toBe("one two three four"); // a first sentence stays whole up to 50 words
+    expect(clipWords(`${"word ".repeat(60).trim()}.`, 40)).toBe(`${"word ".repeat(50).trim()}.`);
+  });
+
+  test("the 40-word cut keeps whole sentences: never an opener alone, never half a sentence", () => {
+    const s30 = `${"bees ".repeat(29)}buzz.`; // 30 words
+    const s20 = `${"honey ".repeat(19)}drips.`; // 20 words
+    // two sentences over 40: keep the first whole one, drop the second entirely
+    expect(clipWords(`${s30} ${s20}`)).toBe(s30);
+    // an opener, then a sentence that crosses 40: the opener isn't left alone (the whole stays within 50)
+    const s42 = `${"pollen ".repeat(41)}flies.`;
+    expect(clipWords(`Great question, class! ${s42} Go look!`)).toBe(`Great question, class! ${s42}`);
+    // an opener then a too-long sentence: the opener alone is better than half of it
+    const s60 = `${"wax ".repeat(59)}melts.`;
+    expect(clipWords(`Great question, class! ${s60}`)).toBe("Great question, class!");
   });
 });
 
@@ -365,6 +379,24 @@ describe("ScoutAsk + GET /scout/ask/<id>.mp3", () => {
     const b = new ScoutAsk({ game: fakeGame([]), base: () => "h", say: (s) => quiet.push(s), llm: fakeLlm(["Hi class."]), tts: deadTts, mode: "progressive" });
     await b.ask("why");
     expect(quiet).toEqual([{ line_id: expect.stringMatching(/^scout_ask_/), caption: "Hi class.", audio_url: null }]);
+  });
+
+  test("the streamed answer stops at the last whole sentence within 40 words; ElevenLabs never gets a fragment", async () => {
+    const sentences: string[] = [];
+    const s30 = `${"bees ".repeat(29)}buzz.`;
+    const s20 = `${"honey ".repeat(19)}drips.`;
+    let pulled = 0;
+    const llm = async function* () {
+      for (const d of ["Hey class! ", ...`${s30} ${s20} Go look!`.split(/(?<= )/)]) {
+        pulled++;
+        yield d;
+      }
+    };
+    const a = new ScoutAsk({ game: fakeGame([]), base: () => "h", say: () => {}, llm, tts: fakeTts({ sentences }), mode: "progressive" });
+    const st = await a.ask("why");
+    expect(sentences).toEqual(["Hey class!", s30]);
+    expect(st.answer).toBe(`Hey class! ${s30}`);
+    expect(pulled).toBeLessThan(55); // stopped reading Claude at the boundary
   });
 
   test("a new question cuts the answer in progress", async () => {
