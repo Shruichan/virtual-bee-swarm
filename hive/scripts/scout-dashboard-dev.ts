@@ -80,7 +80,9 @@ setInterval(() => {
 }, 15000);
 
 // ------------------------------------------------------------------ fake game state + frames
+// --no-glasses-mute: act like a Hive without POST /scout/glasses-mute (the judge screen shows it unavailable)
 const state: ScoutState = { phase: MODE === "slides" ? "looking" : "intro", found: [], skipped: [], offer: null, current: null, started_at: MODE === "slides" ? Date.now() : null, practice: opt.practice === "1" };
+if (!opt["no-glasses-mute"]) (state as ScoutState & { glasses_muted?: boolean }).glasses_muted = false;
 function pushState(patch: Partial<ScoutState>) {
   Object.assign(state, patch);
   emit({ type: "state", state: { ...state, found: [...state.found], skipped: [...state.skipped] } });
@@ -364,6 +366,12 @@ Bun.serve({
     const asset = p.match(/^\/scout\/assets\/([^/]+)$/);
     if (asset) return scoutAssetResponse(asset[1]!);
     if (p === "/fake-cam.mp4" && VIDEO) return new Response(Bun.file(VIDEO), { headers: { "Content-Type": "video/mp4" } });
+    if (p === "/scout/glasses-mute" && req.method === "POST" && !opt["no-glasses-mute"]) {
+      const b = (await req.json()) as { muted?: unknown };
+      if (typeof b.muted !== "boolean") return json({ error: "muted (boolean) required" }, { status: 400 });
+      pushState({ glasses_muted: b.muted } as Partial<ScoutState>);
+      return json(state);
+    }
     if (p === "/scout/teacher" && req.method === "POST") {
       setTimeout(() => say("scout_teacher"), 400); // like the game: the voiced line comes back as a say event
       return json(state);
