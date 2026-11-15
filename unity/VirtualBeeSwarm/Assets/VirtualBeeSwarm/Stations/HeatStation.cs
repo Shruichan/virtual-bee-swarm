@@ -23,9 +23,14 @@ namespace VirtualBeeSwarm
         protected override GameLine Prompt => GameLines.HeatPrompt;
         protected override GameLine Hint => RideLines.HintHeat;
 
+        /// <summary>PEBBLETOSS hook (PebbleToss/): the pebble toss after the pebble line, before the optional line. Null = none.</summary>
+        public static System.Func<HeatStation, IEnumerator> PebbleTossRun; // PEBBLETOSS hook
+        public Transform PebbleDishTransform => pebbleDish != null ? pebbleDish.transform : null; // PEBBLETOSS hook
+
         /// <summary>v2 optional #1 after the pebble line (the score clock has stopped): room_heat_mom.</summary>
         protected override IEnumerator AfterSolved(string choice)
         {
+            if (PebbleTossRun != null) yield return PebbleTossRun(this); // PEBBLETOSS hook
             var mom = RideLines.HeatMom;
             if (!RidePacing.Optional(1, mom)) yield break;
             yield return Wait(0.3f);
