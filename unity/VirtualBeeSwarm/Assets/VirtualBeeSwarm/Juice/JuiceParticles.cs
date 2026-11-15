@@ -23,7 +23,7 @@ namespace VirtualBeeSwarm.Juice
         readonly Matrix4x4[] _ms = new Matrix4x4[MaxSparks], _mb = new Matrix4x4[MaxBees];
         readonly Vector4[] _cs = new Vector4[MaxSparks], _cb = new Vector4[MaxBees];
         MaterialPropertyBlock _mpbS, _mpbB;
-        Mesh _diamond, _bee;
+        Mesh _diamond, _bee, _fallbackBee;
         Material _sparkMat, _beeMat;
         bool _instancing;
 
@@ -32,9 +32,12 @@ namespace VirtualBeeSwarm.Juice
         void Awake()
         {
             _diamond = CreateDiamond();
-            _bee = GameMeshes.CreateBeeMesh();
             _sparkMat = GameMaterials.Create("VBS_JuiceSpark (runtime)", Color.white, doubleSided: true);
-            _beeMat = GameMaterials.Create("VBS_JuiceBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
+            if (!BeeVat.Apply(ref _bee, ref _beeMat, "flying bee crews"))
+            {
+                _bee = _fallbackBee = GameMeshes.CreateBeeMesh();
+                _beeMat = GameMaterials.Create("VBS_JuiceBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
+            }
             _mpbS = new MaterialPropertyBlock();
             _mpbB = new MaterialPropertyBlock();
             _instancing = SystemInfo.supportsInstancing;
@@ -196,7 +199,7 @@ namespace VirtualBeeSwarm.Juice
         void OnDestroy()
         {
             if (_diamond != null) Destroy(_diamond);
-            if (_bee != null) Destroy(_bee);
+            if (_fallbackBee != null) Destroy(_fallbackBee);
             if (_sparkMat != null) Destroy(_sparkMat);
             if (_beeMat != null) Destroy(_beeMat);
         }
