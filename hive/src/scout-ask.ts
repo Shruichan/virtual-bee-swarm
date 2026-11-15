@@ -586,6 +586,8 @@ export class AskAudio {
 /** The game's Ask Beeswax API (scout/game). Optional so this works before that branch lands. */
 export interface AnswerGame {
   state(): ScoutState;
+  /** False while the game waits for Start (POST /scout/reset): Ask Beeswax stays silent then. */
+  isStarted?(): boolean;
   /** When the last line sent is expected to finish playing (ScoutGame.busyUntil). */
   readonly busyUntil?: number;
   beginAnswer?(): boolean;
@@ -727,6 +729,7 @@ export class ScoutAsk {
 
   /** A bare "Hey Beeswax": cut Beeswax off, say the ack, and wait for the question (detections paused meanwhile). */
   wake(): void {
+    if (this.d.game.isStarted?.() === false) return; // waiting for Start: silent
     this.current?.abort();
     const g = this.d.game;
     try {
@@ -766,6 +769,10 @@ export class ScoutAsk {
   /** Answer a question out loud. Cuts Beeswax off first. Resolves when the answer is fully sent; never rejects. */
   async ask(question: string): Promise<AskStats> {
     const t0 = this.now();
+    if (this.d.game.isStarted?.() === false) {
+      // waiting for Start (POST /scout/reset): no answers
+      return { id: "", question: question.slice(0, 300), answer: "", label: this.lastFound, mode: this.mode, at: t0, first_token_ms: null, first_sentence_ms: null, first_audio_ms: null, first_served_ms: null, done_ms: 0, audio_ms: 0, error: "not started" };
+    }
     const ms = () => this.now() - t0;
     this.current?.abort();
     this.wakeUntil = 0;
