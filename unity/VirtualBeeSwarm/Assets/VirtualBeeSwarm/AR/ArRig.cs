@@ -528,7 +528,7 @@ namespace VirtualBeeSwarm.AR
                 }
             }
             pos += right * shift;
-            const int fullPortalView = 4;
+            const int fullPortalView = 8;
             bool scanFit = scannedRoom != null && PortalClearsRoom(pos, k) && PortalViewScore(pos, k) == fullPortalView;
             if (scannedRoom != null && !scanFit)
             {
@@ -594,10 +594,12 @@ namespace VirtualBeeSwarm.AR
             int PortalViewScore(Vector3 pivot, float size)
             {
                 PortalShape(pivot, size, out var centre, out var facing, out var half);
-                Vector3 edge = facing * Vector3.right * (half.x * 0.85f);
-                int score = Bloom.MeadowLayout.VisibleInRoom(scannedRoom, eye, centre) ? 2 : 0;
-                if (Bloom.MeadowLayout.VisibleInRoom(scannedRoom, eye, centre - edge)) score++;
-                if (Bloom.MeadowLayout.VisibleInRoom(scannedRoom, eye, centre + edge)) score++;
+                Vector3 step = facing * Vector3.right * (half.x * 0.425f);
+                int score = 0;
+                // Also sample inside both edges. A narrow pillar can block a section while all three outer rays pass.
+                for (int i = -2; i <= 2; i++)
+                    if (Bloom.MeadowLayout.VisibleInRoom(scannedRoom, eye, centre + i * step))
+                        score += Mathf.Abs(i) == 2 ? 1 : 2;
                 return score;
             }
 
