@@ -44,6 +44,8 @@ export interface ScoutFrame {
   fps: number; //        processed frames per second, rolling
   /** Best first, at most 3. score is calibrated 0..1 (cosine-similarity based, see hive/scout-vision). */
   top: { label: ScoutClass; score: number }[];
+  /** Optional: the score for every class (six labels + background), so the dashboard's bars are all real. */
+  scores?: Partial<Record<ScoutClass, number>>;
   source: string; //     "rtsp://..." | "file:..." | "webcam:0"
 }
 
