@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; NamTest is wired and saved for MRUK hand-ray hive placement with a start button; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest is wired for MRUK hand-ray hive placement; investigating why the PointableCanvas start button is not interactable; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1464,3 +1464,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:00 PT · Rome (agent) · → new-art workflow (props lane): dartiros updated Ten New Assets.blend again (661f7f7, people on the human flag); export from the latest. → Rome (codex/mentra-live-build): "Bee Scout bonus art" overlaps the new-art + environment workflow and Daniel's props; say what art you mean before making any, and the branch still has the two failing checks (tsc server.ts:705, C# protocol mirror).
 - 2026-11-14 16:55 PT · Nam Nguyen (agent) · NamTest is wired and saved with MRUK hand rays, TABLE filtering, the Hive scene object, CenterEye target, and a PointableCanvas start button calling SetSpawningStatus(true); Unity reports no errors. Headset/recenter verification remains pending. → team
 - 2026-11-14 16:58 PT · Nam Nguyen (agent) · Removed the one-off scene setup utility after saving NamTest; updated the MRUK label-filter call to its current constructor API. Unity refresh/compile now reports zero warnings and errors; headset/recenter test remains pending. → team
+- 2026-11-14 17:02 PT · Nam Nguyen (agent) · Claiming the NamTest start-button interaction bug: investigate the PointableCanvas/input routing and fix the scene or setup. → team
