@@ -14,6 +14,8 @@ namespace VirtualBeeSwarm
         [SerializeField] Color celebrateColor = new Color(1f, 0.95f, 0.55f, 1f);
         [SerializeField] float popScale = 1.35f;
 
+        [SerializeField] int faceMaterialIndex = -1;
+
         public int LitCount { get; private set; }
 
         readonly bool[] _lit = new bool[4];
@@ -23,6 +25,7 @@ namespace VirtualBeeSwarm
 
         void Awake()
         {
+            _faceTint = new MaterialPropertyBlock();
             _baseScale = new Vector3[hexagons.Length];
             for (int i = 0; i < hexagons.Length; i++)
                 if (hexagons[i] != null) _baseScale[i] = hexagons[i].transform.localScale;
@@ -66,9 +69,25 @@ namespace VirtualBeeSwarm
             for (int i = 0; i < hexagons.Length; i++)
             {
                 if (hexagons[i] == null) continue;
-                GameMaterials.Tint(hexagons[i], offColor);
+                TintFace(hexagons[i], offColor);
                 if (_baseScale != null) hexagons[i].transform.localScale = _baseScale[i];
             }
+        }
+
+        MaterialPropertyBlock _faceTint;
+
+        void TintFace(Renderer renderer, Color color)
+        {
+            if (faceMaterialIndex < 0)
+            {
+                GameMaterials.Tint(renderer, color);
+                return;
+            }
+
+            renderer.GetPropertyBlock(_faceTint, faceMaterialIndex);
+            _faceTint.SetColor(GameMaterials.ColorId, color);
+            _faceTint.SetColor(GameMaterials.BaseColorId, color);
+            renderer.SetPropertyBlock(_faceTint, faceMaterialIndex);
         }
 
         void Update()
@@ -82,8 +101,8 @@ namespace VirtualBeeSwarm
                 float pulse = _celebrate ? 0.5f + 0.5f * Mathf.Sin(Time.time * 6f + i * 0.8f) : 0f;
                 r.transform.localScale = _baseScale[i] * (1f + pop + pulse * 0.12f);
                 var c = _celebrate ? Color.Lerp(onColor, celebrateColor, pulse) : onColor;
-                if (age < 0.6f || _celebrate) GameMaterials.Tint(r, c);
-                else if (age < 0.7f) GameMaterials.Tint(r, onColor);
+                if (age < 0.6f || _celebrate) TintFace(r, c);
+                else if (age < 0.7f) TintFace(r, onColor);
             }
         }
     }

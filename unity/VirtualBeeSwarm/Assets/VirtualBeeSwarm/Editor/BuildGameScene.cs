@@ -620,6 +620,7 @@ namespace VirtualBeeSwarm.Editor
 
             // ------------------------------------------------------------ art slots (S11.2): Art/<Slot>/<Slot>.prefab over the primitives
             ArtSlots.Apply(rig);
+            ArtSlots.ApplyShowcaseVisuals(rig);
 
             // ------------------------------------------------------------ save
             bool main = sceneFile == SceneName;
