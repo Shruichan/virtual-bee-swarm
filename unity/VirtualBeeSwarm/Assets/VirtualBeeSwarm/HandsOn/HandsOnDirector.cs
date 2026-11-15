@@ -364,7 +364,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _lever.Live = true;
                 _smokerDockPending = _sd != null && _sd.Active && _item != null;
                 _lever.ShowCradle(_smokerDockPending);
-                ShowAtLever("PULL THE LEVER 3 TIMES\nTO SMOKE THE HIVE");
+                ShowAtLever("PUMP THE SMOKER 3 TIMES\nPULL THE LEVER OR POKE IT");
                 return;
             }
             if (_item == null || spot == null) { Succeed(""); return; }
@@ -490,10 +490,15 @@ namespace VirtualBeeSwarm.HandsOn
             if (_cur.Station == GameStation.Smoker)
             {
                 _pumps++;
-                Transform nozzle = _item != null ? FindChild(_item, "SmokePoint") : null; // the authored spout
-                Vector3 from = _item != null && _item.gameObject.activeInHierarchy
-                    ? (nozzle != null ? nozzle.position : _item.position + Vector3.up * 0.12f) : _lever.HeadPosition;
-                if (_item != null) _item.GetComponentInChildren<ArtAnimProp>()?.PlayManualAction();
+                // delivery off: no flown item, the station's own smoker is the one being pumped
+                var smoker = _item != null ? _item.GetComponentInChildren<ArtAnimProp>() : SmokerArt(_cur);
+                if (smoker != null) smoker.PlayManualAction();
+                Transform body = _item != null ? _item : smoker != null ? smoker.transform.parent : null;
+                Transform nozzle = body != null ? FindChild(body, "SmokePoint") : null; // the authored spout
+                var smoke = body != null && body.gameObject.activeInHierarchy ? FindChild(body, "SmokePuff") : null;
+                if (smoke != null && smoke.TryGetComponent(out ParticleSystem ps)) ps.Emit(12); // real smoke out of the spout
+                Vector3 from = body != null && body.gameObject.activeInHierarchy
+                    ? (nozzle != null ? nozzle.position : body.position + Vector3.up * 0.12f) : _lever.HeadPosition;
                 Puff(from, _hive.SwarmCenter.position, new Color(0.92f, 0.92f, 0.95f), 3);
                 GameSound.Cue("smoker_puff", _item != null ? _item : _lever.transform);
                 if (_swarm != null) _swarm.Agitation *= 0.5f;
@@ -572,14 +577,33 @@ namespace VirtualBeeSwarm.HandsOn
         bool PickGate(StationBase st, string choice)
         {
             if (st != _cur) return false;
+            // pressing the docked smoker pumps it like the lever: bellows squeeze + smoke (it used to be swallowed)
+            if (_step == Step.Setup && st.Station == GameStation.Smoker && choice == GameIds.Choice.Smoker)
+            {
+                Log("smoker poked: pump");
+                HandlePulled();
+                return true;
+            }
             if (FullFor(st))
             {
                 if (_step == Step.Ordering) Order(choice);
                 return true; // full: a prop is never a button
             }
             if (st.Station != GameStation.Smoker || choice != GameIds.Choice.Smoker) return false;
-            if (_step == Step.Idle) StartLeverSmoker(st);
+            if (_step == Step.Idle)
+            {
+                StartLeverSmoker(st);
+                HandlePulled(); // the poke that picked it is the first pump: it squeezes right away
+            }
             return true;
+        }
+
+        static ArtAnimProp SmokerArt(StationBase st)
+        {
+            if (st == null) return null;
+            foreach (var p in st.GetComponentsInChildren<ArtAnimProp>())
+                if (p.particleName == "SmokePuff") return p;
+            return null;
         }
 
         /// <summary>lever mode: the smoker was picked; it hops to the lever and has to be pumped.</summary>
@@ -592,10 +616,27 @@ namespace VirtualBeeSwarm.HandsOn
 
         void DockSmoker(string choice)
         {
-            Pose? dock = _sd.ParkOrdered(choice, _lever.CradlePose);
+            Pose? dock = _sd.ParkOrdered(choice, SmokerCradlePose(_sd.Item(Array.IndexOf(GameIds.Choices[(int)GameStation.Smoker], choice))));
             if (!dock.HasValue) return;
             _lever.PlaceCradle(dock.Value.position);
             _lever.ShowCradle(true);
+        }
+
+        /// <summary>The lever cradle, turned so the smoker's bellows side (where the squeeze shows) faces the player.</summary>
+        Pose SmokerCradlePose(Transform item)
+        {
+            Pose pose = _lever.CradlePose;
+            var art = item != null ? item.GetComponentInChildren<ArtAnimProp>(true) : null;
+            var cam = Camera.main;
+            if (art == null || cam == null) return pose;
+            // dartiros' editor stills show the squeeze from art-space (-1, 0.25, 0.45): turn that side to the head
+            Vector3 side = Quaternion.Inverse(item.rotation) * art.transform.rotation * new Vector3(-1f, 0f, 0.45f);
+            Vector3 toHead = cam.transform.position - pose.position;
+            side.y = 0f;
+            toHead.y = 0f;
+            if (side.sqrMagnitude < 1e-6f || toHead.sqrMagnitude < 1e-6f) return pose;
+            pose.rotation = Quaternion.LookRotation(toHead, Vector3.up) * Quaternion.Inverse(Quaternion.LookRotation(side, Vector3.up));
+            return pose;
         }
 
         /// <summary>T0Sequence, after 3-2-1: the lever is the launch button (auto-launch after launchWaitSeconds).</summary>
@@ -719,7 +760,19 @@ namespace VirtualBeeSwarm.HandsOn
             float start = Time.time;
             while (_step == Step.Setup && _cur == st && Time.time - start < 30f)
             {
-                if (st.Station == GameStation.Smoker || (st.Station == GameStation.Heat && _sub == 1))
+                if (st.Station == GameStation.Smoker && _pumps == 1 && Time.time - start < 4f)
+                {
+                    // pump 2 is a poke on the smoker itself, once it has landed (a flying prop ignores pokes)
+                    var b = SmokerButton(st);
+                    if (b == null) yield return null;
+                    else
+                    {
+                        Log("autopilot pokes the smoker");
+                        b.Press();
+                        yield return Until(() => _pumps != 1 || _step != Step.Setup, 0.75f);
+                    }
+                }
+                else if (st.Station == GameStation.Smoker || (st.Station == GameStation.Heat && _sub == 1))
                 {
                     _lever.SimulatePull();
                     yield return Until(() => _step != Step.Setup, 0.75f);
@@ -767,6 +820,14 @@ namespace VirtualBeeSwarm.HandsOn
                 c.a = 0.85f * (1f - k * k);
                 GameMaterials.Tint(_puffs[i], c);
             }
+        }
+
+        /// <summary>Autopilot: the smoker's own choice button, if a fingertip poke would press it now.</summary>
+        static ChoiceButton SmokerButton(StationBase st)
+        {
+            foreach (var b in st.GetComponentsInChildren<ChoiceButton>(true))
+                if (b.ChoiceId == GameIds.Choice.Smoker && b.Interactable) return b;
+            return null;
         }
 
         static Transform FindChild(Transform root, string name)
