@@ -113,7 +113,6 @@ export class ScoutGame {
   private offerDeadline = 0;
   private offerLines: string[] = [];
   private lookingSince = 0;
-  private anyQTurn = 0;
   /** Practice: the six-badge finale played this journey. */
   private finaleDone = false;
   private noTurn = 0;
@@ -551,15 +550,15 @@ export class ScoutGame {
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
     this.latency("frame_to_found", frameMs);
-    this.say(SCOUT_LINES.chime);
+    this.sayIf(SCOUT_LINES.chime); // skipped when its text is empty (the chime may be folded into the fact opener)
     if (this.mode !== "demo") {
-      // Practice and booth: no hook, no offer. "Bee fact found!", the fact (+ _2), then "any questions?"
+      // Practice and booth: no hook, no offer. "Bee fact found!", the fact (+ _2), then quiet
       // (Ask Beeswax takes it from there through beginAnswer/endAnswer).
       this.sayFact(label);
       this.latency("found_to_say", this.now() - now);
       const isNew = !this.found.includes(label); // a badge per distinct card; a rediscovery replays the fact only
       if (isNew) this.found.push(label);
-      this.sayAnyQ();
+      // (No "any questions?" prompt after facts any more: the intro gives the wake-word tip once.)
       if (this.mode === "booth") {
         // On to the next station: its direction line, or the finale after the last one.
         const i = this.order.indexOf(label);
@@ -644,12 +643,6 @@ export class ScoutGame {
   /** `base`, then `base_2`, `base_3`: every one that exists (multi-line intro and finale). */
   private saySeries(base: string): void {
     for (const id of [base, `${base}_2`, `${base}_3`]) this.sayIf(id);
-  }
-
-  /** One of scout_any_q_1..3 (taking turns among those that exist), after a fact in practice and booth. */
-  private sayAnyQ(): void {
-    const ids = SCOUT_LINES.anyQ.filter((id) => this.lines.get(id)?.text);
-    if (ids.length) this.say(ids[this.anyQTurn++ % ids.length]!);
   }
 
   private sayFact(label: ScoutLabel): void {

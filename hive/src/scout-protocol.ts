@@ -220,8 +220,7 @@ export const SCOUT_LINES = {
   intro: ["scout_intro_1", "scout_intro_2"],
   /** Every intro line the game plays, in order, when it exists (practice and demo). */
   introAll: ["scout_intro_1", "scout_intro_2", "scout_intro_3"],
-  /** "Any questions?" after each fact in practice and booth; the game takes turns among those that exist.
-   *  Then Ask Beeswax (scout/ask) answers through ScoutGame.beginAnswer/endAnswer. */
+  /** "Any questions?" lines. No longer scheduled (the intro gives the wake-word tip once); kept loadable. */
   anyQ: ["scout_any_q_1", "scout_any_q_2", "scout_any_q_3"],
   chime: "scout_chime", //                       the "Bee fact found!" sting (voice + sound), before every hook
   hook: (l: ScoutLabel) => `scout_hook_${l}`, // one line, ends with a question
