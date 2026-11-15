@@ -176,7 +176,8 @@ export type ScoutEvent =
   | { type: "frame"; frame: ScoutFrame } //                                    throttled to ~5 a second
   | { type: "found"; label: ScoutLabel; score: number; at: number; look_ms: number } // steady match: chime + hook
   | { type: "say"; line_id: string; caption: string; audio_url: string | null; at: number }
-  | { type: "heard"; text: string; answer: ScoutAnswer; at: number }
+  /** question: true = a wake-word question Ask Beeswax answers ("Hey Beeswax, why ..."); judge screens can show only those. */
+  | { type: "heard"; text: string; answer: ScoutAnswer; at: number; question?: boolean }
   | { type: "state"; state: ScoutState }
   | { type: "latency"; hop: ScoutHop; ms: number }
   | { type: "slide"; label: ScoutClass | null; at: number }

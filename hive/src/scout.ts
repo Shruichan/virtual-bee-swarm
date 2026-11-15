@@ -926,7 +926,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     if (ask) {
       const r = ask.route(text, classifyAnswer);
       if (r.kind === "ask" || r.kind === "wake") {
-        fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now() });
+        fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now(), ...(r.kind === "ask" ? { question: true } : {}) });
         if (r.kind === "wake") ask.wake();
         else void ask.ask(r.question.slice(0, 300));
         return c.json({ ok: true, answer: "other", routed: r.kind, phase: game.state().phase });

@@ -313,7 +313,8 @@ describe("Ear: queued scout lines play fully and in order", () => {
     await Promise.all(["a", "b", "c"].map((id) => ear.play({line_id: null, audio_url: `u/${id}`, caption: id})))
     await until(() => s.played.length === 3, 2000, "all three")
     expect(s.played).toEqual(["u/a", "u/b", "u/c"])
-    expect(Date.now() - t0).toBeLessThan(1500)
+    expect(Date.now() - t0).toBeLessThan(3000) // each next play waits up to 0.8 s for the unsettled request
+
   })
 
   test("no result and no state events: the caption-based limit ends it instead of 45 s", async () => {
@@ -328,4 +329,71 @@ describe("Ear: queued scout lines play fully and in order", () => {
     expect(s.spoken).toEqual([]) // never played a second time in the phone's voice
     expect(logs.some((l) => String(l).includes("took too long"))).toBe(true)
   })
+
+  test("a play started right after the previous one would stall: the gap keeps the second line (intro_2)", async () => {
+    // a host that silently drops a play() issued within 100 ms of the previous one ending
+    const played: string[] = []
+    let lastEnd = 0
+    const listeners = new Set<(e: {state: string}) => void>()
+    const sp = {
+      async createStream() {
+        throw new Error("no clips")
+      },
+      async play(p: {audioUrl: string}) {
+        if (Date.now() - lastEnd < 100) return new Promise(() => {}) // stalls: no sound, no states, no result
+        played.push(p.audioUrl)
+        listeners.forEach((l) => l({state: "playing"}))
+        await sleep(30)
+        lastEnd = Date.now()
+        listeners.forEach((l) => l({state: "stopped"}))
+      },
+      async speak() {
+        return {completed: true}
+      },
+      stop() {},
+      onStateChange(h: (e: {state: string}) => void) {
+        listeners.add(h)
+        return () => listeners.delete(h)
+      },
+    } as any
+    const logs: string[] = []
+    const ear = new Ear(sp, (l: string) => logs.push(String(l)), {}, {maxQueueWaitMs: 120_000})
+    await Promise.all(["intro_1", "intro_2", "intro_3"].map((id) => ear.play({line_id: null, audio_url: `u/${id}`, caption: id}, {maxMs: 2000})))
+    expect(played).toEqual(["u/intro_1", "u/intro_2", "u/intro_3"])
+    expect(logs.filter((l) => l.startsWith("ear: play ")).length).toBe(3)
+    await until(() => logs.filter((l) => l.startsWith("ear: end ")).length === 3, 1000, "three ends logged")
+  })
+
+  test("a play that never starts is stopped and retried once (host that reports states)", async () => {
+    const played: string[] = []
+    let calls = 0
+    const listeners = new Set<(e: {state: string}) => void>()
+    const sp = {
+      async createStream() {
+        throw new Error("no clips")
+      },
+      async play(p: {audioUrl: string}) {
+        calls++
+        if (calls === 2) return new Promise(() => {}) // the second request stalls once
+        played.push(p.audioUrl)
+        listeners.forEach((l) => l({state: "playing"}))
+        await sleep(20)
+        listeners.forEach((l) => l({state: "stopped"}))
+      },
+      async speak() {
+        return {completed: true}
+      },
+      stop() {},
+      onStateChange(h: (e: {state: string}) => void) {
+        listeners.add(h)
+        return () => listeners.delete(h)
+      },
+    } as any
+    const logs: string[] = []
+    const ear = new Ear(sp, (l: string) => logs.push(String(l)), {}, {maxQueueWaitMs: 120_000})
+    await Promise.all(["a", "b"].map((id) => ear.play({line_id: null, audio_url: `u/${id}`, caption: id}, {maxMs: 10_000})))
+    expect(played).toEqual(["u/a", "u/b"])
+    expect(calls).toBe(3)
+    expect(logs.some((l) => l.includes("never started playing, retrying"))).toBe(true)
+  }, 15_000)
 })
