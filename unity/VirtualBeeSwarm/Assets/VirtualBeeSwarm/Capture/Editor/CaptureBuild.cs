@@ -83,7 +83,16 @@ namespace VirtualBeeSwarm.Capture.Editor
                     clips = found.Length;
                 }
                 if (!EditorSceneManager.SaveScene(scene)) throw new Exception("could not save " + scenePath);
-                Debug.Log("[VBSCapture] scene " + scenePath + ", window clips " + clips);
+                // The first batch run after scripts change can save the scene before Unity has mapped the recompiled
+                // ShowCapture class to its script asset; the player then has a missing script and a corrupted level0.
+                // Check the scene as saved on disk and stop instead of building a broken player.
+                var script = MonoScript.FromMonoBehaviour(cap);
+                if (script == null || script.GetClass() != typeof(ShowCapture) || string.IsNullOrEmpty(AssetDatabase.GetAssetPath(script)))
+                    throw new Exception("ShowCapture's script asset isn't mapped yet (scripts were still importing). Run the build again.");
+                int missing = MissingScripts(scenePath);
+                if (missing > 0)
+                    throw new Exception(missing + " missing script(s) in the saved capture scene. Run the build again.");
+                Debug.Log("[VBSCapture] scene " + scenePath + ", window clips " + clips + ", 0 missing scripts");
 
                 audio = AssetDatabase.LoadAllAssetsAtPath(audioPath).FirstOrDefault();
                 var audioSo = audio != null ? new SerializedObject(audio) : null;
@@ -128,6 +137,16 @@ namespace VirtualBeeSwarm.Capture.Editor
                 AssetDatabase.DeleteAsset(TempMat);
             }
             if (Application.isBatchMode) EditorApplication.Exit(code);
+        }
+
+        static int MissingScripts(string path)
+        {
+            var saved = EditorSceneManager.OpenScene(path);
+            int missing = 0;
+            foreach (var root in saved.GetRootGameObjects())
+                foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                    missing += GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject);
+            return missing;
         }
     }
 }
