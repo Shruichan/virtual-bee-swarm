@@ -475,6 +475,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     return c.html(scoutDashboardHtml());
   });
   app.get("/scout/slides", (c) => c.html(scoutSlidesHtml()));
+  let lastFrameAt: number | null = null; // last POST /scout/frame from the vision worker (watchdog)
   app.get("/scout/state", (c) => c.json(game.state()));
 
   app.post("/scout/frame", async (c) => {
@@ -491,6 +492,7 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       for (const [k, v] of Object.entries(body.scores as Record<string, unknown>)) if (isClass(k) && typeof v === "number" && Number.isFinite(v)) scores[k] = v;
     }
     const now = Date.now();
+    lastFrameAt = now;
     game.frame({
       at: num(body.at, now),
       frame_ms: num(body.frame_ms, 0),
@@ -520,6 +522,8 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     game.start();
     return c.json({ ok: true, state: game.state() });
   });
+
+  app.post("/scout/watchdog", (c) => c.json({ frame_age_ms: lastFrameAt === null ? null : Date.now() - lastFrameAt }));
 
   app.post("/scout/practice", async (c) => {
     const body = await readJson(c);

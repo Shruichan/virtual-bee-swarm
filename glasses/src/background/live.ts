@@ -13,6 +13,8 @@ export class LiveStream {
   private streamId: string | null = null
   private retry: ReturnType<typeof setTimeout> | null = null
   private stopped = false
+  private watchTimer: ReturnType<typeof setInterval> | null = null
+  private lastRestart = 0
 
   constructor(
     private readonly stream: Pick<StreamModule, "startStream" | "stop">,
@@ -45,7 +47,35 @@ export class LiveStream {
     }
   }
 
+  /**
+   * Restart the stream when the laptop stops getting frames. The SDK reports no drops, so ask the Hive how
+   * old the vision worker's last frame is (`frameAge`, ms or null) every 10 s; restart if it's > 8 s old,
+   * at most once every 30 s.
+   */
+  watch(frameAge: () => Promise<number | null>, everyMs = 10_000, staleMs = 8_000, minGapMs = 30_000): void {
+    if (this.watchTimer) clearInterval(this.watchTimer)
+    this.watchTimer = setInterval(async () => {
+      if (this.stopped || this.state !== "live" || Date.now() - this.lastRestart < minGapMs) return
+      let age: number | null
+      try {
+        age = await frameAge()
+      } catch {
+        return // Hive unreachable: not a stream problem
+      }
+      if (age === null || age < staleMs || this.stopped || this.state !== "live") return
+      this.lastRestart = Date.now()
+      this.log(`stream: no frames for ${Math.round(age / 1000)} s, restarting`)
+      try {
+        await this.stream.stop(this.streamId ?? undefined)
+      } catch {}
+      this.streamId = null
+      await this.start()
+    }, everyMs)
+  }
+
   async stop(): Promise<void> {
+    if (this.watchTimer) clearInterval(this.watchTimer)
+    this.watchTimer = null
     this.stopped = true
     if (this.retry) clearTimeout(this.retry)
     this.retry = null

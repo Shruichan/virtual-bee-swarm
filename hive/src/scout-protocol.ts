@@ -67,6 +67,9 @@ export interface VisionSlide { label: ScoutLabel; url: string; credit?: string }
 export interface ScoutUtterance { text: string; at: number }
 /** POST /scout/button (token): a short press on the glasses = "yes" (backup when voice fails). */
 export interface ScoutButton { at: number }
+/** POST /scout/watchdog (token): the glasses ask how long ago the vision worker last posted a frame.
+ *  null = no frame yet since the Hive started. The glasses restart their stream when it goes stale. */
+export interface ScoutWatchdog { frame_age_ms: number | null }
 /** POST /scout/start (token): the glasses entered scout mode (plays the intro, resets progress). */
 export interface ScoutStart { at: number }
 

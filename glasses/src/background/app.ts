@@ -209,7 +209,10 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
 
   if (!status.tokenSet) log("no hiveToken in src/config.local.ts: the Hive will refuse us")
   bus.start()
-  if (live) void live.start()
+  if (live) {
+    void live.start()
+    live.watch(async () => (await hive.post<{frame_age_ms: number | null}>("/scout/watchdog", {}, 3000)).frame_age_ms)
+  }
 
   return {
     stop() {
