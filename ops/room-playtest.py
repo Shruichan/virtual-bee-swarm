@@ -177,14 +177,18 @@ def room(number: int, args: argparse.Namespace, ffmpeg: str, clip_dir: Path | No
         ordered = iter(names)
         full_ride = all(name in ordered for name in REQUIRED) and len({frame for frame, _ in captured}) >= len(REQUIRED)
         length = len(frames) * args.every / SOURCE_FPS
+        hand_setups = [message for _, message in events if "done by hand" in message]
+        completed = {message.rsplit("autopilot ", 1)[-1].split(":", 1)[0] for message in hand_setups}
+        full_hands = {"smoker", "feed", "wasps", "heat"} <= completed
         result.update(
-            ok=process.returncode == 0 and full_ride,
+            ok=process.returncode == 0 and full_ride and full_hands,
             returncode=process.returncode,
             seconds=round(length, 2),
             frames=len(frames),
             sampled_fps=SOURCE_FPS / args.every,
             recorded_beats=names,
-            hand_setups=[message for _, message in events if "done by hand" in message],
+            hand_setups=hand_setups,
+            hand_setups_complete=full_hands,
             room_audit=next((message for _, message in reversed(events) if message.startswith("[VBS][RoomAudit] SUMMARY")), ""),
         )
         stage_subtitles(directory / "stages.srt", captured, length)

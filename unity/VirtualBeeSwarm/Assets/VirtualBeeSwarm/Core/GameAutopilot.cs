@@ -452,13 +452,21 @@ namespace VirtualBeeSwarm
                 yield return WaitFor(() => st.Solved, typeof(T).Name + " solved by the timeout");
                 yield break;
             }
+            bool throwDemo = Environment.GetEnvironmentVariable("VBS_THROW_DEMO") == "1";
+            if (throwDemo && st.Station == GameStation.Feed)
+            {
+                // ThrowDemo owns the grab, release, recovery and pour in this rehearsal.
+                yield return WaitFor(() => st.Solved, "feed solved by the throwable rehearsal");
+                yield break;
+            }
             yield return WaitFor(() => st.Choosing, typeof(T).Name + " offers choices");
             var sd = st.GetComponent<StationDelivery>();
             Check(sd == null || sd.AllParked, typeof(T).Name + ": choices offered before they all parked");
-            if (pickDelaySeconds > 0f)
+            float pickDelay = throwDemo ? 0f : pickDelaySeconds;
+            if (pickDelay > 0f)
             {
-                yield return Seconds(pickDelaySeconds);
-                Debug.Log("[VBSAutopilot] " + typeof(T).Name + ": picking after " + pickDelaySeconds.ToString("0.0") + " s; hint showing = " +
+                yield return Seconds(pickDelay);
+                Debug.Log("[VBSAutopilot] " + typeof(T).Name + ": picking after " + pickDelay.ToString("0.0") + " s; hint showing = " +
                           (sd != null && sd.Hinting));
             }
             if (VirtualBeeSwarm.HandsOn.HandsOnDirector.AutoDrives) // HANDSON hook: the autopilot does the hand steps

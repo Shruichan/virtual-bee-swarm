@@ -14,7 +14,7 @@ export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
 const LIVE_VOICE_SPEED = 0.95;
 /** Calmer delivery (Rome, 04:00): steadier, not over-acted. Live speech and rendered clips use the same settings. */
-const CALM_VOICE = { stability: 0.6, style: 0 };
+const CALM_VOICE = { stability: 0.6, similarityBoost: 0.75, style: 0, useSpeakerBoost: true };
 
 /** Timeouts (ms) and the text cap. Mutable so tests can shorten them. */
 export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, maxChars: 500 };

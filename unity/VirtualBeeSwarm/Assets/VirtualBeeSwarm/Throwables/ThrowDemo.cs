@@ -10,7 +10,7 @@ namespace VirtualBeeSwarm.Throw
     /// carry's grab calls and the throw hook for a throw, the hand reader for a knock). Off the headset only.
     /// Keys: F4 flings the prop the set-up step wants, F11 taps the nearest resting prop over. Env VBS_THROW_DEMO=1
     /// (captures): at the feed station it orders the syrup, throws it, knocks it over once it's back, then pours it
-    /// over the feeder by hand (the thrown order still counts); in between it throws it at the hive once. Give it room with VBS_AUTOPILOT_PICK_DELAY=30 and
+    /// over the feeder by hand (the thrown order still counts); in between it throws it at the hive once. The autopilot leaves this station to the demo; use
     /// VBS_AUTOPILOT_MISTAKES= (empty).
     /// </summary>
     public class ThrowDemo : MonoBehaviour

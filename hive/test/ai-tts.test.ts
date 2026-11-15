@@ -116,7 +116,7 @@ describe("ttsPcm", () => {
     expect(url).toContain("output_format=pcm_16000");
     const body = JSON.parse(String(init?.body));
     expect(body.model_id).toBe("eleven_flash_v2_5");
-    expect(body.voice_settings).toEqual({ stability: 0.6, style: 0, speed: 0.95 });
+    expect(body.voice_settings).toEqual({ stability: 0.6, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 0.95 });
     expect(body.text).toBe("Motion denied.");
   });
 
