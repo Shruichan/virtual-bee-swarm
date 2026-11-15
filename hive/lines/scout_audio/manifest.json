@@ -12,10 +12,10 @@
     "hash": "ff978f569744"
   },
   "scout_intro_3": {
-    "ms": 4644,
+    "ms": 4598,
     "voice": "beeswax-cute-sassy",
-    "chars": 93,
-    "hash": "79d9ba0504d2"
+    "chars": 95,
+    "hash": "832e157f568d"
   },
   "scout_chime": {
     "ms": 1515,
@@ -60,22 +60,28 @@
     "hash": "9eb34d19a556"
   },
   "scout_any_q_1": {
-    "ms": 1811,
+    "ms": 2183,
     "voice": "beeswax-cute-sassy",
-    "chars": 32,
-    "hash": "f424cc1ef330"
+    "chars": 34,
+    "hash": "266cbd318441"
   },
   "scout_any_q_2": {
-    "ms": 1997,
-    "voice": "beeswax-cute-sassy",
-    "chars": 36,
-    "hash": "e9e26bce4237"
-  },
-  "scout_any_q_3": {
     "ms": 2601,
     "voice": "beeswax-cute-sassy",
-    "chars": 48,
-    "hash": "ce5df5498d4d"
+    "chars": 40,
+    "hash": "b7ead8dd7caa"
+  },
+  "scout_any_q_3": {
+    "ms": 2322,
+    "voice": "beeswax-cute-sassy",
+    "chars": 44,
+    "hash": "21bd79bf14ca"
+  },
+  "scout_wake_ack": {
+    "ms": 1579,
+    "voice": "beeswax-cute-sassy",
+    "chars": 22,
+    "hash": "450985d37231"
   },
   "scout_no_1": {
     "ms": 2879,
@@ -162,10 +168,10 @@
     "hash": "ff978f569744"
   },
   "scout_booth_intro_3": {
-    "ms": 4644,
+    "ms": 4598,
     "voice": "beeswax-cute-sassy",
-    "chars": 93,
-    "hash": "79d9ba0504d2"
+    "chars": 95,
+    "hash": "832e157f568d"
   },
   "scout_chime_ask": {
     "ms": 2676,
