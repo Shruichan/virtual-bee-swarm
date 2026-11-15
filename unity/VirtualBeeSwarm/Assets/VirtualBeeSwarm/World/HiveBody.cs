@@ -198,5 +198,102 @@ namespace VirtualBeeSwarm
                 GameMaterials.TintAll(bodyRenderers, body);
             }
         }
+
+        // ------------------------------------------------------------ the lid (escape)
+        // The art's LidOpen clip hinges the lid at the FRONT, so with the hive at arm's reach the open lid filled the
+        // player's view. The lid now hangs from a LidHinge of its own (which also unbinds the clip from it): while the
+        // clip "plays" (LidOpen, held at its end) the hinge swings the lid up and over the edge AWAY from the player by
+        // lidSwing degrees, in the clip's time; LidClose (or a stop) swings it back.
+        [Header("Lid (escape)")]
+        [SerializeField] float lidSwing = 170f;
+        Transform _lid, _lidHinge;
+        Animation _lidAnim;
+        bool _lidInit, _lidHinged, _lidLoggedOpen;
+        float _lidFrac, _lidSeconds = 1.5f;
+        Vector3 _lidAxisP;
+        Bounds _lidBox;
+
+        void LateUpdate()
+        {
+            if (!_lidInit) InitLid();
+            if (_lidHinge == null || _lidAnim == null) return;
+            bool open = _lidAnim.IsPlaying("LidOpen");
+            if (open && !_lidHinged) PickLidHinge();
+            _lidFrac = Mathf.MoveTowards(_lidFrac, open ? 1f : 0f, Time.deltaTime / _lidSeconds);
+            if (!open && _lidFrac <= 0f) _lidHinged = false;
+            float t = _lidFrac * _lidFrac * (3f - 2f * _lidFrac);
+            _lidHinge.localRotation = Quaternion.AngleAxis(lidSwing * t, _lidAxisP);
+            if ((_lidFrac > 0.5f) != _lidLoggedOpen)
+            {
+                _lidLoggedOpen = _lidFrac > 0.5f;
+                Debug.Log("[VBS][Hive] lid " + (_lidLoggedOpen ? "open: swinging back over the far edge" : "closed"));
+            }
+        }
+
+        void InitLid()
+        {
+            _lidInit = true;
+            var lid = FindDeep(liftRoot, "Lid");
+            if (lid == null || lid.parent == null) return;
+            var anim = lid.GetComponentInParent<Animation>();
+            var st = anim != null ? anim["LidOpen"] : null;
+            if (st == null || st.clip == null) return;
+            _lid = lid;
+            _lidAnim = anim;
+            _lidSeconds = Mathf.Max(0.3f, st.length / Mathf.Max(0.1f, Mathf.Abs(st.speed)));
+            // the closed lid's box in its parent's space (the hinge side is picked when it opens: away from the player)
+            var parent = lid.parent;
+            bool any = false;
+            Bounds b = default;
+            var w2l = parent.worldToLocalMatrix;
+            foreach (var mf in lid.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null) continue;
+                var m = w2l * mf.transform.localToWorldMatrix;
+                var mb = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = m.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1)));
+                    if (!any) { b = new Bounds(c, Vector3.zero); any = true; } else b.Encapsulate(c);
+                }
+            }
+            _lidBox = any ? b : new Bounds(lid.localPosition, Vector3.zero);
+            _lidHinge = new GameObject("LidHinge").transform;
+            _lidHinge.gameObject.layer = lid.gameObject.layer;
+            _lidHinge.SetParent(parent, false);
+            lid.SetParent(_lidHinge, true); // the clip's "Lid" path no longer binds: the hinge drives it
+            _lidAxisP = Vector3.right;
+            Debug.Log("[VBS][Hive] lid on its own hinge: LidOpen swings it " + lidSwing.ToString("0") + " deg back over the edge away from the player in " +
+                      _lidSeconds.ToString("0.0") + " s");
+        }
+
+        /// <summary>The hinge: the closed lid's bottom edge on the side away from the player's eyes (else the rig's +Z;
+        /// the hive's own axes are turned round under the art), in the lid parent's space.</summary>
+        void PickLidHinge()
+        {
+            var parent = _lidHinge.parent;
+            var cam = Camera.main;
+            Vector3 away = cam != null ? transform.position - cam.transform.position : (transform.parent != null ? transform.parent.forward : transform.forward);
+            away.y = 0f;
+            if (away.sqrMagnitude < 1e-6f) away = transform.parent != null ? transform.parent.forward : transform.forward;
+            Vector3 up = parent.InverseTransformDirection(Vector3.up).normalized;
+            Vector3 back = Vector3.ProjectOnPlane(parent.InverseTransformDirection(away.normalized), up).normalized;
+            Vector3 e = _lidBox.extents;
+            float eBack = Mathf.Abs(back.x) * e.x + Mathf.Abs(back.y) * e.y + Mathf.Abs(back.z) * e.z;
+            float eUp = Mathf.Abs(up.x) * e.x + Mathf.Abs(up.y) * e.y + Mathf.Abs(up.z) * e.z;
+            _lid.SetParent(parent, true);
+            _lidHinge.localPosition = _lidBox.center + back * eBack - up * eUp;
+            _lidHinge.localRotation = Quaternion.identity;
+            _lid.SetParent(_lidHinge, true);
+            _lidAxisP = Vector3.Cross(up, back).normalized;
+            _lidHinged = true;
+        }
+
+        static Transform FindDeep(Transform t, string name)
+        {
+            if (t == null) return null;
+            foreach (var c in t.GetComponentsInChildren<Transform>(true)) if (c.name == name) return c;
+            return null;
+        }
     }
 }

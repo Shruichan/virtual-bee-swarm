@@ -397,7 +397,7 @@ namespace VirtualBeeSwarm.AR
             if (Bloom.MeadowLayout.Active) // meadow: the big window clears the hive roof (raised, slid away from the rocket), top under the ceiling
             {
                 float ceil = Room.CeilingOrDefault, halfH = _pane.y * k * 0.5f;
-                float above = Bloom.MeadowLayout.RoofY + 0.15f + halfH;
+                float above = Bloom.MeadowLayout.WindowBottomY(pos) + halfH;
                 pos.y = Mathf.Max(pos.y, above);
                 pos.y = Mathf.Max(Room.FloorY + halfH + 0.3f, Mathf.Min(pos.y, ceil - 0.08f - halfH));
                 float shift = Bloom.MeadowLayout.WindowSideShift(wt.right, width, pos.y >= above - 0.01f);

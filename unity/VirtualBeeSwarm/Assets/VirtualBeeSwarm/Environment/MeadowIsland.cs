@@ -198,7 +198,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
             // turf: spreads out from under the hive; covered by the Moon ground at T-0
             float s = 0.06f + 0.94f * EaseOutBack(Mathf.Clamp01(g / GrowSeconds));
             _turf.localScale = new Vector3(s, 1f, s);
-            bool turfOn = moonK < 0.93f;
+            bool turfOn = moonK < 0.93f && !VirtualBeeSwarm.Bloom.MeadowLayout.Active; // meadow: the meadow itself is the ground, no rug
             if (_turf.gameObject.activeSelf != turfOn) _turf.gameObject.SetActive(turfOn);
             if (_moon != null)
             {
