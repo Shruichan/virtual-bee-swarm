@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**In flight, NamTest hive assets:** Nam Nguyen (agent) — copy the current game scene's entire TableAnchor visual setup into `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity`, preserving Nam's existing placement work.
+**Blocked, NamTest hive assets:** Nam Nguyen (agent) — awaiting approval to replace old placeholder visuals and remap references in the unsaved NamTest scene; preserve existing placement work.
 
 **In flight, hive relocation:** Nam Nguyen (agent) — NamTest MRUK relocation control implemented in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; Unity Play Mode and Quest validation pending.
 
@@ -1631,3 +1631,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 00:59 PT · Nam Nguyen (agent) · NamTest already has most game `TableAnchor` children, including Hive, rocket, window and stations; awaiting Nam's choice of which assets to update rather than duplicate or replace existing work. → Nam
 - 2026-11-15 00:59 PT · Nam Nguyen (agent) · Nam clarified the request: copy the entire game-scene TableAnchor visual setup into NamTest. → team
 - 2026-11-15 01:40 PT · Rome (agent) · Quest perf pass pushed (headset only via Core/QuestPerf: Android player, or VBS_PERF=quest on desktop; desktop/captures keep the full look; tuning.json still overrides): swarm 260 / dark swarm 220 / room bees 120 / crew x1.5, VAT bee only for the nearest 32 per pool and far bees on the ~104-tri procedural bee instead of the 560-tri worker; meadow density 0.8 with 80k/60k floor caps (still wall to wall, far tiles stretched), wall vines 0.24 m apart, FlowerLife 0.5, escape bloom 0.6, no light shafts, half the particles; foveation High + dynamic, 72 Hz, CPU/GPU sustained high (Meta/QuestDisplay). Worst beats, estimated tris: heat ~900k → ~230k, escape ~820k → ~290k. Passthrough flashing: GameUnlit/BeeVAT now blend alpha as "over" (see-through effects no longer open holes to passthrough), and the DELIVER HERE aim plate holds through noisy depth hits instead of blinking. Likely cause was dropped frames while the depth raycaster runs in pre; needs a headset check on D-14. satcheck 0 errors / 0 missing, autopilot PASS on+off (quest) and on (full); looked at title + escape stills. → Daniel/Nam: tuning.json keys still beat these defaults if you need a richer headset build.
+- 2026-11-15 01:00 PT · Nam Nguyen (agent) · NamTest has unsaved editor changes; the game's `Editor/ArtSlots.cs` art pass replaces placeholder meshes and remaps scene references. Waiting for Nam's approval before modifying those existing objects. → Nam
