@@ -179,7 +179,7 @@ namespace VirtualBeeSwarm.Title
                     yaw = jitter * 360f,
                     height = (wantFlower ? Mathf.Lerp(0.1f, 0.17f, jitter) : Mathf.Lerp(0.045f, 0.075f, jitter)) * grow,
                     phase = pick * Mathf.PI * 2f,
-                    delay = 0.1f + rr * 0.45f + jitter * 0.2f,
+                    delay = 0.15f + Mathf.Clamp(Mathf.Sqrt(toHead.sqrMagnitude) - 0.4f, 0f, 1.6f) * 1.4f + jitter * 0.35f, // from the feet outward
                     kind = kind,
                 });
                 if (wantFlower) { flowers++; _flowers.Add(_plants.Count - 1); } else grass++;
@@ -222,9 +222,9 @@ namespace VirtualBeeSwarm.Title
             for (int i = 0; i < _plants.Count; i++)
             {
                 var pl = _plants[i];
-                float g = Mathf.Clamp01((since - pl.delay) / 0.5f);
+                float g = Mathf.Clamp01((since - pl.delay) / 1.1f);
                 g = g <= 0f ? 0f : g >= 1f ? 1f : 1f + 2.70158f * Mathf.Pow(g - 1f, 3f) + 1.70158f * Mathf.Pow(g - 1f, 2f);
-                g *= 1f - Mathf.Clamp01(leave * 1.6f - pl.delay * 0.6f);
+                g *= 1f - Mathf.Clamp01(leave * 1.6f - Mathf.Min(pl.delay, 0.8f) * 0.6f);
                 if (g <= 0.001f) continue;
                 float sway = _kinds[pl.kind].grass ? 7f : 4.5f;
                 Quaternion rot = Quaternion.Euler(Mathf.Sin(time * 1.3f + pl.phase) * sway, 0f, Mathf.Cos(time * 1.05f + pl.phase * 1.7f) * sway) *

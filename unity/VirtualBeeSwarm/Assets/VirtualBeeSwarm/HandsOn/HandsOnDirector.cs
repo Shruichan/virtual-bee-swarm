@@ -510,7 +510,7 @@ namespace VirtualBeeSwarm.HandsOn
             Transform spot = _sd != null ? _sd.Spot : null;
             Transform at = st.Station == GameStation.Smoker || spot == null ? _lever.transform : spot;
             if (_carry != null) _carry.Disarm();
-            if (_item != null && spot != null && st.Station != GameStation.Smoker && st.Station != GameStation.Heat)
+            if (_item != null && spot != null && st.Station == GameStation.Wasps)
                 _item.SetPositionAndRotation(spot.position, spot.rotation);
             _lever.Live = false;
             _stream.gameObject.SetActive(false);

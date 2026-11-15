@@ -46,8 +46,6 @@ namespace VirtualBeeSwarm.Title
         [SerializeField] float pullIn = 0.1f;
         [Tooltip("Below the logo's centre (m): chest height.")]
         [SerializeField] float drop = 0.06f;
-        [Tooltip("How far it may overlap the logo's edge on screen (deg): just its rim, never the lettering.")]
-        [SerializeField] float overlapDegrees = 2f;
         [SerializeField] float fadeInSeconds = 0.6f;
         [SerializeField] float approachSeconds = 0.55f;
         [SerializeField] float insideSeconds = 1.75f;
@@ -488,7 +486,7 @@ namespace VirtualBeeSwarm.Title
             {
                 Vector3 goal = logo - right * (width * 0.5f + _radius + gap) - away * nearer + Vector3.up * 0.02f;
                 if (!_placed) _placeEye = head.position;
-                goal = HoldIn(goal, logo, width);
+                goal = HoldIn(goal, logo, right, width);
                 if (!_placed)
                 {
                     _placed = true;
@@ -516,20 +514,24 @@ namespace VirtualBeeSwarm.Title
             TickBees(head, c, r, t, 0f);
         }
 
-        /// <summary>Seen from where the player stood when it appeared: just clear of the logo's edge on screen (its rim may
-        /// touch by overlapDegrees), its centre no more than maxSideDegrees aside, a little nearer and lower than the logo.</summary>
-        Vector3 HoldIn(Vector3 goal, Vector3 logo, float width)
+        /// <summary>Leave room for the globe's widest frame beside the logo's projected edge.</summary>
+        Vector3 HoldIn(Vector3 goal, Vector3 logo, Vector3 right, float width)
         {
             Vector3 toLogo = logo - _placeEye, toGoal = goal - _placeEye;
             toLogo.y = toGoal.y = 0f;
             float flat = toLogo.magnitude;
             if (flat < 0.2f || toGoal.sqrMagnitude < 0.04f) return goal;
             float dist = Mathf.Max(0.6f, flat - pullIn);
-            float logoHalf = Mathf.Atan2(width * 0.5f, flat) * Mathf.Rad2Deg;
-            float ballHalf = Mathf.Asin(Mathf.Clamp01(_radius / dist)) * Mathf.Rad2Deg;
-            float side = Mathf.Min(maxSideDegrees, logoHalf + ballHalf - overlapDegrees);
-            float sign = Vector3.SignedAngle(toLogo, toGoal, Vector3.up) < 0f ? -1f : 1f;
-            Vector3 dir = Quaternion.AngleAxis(sign * side, Vector3.up) * (toLogo / flat);
+            Vector3 toEdge = toLogo - right * (width * 0.5f);
+            float edgeAngle = Vector3.SignedAngle(toLogo, toEdge, Vector3.up);
+            // BackOut can overshoot the final radius by 10%.
+            float radius = _radius * 1.11f + gap * 0.5f;
+            float room = maxSideDegrees - Mathf.Abs(edgeAngle);
+            if (room > 5f)
+                dist = Mathf.Max(dist, Mathf.Min(flat + 0.15f, radius / Mathf.Sin(room * Mathf.Deg2Rad)));
+            float ballHalf = Mathf.Asin(Mathf.Clamp01(radius / dist)) * Mathf.Rad2Deg;
+            float side = Mathf.Abs(edgeAngle) + ballHalf;
+            Vector3 dir = Quaternion.AngleAxis(Mathf.Sign(edgeAngle) * side, Vector3.up) * (toLogo / flat);
             return new Vector3(_placeEye.x + dir.x * dist, logo.y - drop, _placeEye.z + dir.z * dist);
         }
 

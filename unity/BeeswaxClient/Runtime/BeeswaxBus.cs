@@ -614,11 +614,11 @@ namespace Beeswax
         /// SendListenEnd. An utterance still open is cancelled first. False when offline.
         /// BeeswaxVoiceInput does all of this for you.
         /// </summary>
-        public bool SendListenStart(string mode = ListenMode.Ptt, bool wakePhrase = false)
+        public bool SendListenStart(string mode = ListenMode.Ptt, bool wakePhrase = false, bool askDialogue = false)
         {
             if (_listenOpen) SendListenEnd(cancel: true);
             if (mode != ListenMode.Vad) mode = ListenMode.Ptt;
-            if (!Send(new ListenStart { source = Role.Quest, mode = mode, wake_phrase = wakePhrase })) return false;
+            if (!Send(new ListenStart { source = Role.Quest, mode = mode, wake_phrase = wakePhrase, ask_dialogue = askDialogue })) return false;
             _listenOpen = true;
             CurrentListenMode = mode;
             return true;

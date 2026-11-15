@@ -10,6 +10,22 @@ namespace VirtualBeeSwarm.Tests
     {
         const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
+        [Test]
+        public void QuestGainRaisesQuietAudioAndLimitsLoudAudioWithoutFlatClipping()
+        {
+            var gain = typeof(BeeswaxRoomVoice).GetMethod("ApplyDialogueGain", BindingFlags.Static | BindingFlags.NonPublic);
+            var quiet = new[] { .2f, -.4f, .5f };
+            gain.Invoke(null, new object[] { quiet, 1.41f });
+            Assert.That(quiet[0], Is.EqualTo(.282f).Within(.0001f));
+            Assert.That(quiet[1], Is.EqualTo(-.564f).Within(.0001f));
+            Assert.That(quiet[2], Is.EqualTo(.705f).Within(.0001f));
+            var loud = new[] { .9f, -1f, .2f };
+            gain.Invoke(null, new object[] { loud, 1.41f });
+            Assert.That(loud[0], Is.EqualTo(.882f).Within(.0001f));
+            Assert.That(loud[1], Is.EqualTo(-.98f).Within(.0001f));
+            Assert.That(loud[2], Is.EqualTo(.196f).Within(.0001f));
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void EmptyTtsStillShowsItsCaption(bool receivedEnd)

@@ -35,7 +35,12 @@ namespace VirtualBeeSwarm.Title
         [Tooltip("Top leans away from the player (degrees).")]
         [SerializeField] float tilt = 8f;
         [SerializeField] float bob = 0.012f;
-        [SerializeField] float popSeconds = 0.6f;
+        [Tooltip("The logo blooms open this long after the title comes up (s): the meadow grows in first.")]
+        [SerializeField] float bloomDelay = 0.9f;
+        [SerializeField] float popSeconds = 1.8f;
+        [Tooltip("A real wall/shelf must cover the logo this much (m) on this many checks in a row before it moves (no flicker on noisy depth).")]
+        [SerializeField] float hiddenMargin = 0.3f;
+        [SerializeField] int hiddenChecks = 4;
         [SerializeField] float flyOffSeconds = 0.6f;
 
         [Tooltip("Nothing of the title comes nearer to the eyes than this (m).")]
@@ -55,6 +60,8 @@ namespace VirtualBeeSwarm.Title
         Quaternion _logoRot = Quaternion.identity;
         bool _placed, _onTable;
         float _shownAt, _leftAt = -1f, _nextCheck, _hiddenCheckAt;
+        int _hiddenHits;
+        Vector3 _meadowAt;
         Vector3 _flyFrom, _flyTo;
 
         // the pre text ("Put the hive on the real table ...") moves under the logo while the title shows
@@ -202,6 +209,7 @@ namespace VirtualBeeSwarm.Title
             _shownAt = Time.time;
             _leftAt = -1f;
             _placed = false;
+            _hiddenHits = 0;
             _logo.SetScatter(0f);
             _logo.Show(false);
             _meadow.Hide();
@@ -278,6 +286,7 @@ namespace VirtualBeeSwarm.Title
                 if (!overTable) p = eye + fwd * distance;
                 else dir = pd.normalized;
             }
+            bool wasOnTable = _onTable;
             _onTable = overTable;
             float floorY = room != null ? room.FloorY : 0f;
             float surfaceY = overTable ? tableY : Mathf.Min(floorY, eye.y - 0.9f);
@@ -291,6 +300,7 @@ namespace VirtualBeeSwarm.Title
                 p = eye + to * Mathf.Max(keepClear + 0.25f, room1 - 0.2f);
                 p.y = Mathf.Max(p.y, min);
             }
+            if (!snap && _placed && (p - _logoGoal).sqrMagnitude < 0.2f * 0.2f && overTable == wasOnTable) return; // small change: stay put (no re-pop)
             _right = Vector3.Cross(Vector3.up, dir).normalized;
             _away = dir;
             _surface = new Vector3(p.x, surfaceY, p.z);
@@ -299,7 +309,8 @@ namespace VirtualBeeSwarm.Title
             _headAt = eye;
             if (snap || !_placed) _logoPos = p;
             _placed = true;
-            _meadow.LayOut(_surface, _right, _away, overTable, room, !Delivering, eye, Time.time);
+            bool relayout = snap || !_placed || (_surface - _meadowAt).sqrMagnitude > 0.15f * 0.15f || overTable != wasOnTable;
+            if (relayout) { _meadow.LayOut(_surface, _right, _away, overTable, room, !Delivering, eye, Time.time); _meadowAt = _surface; }
             if (snap) _meadow.ScatterBees(p);
             Log("logo " + Vector3.Distance(eye, p).ToString("0.00") + " m from the eyes, " + (p.y - surfaceY).ToString("0.00") + " m over the " +
                 (overTable ? "table" : "floor") + ", " + _meadow.FlowerCount + " flowers + " + (_meadow.PlantCount - _meadow.FlowerCount) + " grass");
@@ -339,9 +350,16 @@ namespace VirtualBeeSwarm.Title
             bool near = toLogo.magnitude < keepClear + 0.1f;                                                     // walked into it
             bool gone = (head.position - _headAt).magnitude > 1.2f && Vector3.Angle(toLogo, head.forward) > 70f; // walked off
             bool height = Mathf.Abs(head.position.y - _headAt.y) > 0.25f;                                        // sat down, stood up, tracking came in
-            bool hidden = Time.time >= _hiddenCheckAt &&
-                          ClearAhead(head.position, _logoGoal) < Vector3.Distance(head.position, _logoGoal) - 0.05f; // behind something real
-            if (hidden) _hiddenCheckAt = Time.time + 3f;
+            // behind something real: only on a large cover that holds over several checks (noisy depth hits re-placed it
+            // every 3 s before, re-popping the logo and regrowing the flowers: a flash in passthrough)
+            bool hidden = false;
+            if (Time.time >= _hiddenCheckAt)
+            {
+                bool covered = ClearAhead(head.position, _logoGoal) < Vector3.Distance(head.position, _logoGoal) - hiddenMargin;
+                _hiddenHits = covered ? _hiddenHits + 1 : 0;
+                _hiddenCheckAt = Time.time + (covered ? 0.25f : 1f);
+                if (_hiddenHits >= Mathf.Max(1, hiddenChecks)) { hidden = true; _hiddenHits = 0; _hiddenCheckAt = Time.time + 5f; }
+            }
             if (moved || near || gone || height || hidden) Place(head, false);
         }
 
@@ -361,7 +379,7 @@ namespace VirtualBeeSwarm.Title
                 PlaceText();
             }
 
-            float shown = Mathf.Clamp01((t - _shownAt - 0.15f) / popSeconds), scale = 1f, leave = 0f;
+            float shown = Mathf.Clamp01((t - _shownAt - 0.15f - bloomDelay) / popSeconds), scale = 1f, leave = 0f;
             Vector3 pos;
             Quaternion rot = _logoRot * Quaternion.Euler(0f, Mathf.Sin(t * 0.5f) * 3f, Mathf.Sin(t * 0.7f + 1f) * 1.5f);
             if (_phase == Phase.Showing)

@@ -152,10 +152,12 @@ namespace Beeswax
         int _frameFill;
         string _deliverMode = ListenMode.Ptt;
         bool _deliverWakePhrase;
+        bool _deliverAskDialogue;
 
         // VAD
         float _floorDb = -60f, _vadOnset, _vadSilence, _vadSpeech;
         bool _waitForQuiet;
+        bool _paused, _unfocused;
 
         // ---------------------------------------------------------------- lifecycle
         void OnEnable() => Bind();
@@ -177,7 +179,23 @@ namespace Beeswax
 
         void OnApplicationPause(bool paused)
         {
-            if (paused && _talking) Finish(EndReason.Cancelled, cancel: true);
+            _paused = paused;
+            if (paused) SuspendCapture();
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (Application.platform != RuntimePlatform.Android) return;
+            _unfocused = !focused;
+            if (!focused) SuspendCapture();
+        }
+
+        void SuspendCapture()
+        {
+            CancelPendingTurn();
+            bool rewarm = _wantMic;
+            CloseMic();
+            _wantMic = rewarm;
         }
 
         void Bind()
@@ -203,7 +221,7 @@ namespace Beeswax
         /// Start an utterance (push-to-talk). Returns false only when there is no microphone/permission yet
         /// (the permission prompt is shown once). Works while the bus is reconnecting: audio is kept and sent later.
         /// </summary>
-        public bool BeginTalk(bool wakePhrase = false) => Begin(ListenMode.Ptt, wakePhrase);
+        public bool BeginTalk(bool wakePhrase = false, bool askDialogue = false) => Begin(ListenMode.Ptt, wakePhrase, askDialogue);
 
         /// <summary>Stop talking; the utterance is sent for transcription (after releaseTailSeconds).</summary>
         public void EndTalk()
@@ -260,6 +278,7 @@ namespace Beeswax
         void Update()
         {
             Bind();
+            if (_paused || _unfocused) return;
             float now = Time.realtimeSinceStartup;
 
             if (useMicrophone && (_wantMic || _talking || _vadArmed) && !MicRunning) OpenMic();
@@ -289,7 +308,7 @@ namespace Beeswax
 
         void OpenMic()
         {
-            if (!useMicrophone || (_micClip != null && BeeswaxMic.Clip == _micClip)) return;
+            if (_paused || _unfocused || !useMicrophone || (_micClip != null && BeeswaxMic.Clip == _micClip)) return;
             if (!BeeswaxMic.Acquire(this, deviceName, Rate)) return;
             _micClip = BeeswaxMic.Clip;
             _resampler.Configure(_micClip.frequency);
@@ -313,8 +332,9 @@ namespace Beeswax
             }
         }
 
-        bool Begin(string listenMode, bool wakePhrase = false)
+        bool Begin(string listenMode, bool wakePhrase = false, bool askDialogue = false)
         {
+            if (_paused || _unfocused) return false;
             if (_talking)
             {
                 if (_endAt < 0f) return true; // already talking
@@ -336,6 +356,7 @@ namespace Beeswax
             TalkModeName = listenMode;
             _deliverMode = listenMode;
             _deliverWakePhrase = wakePhrase;
+            _deliverAskDialogue = askDialogue;
             _frames.Clear();
             _sent = 0;
             _streamOpen = false;
@@ -344,7 +365,7 @@ namespace Beeswax
             int frameBytes = Mathf.Clamp(frameMs, 10, 100) * Rate / 1000 * 2;
             if (_frame.Length != frameBytes) _frame = new byte[frameBytes];
             _frameFill = 0;
-            if (wakePhrase)
+            if (wakePhrase || askDialogue)
             {
                 // Do not send samples captured before the intentional hold, including Beeswax's prompt.
                 _prerollCount = _blkFill = 0;
@@ -399,7 +420,7 @@ namespace Beeswax
                     _streamOpen = false;
                     _sent = 0;
                 }
-                if (!_streamOpen && b.IsConnected && b.SendListenStart(_deliverMode, _deliverWakePhrase)) { _streamOpen = true; _sent = 0; }
+                if (!_streamOpen && b.IsConnected && b.SendListenStart(_deliverMode, _deliverWakePhrase, _deliverAskDialogue)) { _streamOpen = true; _sent = 0; }
                 if (_streamOpen)
                 {
                     while (_sent < _frames.Count && b.QueuedSendBytes < maxQueuedSendBytes)
