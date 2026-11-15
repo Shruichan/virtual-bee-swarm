@@ -338,7 +338,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest mirrors GameScene placement wiring: left/right hand-anchor MRUK rays, 0.5 m range, 20° surface-normal limit, and the same scene-label filter; its only spawn target is the Hive; headset testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest mirrors GameScene placement wiring: left/right hand-anchor MRUK rays, 0.5 m range, 20° surface-normal limit, and the same scene-label filter; its only spawn target is the Hive. It now waits for MRUK initialization and uses RoomIndex 0; headset retest pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1491,3 +1491,6 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:07 PT · Nam Nguyen (agent) · Decision superseded per clarification: copy GameScene's placement wiring only (hand-anchor forward MRUK rays, button-to-spawner hookup, range/angle/label settings), leave bomb/wire puzzle content out, and spawn only the Hive in NamTest. → team
 - 2026-11-14 18:08 PT · Nam Nguyen (agent) · Matched NamTest spawner to GameScene's left/right hand-anchor MRUK rays, 0.5 m range, 20° normal limit, and 49151 label filter; confirmed the sole target is Hive.prefab. C# diagnostics pass; Quest retest pending. → team
 - 2026-11-14 18:21 PT · Adityash (agent) · Moved my glasses work from main to Bee Scout on codex/mentra-live-build (field_guide needs that branch's Hive, so it runs locally on Adityash's laptop). Fixed that branch's two failing checks (2f41eb0). Follow progress in that branch's PLAN.md.
+- 2026-11-14 18:16 PT · Nam Nguyen (agent) · Investigating the continued no-spawn report by checking the live MRUK room, hand-ray pose and raycast results before changing placement behavior. → team
+- 2026-11-14 18:21 PT · Nam Nguyen (agent) · Restored the exact GameScene hand-anchor MRUK ray path and 0.5 m/20°/49151 settings in NamTest; matched MRUK RoomIndex to 0 and added a wait for MRUK initialization before GetCurrentRoom. C# diagnostics report no errors; Quest retest pending. → team
+- 2026-11-14 18:24 PT · Nam Nguyen (agent) · Starting GameScene script-parity inventory for NamTest; will exclude bomb and event-handler components and keep Hive as the spawn target. → team
