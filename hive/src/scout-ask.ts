@@ -87,7 +87,7 @@ export function parseWake(text: string): { wake: boolean; rest: string } {
 const echoNorm = (s: string) => norm(s).replace(/\b(?:bee'?s ?wax|bees ?wax|bee ?facts?|be ?facts?|b ?facts?) found\b/g, "bee fact found");
 
 /** The mic heard Beeswax himself (from the glasses or from the Mac's speakers, whenever it played): the transcript
- *  is inside something he said, shares a run of 4+ words with it, or most of its words (60%+) are his. An explicit
+ *  is inside something he said, shares a run of 4+ words with it, or (5+ words) most of its words (60%+) are his. An explicit
  *  "hey beeswax" his line doesn't contain is the wearer, never an echo. Anything starting "beeswax found" is his chime. */
 export function isEcho(text: string, captions: readonly string[]): boolean {
   const t = echoNorm(text);
@@ -102,7 +102,8 @@ export function isEcho(text: string, captions: readonly string[]): boolean {
     if (call && !CALL_RX.test(cap)) continue;
     if (` ${c} `.includes(` ${t} `)) return true;
     for (let i = 0; i + 4 <= n; i++) if (` ${c} `.includes(` ${ws.slice(i, i + 4).join(" ")} `)) return true;
-    if (n >= 3) {
+    if (n >= 5) {
+      // most of a longer utterance's words being his (short ones like "the honey jar" share words by chance)
       const words = new Set(c.split(" "));
       if (ws.filter((w) => words.has(w)).length / n >= 0.6) return true;
     }
@@ -383,6 +384,17 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 /** Sentences in, mp3 bytes out (one continuous mp3 stream). Ends early (no throw needed) when `signal` aborts. */
 export type StreamTts = (sentences: AsyncIterable<string>, signal: AbortSignal) => AsyncIterable<Uint8Array>;
 
+/** The calm delivery the scout lines are rendered with (hive/scripts/scout-render.ts VOICE_SETTINGS; a test keeps them
+ *  equal): the voice's saved settings sound shouty. */
+export const ASK_VOICE_SETTINGS = { stability: 0.85, similarityBoost: 0.75, style: 0, useSpeakerBoost: true } as const;
+/** The same, as the stream-input websocket wants it (snake_case JSON). */
+const WS_VOICE_SETTINGS = {
+  stability: ASK_VOICE_SETTINGS.stability,
+  similarity_boost: ASK_VOICE_SETTINGS.similarityBoost,
+  style: ASK_VOICE_SETTINGS.style,
+  use_speaker_boost: ASK_VOICE_SETTINGS.useSpeakerBoost,
+};
+
 /** mp3_44100_64: 64 kbit/s = 8 bytes per ms. */
 export const MP3_BYTES_PER_MS = 8;
 export const ASK_FORMAT = "mp3_44100_64";
@@ -415,8 +427,8 @@ function connect(): Conn {
   conn.ready = new Promise<void>((resolve, reject) => {
     ws.onopen = () => {
       try {
-        // BOS: a single space, the key (never logged), default voice settings (same as the pre-rendered lines)
-        ws.send(JSON.stringify({ text: " ", xi_api_key: key }));
+        // BOS: a single space, the key (never logged), the scout lines' calm voice settings
+        ws.send(JSON.stringify({ text: " ", xi_api_key: key, voice_settings: WS_VOICE_SETTINGS }));
         resolve();
       } catch (e) {
         reject(e);
@@ -508,8 +520,61 @@ export const elevenTts: StreamTts = async function* (sentences, signal) {
   }
 };
 
+/** Live answers come out of ElevenLabs about this much louder than the recorded lines (measured with these settings: about -14.5 LUFS vs
+ *  the lines' -18 from scripts/scout-render.ts), so the stream is turned down by it on the way through. */
+export const ASK_GAIN_DB = Number(process.env.SCOUT_ASK_GAIN_DB ?? -4.5);
+
+/** Re-encode an mp3 stream through ffmpeg with a fixed gain, chunk by chunk (adds ~0.1 s). No ffmpeg, a 0 dB gain,
+ *  or an ffmpeg failure before any output: the stream passes through unchanged. */
+export async function* gainMp3(chunks: AsyncIterable<Uint8Array>, db = ASK_GAIN_DB): AsyncGenerator<Uint8Array> {
+  if (!db || !Bun.which("ffmpeg")) {
+    yield* chunks;
+    return;
+  }
+  const p = Bun.spawn(
+    ["ffmpeg", "-hide_banner", "-loglevel", "error", "-probesize", "32", "-analyzeduration", "0", "-f", "mp3", "-i", "pipe:0",
+      "-af", `volume=${db}dB`, "-ac", "1", "-ar", "44100", "-b:a", "64k", "-f", "mp3", "-flush_packets", "1", "pipe:1"],
+    { stdin: "pipe", stdout: "pipe", stderr: "ignore" },
+  );
+  const held: Uint8Array[] = []; // what went in, in case ffmpeg dies before giving anything back
+  let wrote = false;
+  const feed = (async () => {
+    try {
+      for await (const c of chunks) {
+        held.push(c);
+        p.stdin.write(c);
+        p.stdin.flush();
+      }
+    } finally {
+      try {
+        p.stdin.end();
+      } catch {}
+    }
+  })();
+  let feedError: unknown = null;
+  feed.catch((e) => (feedError = e));
+  try {
+    for await (const out of p.stdout as unknown as AsyncIterable<Uint8Array>) {
+      if (!out.length) continue;
+      wrote = true;
+      yield out;
+    }
+    await feed.catch(() => {});
+    if (feedError) throw feedError;
+    if (!wrote) {
+      log("scout ask: ffmpeg gave no audio, passing the stream through");
+      yield* held;
+    }
+  } finally {
+    try {
+      p.kill();
+    } catch {}
+  }
+}
+
 /** Sentence mode: one whole mp3 per sentence (HTTP), for players that can't play a growing file. */
-export const renderSentenceMp3 = (text: string): Promise<Uint8Array> => ttsBytes(text, { format: ASK_FORMAT, timeoutMs: 8000 });
+export const renderSentenceMp3 = (text: string): Promise<Uint8Array> =>
+  ttsBytes(text, { format: ASK_FORMAT, timeoutMs: 8000, voiceSettings: { ...ASK_VOICE_SETTINGS } });
 
 // ---------------------------------------------------------------- progressive audio
 
@@ -896,7 +961,8 @@ export class ScoutAsk {
         const audio = new AskAudio(id, (at) => (st.first_served_ms ??= at - t0), this.now);
         this.audios.set(id, audio);
         this.trim();
-        const tts = this.d.tts ?? elevenTts;
+        // the real voice is turned down to the recorded lines' loudness; a test TTS passes through untouched
+        const tts: StreamTts = this.d.tts ?? ((sents, signal) => gainMp3(elevenTts(sents, signal)));
         try {
           for await (const chunk of tts(sentences, ac.signal)) {
             if (ac.signal.aborted) break;

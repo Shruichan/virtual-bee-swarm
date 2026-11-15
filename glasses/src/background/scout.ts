@@ -83,7 +83,7 @@ export function isEchoOf(text: string, captions: readonly string[]): boolean {
     if (!c || (call && !CALL_RX.test(cap))) return false
     if (` ${c} `.includes(` ${t} `)) return true
     for (let i = 0; i + 4 <= n; i++) if (` ${c} `.includes(` ${ws.slice(i, i + 4).join(" ")} `)) return true
-    if (n < 3) return false
+    if (n < 5) return false // short utterances share words with his lines by chance ("the honey jar")
     const words = new Set(c.split(" "))
     return ws.filter((w) => words.has(w)).length / n >= 0.6
   })
