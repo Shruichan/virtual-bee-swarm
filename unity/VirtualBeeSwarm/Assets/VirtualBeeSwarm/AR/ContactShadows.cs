@@ -267,8 +267,15 @@ namespace VirtualBeeSwarm.AR
             public void Play(Transform item, float weight)
             {
                 if (ContactShadows.Instance != null) ContactShadows.Instance.Pulse(item);
-                Vector3 baseAt = item.position;
-                var rs = item.GetComponentsInChildren<Renderer>();
+                // The hive's shadow caster is LiftRoot/Body (a collider, no renderers): measure and squash the whole hive.
+                Transform visual = item;
+                if (item.name == "Body" && item.parent != null && item.parent.name == "LiftRoot")
+                {
+                    var hive = item.GetComponentInParent<HiveBody>();
+                    if (hive != null) visual = hive.transform;
+                }
+                Vector3 baseAt = visual.position;
+                var rs = visual.GetComponentsInChildren<Renderer>();
                 if (rs.Length > 0)
                 {
                     var b = rs[0].bounds;
@@ -285,7 +292,7 @@ namespace VirtualBeeSwarm.AR
                     _audio.pitch = Mathf.Lerp(1.15f, 0.7f, Mathf.InverseLerp(0.2f, 3f, weight));
                     _audio.PlayOneShot(Thunk, 0.8f);
                 }
-                StartCoroutine(SquashRoutine(item));
+                StartCoroutine(SquashRoutine(visual));
             }
 
             IEnumerator SquashRoutine(Transform item)
