@@ -151,7 +151,7 @@ namespace VirtualBeeSwarm.BatOff
         {
             _won = true;
             _popAt = Time.time;
-            if (_count != null) _count.text = "YOU WIN! " + n;
+            if (_count != null) _count.text = "YOU WIN! " + n + " bounced"; // [polish] a bare count read like a typo
         }
 
         void LateUpdate()
