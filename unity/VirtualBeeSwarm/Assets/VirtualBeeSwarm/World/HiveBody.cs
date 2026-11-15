@@ -32,9 +32,9 @@ namespace VirtualBeeSwarm
         [SerializeField] float doorOpen = 2.8f;
 
         [Header("Lift (way too light)")]
-        [SerializeField] float liftExaggeration = 1.7f;
-        [SerializeField] float maxLift = 0.2f;
-        [SerializeField] float maxTiltDegrees = 28f;
+        [SerializeField] float liftExaggeration = 2.8f;
+        [SerializeField] float maxLift = 0.26f;
+        [SerializeField] float maxTiltDegrees = 22f;
         [Tooltip("Lifted this high (m) = 'too light' detected.")]
         [SerializeField] float liftThreshold = 0.03f;
         [Tooltip("Desktop: hold this key to lift the hive (when lifting is allowed).")]

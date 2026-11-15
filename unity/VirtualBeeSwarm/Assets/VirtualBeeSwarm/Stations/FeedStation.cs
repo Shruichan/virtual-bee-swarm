@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using VirtualBeeSwarm.Theme;
 
 namespace VirtualBeeSwarm
 {
@@ -25,6 +26,7 @@ namespace VirtualBeeSwarm
         protected override GameLine Hint => RideLines.HintFeed;
 
         bool _lifted, _triedHoney;
+        UiCard _emptyCard;
         Vector3 _honeyHome, _syrupHome;
         Quaternion _honeyRot, _syrupRot;
 
@@ -84,9 +86,14 @@ namespace VirtualBeeSwarm
             }
             if (hive != null) hive.LiftEnabled = false; // set it down before choosing and pouring
             if (beeswax != null) { beeswax.WhipAround(); beeswax.GoPresent(); } // he tumbles off the roof
-            if (_lifted) yield return SayLine(RideLines.LiftLight, 1f);
+            if (_lifted)
+            {
+                ShowEmptyHive();
+                yield return SayLine(RideLines.LiftLight, 1f);
+            }
             else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
+            HideEmptyHive();
             yield return SayLine(GameLines.RoomFeedRocketFuel);
             if (delivery != null) delivery.ParkChoices(); // syrup zips in, the jar labours in
             yield return SayAndWait(GameLines.FeedChoose, 1f, 4f, unlessHive: false);
@@ -137,8 +144,34 @@ namespace VirtualBeeSwarm
             else if (hive != null) hive.SetSick(honey);
         }
 
+        void ShowEmptyHive()
+        {
+            var camera = Camera.main;
+            if (hive == null || camera == null) return;
+            if (_emptyCard == null)
+            {
+                _emptyCard = UiCard.Create(transform, "Empty hive label", new Vector2(0.28f, 0.09f));
+                var label = UiTheme.NewText(_emptyCard.transform, "Empty", "EMPTY HIVE", 18f,
+                    UiTheme.Ink, new Vector2(0.25f, 0.06f), display: true, wrap: false);
+                if (label != null) label.transform.localPosition = new Vector3(0f, 0f, -0.003f);
+            }
+            var eyes = camera.transform;
+            var front = Vector3.ProjectOnPlane(hive.transform.position - eyes.position, Vector3.up).normalized;
+            if (front.sqrMagnitude < 0.5f) front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
+            if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
+            var pos = eyes.position + front * 0.8f + Vector3.Cross(Vector3.up, front) * 0.2f - Vector3.up * 0.23f;
+            _emptyCard.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
+            _emptyCard.gameObject.SetActive(true);
+        }
+
+        void HideEmptyHive()
+        {
+            if (_emptyCard != null) _emptyCard.gameObject.SetActive(false);
+        }
+
         protected override void OnStationExit()
         {
+            HideEmptyHive();
             if (hive != null)
             {
                 hive.LiftEnabled = false;
@@ -149,6 +182,7 @@ namespace VirtualBeeSwarm
 
         protected override void OnStationReset()
         {
+            HideEmptyHive();
             _lifted = false;
             _triedHoney = false;
             if (hive != null)
