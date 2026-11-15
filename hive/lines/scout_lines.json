@@ -1,0 +1,36 @@
+[
+  {"id": "scout_intro_1", "kind": "intro", "text": "Beeswax. Shop steward, Local Twenty Thousand. You're my new bee scout."},
+  {"id": "scout_intro_2", "kind": "intro", "text": "Look around. When something matters to bees, you'll hear about it."},
+  {"id": "scout_chime", "kind": "chime", "text": "Bee fact found!"},
+
+  {"id": "scout_hook_beehive", "kind": "hook", "label": "beehive", "text": "A hive. Union headquarters. Want the gossip?"},
+  {"id": "scout_fact_beehive", "kind": "fact", "label": "beehive", "text": "One queen lays the colony's eggs. The workers are all girls. Drones like me can't even sting.", "source": "https://canr.udel.edu/maarec/honey-bee-biology/the-colony-and-its-organization/"},
+
+  {"id": "scout_hook_native_flower", "kind": "hook", "label": "native_flower", "text": "Flowers. That's the cafeteria. Want the menu?"},
+  {"id": "scout_fact_native_flower", "kind": "fact", "label": "native_flower", "text": "Plant native flowers that bloom spring to fall, so the cafeteria never closes. A balcony pot counts.", "source": "https://xerces.org/bring-back-the-pollinators"},
+
+  {"id": "scout_hook_honey_jar", "kind": "hook", "label": "honey_jar", "text": "Store honey. Looks harmless. Want to know why it isn't?"},
+  {"id": "scout_fact_honey_jar", "kind": "fact", "label": "honey_jar", "text": "Never feed it to bees. It can carry foulbrood, and its spores last decades. Fine on toast, deadly in a hive.", "source": "https://www.ontario.ca/page/american-foulbrood"},
+
+  {"id": "scout_hook_pebble_dish", "kind": "hook", "label": "pebble_dish", "text": "Water with pebbles. Somebody gets it. Want to know why?"},
+  {"id": "scout_fact_pebble_dish", "kind": "fact", "label": "pebble_dish", "text": "Bees can't swim, so pebbles give us a landing spot. Back home we fan the drops. Bee air conditioning.", "source": "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx"},
+
+  {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Bug spray. I'm filing a grievance. Want to hear it?"},
+  {"id": "scout_fact_bug_spray", "kind": "fact", "label": "bug_spray", "text": "Spray drifts onto flowers, and we carry it home to the babies. Skip it, especially on anything in bloom.", "source": "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning"},
+
+  {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "Housing for my wild cousins. Want the tour?"},
+  {"id": "scout_fact_bee_hotel", "kind": "fact", "label": "bee_hotel", "text": "Seven in ten wild bees nest underground. Leave a patch of bare dirt and they'll move right in.", "source": "https://xerces.org/pollinator-conservation/nesting"},
+
+  {"id": "scout_no_1", "kind": "no", "text": "Fine. Filed for later."},
+  {"id": "scout_no_2", "kind": "no", "text": "Your loss. Moving on."},
+  {"id": "scout_rude", "kind": "rude", "text": "Rude. That's going in the minutes."},
+  {"id": "scout_silence", "kind": "silence", "text": "I'll take that as a no."},
+  {"id": "scout_idle", "kind": "idle", "text": "Look around. Something here matters to bees."},
+
+  {"id": "scout_progress_1", "kind": "progress", "text": "One down. Five to go."},
+  {"id": "scout_progress_2", "kind": "progress", "text": "Two. Keep looking."},
+  {"id": "scout_progress_3", "kind": "progress", "text": "Three down. Three to go."},
+  {"id": "scout_progress_4", "kind": "progress", "text": "Four. You're making me look good."},
+  {"id": "scout_progress_5", "kind": "progress", "text": "Five. Don't slow down now."},
+  {"id": "scout_done", "kind": "done", "text": "Six for six. You're hired. New contract: plant flowers, skip the bug spray, put out a pebble dish."}
+]

@@ -52,6 +52,12 @@ export interface VisionHealth { ok: true; model: string; source: string; fps: nu
 /** POST /enrol: grab frames from the live source for `seconds` and save them as references for `label`. */
 export interface VisionEnrolRequest { label: ScoutClass; seconds: number }
 export interface VisionEnrolResponse { label: ScoutClass; saved: number; total: number }
+/** GET /slides.json: test images for the /scout/slides screen test (held-out photos, not the enrolled
+ *  ones). Each url is absolute, served by the worker itself at GET /img/<label>/<file>. */
+export interface VisionSlide { label: ScoutLabel; url: string; credit?: string }
+
+/** The /scout and /scout/slides pages come from hive/src/scout-dashboard.ts (dashboard lane) and are
+ *  served by the scout game's routes (game lane). Pages read ?token= from their own URL. */
 
 // ------------------------------------------------------------------ glasses -> Hive
 
