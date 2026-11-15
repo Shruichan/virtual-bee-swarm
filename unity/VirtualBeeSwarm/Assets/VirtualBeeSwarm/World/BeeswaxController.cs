@@ -105,6 +105,33 @@ namespace VirtualBeeSwarm
             if (caption != null) caption.text = "";
         }
 
+        // ---- [BeeswaxMotion hook] ----
+        // BeeswaxMotion (BeeswaxMotion/) drives the root while he is free (not climbing, not attached): how he flies,
+        // faces and holds a mark. Null RootDriver and neutral Body* = exactly the code below.
+        public interface IRootDriver { bool Drive(BeeswaxController b, Vector3 goal, float dt, out bool arrived); }
+        public IRootDriver RootDriver { get; set; }
+        public Vector3 Goal => _targetT != null ? _targetT.position : _target;
+        public Transform GoalTransform => _targetT;
+        public Transform PresenterPoint => presenterPoint;
+        public Transform HeadTransform => Head();
+        public Transform BodyTransform => body;
+        public bool IsAttached => _attached != null;
+        public Transform AttachedTransform => _attached;
+        public bool LooksAtPlayer => _lookAtPlayer;
+        public float BobAmplitude => bobAmplitude;
+        public float BobHz => bobHz;
+        /// <summary>fly present home snap attach detach climb emerge hide reset whip (after the state change).</summary>
+        public event System.Action<string> Ordered;
+        public Vector3 BodyOffset { get; set; }
+        public Quaternion BodyTilt { get; set; } = Quaternion.identity;
+        public Vector3 BodySquash { get; set; } = Vector3.one;
+        public float BobScale { get; set; } = 1f;
+        void RaiseOrdered(string what)
+        {
+            try { Ordered?.Invoke(what); } catch (System.Exception e) { Debug.LogException(e); }
+        }
+        // ---- end hook ----
+
         // ------------------------------------------------------------ API
         public void FlyTo(Transform t)
         {
@@ -112,6 +139,7 @@ namespace VirtualBeeSwarm
             _attached = null;
             _targetT = t;
             Arrived = false;
+            RaiseOrdered(t != null && t == presenterPoint ? "present" : t != null && t == homePoint ? "home" : "fly"); // [BeeswaxMotion hook]
         }
 
         public void FlyTo(Vector3 worldPoint)
@@ -121,6 +149,7 @@ namespace VirtualBeeSwarm
             _targetT = null;
             _target = worldPoint;
             Arrived = false;
+            RaiseOrdered("fly"); // [BeeswaxMotion hook]
         }
 
         public void GoHome() { if (homePoint != null) FlyTo(homePoint); }
@@ -132,12 +161,14 @@ namespace VirtualBeeSwarm
             _attached = seat;
             _targetT = null;
             Arrived = true;
+            RaiseOrdered("attach"); // [BeeswaxMotion hook]
         }
 
         public void Detach()
         {
             if (_attached != null) _target = _attached.position;
             _attached = null;
+            RaiseOrdered("detach"); // [BeeswaxMotion hook]
         }
 
         public void SnapTo(Transform t)
@@ -148,6 +179,7 @@ namespace VirtualBeeSwarm
             _targetT = t;
             transform.position = t.position;
             Arrived = true;
+            RaiseOrdered("snap"); // [BeeswaxMotion hook]
         }
 
         public void SetVisible(bool on)
@@ -179,6 +211,7 @@ namespace VirtualBeeSwarm
             if (door != null) AttachTo(door);
             SetBodyVisible(false);
             Inside = true;
+            RaiseOrdered("hide"); // [BeeswaxMotion hook]
         }
 
         /// <summary>
@@ -199,6 +232,7 @@ namespace VirtualBeeSwarm
             _climbStart = Time.time;
             SetBodyVisible(true);
             Arrived = true;
+            RaiseOrdered("climb"); // [BeeswaxMotion hook]
         }
 
         /// <summary>A jump past the climb: out now, at `mark`. A flight someone already ordered keeps its target.</summary>
@@ -217,6 +251,7 @@ namespace VirtualBeeSwarm
                 if (mark == null) _target = transform.position;
                 Arrived = true;
             }
+            RaiseOrdered("emerge"); // [BeeswaxMotion hook]
         }
 
         void EndClimbState()
@@ -298,7 +333,7 @@ namespace VirtualBeeSwarm
         public void LookAtPlayer(bool on) => _lookAtPlayer = on;
 
         /// <summary>A quick spin (surprise).</summary>
-        public void WhipAround() => _whipUntil = Time.time + 0.5f;
+        public void WhipAround() { _whipUntil = Time.time + 0.5f; RaiseOrdered("whip"); } // [BeeswaxMotion hook]
 
         public void ResetBeeswax()
         {
@@ -317,6 +352,7 @@ namespace VirtualBeeSwarm
             _lookAtPlayer = true;
             SetDusty(false);
             SetVisible(true);
+            RaiseOrdered("reset"); // [BeeswaxMotion hook]
         }
 
         Transform Head()
@@ -339,6 +375,10 @@ namespace VirtualBeeSwarm
             {
                 transform.position = _attached.position;
                 transform.rotation = _attached.rotation;
+            }
+            else if (RootDriver != null && RootDriver.Drive(this, _targetT != null ? _targetT.position : _target, dt, out bool driverArrived)) // [BeeswaxMotion hook]
+            {
+                if (!Arrived && driverArrived) { Arrived = true; _flySpeedOverride = -1f; }
             }
             else
             {
@@ -366,9 +406,10 @@ namespace VirtualBeeSwarm
             float amp = net != null ? net.VoiceAmplitude : 0f;
             if (body != null)
             {
-                body.localPosition = new Vector3(0f, Climbing ? 0f : Mathf.Sin(t * bobHz * Mathf.PI * 2f) * bobAmplitude, 0f);
-                body.localScale = Vector3.Scale(_bodyBaseScale, _climbScale) * (1f + amp * talkScalePulse);
-                body.localRotation = _bodyBaseRot * _climbRot;
+                // [BeeswaxMotion hook] BobScale, BodyOffset, BodySquash, BodyTilt (neutral = unchanged)
+                body.localPosition = new Vector3(0f, Climbing ? 0f : Mathf.Sin(t * bobHz * Mathf.PI * 2f) * bobAmplitude * BobScale, 0f) + BodyOffset;
+                body.localScale = Vector3.Scale(Vector3.Scale(_bodyBaseScale, _climbScale), BodySquash) * (1f + amp * talkScalePulse);
+                body.localRotation = _bodyBaseRot * _climbRot * BodyTilt;
             }
             if (!RigDriven)
             {

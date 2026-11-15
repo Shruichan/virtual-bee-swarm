@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 8e6d069327a37d9db5973a6622feb9197d4e9d0e53b0288754a6fe7be59647a0
+// lines.json sha256 b4596d94ebd1929e80c7f5478c3bc1690fc292d9ffc24fb0ea92e6f48c754a81
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,49 +44,62 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "8e6d069327a37d9db5973a6622feb9197d4e9d0e53b0288754a6fe7be59647a0";
+        public const string LinesSha256 = "b4596d94ebd1929e80c7f5478c3bc1690fc292d9ffc24fb0ea92e6f48c754a81";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
         public static readonly GameLine RoomPre = new GameLine("room_pre", "Delivery for you. One hive, slightly used. Sign here."); // room | pre | pre, prompt, delivery
+        public static readonly GameLine RoomPreNudge = new GameLine("room_pre_nudge", "Poke it with one finger. That's how you'll pick everything today."); // room | pre | pre, hint, poke
+        public static readonly GameLine RoomPreSigned = new GameLine("room_pre_signed", "Signed. Crew, cut the window!"); // room | pre | pre, signed, window
         public static readonly GameLine RoomHookCarry = new GameLine("room_hook_carry", "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract."); // room | hook | hook, delivery, fact:drones
-        public static readonly GameLine RoomHook1 = new GameLine("room_hook_1", "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon."); // room | hook | hook, load-bearing, stakes
-        public static readonly GameLine RoomHook2 = new GameLine("room_hook_2", "Your evacuation rocket. Honeymoon One. We booked you a window seat."); // room | hook | hook, rocket, stakes
-        public static readonly GameLine RoomMeet1 = new GameLine("room_meet_1", "Beeswax. Shop steward, Local Twenty Thousand. No stinger, no job, so they made me union rep."); // room | meet | meet
-        public static readonly GameLine RoomMeet2 = new GameLine("room_meet_2", "Four things are killing my hive. Four minutes, or you're on that rocket."); // room | meet | meet, load-bearing, stakes
-        public static readonly GameLine RoomMeetWindow = new GameLine("room_meet_window", "See that window? That's the meadow. Every choice you make shows up in there. No pressure."); // room | meet | meet, window
-        public static readonly GameLine RoomMeetStat = new GameLine("room_meet_stat", "In one recent year, American beekeepers lost more than half their managed colonies. Hence the rocket."); // room | meet | meet, optional, fact:colonies
-        public static readonly GameLine RoomSmokerIntro = new GameLine("room_smoker_intro", "The girls are furious. Calm them down. Pick one."); // room | smoker | station:smoker, prompt, load-bearing
-        public static readonly GameLine RoomSmokerSwat = new GameLine("room_smoker_swat", "You SWATTED a union member?! A squished bee gives off alarm smell. You just paged the whole shift. Grievance filed. Try again."); // room | smoker | station:smoker, choice:swat, wrong
-        public static readonly GameLine RoomSmokerSprayWater = new GameLine("room_smoker_spray_water", "Water? Now they're wet AND angry. It doesn't cover the alarm smell, it just frizzes their hair. Grievance filed. Try again."); // room | smoker | station:smoker, choice:spray_water, wrong
-        public static readonly GameLine RoomSmokerSmoker = new GameLine("room_smoker_smoker", "Ahh. Smoke covers up our alarm signal and makes us fill up on honey. Also, our alarm smells like bananas. Don't eat one near my house."); // room | smoker | station:smoker, choice:smoker, correct, fact:smoke
-        public static readonly GameLine RoomSmokerHand = new GameLine("room_smoker_hand", "They're calm now. Hold out your hand, palm up. They won't sting. Probably."); // room | smoker | station:smoker, optional, palm, fact:sting
-        public static readonly GameLine RoomFeedIntro = new GameLine("room_feed_intro", "Is there enough food in there? Tip the hive. Go on, lift it."); // room | feed | station:feed, prompt, load-bearing
+        public static readonly GameLine RoomHook1 = new GameLine("room_hook_1", "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon."); // room | meet | meet, load-bearing, stakes
+        public static readonly GameLine RoomHook2 = new GameLine("room_hook_2", "Your evacuation rocket. Honeymoon One. We booked you a window seat."); // room | meet | meet, rocket, stakes
+        public static readonly GameLine RoomMeet1 = new GameLine("room_meet_1", "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee."); // room | meet | meet, fact:species
+        public static readonly GameLine RoomMeetRole = new GameLine("room_meet_role", "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper."); // room | meet | meet, load-bearing, role
+        public static readonly GameLine RoomForecast = new GameLine("room_forecast", "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful."); // room | meet | meet, load-bearing, window, forecast
+        public static readonly GameLine RoomMeet2 = new GameLine("room_meet_2", "Four problems. Four minutes. Or you're on that rocket."); // room | meet | meet, load-bearing, stakes
+        public static readonly GameLine RoomMeetStat = new GameLine("room_meet_stat", "In one recent year, American beekeepers lost more than half their hives. Somebody has to be loud."); // room | map | map, fact:colonies
+        public static readonly GameLine RoomSmokerIntro = new GameLine("room_smoker_intro", "Problem one: the girls are buzzing mad. Calm them down. Pick one."); // room | smoker | station:smoker, prompt, load-bearing
+        public static readonly GameLine RoomHintSmoker = new GameLine("room_hint_smoker", "Off the record? Beekeepers don't swat. They puff."); // room | smoker | station:smoker, hint
+        public static readonly GameLine RoomSmokerSwat = new GameLine("room_smoker_swat", "You SWATTED a union member?! Squish one bee and her alarm smell calls the whole shift."); // room | smoker | station:smoker, choice:swat, wrong, fact:alarm
+        public static readonly GameLine RoomSmokerSprayWater = new GameLine("room_smoker_spray_water", "Water? Now they're wet AND still buzzing mad. Smoke masks the alarm smell."); // room | smoker | station:smoker, choice:spray_water, wrong, fact:alarm
+        public static readonly GameLine RoomSmokerSmoker = new GameLine("room_smoker_smoker", "Ahh. Smoke covers our alarm smell and makes us fill up on honey. The alarm? Smells like bananas."); // room | smoker | station:smoker, choice:smoker, correct, fact:smoke
+        public static readonly GameLine RoomSmokerBanana = new GameLine("room_smoker_banana", "Don't go bananas near my hive. And don't eat a banana, either."); // room | smoker | station:smoker, joke, cut-if-behind
+        public static readonly GameLine RoomSmokerHand = new GameLine("room_smoker_hand", "They're calm. Hold out your hand. These ones are virtual. Real ones? Bee-hold, but don't touch."); // room | smoker | station:smoker, optional, palm, fact:sting
+        public static readonly GameLine RoomFeedIntro = new GameLine("room_feed_intro", "Problem two. Speaking of honey, any left? Now lift the hive."); // room | feed | station:feed, prompt, load-bearing
         public static readonly GameLine RoomLiftLight = new GameLine("room_lift_light", "Light, right? That's bad. Full hives are heavy with honey. The movers were being dramatic."); // room | feed | station:feed, lift, load-bearing, fact:heft
         public static readonly GameLine RoomFeedTip = new GameLine("room_feed_tip", "We're starving."); // room | feed | station:feed, load-bearing
         public static readonly GameLine RoomFeedRocketFuel = new GameLine("room_feed_rocket_fuel", "Where'd the honey go? ...Your rocket. Somebody had to fuel it."); // room | feed | station:feed, optional, rocket
         public static readonly GameLine RoomFeedPrompt = new GameLine("room_feed_prompt", "So feed us. Store-bought honey, or sugar syrup?"); // room | feed | station:feed, prompt, load-bearing
-        public static readonly GameLine RoomFeedStoreHoney = new GameLine("room_feed_store_honey", "...Honey. From a STORE. It can carry foulbrood, a disease that wipes out hives. The spores last for decades. Grievance filed. In permanent marker."); // room | feed | station:feed, choice:store_honey, wrong, fact:foulbrood
-        public static readonly GameLine RoomFeedSugarSyrup = new GameLine("room_feed_sugar_syrup", "Sugar syrup. Motion carried. Beekeepers lift the hive to check for food, then feed syrup. Never store honey."); // room | feed | station:feed, choice:sugar_syrup, correct, fact:heft
-        public static readonly GameLine RoomWaspsIntro = new GameLine("room_wasps_intro", "Wasps at the door. Nobody ordered wasps. Make the entrance bigger, or smaller?"); // room | wasps | station:wasps, prompt, load-bearing
-        public static readonly GameLine RoomWaspsBiggerDoor = new GameLine("room_wasps_bigger_door", "Bigger?! You built the wasps a drive-through. More door takes more guards, and we're short-staffed. Grievance filed."); // room | wasps | station:wasps, choice:bigger_door, wrong
-        public static readonly GameLine RoomWaspsSmallerDoor = new GameLine("room_wasps_smaller_door", "Smaller door, fewer guards needed to hold it. Look at them give up. Motion carried."); // room | wasps | station:wasps, choice:smaller_door, correct, fact:reducer
+        public static readonly GameLine RoomHintFeed = new GameLine("room_hint_feed", "Off the record? You don't know where store honey's been."); // room | feed | station:feed, hint
+        public static readonly GameLine RoomFeedStoreHoney = new GameLine("room_feed_store_honey", "...Honey. From a STORE. It can carry foulbrood. Its spores last decades. Fine on toast, deadly in a hive."); // room | feed | station:feed, choice:store_honey, wrong, fact:foulbrood
+        public static readonly GameLine RoomFeedSugarSyrup = new GameLine("room_feed_sugar_syrup", "Sugar syrup. Sweet. Beekeepers lift the hive to check for food, then feed syrup."); // room | feed | station:feed, choice:sugar_syrup, correct, fact:heft
+        public static readonly GameLine RoomFeedWhy = new GameLine("room_feed_why", "Why avoid store honey? It can carry foulbrood spores. Fine on toast, deadly in a hive."); // room | feed | station:feed, fact:foulbrood
+        public static readonly GameLine RoomWaspsArrive = new GameLine("room_wasps_arrive", "Uh oh. Problem three: wasps made a beeline for the syrup."); // room | wasps | station:wasps, load-bearing, arrive
+        public static readonly GameLine RoomWaspsIntro = new GameLine("room_wasps_intro", "Nobody ordered wasps. We're short on guards. Make the door bigger, or smaller?"); // room | wasps | station:wasps, prompt, load-bearing
+        public static readonly GameLine RoomHintWasps = new GameLine("room_hint_wasps", "Off the record? Think castle. Big gate or small gate?"); // room | wasps | station:wasps, hint
+        public static readonly GameLine RoomWaspsBiggerDoor = new GameLine("room_wasps_bigger_door", "Bigger?! You built the wasps a drive-through. More door takes more guards. Grievance filed."); // room | wasps | station:wasps, choice:bigger_door, wrong
+        public static readonly GameLine RoomWaspsSmallerDoor = new GameLine("room_wasps_smaller_door", "That's an entrance reducer. Smaller door, fewer guards needed to hold it. Buzz off, wasps."); // room | wasps | station:wasps, choice:smaller_door, correct, fact:reducer
         public static readonly GameLine RoomHornet1 = new GameLine("room_hornet_1", "GIANT HORNET! My cousins in Japan cook these. Never tried it. Make a FIST!"); // room | hornet | hornet, load-bearing
         public static readonly GameLine RoomHornet2 = new GameLine("room_hornet_2", "Now HUM!"); // room | hornet | hornet, load-bearing
         public static readonly GameLine RoomHornet3 = new GameLine("room_hornet_3", "Louder! In Japan it takes over five hundred bees and about forty-six degrees Celsius. We're winging it. LOUDER!"); // room | hornet | hornet, nudge, fact:hornet
         public static readonly GameLine RoomHornet4 = new GameLine("room_hornet_4", "STOP, you're cooking the girls!"); // room | hornet | hornet, overshoot, load-bearing
-        public static readonly GameLine RoomHeatIntro = new GameLine("room_heat_intro", "Heat wave. The hive's baking. We need water. Pick a dish."); // room | heat | station:heat, prompt, load-bearing
+        public static readonly GameLine RoomHeatIntro = new GameLine("room_heat_intro", "Last problem: heat wave. The babies are cooking. Pick a water dish."); // room | heat | station:heat, prompt, load-bearing
+        public static readonly GameLine RoomHintHeat = new GameLine("room_hint_heat", "Off the record? Bees can't swim. Where would a bee stand to drink?"); // room | heat | station:heat, hint, fact:water
         public static readonly GameLine RoomHeatDeepBowl = new GameLine("room_heat_deep_bowl", "A deep bowl? That's a pool. Bees drown in deep water, and the lifeguard's on strike. Grievance filed."); // room | heat | station:heat, choice:deep_bowl, wrong, fact:water
         public static readonly GameLine RoomHeatNothing = new GameLine("room_heat_nothing", "Nothing? In a HEAT WAVE? We cool the hive with water. No water, no air conditioning. Grievance filed. Angrily."); // room | heat | station:heat, choice:nothing, wrong
         public static readonly GameLine RoomHeatPebbleDish = new GameLine("room_heat_pebble_dish", "Pebbles! Somewhere to land. We spread water drops in the hive and fan our wings. Bee air conditioning."); // room | heat | station:heat, choice:pebble_dish, correct, fact:cooling
-        public static readonly GameLine RoomWhatifPrompt = new GameLine("room_whatif_prompt", "Your turn. Ask me \"what if,\" and the meadow window shows it."); // room | whatif | whatif, prompt, load-bearing
+        public static readonly GameLine RoomWhatifPrompt = new GameLine("room_whatif_prompt", "Four for four! Now you drive the window. Pinch, hold, and ask me \"what if.\""); // room | whatif | whatif, prompt, load-bearing
+        public static readonly GameLine RoomWhatifNotfire = new GameLine("room_whatif_notfire", "Rain, flowers, anything. Just not fire."); // room | whatif | whatif, prompt, load-bearing
+        public static readonly GameLine RoomHintWhatif = new GameLine("room_hint_whatif", "Try asking about a fire. ...Actually, don't."); // room | whatif | whatif, hint
         public static readonly GameLine RoomWhatifFire = new GameLine("room_whatif_fire", "Don't. Say. That. ...You said it. Watch the window. I can't look."); // room | whatif | whatif, topic:fire, load-bearing
         public static readonly GameLine RoomWhatifFire2 = new GameLine("room_whatif_fire_2", "Don't. Say. That. ...Again?! You get your own spreadsheet. Watch the window."); // room | whatif | whatif, topic:fire, alt:room_whatif_fire
         public static readonly GameLine RoomWhatifFire3 = new GameLine("room_whatif_fire_3", "Don't. Say. That. ...Why does everybody say that? Watch the window."); // room | whatif | whatif, topic:fire, alt:room_whatif_fire
-        public static readonly GameLine RoomWhatifOut = new GameLine("room_whatif_out", "Fire brigade! ...Okay. It's out. Motion to never say that again: carried."); // room | whatif | whatif, undo, relief
+        public static readonly GameLine RoomWhatifPutout = new GameLine("room_whatif_putout", "It's spreading! Pinch and say \"put it out\"! SAY IT!"); // room | whatif | whatif, hint, load-bearing
+        public static readonly GameLine RoomWhatifOut = new GameLine("room_whatif_out", "Fire brigade! ...It's out. Bees don't fight fires. We help burned land grow back."); // room | whatif | whatif, undo, relief, fact:fire
         public static readonly GameLine RoomWhatifOut2 = new GameLine("room_whatif_out_2", "It's out. I'm putting \"no fire\" in the bylaws. In bold."); // room | whatif | whatif, undo, relief, alt:room_whatif_out
         public static readonly GameLine RoomWhatifOut3 = new GameLine("room_whatif_out_3", "Fire's out. I'm not crying, that's smoke. Motion carried."); // room | whatif | whatif, undo, relief, alt:room_whatif_out
-        public static readonly GameLine RoomWhatifRain = new GameLine("room_whatif_rain", "Rain? Fine. Nobody forages in the rain. We stay in and do paperwork."); // room | whatif | whatif, topic:rain
+        public static readonly GameLine RoomWhatifRain = new GameLine("room_whatif_rain", "Rain? Fine. Hardly anybee forages in the rain. We'll stay in and do paperwork."); // room | whatif | whatif, topic:rain
         public static readonly GameLine RoomWhatifFlowers = new GameLine("room_whatif_flowers", "Flowers? Now you're talking. More flowers, more food. I don't forage, but I'll allow it."); // room | whatif | whatif, topic:flowers
         public static readonly GameLine RoomWhatifSpray = new GameLine("room_whatif_spray", "Pesticide? It drifts onto the flowers, and we carry it home to the babies. Grievance filed. Twice."); // room | whatif | whatif, topic:spray
         public static readonly GameLine RoomWhatifWinter = new GameLine("room_whatif_winter", "Winter? The girls huddle around the queen and shiver to keep her warm. Drones get kicked out. Grievance pending."); // room | whatif | whatif, topic:winter
@@ -97,13 +110,19 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomWhatifRefuse = new GameLine("room_whatif_refuse", "Grievance filed. Not that one. Ask something I could show the queen. She's my mom."); // room | whatif | whatif, topic:custom, refuse, load-bearing
         public static readonly GameLine RoomWhatifBack = new GameLine("room_whatif_back", "Fine. Back to how it was. Like it never happened. It's in the minutes, though."); // room | whatif | whatif, undo
         public static readonly GameLine RoomWhatifNothing = new GameLine("room_whatif_nothing", "Undo what? Nothing's on fire. Yet."); // room | whatif | whatif, undo
+        public static readonly GameLine RoomAdjourn = new GameLine("room_adjourn", "Motion to adjourn. Seconded, by me. All in favor?"); // room | whatif | whatif, load-bearing, vote
+        public static readonly GameLine RoomLiveFiller = new GameLine("room_live_filler", "I could drone on all day. Short version:"); // room | - | filler, live
         public static readonly GameLine RoomEscape = new GameLine("room_escape", "Motion carried. No ravaging today. Cancel the evacuation."); // room | escape | escape, score, load-bearing, stakes
+        public static readonly GameLine RoomEscapeMinutes = new GameLine("room_escape_minutes", "For the minutes: smoke, syrup, small door, shallow water. That's real beekeeping."); // room | escape | escape, load-bearing, recap
+        public static readonly GameLine RoomEscapeCredit = new GameLine("room_escape_credit", "Thanks, beekeeper. ...Strike that from the minutes."); // room | escape | escape, cut-if-behind
         public static readonly GameLine RoomT01 = new GameLine("room_t0_1", "...Shame to waste a ticket. Non-refundable."); // room | t0 | t0, rocket
         public static readonly GameLine RoomT02 = new GameLine("room_t0_2", "TAKE ME TO THE MOON!"); // room | t0 | t0, load-bearing
-        public static readonly GameLine RoomT0Earth = new GameLine("room_t0_earth", "Look at Earth. Just hanging over the horizon. Doesn't rise, doesn't set. Like a drone. I'd know."); // room | t0 | t0, optional, fact:earth
-        public static readonly GameLine RoomT03 = new GameLine("room_t0_3", "...Not one flower. Only planet with flowers."); // room | t0 | t0
-        public static readonly GameLine RoomT04 = new GameLine("room_t0_4", "I'm back. Nobody saw that."); // room | t0 | t0
-        public static readonly GameLine RoomMap = new GameLine("room_map", "Same time tomorrow? Other hives have it worse. I keep a spreadsheet."); // room | map | map, load-bearing
+        public static readonly GameLine RoomT0Earth = new GameLine("room_t0_earth", "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know."); // room | t0 | t0, optional, fact:earth
+        public static readonly GameLine RoomT03 = new GameLine("room_t0_3", "...Not one flower. We've only found them on Earth."); // room | t0 | t0, fact:flowers
+        public static readonly GameLine RoomT04 = new GameLine("room_t0_4", "I'm back. Nobody saw that. Mind your own beeswax."); // room | t0 | t0
+        public static readonly GameLine RoomTruth = new GameLine("room_truth", "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison."); // room | map | map, load-bearing, fact:varroa
+        public static readonly GameLine RoomMap = new GameLine("room_map", "Same time tomorrow? Other hives have it worse. Wild bees don't even get a beekeeper."); // room | map | map, load-bearing, fact:wild
+        public static readonly GameLine RoomEndContract = new GameLine("room_end_contract", "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five."); // room | map | map, load-bearing, contract
         public static readonly GameLine RoomAckMinutes = new GameLine("room_ack_minutes", "Noted for the minutes."); // room | - | ack
         public static readonly GameLine RoomAckAllow = new GameLine("room_ack_allow", "I'll allow it."); // room | - | ack
         public static readonly GameLine RoomAckGrievance = new GameLine("room_ack_grievance", "Grievance filed."); // room | - | ack
@@ -114,7 +133,9 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomAckOrder = new GameLine("room_ack_order", "Point of order. Hive first, questions later."); // room | - | ack
         public static readonly GameLine RoomCrewHeavy = new GameLine("room_crew_heavy", "Lift with your wings, ladies!"); // room | - | courier, heavy
         public static readonly GameLine RoomFactFestoon = new GameLine("room_fact_festoon", "That's festooning. We hook our legs together into chains. Scientists still aren't sure why."); // room | - | courier, optional, operator, fact:festoon
-        public static readonly GameLine RoomStrikeLookup = new GameLine("room_strike_lookup", "Hear that? Look up. Bees don't picket. We swarm."); // room | - | stakes, strike, first-grievance
+        public static readonly GameLine RoomStrikeLookup = new GameLine("room_strike_lookup", "Look up. Bees don't picket. We swarm. Every grievance makes it bigger. Pick again."); // room | - | stakes, strike, first-grievance
+        public static readonly GameLine RoomTimeout = new GameLine("room_timeout", "Overruled. I'll pick for you. Watch closely."); // room | - | timeout
+        public static readonly GameLine RoomClockZero = new GameLine("room_clock_zero", "Time's up. ...I'm granting an extension. Union discretion. Keep going."); // room | - | timeout, clock
         public static readonly GameLine RoomCannedUnclear = new GameLine("room_canned_unclear", "What IS that? Not on the agenda."); // room | - | canned, glasses
         public static readonly GameLine RoomVerdictPerson = new GameLine("room_verdict_person", "That's a person. I review hives, not people."); // room | - | verdict, item:person, glasses
         public static readonly GameLine EarPractice = new GameLine("ear_practice", "Testing. You smell like coffee."); // ear | pre | practice, load-bearing
@@ -142,7 +163,6 @@ namespace VirtualBeeSwarm
         public static readonly GameLine Hook2 = RoomHook2;
         public static readonly GameLine MeetIntro = RoomMeet1;
         public static readonly GameLine Meet = RoomMeet2;
-        public static readonly GameLine MeetWindow = RoomMeetWindow;
         public static readonly GameLine SmokerPrompt = RoomSmokerIntro; // = stations.json smoker.intro_line
         public static readonly GameLine FeedPrompt = RoomFeedIntro; // = stations.json feed.intro_line
         public static readonly GameLine FeedLiftHint = RoomFeedLiftHint; // the player hasn't lifted the hive yet
@@ -187,20 +207,24 @@ namespace VirtualBeeSwarm
 
         static readonly GameLine[] FileLines =
         {
-            RoomPre, RoomHookCarry, RoomHook1, RoomHook2, RoomMeet1, RoomMeet2,
-            RoomMeetWindow, RoomMeetStat, RoomSmokerIntro, RoomSmokerSwat, RoomSmokerSprayWater, RoomSmokerSmoker,
-            RoomSmokerHand, RoomFeedIntro, RoomLiftLight, RoomFeedTip, RoomFeedRocketFuel, RoomFeedPrompt,
-            RoomFeedStoreHoney, RoomFeedSugarSyrup, RoomWaspsIntro, RoomWaspsBiggerDoor, RoomWaspsSmallerDoor, RoomHornet1,
-            RoomHornet2, RoomHornet3, RoomHornet4, RoomHeatIntro, RoomHeatDeepBowl, RoomHeatNothing,
-            RoomHeatPebbleDish, RoomWhatifPrompt, RoomWhatifFire, RoomWhatifFire2, RoomWhatifFire3, RoomWhatifOut,
-            RoomWhatifOut2, RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray, RoomWhatifWinter,
-            RoomWhatifCustom, RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse, RoomWhatifBack,
-            RoomWhatifNothing, RoomEscape, RoomT01, RoomT02, RoomT0Earth, RoomT03,
-            RoomT04, RoomMap, RoomAckMinutes, RoomAckAllow, RoomAckGrievance, RoomAckCarried,
-            RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy, RoomFactFestoon,
-            RoomStrikeLookup, RoomCannedUnclear, RoomVerdictPerson, EarPractice, EarNotNow, EarNoSignal,
-            EarScanFailed, EarHoldStill, EarHoldStill2, EarCannedUnclear, EarHintSmoker, EarHintFeed,
-            EarHintWasps, EarHintHeat, EarHintWhatif, EarAsideWindow, EarAsideHornet,
+            RoomPre, RoomPreNudge, RoomPreSigned, RoomHookCarry, RoomHook1, RoomHook2,
+            RoomMeet1, RoomMeetRole, RoomForecast, RoomMeet2, RoomMeetStat, RoomSmokerIntro,
+            RoomHintSmoker, RoomSmokerSwat, RoomSmokerSprayWater, RoomSmokerSmoker, RoomSmokerBanana, RoomSmokerHand,
+            RoomFeedIntro, RoomLiftLight, RoomFeedTip, RoomFeedRocketFuel, RoomFeedPrompt, RoomHintFeed,
+            RoomFeedStoreHoney, RoomFeedSugarSyrup, RoomFeedWhy, RoomWaspsArrive, RoomWaspsIntro, RoomHintWasps,
+            RoomWaspsBiggerDoor, RoomWaspsSmallerDoor, RoomHornet1, RoomHornet2, RoomHornet3, RoomHornet4,
+            RoomHeatIntro, RoomHintHeat, RoomHeatDeepBowl, RoomHeatNothing, RoomHeatPebbleDish, RoomWhatifPrompt,
+            RoomWhatifNotfire, RoomHintWhatif, RoomWhatifFire, RoomWhatifFire2, RoomWhatifFire3, RoomWhatifPutout,
+            RoomWhatifOut, RoomWhatifOut2, RoomWhatifOut3, RoomWhatifRain, RoomWhatifFlowers, RoomWhatifSpray,
+            RoomWhatifWinter, RoomWhatifCustom, RoomWhatifCustom2, RoomWhatifCustom3, RoomWhatifCustomClips, RoomWhatifRefuse,
+            RoomWhatifBack, RoomWhatifNothing, RoomAdjourn, RoomLiveFiller, RoomEscape, RoomEscapeMinutes,
+            RoomEscapeCredit, RoomT01, RoomT02, RoomT0Earth, RoomT03, RoomT04,
+            RoomTruth, RoomMap, RoomEndContract, RoomAckMinutes, RoomAckAllow, RoomAckGrievance,
+            RoomAckCarried, RoomAckDenied, RoomAckTabled, RoomAckSpreadsheet, RoomAckOrder, RoomCrewHeavy,
+            RoomFactFestoon, RoomStrikeLookup, RoomTimeout, RoomClockZero, RoomCannedUnclear, RoomVerdictPerson,
+            EarPractice, EarNotNow, EarNoSignal, EarScanFailed, EarHoldStill, EarHoldStill2,
+            EarCannedUnclear, EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif,
+            EarAsideWindow, EarAsideHornet,
         };
 
         static readonly GameLine[] LocalLines = { RoomFeedLiftHint };

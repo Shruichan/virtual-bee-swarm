@@ -168,7 +168,7 @@ namespace VirtualBeeSwarm.AR
                 if (s == Home) continue;
                 if (s == Landed) landed++; else flying++;
                 Pose(i, now, s, out var pos, out var rot);
-                _matrices[drawn] = Matrix4x4.TRS(pos, rot, new Vector3(beeLength, beeLength, beeLength));
+                _matrices[drawn] = Matrix4x4.TRS(pos, rot * InsectBodySway.Offset(now, i * 2.4f, s == Landed ? 0.15f : 0.5f), new Vector3(beeLength, beeLength, beeLength));
                 _colors[drawn] = color * brightness;
                 _colors[drawn].w = 1f;
                 _bias[drawn] = s == Landed ? ArTuning.DepthBiasContact : 0f;

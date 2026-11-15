@@ -12,6 +12,10 @@ namespace VirtualBeeSwarm
     /// Offline (Hive unreachable or forced): a talk press + release is taken as the question (1st = "what if a
     /// fire starts?", 2nd = "put it out!"), and if nobody does anything Beeswax plays both on timers, so the beat
     /// still shows the fire. Desktop/operator backup: F = fire, P = put it out (also steers the live window).
+    /// Ride script v2: room_whatif_prompt then room_whatif_notfire ("Just not fire."); 8 s of silence -> room_hint_whatif
+    /// (once); the fire burning 4 s after its line with no "put it out" -> room_whatif_putout (once per fire); after
+    /// the fire is out (+ optional #2 room_whatif_smoke_why), after another what-if + 5 s, or after 25 s of silence ->
+    /// room_adjourn ("All in favor?"), and the escape starts when it ends (the swarm's roar).
     /// </summary>
     public class WhatIfBeat : BeatBehaviour
     {
@@ -31,17 +35,27 @@ namespace VirtualBeeSwarm
         [SerializeField] bool talkInAllVoiceBeats = true;
 
         [Header("Timing")]
-        [SerializeField] float completeAfterFireOutSeconds = 4f;
         [Tooltip("If the Hive's fx 'embers' hasn't come this long after the fire started, start the embers anyway.")]
         [SerializeField] float emberBackupDelaySeconds = 4f;
         [Tooltip("Offline only: no fire this long after the prompt -> Beeswax starts it himself (0 = never).")]
-        [SerializeField] float offlineAutoFireSeconds = 9f;
+        [SerializeField] float offlineFireAfterSeconds = 13f; // v2: after the 8 s hint
         [Tooltip("Offline only: the fire burns this long -> it gets put out (0 = never).")]
-        [SerializeField] float offlineAutoPutOutSeconds = 8f;
+        [SerializeField] float offlinePutOutAfterSeconds = 14f; // v2: after the 4 s put-out hint
+        [Header("v2 voice beat")]
+        [SerializeField] float hintAfterSilenceSeconds = 8f;
+        [SerializeField] float putOutHintSeconds = 4f;
+        [SerializeField] float adjournAfterWhatIfSeconds = 5f;
+        [SerializeField] float adjournAfterSilenceSeconds = 25f;
         [SerializeField] int wrapChars = 36;
 
         public bool FireStarted { get; private set; }
         public bool FireOut { get; private set; }
+        /// <summary>room_whatif_prompt and room_whatif_notfire are done (the player's turn).</summary>
+        public bool PromptDone => _promptDoneAt >= 0f;
+        /// <summary>room_adjourn has been said (the escape follows).</summary>
+        public bool Adjourned { get; private set; }
+        /// <summary>v2 ASK BEESWAX: a pinch also talks while the card is up (map beat).</summary>
+        public static bool AskOpen { get; set; }
         /// <summary>The talk input is held in a voice beat, online or offline (the game sound stays silent meanwhile).</summary>
         public static bool TalkHeld { get; private set; }
 
@@ -49,6 +63,8 @@ namespace VirtualBeeSwarm
         bool _holdPrev;         // talk input held last frame (edge detection: one BeginTalk per press)
         bool _pressStreams;     // this press went to the Hive (online); false = offline press, acted on at release
         float _promptDoneAt = -1f, _fireAt = -1f;
+        float _quietSince = -1f, _fireLineEndAt = -1f, _otherWhatIfAt = -1f;
+        bool _hinted, _putOutHinted, _adjourning;
 
         public override bool Handles(GameBeat beat) => beat == GameBeat.WhatIf;
 
@@ -81,6 +97,7 @@ namespace VirtualBeeSwarm
         {
             FireStarted = FireOut = false;
             _promptDoneAt = _fireAt = -1f;
+            ResetV2();
             SetActive(ui, true);
             if (promptText != null) promptText.text = "Ask me anything.\n\"What if...?\"";
             if (transcriptText != null) transcriptText.text = "";
@@ -91,10 +108,23 @@ namespace VirtualBeeSwarm
             if (net != null && net.CurrentScene == GameIds.Scene.WhatIfFire) MarkFireStarted();
         }
 
+        void ResetV2()
+        {
+            _quietSince = _fireLineEndAt = _otherWhatIfAt = -1f;
+            _hinted = _putOutHinted = _adjourning = false;
+            Adjourned = false;
+        }
+
         IEnumerator Intro()
         {
-            yield return SayAndWait(GameLines.WhatIfPrompt, 1.5f, 4f);
+            yield return SayAndWait(GameLines.WhatIfPrompt, 1.5f, LineTime.Seconds(net, GameLines.WhatIfPrompt) + 1f);
+            if (!FireStarted)
+            {
+                var notFire = RideLines.WhatIfNotFire; // reverse psychology: "Just not fire."
+                yield return SayAndWait(notFire, 1f, LineTime.Seconds(net, notFire) + 1f);
+            }
             _promptDoneAt = Time.time;
+            _quietSince = Time.time;
         }
 
         protected override void OnExit(GameBeat beat)
@@ -108,6 +138,7 @@ namespace VirtualBeeSwarm
         {
             FireStarted = FireOut = false;
             _promptDoneAt = _fireAt = -1f;
+            ResetV2();
             SetActive(ui, false);
         }
 
@@ -118,7 +149,7 @@ namespace VirtualBeeSwarm
             GameBeat beat = director.Beat;
             bool voiceBeat = IsActive || (talkInAllVoiceBeats && IsVoiceBeat(beat));
 
-            bool hold = voiceBeat && (GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld() || (IsActive && GameHands.AnyPinchHeld()));
+            bool hold = voiceBeat && (GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld() || ((IsActive || AskOpen) && GameHands.AnyPinchHeld()));
             TalkHeld = hold;
             if (hold && !_holdPrev)
             {
@@ -156,12 +187,72 @@ namespace VirtualBeeSwarm
             if (GameInput.KeyDown(fireKey)) LocalWhatIfFire();
             if (GameInput.KeyDown(putOutKey)) LocalPutOut();
 
+            UpdateV2(hold);
+
             // Offline: the show must still show the fire.
-            if (!online && _promptDoneAt >= 0f)
+            if (!online && _promptDoneAt >= 0f && !_adjourning)
             {
-                if (!FireStarted && offlineAutoFireSeconds > 0f && Time.time - _promptDoneAt >= offlineAutoFireSeconds) LocalWhatIfFire();
-                else if (FireStarted && !FireOut && offlineAutoPutOutSeconds > 0f && _fireAt >= 0f && Time.time - _fireAt >= offlineAutoPutOutSeconds) LocalPutOut();
+                if (!FireStarted && offlineFireAfterSeconds > 0f && Time.time - _promptDoneAt >= offlineFireAfterSeconds) LocalWhatIfFire();
+                else if (FireStarted && !FireOut && offlinePutOutAfterSeconds > 0f && _fireAt >= 0f && Time.time - _fireAt >= offlinePutOutAfterSeconds) LocalPutOut();
             }
+        }
+
+        /// <summary>v2: the hint, the put-out hint and the adjourn.</summary>
+        void UpdateV2(bool holding)
+        {
+            if (_promptDoneAt < 0f || _adjourning) return;
+            float now = Time.time;
+            bool speaking = net.IsSpeaking || net.AwaitingReply;
+            if (speaking || holding || net.Talking) _quietSince = -1f;
+            else if (_quietSince < 0f) _quietSince = now;
+            float quiet = _quietSince >= 0f ? now - _quietSince : 0f;
+
+            if (!FireStarted && !_hinted && quiet >= hintAfterSilenceSeconds)
+            {
+                _hinted = true;
+                RidePacing.NoteStall("what-if: " + hintAfterSilenceSeconds.ToString("0") + " s of silence");
+                net.Say(RideLines.HintWhatIf);
+                _quietSince = -1f;
+                return;
+            }
+            if (FireStarted && !FireOut)
+            {
+                // the fire line has ended once Beeswax goes quiet after it started
+                if (_fireLineEndAt < 0f && !speaking && now - _fireAt > 1.5f) _fireLineEndAt = now;
+                if (!_putOutHinted && _fireLineEndAt >= 0f && now - _fireLineEndAt >= putOutHintSeconds && !speaking && !holding)
+                {
+                    _putOutHinted = true;
+                    if (beeswax != null) beeswax.WhipAround();
+                    net.Say(RideLines.WhatIfPutOut);
+                }
+                return;
+            }
+            if (FireOut) return; // MarkFireOut adjourns
+            if (_otherWhatIfAt >= 0f && speaking) _otherWhatIfAt = now; // count the 5 s from the end of its line
+            if (_otherWhatIfAt >= 0f && !speaking && now - _otherWhatIfAt >= adjournAfterWhatIfSeconds) StartAdjourn("another what-if + " + adjournAfterWhatIfSeconds.ToString("0") + " s");
+            else if (quiet >= adjournAfterSilenceSeconds) StartAdjourn(adjournAfterSilenceSeconds.ToString("0") + " s of silence");
+        }
+
+        void StartAdjourn(string why)
+        {
+            if (_adjourning || !IsActive) return;
+            _adjourning = true;
+            Debug.Log("[VBS][Ride] what-if: adjourn (" + why + ")");
+            StartCoroutine(Adjourn(why == "fire out"));
+        }
+
+        IEnumerator Adjourn(bool afterFire)
+        {
+            yield return WaitForTalk(afterFire ? 2f : 0.2f, 9f); // room_whatif_out (the Hive's or ours) ends
+            if (afterFire)
+            {
+                var why = RideLines.WhatIfSmokeWhy; // optional #2
+                if (RidePacing.Optional(2, why)) yield return SayAndWait(why, 1f, LineTime.Seconds(net, why) + 1f);
+            }
+            var adjourn = RideLines.Adjourn;
+            yield return SayAndWait(adjourn, 1f, LineTime.Seconds(net, adjourn) + 1f);
+            Adjourned = true;
+            Complete(0.3f); // "All in favor?" -> the swarm roars yes (escape)
         }
 
         void OfflineQuestion()
@@ -195,6 +286,8 @@ namespace VirtualBeeSwarm
             FireStarted = true;
             FireOut = false;
             _fireAt = Time.time;
+            _fireLineEndAt = -1f;
+            _putOutHinted = false;
             if (beeswax != null) beeswax.WhipAround();
             if (embers != null) embers.PlayIfIdle(emberBackupDelaySeconds); // the Hive's fx embers normally beats this
         }
@@ -204,7 +297,7 @@ namespace VirtualBeeSwarm
             if (embers != null) embers.Stop();
             if (!FireStarted || FireOut) return;
             FireOut = true;
-            Complete(completeAfterFireOutSeconds);
+            StartAdjourn("fire out"); // v2: room_whatif_out (+ optional #2) -> room_adjourn -> escape
         }
 
         // ------------------------------------------------------------ voice results
@@ -224,6 +317,7 @@ namespace VirtualBeeSwarm
                     // The Hive steers Orbis itself; this only switches the local tint (and HandleScene tracks the fire).
                     string scene = GameIds.SceneForTopic(topic);
                     if (scene.Length > 0) net.RequestScene(scene, sendToHive: false);
+                    if (topic != "fire") _otherWhatIfAt = Time.time; // v2: another what-if, then adjourn 5 s after its line
                     break;
                 }
                 case GameIds.Intent.Undo:
@@ -258,6 +352,10 @@ namespace VirtualBeeSwarm
             MarkFireOut();
         }
 
-        protected override void OnBeatTimeout() => Complete();
+        protected override void OnBeatTimeout()
+        {
+            if (_adjourning) return; // room_adjourn is wrapping up (the director's grace covers it)
+            StartAdjourn("beat max");
+        }
     }
 }

@@ -338,7 +338,8 @@ namespace VirtualBeeSwarm
             {
                 if (p.failed) return;
                 p.failed = true;
-                Debug.LogWarning("[VBS][Forecast] " + p.file + ": " + message + " (the window's tint shows this scene)");
+                // not the message: on Linux players it can arrive garbled and touching it threw ArrayTypeMismatchException at start-up
+                Debug.LogWarning("[VBS][Forecast] " + p.file + ": video failed to play (the window's tint shows this scene)");
             };
             p.vp.loopPointReached += vp => { if (!vp.isLooping) p.ended = true; };
             return p;

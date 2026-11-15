@@ -556,7 +556,7 @@ namespace VirtualBeeSwarm.Stakes
                 Vector3 fwd = step.sqrMagnitude > 1e-8f ? step : (_band - p);
                 Quaternion rot = fwd.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(fwd, Vector3.up) : Quaternion.identity;
                 float len = beeLength * scale;
-                _matrices[drawn] = Matrix4x4.TRS(p, rot, new Vector3(len, len, len)); // wings flap in the shader
+                _matrices[drawn] = Matrix4x4.TRS(p, rot * InsectBodySway.Offset(now, _phase[i], 0.55f), new Vector3(len, len, len)); // wings flap in the shader
 
                 float g = _goldStart[i] < 0f ? 0f : Mathf.Clamp01((now - _goldStart[i]) / 0.6f);
                 float shade = 0.8f + 0.35f * (0.5f + 0.5f * Mathf.Sin(_phase[i] * 5.3f));

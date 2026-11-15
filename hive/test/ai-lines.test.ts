@@ -54,7 +54,7 @@ describe("lines.json", () => {
     for (const l of entries) expect({ id: l.id, digits: /\d/.test(l.text) }).toEqual({ id: l.id, digits: false });
     expect(lineText("room_hook_1")).toContain("ravage the Earth");
     expect(lineText("room_meet_1")).toContain("Local Twenty Thousand");
-    expect(lineText("room_meet_2")).toBe("Four things are killing my hive. Four minutes, or you're on that rocket.");
+    expect(lineText("room_meet_2")).toBe("Four problems. Four minutes. Or you're on that rocket.");
     expect(lineText("room_meet_2")).toContain("Four minutes");
     expect(lineText("room_feed_tip")).toBe("We're starving.");
     expect(lineText("room_hornet_1")).toContain("FIST");
@@ -64,7 +64,7 @@ describe("lines.json", () => {
     expect(lineText("room_escape")).toBe("Motion carried. No ravaging today. Cancel the evacuation.");
     expect(lineText("room_t0_1")).toBe("...Shame to waste a ticket. Non-refundable.");
     expect(lineText("room_t0_2")).toBe("TAKE ME TO THE MOON!");
-    expect(lineText("room_t0_3")).toBe("...Not one flower. Only planet with flowers.");
+    expect(lineText("room_t0_3")).toBe("...Not one flower. We've only found them on Earth.");
     expect(lineText("room_map")).toStartWith("Same time tomorrow? Other hives have it worse.");
     const all = entries.map((l) => l.text).join(" ");
     for (const phrase of ["Motion carried.", "Grievance filed.", "Noted for the minutes.", "I'll allow it."]) expect(all).toContain(phrase);

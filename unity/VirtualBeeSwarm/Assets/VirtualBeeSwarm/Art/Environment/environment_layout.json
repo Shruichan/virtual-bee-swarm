@@ -1,0 +1,188 @@
+{
+ "blooms": [
+  {
+   "kind": "Lupine",
+   "x": -0.098,
+   "y": 0.2682,
+   "z": 0.0083,
+   "yaw": 13.1,
+   "scale": 1.146,
+   "extra": false
+  },
+  {
+   "kind": "Sunflower",
+   "x": -0.1254,
+   "y": 0.2889,
+   "z": 0.0067,
+   "yaw": 20.8,
+   "scale": 0.924,
+   "extra": true
+  },
+  {
+   "kind": "Cosmos",
+   "x": -0.3508,
+   "y": -0.0113,
+   "z": 0.0062,
+   "yaw": 0.7,
+   "scale": 1.033,
+   "extra": false
+  },
+  {
+   "kind": "Cornflower",
+   "x": -0.3082,
+   "y": -0.022,
+   "z": 0.006,
+   "yaw": 21.4,
+   "scale": 1.064,
+   "extra": false
+  },
+  {
+   "kind": "Daisy",
+   "x": -0.3266,
+   "y": 0.0095,
+   "z": 0.0073,
+   "yaw": 26.3,
+   "scale": 1.009,
+   "extra": false
+  },
+  {
+   "kind": "Daisy",
+   "x": -0.2515,
+   "y": 0.1654,
+   "z": 0.0062,
+   "yaw": 17.3,
+   "scale": 0.857,
+   "extra": false
+  },
+  {
+   "kind": "Cosmos",
+   "x": -0.2262,
+   "y": 0.1505,
+   "z": 0.0026,
+   "yaw": 8.1,
+   "scale": 0.933,
+   "extra": false
+  },
+  {
+   "kind": "Lupine",
+   "x": -0.2749,
+   "y": 0.1441,
+   "z": 0.0056,
+   "yaw": -10.7,
+   "scale": 0.983,
+   "extra": true
+  },
+  {
+   "kind": "Daisy",
+   "x": 0.0915,
+   "y": -0.2592,
+   "z": 0.0047,
+   "yaw": 3.7,
+   "scale": 0.877,
+   "extra": false
+  },
+  {
+   "kind": "Cornflower",
+   "x": 0.0992,
+   "y": -0.3142,
+   "z": 0.0,
+   "yaw": -0.6,
+   "scale": 0.912,
+   "extra": false
+  },
+  {
+   "kind": "Lupine",
+   "x": 0.0364,
+   "y": 0.2594,
+   "z": 0.0031,
+   "yaw": 18.1,
+   "scale": 0.927,
+   "extra": false
+  },
+  {
+   "kind": "Daisy",
+   "x": 0.0722,
+   "y": 0.2563,
+   "z": 0.0015,
+   "yaw": -14.4,
+   "scale": 1.042,
+   "extra": false
+  },
+  {
+   "kind": "Sunflower",
+   "x": 0.0404,
+   "y": 0.3008,
+   "z": 0.0082,
+   "yaw": 30.9,
+   "scale": 1.059,
+   "extra": true
+  },
+  {
+   "kind": "Cosmos",
+   "x": 0.1697,
+   "y": 0.2545,
+   "z": 0.0065,
+   "yaw": -20.1,
+   "scale": 0.982,
+   "extra": false
+  },
+  {
+   "kind": "Cornflower",
+   "x": 0.202,
+   "y": 0.2338,
+   "z": 0.0069,
+   "yaw": 1.5,
+   "scale": 0.914,
+   "extra": false
+  },
+  {
+   "kind": "Daisy",
+   "x": 0.1929,
+   "y": 0.2793,
+   "z": 0.0086,
+   "yaw": 18.6,
+   "scale": 0.954,
+   "extra": false
+  },
+  {
+   "kind": "Daisy",
+   "x": -0.0729,
+   "y": -0.2804,
+   "z": 0.0038,
+   "yaw": 12.9,
+   "scale": 0.995,
+   "extra": false
+  },
+  {
+   "kind": "Cosmos",
+   "x": -0.0647,
+   "y": -0.2534,
+   "z": 0.003,
+   "yaw": -5.0,
+   "scale": 1.113,
+   "extra": true
+  }
+ ],
+ "island": {
+  "rx": 0.37,
+  "ry": 0.335,
+  "cy": 0.012,
+  "flat_z": 0.0012,
+  "moon_flat_z": 0.0017
+ },
+ "tris": {
+  "Island": 3883,
+  "Bloom_Daisy": 96,
+  "Bloom_Cosmos": 84,
+  "Bloom_Cornflower": 108,
+  "Bloom_Lupine": 280,
+  "Bloom_Sunflower": 122,
+  "MoonGround": 1676,
+  "StarsA": 560,
+  "StarsB": 680,
+  "EarthGlow": 320,
+  "Petal": 16,
+  "PortalVines": 2869,
+  "Shafts": 96
+ }
+}

@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc85907b6c7c88305be595dc846c35a1, type: 3}
+  m_Name: TitleArt
+  m_EditorClassIdentifier: VirtualBeeSwarm::VirtualBeeSwarm.Title.TitleArt
+  plate: {fileID: 2800000, guid: f18fe7ba9d2db4ad58b18aa3733dd745, type: 3}
+  wordmark: {fileID: 2800000, guid: 7a76f980771a6cc8995fac6fc94649c4, type: 3}
+  flat: {fileID: 2800000, guid: a7d526832dbea16a481ff8f93dcedd18, type: 3}
+  stickerBees:
+  - {fileID: 2800000, guid: 6f095cfb06351b6029c0277a46c2d284, type: 3}
+  - {fileID: 2800000, guid: 952724bb320b98fb1990da677656ca21, type: 3}
+  - {fileID: 2800000, guid: 7b74cfbdbf52a575e95ab70697be4114, type: 3}
+  - {fileID: 2800000, guid: 31ddce8780a5f1ef08341f344a72855a, type: 3}
+  stickerFacing: ffffffff0100000001000000ffffffff
+  flowers: {fileID: 3908867794698157080, guid: bc259033c292ef82d8d1b98485c281c4, type: 3}
+  grass: {fileID: 5617882950347892242, guid: 804d87ce890936ad8b0f29ce3609c895, type: 3}

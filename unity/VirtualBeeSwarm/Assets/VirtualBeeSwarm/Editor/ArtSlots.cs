@@ -40,6 +40,128 @@ namespace VirtualBeeSwarm.Editor
     /// </summary>
     public static class ArtSlots
     {
+        // Replace render geometry only. The scene builder owns the gameplay objects and their references.
+        internal static void ApplyShowcaseVisuals(Transform rig)
+        {
+            const string art = "Assets/VirtualBeeSwarm/Art/";
+            var portal = rig.Find("TableAnchor/FutureWindow/Portal");
+            var portalModel = AssetDatabase.LoadAssetAtPath<GameObject>(art + "Portal/Portal_Proposed.fbx");
+            var oldPane = portal?.GetComponentsInChildren<MeshFilter>(true).FirstOrDefault(m => m.name == "FallbackPane");
+            var livePane = portal?.GetComponentsInChildren<MeshFilter>(true).FirstOrDefault(m => m.name == "LivePane");
+            var sourcePane = portalModel?.GetComponentsInChildren<MeshFilter>(true).FirstOrDefault(m => m.name.StartsWith("FallbackPane", StringComparison.Ordinal));
+            if (oldPane != null && livePane != null && sourcePane != null && oldPane.transform.Find("Cedar frame visuals") == null)
+            {
+                var previous = oldPane.sharedMesh.bounds;
+                var source = sourcePane.sharedMesh.bounds;
+                var planeSize = new Vector2(previous.size.x, previous.size.y);
+                var sourceSize = new Vector2(source.size.x, source.size.z);
+                var paneMesh = Object.Instantiate(sourcePane.sharedMesh);
+                var vertices = paneMesh.vertices;
+                var uv = new Vector2[vertices.Length];
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    var point = vertices[i] - source.center;
+                    uv[i] = new Vector2(point.x / sourceSize.x + 0.5f, point.z / sourceSize.y + 0.5f);
+                    vertices[i] = new Vector3(point.x / sourceSize.x * planeSize.x, point.z / sourceSize.y * planeSize.y, 0f);
+                }
+
+                paneMesh.vertices = vertices;
+                paneMesh.uv = uv;
+                paneMesh.RecalculateBounds();
+                paneMesh.RecalculateNormals();
+                // Match the existing video surface normal so material culling stays unchanged.
+                if (Vector3.Dot(paneMesh.normals[0], oldPane.sharedMesh.normals[0]) < 0f)
+                {
+                    var triangles = paneMesh.triangles;
+                    for (int i = 0; i < triangles.Length; i += 3)
+                        (triangles[i + 1], triangles[i + 2]) = (triangles[i + 2], triangles[i + 1]);
+                    paneMesh.triangles = triangles;
+                    paneMesh.RecalculateNormals();
+                }
+
+                oldPane.sharedMesh = SaveVisualMesh(paneMesh, art + "Portal/PortalVideoSurface.asset");
+                livePane.sharedMesh = oldPane.sharedMesh;
+
+                var visuals = new GameObject("Cedar frame visuals").transform;
+                visuals.SetParent(oldPane.transform, false);
+                float depthScale = Mathf.Min(planeSize.x / sourceSize.x, planeSize.y / sourceSize.y);
+                visuals.localScale = new Vector3(planeSize.x / sourceSize.x, planeSize.y / sourceSize.y, depthScale);
+                var fromSourcePlane = Quaternion.Euler(-90f, 0f, 0f);
+                foreach (var piece in portalModel.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    if (piece.name.StartsWith("FallbackPane", StringComparison.Ordinal) ||
+                        piece.name.StartsWith("LivePane", StringComparison.Ordinal)) continue;
+                    var part = new GameObject(piece.name).transform;
+                    part.SetParent(visuals, false);
+                    part.localPosition = fromSourcePlane * (sourcePane.transform.InverseTransformPoint(piece.transform.position) - source.center);
+                    part.localRotation = fromSourcePlane * Quaternion.Inverse(sourcePane.transform.rotation) * piece.transform.rotation;
+                    var scale = piece.transform.lossyScale;
+                    var basis = sourcePane.transform.lossyScale;
+                    part.localScale = new Vector3(scale.x / basis.x, scale.y / basis.y, scale.z / basis.z);
+                    part.gameObject.AddComponent<MeshFilter>().sharedMesh = piece.sharedMesh;
+                    part.gameObject.AddComponent<MeshRenderer>().sharedMaterials = piece.GetComponent<MeshRenderer>().sharedMaterials;
+                }
+
+                foreach (var renderer in portal.GetComponentsInChildren<MeshRenderer>(true))
+                    if (renderer.name == "Frame" || renderer.name == "Glow") renderer.enabled = false;
+            }
+
+            var tiles = AssetDatabase.LoadAssetAtPath<GameObject>(art + "HexTile/Hex_Tiles_Proposed.fbx");
+            var tile = tiles?.GetComponentsInChildren<MeshFilter>().FirstOrDefault(m => m.name.StartsWith("Face.", StringComparison.Ordinal));
+            var panel = rig.GetComponentInChildren<HexagonPanel>(true);
+            if (tile == null || panel == null) return;
+            var panelFields = new SerializedObject(panel);
+            panelFields.FindProperty("faceMaterialIndex").intValue = 2;
+            panelFields.FindProperty("offColor").colorValue = tile.GetComponent<MeshRenderer>().sharedMaterials[2].color;
+            panelFields.ApplyModifiedPropertiesWithoutUndo();
+            var hexagons = panelFields.FindProperty("hexagons");
+            var first = hexagons.GetArrayElementAtIndex(0).objectReferenceValue as MeshRenderer;
+            var firstMesh = first?.GetComponent<MeshFilter>();
+            if (firstMesh == null || firstMesh.sharedMesh.name == "ShowcaseProgressTile") return;
+
+            var tileMesh = Object.Instantiate(tile.sharedMesh);
+            tileMesh.name = "ShowcaseProgressTile";
+            var tileBounds = tileMesh.bounds;
+            var target = firstMesh.sharedMesh.bounds.size;
+            // Preserve the spacing and the existing renderer's local origin for the pop animation.
+            var tileScale = Mathf.Min(target.x / tileBounds.size.x, target.y / tileBounds.size.y);
+            var tileVertices = tileMesh.vertices;
+            for (int i = 0; i < tileVertices.Length; i++)
+            {
+                var point = tileVertices[i] - tileBounds.center;
+                tileVertices[i] = new Vector3(-point.x * tileScale, point.y * tileScale, -point.z * target.z / tileBounds.size.z);
+            }
+
+            tileMesh.vertices = tileVertices;
+            tileMesh.RecalculateBounds();
+            tileMesh.RecalculateNormals();
+            var progressMesh = SaveVisualMesh(tileMesh, art + "HexTile/ShowcaseProgressTile.asset");
+            var trims = tile.GetComponent<MeshRenderer>().sharedMaterials;
+            for (int i = 0; i < hexagons.arraySize; i++)
+            {
+                var renderer = hexagons.GetArrayElementAtIndex(i).objectReferenceValue as MeshRenderer;
+                if (renderer == null) continue;
+                renderer.GetComponent<MeshFilter>().sharedMesh = progressMesh;
+                renderer.sharedMaterials = new[] { trims[0], trims[1], renderer.sharedMaterial };
+            }
+        }
+
+        static Mesh SaveVisualMesh(Mesh mesh, string path)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (existing == null)
+            {
+                AssetDatabase.CreateAsset(mesh, path);
+                return mesh;
+            }
+
+            EditorUtility.CopySerialized(mesh, existing);
+            EditorUtility.SetDirty(existing);
+            Object.DestroyImmediate(mesh);
+            return existing;
+        }
+
+
         sealed class Slot
         {
             public string Name;                     // Art/<Name>/<Name>.prefab

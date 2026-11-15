@@ -281,7 +281,7 @@ describe("ask fact guard", () => {
     expect(SYSTEM_PROMPT).toContain("Facts come ONLY from the vetted fact list below");
     expect(SYSTEM_PROMPT).toContain("never fill a gap from your own knowledge");
     expect(SYSTEM_PROMPT).toContain(`answer exactly: ${OFF_LIST_ANSWER}`);
-    expect(SYSTEM_PROMPT).toContain("At most twenty-five words");
+    expect(SYSTEM_PROMPT).toContain("At most thirty words");
     expect(SYSTEM_PROMPT).toContain("## Vetted fact list (the only facts Beeswax may use)");
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/); // nothing per-request in the cached prefix
   });
@@ -293,7 +293,7 @@ describe("ask fact guard", () => {
     expect(await route("how long do bees live", ctx("meet"))).toMatchObject({ intent: "ask", answer: OFF_LIST_ANSWER, path: "claude" });
   });
 
-  test("a long answer is clipped to 25 words", async () => {
+  test("a long answer is clipped to 30 words", async () => {
     const long = `${"Smoke masks our alarm signal and makes us gorge on honey. ".repeat(4)}`;
     mockClient(() => reply({ intent: "ask", topic: null, custom_prompt: null, answer: long }));
     const r = await route("why does smoke work", ctx("smoker", ["choice smoker: smoker (correct)"]));

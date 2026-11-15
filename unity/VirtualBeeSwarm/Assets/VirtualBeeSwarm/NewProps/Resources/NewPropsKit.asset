@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ef4bb2c6f5976af7b22654e0849fd34, type: 3}
+  m_Name: NewPropsKit
+  m_EditorClassIdentifier: VirtualBeeSwarm::VirtualBeeSwarm.NewPropsKit
+  unionBadge: {fileID: 355822519252758814, guid: 340e1156fff5b9aaf9f6571132fca503, type: 3}
+  hiveTool: {fileID: 2294641311123215192, guid: 26b9d297250ebd201b67eb7ca6476bff, type: 3}
+  frameRest: {fileID: 8436513801829684806, guid: ab5e6b4b128c0ce4ca9952a28ed9805e, type: 3}
+  queenBee: {fileID: 4335656521580331388, guid: 91aba01311af8575fb5d78a8bd5c72ff, type: 3}
+  queenCage: {fileID: 1727182283295051953, guid: a0bc4f19bcf5fd31db2ff046d6fbe19d, type: 3}
+  nectarDroplet: {fileID: 944088664242440372, guid: 745c4f5c3b599e0c6a1bf1ac63eac716, type: 3}
+  wateringCan: {fileID: 7458120104572324522, guid: ecb7b39fedbafb5208498aaec7e87e8f, type: 3}
+  flowerPots: {fileID: 1793634922194150236, guid: 6c9ea7d97a7c0e0b6903c5ec59393900, type: 3}
+  sampleTray: {fileID: 7174707441592952877, guid: 37d9da18e7b533df1a31f60b7feb2d28, type: 3}
+  moonFlag: {fileID: 8301785242874268536, guid: 43797eb53c5d7a7a18570b72c3a740b9, type: 3}
+  earthFlag: {fileID: 6425347695527187825, guid: 49d4794ea4e95504794a52607bf1c2bc, type: 3}
+  flowers: {fileID: 3908867794698157080, guid: bc259033c292ef82d8d1b98485c281c4, type: 3}

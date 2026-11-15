@@ -33,6 +33,8 @@ namespace VirtualBeeSwarm
     {
         /// <summary>Sound hook (no audio here): (item, pitch scale, why). Heavy flight = 1.3, eager hint = 1.15.</summary>
         public static event Action<Transform, float, string> BuzzCue;
+        /// <summary>HandsOn (full): nothing flies in until it is ordered (ParkOrdered).</summary>
+        public static Func<StationDelivery, bool> OrderMode; // HANDSON hook
 
         [SerializeField] GameStation station;
         [Tooltip("Read the station from a StationBase on this GameObject (else use the field above).")]
@@ -322,6 +324,7 @@ namespace VirtualBeeSwarm
             _parked = true;
             for (int i = 0; i < _n; i++) _heavyCued[i] = false;
             ComputeArc();
+            if (OrderMode != null && OrderMode(this)) return; // HANDSON hook
             int slot = 0;
             for (int i = 0; i < _n; i++)
             {
@@ -329,6 +332,15 @@ namespace VirtualBeeSwarm
                 Delivery.Park(_item[i], _slots[slot++]);
             }
             Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + ": " + _n + " choices on their way to the arc");
+        }
+
+        /// <summary>HandsOn: fly one ordered choice in, to its arc slot (or to `at`).</summary>
+        public void ParkOrdered(string choice, Pose? at = null) // HANDSON hook
+        {
+            int i = IndexOf(choice);
+            if (!Active || i < 0 || _gone[i]) return;
+            if (!_parked) ParkChoices();
+            Delivery.Park(_item[i], at ?? _slots[i]);
         }
 
         /// <summary>OfferChoices: make sure the choices are out (a subclass intro that never called ParkChoices). True = all parked.</summary>
@@ -345,6 +357,7 @@ namespace VirtualBeeSwarm
             get
             {
                 if (!Active) return true;
+                if (OrderMode != null && OrderMode(this)) return true; // HANDSON hook
                 Resolve();
                 for (int i = 0; i < _n; i++) if (!_gone[i] && !ParkedAt(i)) return false;
                 return true;
@@ -377,6 +390,7 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBS][Delivery] " + GameIds.StationName(station) + " choices accept pokes (all parked" +
                           (waited > 0.005f ? ", waited " + waited.ToString("0.00") + " s for the arc" : "") + ")");
             _hintArmedAt = hintAfterSeconds > 0f ? Time.time : -1f;
+            if (OrderMode != null && OrderMode(this)) _hintArmedAt = -1f; // HANDSON hook: the order ticket hints instead
             _hintFiredThisOffer = false;
         }
 

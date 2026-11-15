@@ -12,6 +12,9 @@ namespace VirtualBeeSwarm
     /// </summary>
     public class T0Sequence : BeatBehaviour
     {
+        /// <summary>HandsOn: runs after 3-2-1, before LIFTOFF (the launch lever). Gets the rocket display.</summary>
+        public static System.Func<TextMesh, IEnumerator> LaunchGate; // HANDSON hook
+
         [Header("Rocket")]
         [SerializeField] Transform rocket;
         [SerializeField] Transform rocketSeat;
@@ -104,6 +107,7 @@ namespace VirtualBeeSwarm
                 if (stakes != null && stakes.Display != null) stakes.Display.ShowPassengerCount(n);
                 yield return Wait(0.9f);
             }
+            if (LaunchGate != null) yield return LaunchGate(rocketDisplay); // HANDSON hook
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
 
             // launch
@@ -135,8 +139,10 @@ namespace VirtualBeeSwarm
                 if (beeswax != null) beeswax.SetVisible(false); // he's up there with it
             }
 
-            // the Moon
+            // the Moon (v2 optional #4 first: "Look at Earth. Up here it barely moves.")
             float moonStart = Time.time;
+            var earthLine = RideLines.T0Earth;
+            if (RidePacing.Optional(4, earthLine)) yield return SayAndWait(earthLine, 2.5f, LineTime.Seconds(net, earthLine) + 1f, unlessHive: false);
             yield return SayAndWait(GameLines.T0Moon, 2.5f, 6f, unlessHive: false);
             while (Time.time - moonStart < 4f)
             {

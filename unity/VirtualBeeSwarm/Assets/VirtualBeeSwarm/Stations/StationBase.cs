@@ -9,6 +9,9 @@ namespace VirtualBeeSwarm
     /// Right: hexagon lights, beat completes. Wrong: its consequence plays out, that button is crossed out, retry.
     /// Timeout: Beeswax does it himself ("Noted for the minutes") so the show goes on.
     /// Subclasses add the props and the per-choice visuals.
+    /// Ride script v2: 8 s after the choices are offered with no pick, Beeswax's "Off the record?" hint (once per
+    /// station); 20 s with no pick, room_timeout ("Overruled. I'm picking for you.") and the right choice plays. Both
+    /// count as a stall (RidePacing). AfterSolved() runs after the right line, before the beat moves on.
     /// </summary>
     public abstract class StationBase : BeatBehaviour
     {
@@ -32,18 +35,32 @@ namespace VirtualBeeSwarm
         [SerializeField] protected float retryPauseSeconds = 0.8f;
         [Tooltip("Delivered choices: wait at most this long for every choice to park before they accept pokes.")]
         [SerializeField] protected float maxParkWaitSeconds = 4f;
+        [Tooltip("v2: the spoken hint this long after the choices are offered with no pick (once per station; 0 = off).")]
+        [SerializeField] protected float hintAfterSeconds = 8f;
+        [Tooltip("v2: no pick this long after the choices are offered: room_timeout, then the right choice (0 = off).")]
+        [SerializeField] protected float noPickTimeoutSeconds = 20f;
 
         public GameStation Station => station;
         public bool Solved { get; private set; }
         public bool Busy { get; private set; }
         public bool Choosing { get; private set; }
 
+        /// <summary>HandsOn: true = this poke was taken as an order / a hand step, not a pick.</summary>
+        public static System.Func<StationBase, string, bool> PickGate; // HANDSON hook
+        /// <summary>HandsOn: the player just did the right choice's set-up by hand (skip the automatic version).</summary>
+        public static bool SetupByHand; // HANDSON hook
+
         Coroutine _intro, _offerWait;
         bool _correctPending;   // the right choice is playing out (hexagon not lit yet)
         bool _timeoutPending;   // max duration hit while a wrong choice was playing: solve right after it
         bool _timeoutSolving;
+        float _offeredAt = -1f;
+        bool _hintSaid;
 
         protected abstract GameLine Prompt { get; }
+        /// <summary>v2: the "Off the record?" hint (no id = none).</summary>
+        protected virtual GameLine Hint => default;
+        public void RestartPickClock() { if (_offeredAt >= 0f) _offeredAt = Time.time; _hintSaid = true; } // HANDSON hook: a hand step is under way
 
         public override bool Handles(GameBeat beat) => beat == BeatOf(station);
 
@@ -102,6 +119,28 @@ namespace VirtualBeeSwarm
         protected virtual void Update()
         {
             if (!IsActive || !Choosing || Busy) return;
+            if (_offeredAt >= 0f && !Solved)
+            {
+                float waited = Time.time - _offeredAt;
+                if (noPickTimeoutSeconds > 0f && waited >= noPickTimeoutSeconds)
+                {
+                    _offeredAt = -1f;
+                    RidePacing.NoteStall(GameIds.StationName(station) + ": no pick " + noPickTimeoutSeconds.ToString("0") + " s after the offer");
+                    StopIntro();
+                    StartCoroutine(TimeoutSolve());
+                    return;
+                }
+                if (!_hintSaid && hintAfterSeconds > 0f && waited >= hintAfterSeconds && (net == null || !net.IsSpeaking))
+                {
+                    _hintSaid = true;
+                    var hint = Hint;
+                    if (!string.IsNullOrEmpty(hint.id))
+                    {
+                        RidePacing.NoteStall(GameIds.StationName(station) + ": hint " + hint.id + " after " + waited.ToString("0.0") + " s");
+                        if (net != null) net.Say(hint);
+                    }
+                }
+            }
             if (delivery != null && delivery.Active)
             {
                 // a delivered choice takes pokes only while parked (an offer that gave up waiting unlocks them as they land)
@@ -140,6 +179,8 @@ namespace VirtualBeeSwarm
             Choosing = false;
             _offerWait = null;
             _correctPending = _timeoutPending = _timeoutSolving = false;
+            _offeredAt = -1f;
+            _hintSaid = false;
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i] != null) { buttons[i].MarkWrong(false); buttons[i].SetInteractable(false); }
             SetActive(props, true);
@@ -158,6 +199,7 @@ namespace VirtualBeeSwarm
             Busy = false;
             _intro = null;
             _offerWait = null;
+            _offeredAt = -1f;
             ShowButtons(false);
             if (delivery != null) delivery.OnStationExit(Solved); // flights snap: the right one on its spot, the rest gone
             OnStationExit();
@@ -194,8 +236,10 @@ namespace VirtualBeeSwarm
             _timeoutSolving = true;
             Busy = true; // nothing else may choose while Beeswax announces it
             Choosing = false;
+            _offeredAt = -1f;
             ShowButtons(false);
-            yield return SayAndWait(GameLines.TimeoutSolve, 1f, 3.5f);
+            var line = RideLines.Timeout; // v2: "Overruled. I'm picking for you. Watch closely."
+            yield return SayAndWait(line, 1f, LineTime.Seconds(net, line) + 1f);
             Busy = false;
             Choose(GameIds.CorrectChoice[(int)station]);
         }
@@ -239,6 +283,7 @@ namespace VirtualBeeSwarm
         void Offer(float waited)
         {
             Choosing = true;
+            _offeredAt = Time.time;
             ShowButtons(true);
             for (int i = 0; i < buttons.Length; i++)
                 if (buttons[i] != null)
@@ -258,6 +303,7 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBS][Delivery] poke on " + b.ChoiceId + " ignored: still flying");
                 return;
             }
+            if (PickGate != null && PickGate(this, b.ChoiceId)) return; // HANDSON hook
             Choose(b.ChoiceId);
         }
 
@@ -290,6 +336,7 @@ namespace VirtualBeeSwarm
             // choice.made -> the Hive plays the line, steers the window, fires fx; BeeswaxStations covers it offline.
             bool clientVoices = net != null && net.MakeChoice(station, choice, outcome.scene);
 
+            _offeredAt = -1f;
             StartCoroutine(OutcomeThenDelivery(choice, correct));
             if (clientVoices) yield return WaitForTalk(minOutcomeSeconds, maxOutcomeSeconds);
             else yield return SayAndWait(outcome.line, minOutcomeSeconds, maxOutcomeSeconds, unlessHive: true);
@@ -297,6 +344,7 @@ namespace VirtualBeeSwarm
             if (correct)
             {
                 FinishSolved();
+                yield return AfterSolved(choice);
                 Busy = false;
                 Complete(advanceDelay);
                 yield break;
@@ -306,6 +354,9 @@ namespace VirtualBeeSwarm
                 if (buttons[i] != null && buttons[i].ChoiceId == choice) buttons[i].MarkWrong(true);
             yield return Wait(retryPauseSeconds);
             OnRetry(choice);
+            // let the wrong-pick line and "Pick again." finish before the choices come back
+            float retrySaid = Time.time;
+            while (net != null && net.IsSpeaking && Time.time - retrySaid < 8f) yield return null;
             if (_timeoutPending)
             {
                 // The beat ran out of time during this wrong answer: Beeswax does it himself now (still Busy).
@@ -354,5 +405,14 @@ namespace VirtualBeeSwarm
         /// <summary>A wrong choice played out; undo what must be undone before the retry.</summary>
         protected virtual void OnRetry(string wrongChoice) { }
         protected virtual void OnSolved() { }
+        /// <summary>v2: the lines after the right one (banana, feed_why, optional lines), before the beat moves on.</summary>
+        protected virtual IEnumerator AfterSolved(string choice) { yield break; }
+
+        /// <summary>Say a line and wait for it (its clip or caption length; a silent smoke player doesn't cut it short).</summary>
+        protected IEnumerator SayLine(GameLine line, float minSeconds = 0.8f)
+        {
+            float len = LineTime.Seconds(net, line);
+            yield return SayAndWait(line, Mathf.Min(minSeconds, len), len + 1.5f);
+        }
     }
 }

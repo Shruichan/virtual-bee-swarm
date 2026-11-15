@@ -24,7 +24,11 @@ namespace VirtualBeeSwarm
         [Header("Clock")]
         [Tooltip("Max seconds per beat (index = beat number). 0 = no limit. Then the beat's OnBeatTimeout runs and the " +
                  "director advances at most timeoutGraceSeconds later.")]
-        [SerializeField] float[] maxSeconds = { 0f, 30f, 13f, 50f, 60f, 50f, 40f, 50f, 40f, 25f, 45f, 0f, 0f }; // v3.1: hook 30 (delivered), meet 13 (meet_1 + meet_2 = 11.1 s), smoker 50
+        [SerializeField] float[] beatCapSeconds = { 0f, 25f, 48f, 55f, 85f, 50f, 40f, 50f, 60f, 25f, 45f, 0f, 0f };
+        // ride script v2 (typical run, then the cap): hook 8 s (25), meet 32 s (48: six lines, one of them the forecast),
+        // smoker 36 s (55: hint 8 s + no-pick timeout 20 s), feed 43 s (85: lift timeout 18 s, the honey mistake is 11 s), wasps 23 s +10 per wrong
+        // pick (50), heat 18 s +9 per wrong pick (50), what-if 33 s (60: hint, put-out hint, 25 s silence), escape 14 s (25),
+        // T-0 24 s (45), map/unload 27 s (no cap: the ride ends there).
         [SerializeField] AutoAdvance autoAdvance = AutoAdvance.Always;
         [Tooltip("After a beat's max: how long its wrap-up may take (a station's own \"Noted for the minutes\" + outcome line " +
                  "is ~5-14 s) before the director moves on anyway. A wrap-up that calls Complete() advances sooner.")]
@@ -54,13 +58,16 @@ namespace VirtualBeeSwarm
 
         public GameBeat Beat { get; private set; } = GameBeat.Pre;
         public float BeatSeconds => Time.time - _beatStartedAt;
-        /// <summary>Seconds since the first station started (v3.1: the clock starts at smoker, not in the intro; frozen at escape).</summary>
+        /// <summary>Seconds since the first station started (v3.1: the clock starts at smoker, not in the intro; v2: frozen
+        /// when hexagon 4 lights, so the talk after the last station costs no score; at escape at the latest).</summary>
         public float RunSeconds => _runStartedAt < 0f ? 0f : (_runEndedAt >= 0f ? _runEndedAt : Time.time) - _runStartedAt;
         public bool RunFinished => _runEndedAt >= 0f;
         public float TimeLimitSeconds => timeLimitSeconds;
         public HornetMode Hornet { get => hornetMode; set => hornetMode = value; }
         public int SolvedStations { get; private set; }
         public bool PlayedHornet { get; private set; }
+        /// <summary>Seconds since the run started (the signature / START), -1 in pre. The ride script's clock.</summary>
+        public float ShowSeconds => Beat == GameBeat.Pre || _showStartedAt < 0f ? -1f : Time.time - _showStartedAt;
 
         float _beatStartedAt, _runStartedAt = -1f, _runEndedAt = -1f, _showStartedAt = -1f; // show = since START (for timing logs)
         float _advanceAt = -1f;
@@ -122,7 +129,7 @@ namespace VirtualBeeSwarm
             }
 
             // Max durations: let the beat wrap up, then move on regardless.
-            float max = (int)Beat < maxSeconds.Length ? maxSeconds[(int)Beat] : 0f;
+            float max = (int)Beat < beatCapSeconds.Length ? beatCapSeconds[(int)Beat] : 0f;
             if (max > 0f && AutoAdvanceAllowed())
             {
                 if (!_timedOut && BeatSeconds >= max)
@@ -222,7 +229,7 @@ namespace VirtualBeeSwarm
             }
             else if (_runStartedAt < 0f && beat >= GameBeat.Smoker) _runStartedAt = Time.time; // v3.1: the clock starts at the first station (or wherever we jumped in past it)
             if (beat < GameBeat.Smoker) { _runStartedAt = -1f; _runEndedAt = -1f; } // back in the intro: the clock waits for smoker again
-            if (beat < GameBeat.Escape && beat != GameBeat.Pre) _runEndedAt = -1f; // jumped back before the escape: the clock runs again
+            if (beat <= GameBeat.Heat && beat != GameBeat.Pre) _runEndedAt = -1f; // back in the stations: the clock runs again
             if (beat == GameBeat.Escape && _runEndedAt < 0f) _runEndedAt = Time.time;
             if (beat == GameBeat.Hornet) PlayedHornet = true;
             if (prev == GameBeat.Pre || _showStartedAt < 0f) _showStartedAt = Time.time;
@@ -260,7 +267,16 @@ namespace VirtualBeeSwarm
             }
         }
 
-        public void NotifyStationSolved() => SolvedStations++;
+        public void NotifyStationSolved()
+        {
+            SolvedStations++;
+            // v2: the score clock stops when hexagon 4 lights (the last station), so talking after it costs no score
+            if (Beat == GameBeat.Heat && _runStartedAt >= 0f && _runEndedAt < 0f)
+            {
+                _runEndedAt = Time.time;
+                Debug.Log("[VBS] score clock stopped at " + GameMaterials.Clock(RunSeconds) + " (hexagon 4)");
+            }
+        }
 
         /// <summary>group.reset or Shift+R: everything back to pre.</summary>
         public void ResetToPre()

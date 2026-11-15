@@ -15,6 +15,35 @@ namespace VirtualBeeSwarm
         [SerializeField] int guardsAtNormalDoor = 4;
 
         protected override GameLine Prompt => GameLines.WaspsPrompt;
+        protected override GameLine Hint => RideLines.HintWasps;
+
+        /// <summary>
+        /// v2: room_wasps_arrive as the wasps let themselves in through the window, then room_wasps_intro as Beeswax ducks
+        /// behind the hive and BIGGER DOOR / ENTRANCE REDUCER fly in.
+        /// </summary>
+        protected override IEnumerator StationIntro()
+        {
+            yield return SayAndWait(RideLines.WaspsArrive, 0.8f, LineTime.Seconds(net, RideLines.WaspsArrive) + 1f);
+            if (beeswax != null && hive != null)
+            {
+                beeswax.WhipAround();
+                Vector3 away = hive.transform.position - hive.DoorPoint.position;
+                away.y = 0f;
+                beeswax.FlyTo(hive.transform.position + (away.sqrMagnitude > 1e-4f ? away.normalized * 0.22f : Vector3.zero) + Vector3.up * 0.15f);
+            }
+            if (delivery != null) delivery.ParkChoices();
+            yield return SayAndWait(Prompt, 0.8f, 6f);
+            OfferChoices();
+        }
+
+        /// <summary>v2 optional #3: he creeps back out from behind the hive (room_wasps_stinger).</summary>
+        protected override IEnumerator AfterSolved(string choice)
+        {
+            if (beeswax != null) beeswax.GoPresent();
+            var stinger = RideLines.WaspsStinger;
+            if (!RidePacing.Optional(3, stinger)) yield break;
+            yield return SayLine(stinger);
+        }
 
         enum WaspState { Hidden, Buzz, Raid, Leave }
         WaspState _state = WaspState.Hidden;

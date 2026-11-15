@@ -21,7 +21,7 @@ namespace VirtualBeeSwarm.Stakes
         [SerializeField] TextMesh source;
         [SerializeField] float charSizeScale = 0.65f;
         [Tooltip("v3.3: the sign's centre, in the rocket's space (no scale): in front of the base, toward the player (-Z).")]
-        [SerializeField] Vector3 signOffset = new Vector3(0.06f, 0.045f, -0.12f);
+        [SerializeField] Vector3 signPlace = new Vector3(-0.07f, 0.03f, -0.10f);
         [SerializeField] Color backingColor = new Color(0.08f, 0.06f, 0.05f, 1f);
         [SerializeField] Vector2 backingPadding = new Vector2(0.014f, 0.01f);
         [SerializeField] Color color = new Color(1f, 0.85f, 0.3f, 1f);
@@ -100,7 +100,7 @@ namespace VirtualBeeSwarm.Stakes
         {
             if (_rocket == null) return;
             Quaternion yaw = Quaternion.Euler(0f, _rocket.eulerAngles.y, 0f);
-            Vector3 p = _rocket.position + yaw * signOffset;
+            Vector3 p = _rocket.position + yaw * signPlace;
             t.position = p;
             var cam = Camera.main;
             Vector3 view = cam != null ? p - cam.transform.position : yaw * new Vector3(0f, -0.7f, 1f);

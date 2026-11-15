@@ -1,0 +1,19 @@
+{
+    "name": "VirtualBeeSwarm.UiTheme.Editor",
+    "rootNamespace": "VirtualBeeSwarm.Theme.Editor",
+    "references": [
+        "VirtualBeeSwarm.UiTheme",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

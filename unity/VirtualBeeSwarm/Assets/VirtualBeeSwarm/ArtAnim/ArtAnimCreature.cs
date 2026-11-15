@@ -50,6 +50,7 @@ namespace VirtualBeeSwarm
             _anim = GetComponent<Animation>();
             if (_anim == null) { enabled = false; return; }
             _anim.playAutomatically = false;
+            if (!TryGetComponent<InsectBodySway>(out _)) gameObject.AddComponent<InsectBodySway>();
             foreach (var a in accents) SetupLayer(a.clip, a.maskBone, 1);
             if (hornetReactions)
             {

@@ -15,6 +15,16 @@ namespace VirtualBeeSwarm
         [SerializeField] int puffParticles = 25;
 
         protected override GameLine Prompt => GameLines.SmokerPrompt;
+        protected override GameLine Hint => RideLines.HintSmoker;
+
+        /// <summary>v2: "Don't eat one near my house." 0.3 s after the smoker line (cut-if-behind #2).</summary>
+        protected override IEnumerator AfterSolved(string choice)
+        {
+            var banana = RideLines.SmokerBanana;
+            if (RidePacing.Cut(2, banana)) yield break;
+            yield return Wait(0.3f);
+            yield return SayLine(banana, 0.5f);
+        }
 
         protected override void Awake()
         {
@@ -43,7 +53,7 @@ namespace VirtualBeeSwarm
                     if (swarm != null) swarm.Spike(0.8f);
                     break;
                 case GameIds.Choice.Smoker:
-                    for (int k = 0; k < 3; k++)
+                    for (int k = 0; k < 3 && !SetupByHand; k++) // HANDSON hook: the player just pumped them
                     {
                         if (smokePuff != null) smokePuff.Emit(puffParticles);
                         GameSound.Cue("smoker_puff", smokePuff != null ? smokePuff.transform : null);

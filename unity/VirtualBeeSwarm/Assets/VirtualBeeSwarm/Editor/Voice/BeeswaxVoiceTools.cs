@@ -48,7 +48,6 @@ namespace VirtualBeeSwarm.Editor
             { "Hook2", "room_hook_2", "" },
             { "MeetIntro", "room_meet_1", "" },
             { "Meet", "room_meet_2", "" },
-            { "MeetWindow", "room_meet_window", "" },
             { "SmokerPrompt", "room_smoker_intro", "= stations.json smoker.intro_line" },
             { "FeedPrompt", "room_feed_intro", "= stations.json feed.intro_line" },
             { "FeedLiftHint", "room_feed_lift_hint", "the player hasn't lifted the hive yet" },
