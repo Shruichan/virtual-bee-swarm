@@ -3,6 +3,7 @@
 // STT_PROVIDER = auto (default: ElevenLabs when ELEVENLABS_API_KEY is set, else whisper) | elevenlabs | whisper.
 // auto hedges: the other provider starts when the first one fails or is slow. transcribe() never throws.
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+import { noteFailure, noteOk } from "./services";
 
 export interface SttResult {
   text: string;
@@ -202,10 +203,14 @@ export async function transcribe(pcm16le16k: Uint8Array, opts: { timeoutMs?: num
       pending++;
       if (next < order.length) hedge = setTimeout(startNext, sttLimits.hedgeMs);
       a.promise.then(
-        (text) => finish({ text: cleanTranscript(text), ms: elapsed(), provider: a.provider }),
+        (text) => {
+          noteOk(a.provider === "elevenlabs" ? "elevenlabs_stt" : "whisper");
+          finish({ text: cleanTranscript(text), ms: elapsed(), provider: a.provider });
+        },
         (e) => {
           pending--;
           if (done) return;
+          noteFailure(a.provider === "elevenlabs" ? "elevenlabs_stt" : "whisper", e);
           errors.push(`${a.provider}: ${errText(e)}`);
           if (next < order.length) startNext();
           else if (pending === 0) finish({ text: "", ms: elapsed(), provider: "none", error: errors.join("; ") });

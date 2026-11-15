@@ -106,6 +106,9 @@ const PAGE = `<!doctype html>
   #log div { padding: 3px 0; border-bottom: 1px solid #2a2418; word-break: break-word; }
   #log .t { color: var(--dim); margin-right: 6px; }
   #log .err { color: var(--bad); } #log .lat { color: var(--blue); } #log .hi { color: var(--honey); }
+  #alerts { display: none; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: #4a1d1a; border: 1px solid #7a2f2a; color: #ffd6d1; font-size: 14px; }
+  #alerts.on { display: block; }
+  #alerts .a { padding: 3px 0; } #alerts b { color: #fff; } #alerts .fix { color: #ffb4ad; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -119,10 +122,12 @@ const PAGE = `<!doctype html>
     <span>voice in <b id="stt">?</b></span>
     <span>window <b id="winMeta">-</b></span>
     <span>grievances <b id="griev">0</b></span>
+    <span>EL credits <b id="credits">-</b></span>
     <span>group <b id="group">-</b></span>
   </div>
   <div id="score"></div>
 </header>
+<div id="alerts" role="alert"></div>
 
 <h2>Beats</h2>
 <div class="grid g2" id="beats"></div>
@@ -511,8 +516,27 @@ const PAGE = `<!doctype html>
       if (h.score && typeof h.score === "object") { scoreCard = h.score; showScore(h.score); }
       else if (h.score && !scoreCard) showScore(h.score);
       if (typeof h.grievances === "number") showGriev(h.grievances);
+      showAlerts(h.alerts, h.credits);
       (h.solved || []).forEach(function (st) { var hx = $("hex_" + st); if (hx) { hx.textContent = "LIT"; hx.className = "hex lit"; } });
     }).catch(function () {});
+  }
+  // ---- service alerts: which API failed, why, and the fix (services.ts); the ride itself keeps going
+  function showAlerts(list, credits) {
+    var box = $("alerts"), cr = $("credits");
+    if (cr) {
+      if (credits && typeof credits.left === "number") { cr.textContent = credits.left.toLocaleString("en-US"); cr.className = credits.left < 3000 ? "off" : ""; }
+      else { cr.textContent = "-"; cr.className = ""; }
+    }
+    if (!box) return;
+    if (!list || !list.length) { box.className = ""; box.textContent = ""; return; }
+    box.className = "on";
+    box.textContent = "";
+    list.forEach(function (a) {
+      var row = document.createElement("div"); row.className = "a";
+      var head = document.createElement("b"); head.textContent = "⚠ " + a.label + ": " + a.problem + (a.count > 1 ? " (x" + a.count + ")" : "");
+      var fix = document.createElement("div"); fix.className = "fix"; fix.textContent = "Fix: " + a.fix;
+      row.appendChild(head); row.appendChild(fix); box.appendChild(row);
+    });
   }
   setInterval(poll, 4000); poll();
 
