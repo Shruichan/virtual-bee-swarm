@@ -20,6 +20,7 @@ export function fakeSession(opts: FakeOptions = {}) {
   const photos: number[] = []
   const warmUps: unknown[] = []
   const leds: unknown[] = []
+  const streams: {op: "start" | "stop"; opts?: unknown; at: number}[] = []
   const status: {last: GlassesStatus | null} = {last: null}
   const handlers: {
     button?: (p: {buttonId: string; pressType: "short" | "long"}) => void
@@ -87,6 +88,15 @@ export function fakeSession(opts: FakeOptions = {}) {
         warmUps.push(o)
       },
     },
+    stream: {
+      async startStream(o: unknown) {
+        streams.push({op: "start", opts: o, at: Date.now()})
+        return {streamId: "stream-1", status: "streaming", resolvedConfig: {video: {width: 1280, height: 720, fps: 15}}}
+      },
+      async stop() {
+        streams.push({op: "stop", at: Date.now()})
+      },
+    },
     input: {
       onButtonPress(h: typeof handlers.button) {
         handlers.button = h
@@ -115,6 +125,7 @@ export function fakeSession(opts: FakeOptions = {}) {
     photos,
     warmUps,
     leds,
+    streams,
     status,
     press: (pressType: "short" | "long" = "short") => handlers.button!({buttonId: "main", pressType}),
     say: (text: string, isFinal = true) => handlers.transcript!({text, isFinal}),
