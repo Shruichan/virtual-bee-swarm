@@ -505,8 +505,20 @@ namespace VirtualBeeSwarm
             return null;
         }
 
+        // The Quest's on-device speech engine is a different voice from Beeswax's recorded and live ElevenLabs voice.
+        // dartiros wants one consistent voice, so it's opt-in now: VBS_DEVICE_SPEECH=1 turns it back on. Off, a failed
+        // live reply shows its caption, and the Board says which service failed.
+        static readonly bool DeviceSpeechFallback = ReadDeviceSpeechSwitch();
+
+        static bool ReadDeviceSpeechSwitch()
+        {
+            try { return System.Environment.GetEnvironmentVariable("VBS_DEVICE_SPEECH") == "1"; }
+            catch (System.Exception) { return false; }
+        }
+
         bool ShouldSpeakDeviceCaption(string caption)
         {
+            if (!DeviceSpeechFallback) { _deviceAskReplyPending = false; return false; }
             if (!_deviceAskReplyPending) return false;
             _deviceAskReplyPending = false;
             return !string.IsNullOrWhiteSpace(caption) && !Ask.AskLines.IsNonAnswer("", caption);

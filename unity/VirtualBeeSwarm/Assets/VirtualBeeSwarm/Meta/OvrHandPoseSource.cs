@@ -1,4 +1,8 @@
 #if VBS_META
+#if UNITY_ANDROID && !UNITY_EDITOR
+using System.Collections.Generic;
+using UnityEngine.XR;
+#endif
 using UnityEngine;
 
 namespace VirtualBeeSwarm.Meta
@@ -33,14 +37,31 @@ namespace VirtualBeeSwarm.Meta
 
         readonly Bones[] _bones = new Bones[2];
         float _nextResolve;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        readonly List<XRInputSubsystem> _xrInputs = new List<XRInputSubsystem>(2);
+        float _floorProbeUntil = -1f, _nextFloorProbe;
+        int _deviceModeSamples, _floorRequests;
+        bool _paused;
+#endif
 
         void OnEnable()
         {
             Resolve();
             GameHands.Register(this, priority);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            OVRManager.InputFocusAcquired += CheckFloorAfterResume;
+#endif
         }
 
-        void OnDisable() => GameHands.Unregister(this);
+        void OnDisable()
+        {
+            GameHands.Unregister(this);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            OVRManager.InputFocusAcquired -= CheckFloorAfterResume;
+            _floorProbeUntil = -1f;
+            _paused = false;
+#endif
+        }
 
         void Resolve()
         {
@@ -61,12 +82,77 @@ namespace VirtualBeeSwarm.Meta
 
         void Update()
         {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            RestoreFloorOrigin();
+#endif
             if ((rig == null || leftHand == null || rightHand == null) && Time.unscaledTime >= _nextResolve)
             {
                 _nextResolve = Time.unscaledTime + 2f;
                 Resolve();
             }
         }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        void OnApplicationPause(bool paused)
+        {
+            _paused = paused;
+            if (paused) _floorProbeUntil = -1f;
+            else CheckFloorAfterResume();
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (focused) CheckFloorAfterResume();
+        }
+
+        void CheckFloorAfterResume()
+        {
+            if (_paused || _floorProbeUntil > Time.unscaledTime) return;
+            _nextFloorProbe = Time.unscaledTime + 0.25f;
+            _floorProbeUntil = Time.unscaledTime + 3f;
+            _deviceModeSamples = _floorRequests = 0;
+        }
+
+        void RestoreFloorOrigin()
+        {
+            float now = Time.unscaledTime;
+            if (_paused || now >= _floorProbeUntil || now < _nextFloorProbe || _floorRequests >= 3) return;
+            _nextFloorProbe = now + 0.2f;
+            if (!OVRManager.isHmdPresent || !OVRManager.hasVrFocus || !OVRManager.hasInputFocus)
+            {
+                _deviceModeSamples = 0;
+                return;
+            }
+
+            var head = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+            if (!head.isValid || !head.TryGetFeatureValue(CommonUsages.isTracked, out bool tracked) || !tracked)
+            {
+                _deviceModeSamples = 0;
+                return;
+            }
+
+            // OVRManager's property caches the configured origin. Ask the running XR input subsystem what it is using.
+            SubsystemManager.GetSubsystems(_xrInputs);
+            foreach (var input in _xrInputs)
+            {
+                if (!input.running) continue;
+                if (input.GetTrackingOriginMode() != TrackingOriginModeFlags.Device ||
+                    (input.GetSupportedTrackingOriginModes() & TrackingOriginModeFlags.Floor) == 0)
+                {
+                    _deviceModeSamples = 0;
+                    return;
+                }
+                if (++_deviceModeSamples < 2) return; // headset space can be provisional on the first resume sample
+                _deviceModeSamples = 0;
+                _floorRequests++;
+                bool accepted = input.TrySetTrackingOriginMode(TrackingOriginModeFlags.Floor);
+                Debug.Log("[VBS][Meta] resume eye-level tracking origin: floor request " +
+                          (accepted ? "accepted" : "rejected") + " (" + _floorRequests + "/3)");
+                return;
+            }
+            _deviceModeSamples = 0;
+        }
+#endif
 
         OVRHand Hand(GameHand h) => h == GameHand.Left ? leftHand : rightHand;
         OVRSkeleton Skeleton(GameHand h) => h == GameHand.Left ? leftSkeleton : rightSkeleton;
