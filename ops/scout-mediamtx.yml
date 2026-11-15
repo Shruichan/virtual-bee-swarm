@@ -14,7 +14,12 @@ srt: yes
 srtAddress: :8890
 # scout = the glasses; scouttest = ffmpeg test patterns (dashboard work), never collides with the glasses.
 paths:
-  scout:
+  # Mentra Live appends "/stream" to the RTMP URL it's given, so the glasses publish to scout/stream.
+  scout/stream:
     source: publisher
+  # Readers (vision worker, dashboard) use "scout": a relay of scout/stream.
+  scout:
+    source: rtsp://127.0.0.1:8554/scout/stream
+    rtspTransport: tcp
   scouttest:
     source: publisher
