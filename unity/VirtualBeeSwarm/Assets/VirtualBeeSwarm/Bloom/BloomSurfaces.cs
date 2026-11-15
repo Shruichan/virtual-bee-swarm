@@ -25,6 +25,8 @@ namespace VirtualBeeSwarm.Bloom
         public Quaternion rotation;
         public Vector3 half;
         public bool pillar;
+        /// <summary>What it is (MRUK label: TABLE, SCREEN, STORAGE...; a fixture's name on the desktop). RoomAware logs it.</summary>
+        public string label;
 
         public bool Contains(Vector3 p, float pad)
         {
