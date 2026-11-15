@@ -161,19 +161,33 @@ export function cleanSpoken(s: unknown): string {
     .trim();
 }
 
-/** At most `max` words, cut on a sentence end when there is one. */
-export function clipWords(s: string, max = MAX_ANSWER_WORDS): string {
-  const words = s.split(" ").filter(Boolean);
-  if (words.length <= max) return words.join(" ");
-  const sentences = s.split(/(?<=[.!?])\s+/);
+/** A first sentence may run this long when it alone is over MAX_ANSWER_WORDS (better than a fragment). */
+export const FIRST_SENTENCE_MAX_WORDS = 50;
+/** Kept text shorter than this is only an opener ("Great question, class!"): the next sentence may still come along
+ *  as long as the whole stays within FIRST_SENTENCE_MAX_WORDS. */
+const OPENER_WORDS = 8;
+
+const wordCount = (s: string) => s.split(" ").filter(Boolean).length;
+
+/** The safety cut: the complete sentences that fit in `max` words; when even the first doesn't fit, the first
+ *  sentence alone up to `firstMax` words (only a sentence longer than that is cut mid-way). Never an opener alone
+ *  followed by half a sentence. */
+export function clipWords(s: string, max = MAX_ANSWER_WORDS, firstMax = FIRST_SENTENCE_MAX_WORDS): string {
+  const flat = s.split(" ").filter(Boolean).join(" ");
+  if (wordCount(flat) <= max) return flat;
+  const sentences = flat.split(/(?<=[.!?]["'”’)\]]*)\s+/);
   let out = "";
   for (const x of sentences) {
     const next = out ? `${out} ${x}` : x;
-    if (next.split(" ").length > max) break;
+    const n = wordCount(next);
+    if (n > max && !(out && wordCount(out) < OPENER_WORDS && n <= firstMax)) break;
     out = next;
+    if (n > max) break;
   }
   if (out) return out;
-  const cut = words.slice(0, max).join(" ").replace(/[\s,;:\-–—]+$/, "");
+  const first = sentences[0] ?? flat;
+  if (wordCount(first) <= firstMax) return first;
+  const cut = first.split(" ").slice(0, firstMax).join(" ").replace(/[\s,;:\-–—]+$/, "");
   return /[.!?]$/.test(cut) ? cut : `${cut}.`;
 }
 
@@ -197,14 +211,6 @@ export class SentenceSplitter {
       start = m.index + m[0].length;
     }
     this.buf = this.buf.slice(start);
-    // a long run with no sentence end: cut at the last comma so the voice can start
-    if (!final && this.buf.length > 140) {
-      const cut = this.buf.lastIndexOf(", ");
-      if (cut > 60) {
-        out.push(this.buf.slice(0, cut + 1).trim());
-        this.buf = this.buf.slice(cut + 2);
-      }
-    }
     if (final && this.buf.trim()) {
       out.push(this.buf.trim());
       this.buf = "";
@@ -832,23 +838,32 @@ export class ScoutAsk {
     const produce = (async () => {
       const split = new SentenceSplitter();
       let words = 0;
+      let capped = false;
+      // Whole sentences only, within MAX_ANSWER_WORDS: a sentence that would cross it is not voiced and the stream
+      // stops there (the first sentence alone may run to FIRST_SENTENCE_MAX_WORDS). Same rule as clipWords.
       const emit = (raw: string) => {
         const s = cleanSpoken(raw);
-        if (!s || words >= MAX_ANSWER_WORDS) return;
-        const clipped = clipWords(s, MAX_ANSWER_WORDS - words);
-        words += clipped.split(" ").length;
+        if (!s || capped) return;
+        const n = wordCount(s);
+        if (words > 0 && words + n > MAX_ANSWER_WORDS && !(words < OPENER_WORDS && words + n <= FIRST_SENTENCE_MAX_WORDS)) {
+          capped = true;
+          return;
+        }
+        const piece = words === 0 ? clipWords(s, FIRST_SENTENCE_MAX_WORDS) : s;
+        words += wordCount(piece);
+        if (words >= MAX_ANSWER_WORDS) capped = true;
         if (st.first_sentence_ms === null) st.first_sentence_ms = ms();
-        text = text ? `${text} ${clipped}` : clipped;
-        sentences.push(clipped);
+        text = text ? `${text} ${piece}` : piece;
+        sentences.push(piece);
       };
       try {
         for await (const delta of llm(question, ctx, ac.signal)) {
           if (ac.signal.aborted) break;
           if (st.first_token_ms === null) st.first_token_ms = ms();
           for (const s of split.push(delta)) emit(s);
-          if (words >= MAX_ANSWER_WORDS) break;
+          if (capped) break;
         }
-        for (const s of split.end()) emit(s);
+        if (!capped) for (const s of split.end()) emit(s);
       } catch (e) {
         if (!ac.signal.aborted) llmError = e instanceof Error ? e.message : String(e);
       }
