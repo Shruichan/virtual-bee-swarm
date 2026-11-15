@@ -126,7 +126,7 @@ class Source:
         watchdog: when the glasses' stream drops, reconnect after 2 s of silence instead of OpenCV's ~30 s."""
         cmd = ["ffmpeg", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay",
                "-probesize", "32768", "-analyzeduration", "0", "-timeout", "3000000", "-i", self.spec, "-an",
-               "-vf", f"scale={w}:{h}", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
+               "-vf", f"scale={w}:{h}", "-fps_mode", "passthrough", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
         size = w * h * 3
         last_warn = 0.0
         while not self._stop:
