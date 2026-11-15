@@ -26,6 +26,12 @@ namespace VirtualBeeSwarm
         bool TryGetIndexTip(GameHand hand, out Vector3 position);
     }
 
+    /// <summary>Optional capability for pose sources that can identify controller input.</summary>
+    public interface IControllerPoseSource
+    {
+        bool IsController(GameHand hand);
+    }
+
     /// <summary>Anything a pointer (mouse, controller ray, hand ray) can hover and click. Put it on (a parent of) a collider.</summary>
     public interface IGameTarget
     {

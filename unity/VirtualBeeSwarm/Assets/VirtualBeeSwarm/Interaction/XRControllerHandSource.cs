@@ -9,7 +9,7 @@ namespace VirtualBeeSwarm
     /// Device poses are in tracking space; `trackingSpace` converts them to world (OVRCameraRig/TrackingSpace or the
     /// XR Origin's Camera Offset; empty = the main camera's parent). Registers at priority 0, so the Meta source wins.
     /// </summary>
-    public class XRControllerHandSource : MonoBehaviour, IHandPoseSource
+    public class XRControllerHandSource : MonoBehaviour, IHandPoseSource, IControllerPoseSource
     {
         [SerializeField] Transform trackingSpace;
         [SerializeField] int priority = 0;
@@ -37,6 +37,8 @@ namespace VirtualBeeSwarm
             if (!d.isValid) return false;
             return !d.TryGetFeatureValue(CommonUsages.isTracked, out bool t) || t;
         }
+
+        public bool IsController(GameHand hand) => (Device(hand).characteristics & InputDeviceCharacteristics.Controller) != 0;
 
         public bool IsPinching(GameHand hand)
         {

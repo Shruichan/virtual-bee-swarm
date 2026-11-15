@@ -203,7 +203,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
             if (_moonWanted == on) return;
             _moonWanted = on;
             if (on && !_islandWanted) ShowIsland(true, "moon");
-            if (on) _sky?.Begin();
+            if (on) _sky?.Begin(_island?.HasMoonGround == true);
             Debug.Log("[VBS][Env] Moon stage " + (on ? "in" : "out") + " (" + why + ")");
         }
 

@@ -65,13 +65,13 @@ namespace VirtualBeeSwarm
         public bool RunFinished => _runEndedAt >= 0f;
         public float TimeLimitSeconds => timeLimitSeconds;
         public HornetMode Hornet { get => hornetMode; set => hornetMode = value; }
-        public int SolvedStations => _solvedStationBeats.Count;
+        public int SolvedStations => _solvedStations.Count;
         public bool PlayedHornet { get; private set; }
         /// <summary>Seconds since the run started (the signature / START), -1 in pre. The ride script's clock.</summary>
         public float ShowSeconds => Beat == GameBeat.Pre || _showStartedAt < 0f ? -1f : Time.time - _showStartedAt;
 
         float _beatStartedAt, _runStartedAt = -1f, _runEndedAt = -1f, _showStartedAt = -1f; // show = since START (for timing logs)
-        readonly HashSet<GameBeat> _solvedStationBeats = new HashSet<GameBeat>();
+        readonly HashSet<GameStation> _solvedStations = new HashSet<GameStation>();
         float _advanceAt = -1f;
         GameBeat _advanceFrom;
         bool _timedOut;
@@ -230,8 +230,13 @@ namespace VirtualBeeSwarm
             _forceAdvanceAt = -1f;
 
             if (_runStartedAt < 0f && beat >= GameBeat.Smoker) _runStartedAt = Time.time; // v3.1: the clock starts at the first station (or wherever we jumped in past it)
-            if (beat < GameBeat.Smoker) { _runStartedAt = -1f; _runEndedAt = -1f; } // back in the intro: the clock waits for smoker again
-            if (beat <= GameBeat.Heat) _runEndedAt = -1f; // back in the stations: the clock runs again
+            // An operator can replay any beat without changing a score earned by finishing all four repairs.
+            // Shortcuts into Escape still freeze the local timer, but returning to a station resumes that timer.
+            if (SolvedStations < GameIds.Stations.Length)
+            {
+                if (beat < GameBeat.Smoker) _runStartedAt = -1f;
+                if (beat <= GameBeat.Heat) _runEndedAt = -1f;
+            }
             if (beat == GameBeat.Escape && _runEndedAt < 0f) _runEndedAt = Time.time;
             if (beat == GameBeat.Hornet) PlayedHornet = true;
             if (prev == GameBeat.Pre || _showStartedAt < 0f) _showStartedAt = Time.time;
@@ -239,7 +244,11 @@ namespace VirtualBeeSwarm
             Debug.Log("[VBS] " + GameIds.BeatName(prev) + " -> " + GameIds.BeatName(beat) +
                       (string.IsNullOrEmpty(reason) ? "" : " (" + reason + ")") + " run " + GameMaterials.Clock(RunSeconds) +
                       " show " + GameMaterials.Clock(Time.time - _showStartedAt));
-            if (net != null) net.SendBeat(beat);
+            // Use the same whole seconds as the in-room card. Repeat the frozen time through the ending in
+            // case the first connected beat after Escape is T-0, Map or Field.
+            int? scoreSeconds = beat >= GameBeat.Escape && RunFinished && SolvedStations == GameIds.Stations.Length
+                ? Mathf.FloorToInt(Mathf.Max(0f, RunSeconds)) : (int?)null;
+            if (net != null) net.SendBeat(beat, scoreSeconds);
             EnterBeat(beat);
             BeatChanged?.Invoke(prev, beat);
         }
@@ -269,10 +278,9 @@ namespace VirtualBeeSwarm
             }
         }
 
-        public void NotifyStationSolved()
+        public void NotifyStationSolved(GameStation station)
         {
-            if (Beat < GameBeat.Smoker || Beat > GameBeat.Heat || Beat == GameBeat.Hornet) return;
-            _solvedStationBeats.Add(Beat);
+            _solvedStations.Add(station);
             // Replay and jumps can change station order. Stop timing once all four different stations are solved.
             if (SolvedStations == GameIds.Stations.Length && _runStartedAt >= 0f && _runEndedAt < 0f)
             {
@@ -294,7 +302,7 @@ namespace VirtualBeeSwarm
             _forceAdvanceAt = -1f;
             _runStartedAt = -1f;
             _runEndedAt = -1f;
-            _solvedStationBeats.Clear();
+            _solvedStations.Clear();
             PlayedHornet = false;
             if (net != null)
             {

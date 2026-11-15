@@ -391,11 +391,11 @@ namespace VirtualBeeSwarm
 
         // ---------------------------------------------------------------- outbound
         /// <summary>Unity is the only beat clock: report every beat change. The bus re-sends it after a reconnect.</summary>
-        public void SendBeat(GameBeat beat)
+        public void SendBeat(GameBeat beat, int? scoreSeconds = null)
         {
             if (logEvents) Debug.Log("[VBS] beat " + (int)beat + " " + GameIds.BeatName(beat) + (Online ? "" : " (offline)"));
             if (forceOffline || _bound == null) return;
-            _bound.SendBeatSet((int)beat);
+            _bound.SendBeatSet((int)beat, scoreSeconds);
         }
 
         /// <summary>

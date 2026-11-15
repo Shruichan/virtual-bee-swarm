@@ -125,6 +125,8 @@ namespace Beeswax
         public Welcome LastWelcome { get; private set; }
         /// <summary>Last beat this Quest reported (-1 = none yet).</summary>
         public int LastBeat { get; private set; } = -1;
+        int? _lastBeatScoreSeconds;
+        bool _scoreRequiresNewRun;
         /// <summary>Hive clock minus local clock, from welcome.server_time (ms; rough).</summary>
         public double ServerClockOffsetMs { get; private set; }
         public string LastCloseReason { get; private set; } = "";
@@ -144,9 +146,9 @@ namespace Beeswax
         public int PendingFxCount => _pendingFx.Count;
 
         readonly BeeswaxSocket _socket = new BeeswaxSocket();
-        readonly List<(float at, string json)> _outbox = new List<(float, string)>();
+        readonly List<(float at, string group, string json)> _outbox = new List<(float, string, string)>();
         string _token;
-        bool _wantConnected, _welcomedThisLink;
+        bool _wantConnected, _welcomedThisLink, _outboxGroupConfirmed;
         int _hostIndex, _hostFailures, _backoffStep;
         float _nextAttemptAt = -1f, _lastInboundAt, _nextHeartbeatAt, _beatSentAt = -100f;
         float _frameMs = 13.9f;
@@ -325,10 +327,10 @@ namespace Beeswax
             _nextHeartbeatAt = _lastInboundAt + heartbeatSeconds;
             _pendingPhoto = null;
             _welcomedThisLink = false;
+            _outboxGroupConfirmed = false;
             SetState(BusState.Open);
             Debug.Log("[Beeswax] connected to " + CurrentHost);
             SendHello();
-            FlushOutbox();
         }
 
         void SendHello() => Send(new Hello { role = Role.Quest, client = clientName + "/" + Application.version });
@@ -337,6 +339,7 @@ namespace Beeswax
         {
             LastCloseReason = reason;
             _listenOpen = false; // the Hive drops an open utterance with the socket
+            _outboxGroupConfirmed = false;
             float now = Time.realtimeSinceStartup;
             bool healthy = wasOpen && now - _socket.OpenedAt >= minHealthySeconds;
             SetState(BusState.Offline);
@@ -437,16 +440,31 @@ namespace Beeswax
                     case MsgType.Welcome:
                         var w = BeeswaxProtocol.Parse<Welcome>(json);
                         LastWelcome = w;
-                        GroupId = w.group_id;
+                        bool scoreMatchesGroup = string.IsNullOrEmpty(GroupId) || GroupId == w.group_id;
+                        if (!string.IsNullOrEmpty(w.group_id))
+                        {
+                            if (!scoreMatchesGroup) InvalidateGroupScore();
+                            GroupId = w.group_id;
+                        }
                         Mode = w.mode;
                         if (w.server_time > 0) ServerClockOffsetMs = w.server_time - NowUnixMs();
                         SetState(BusState.Welcomed);
-                        // Unity owns the beat: if the Hive lost it (restart, host switch), tell it again. Skip right
-                        // after a beat.set: this welcome may answer a hello sent before it.
-                        if (LastBeat >= 0 && w.beat != LastBeat && Time.realtimeSinceStartup - _beatSentAt > 2f)
+                        // Unity owns the beat and the frozen run time. The first welcome may already have the
+                        // correct beat but lack the score, so reaffirm the score once per link for this group.
+                        bool missedBeat = w.beat != LastBeat && Time.realtimeSinceStartup - _beatSentAt > 2f;
+                        int? score = scoreMatchesGroup ? _lastBeatScoreSeconds : null;
+                        bool reaffirmScore = !_welcomedThisLink && score.HasValue;
+                        if (LastBeat >= 0 && (missedBeat || reaffirmScore))
                         {
                             Debug.Log($"[Beeswax] Hive says beat {w.beat}, we are at {LastBeat}: re-sending beat.set.");
-                            SendBeatSet(LastBeat);
+                            SendBeatMessage(LastBeat, score);
+                        }
+                        // A socket can reconnect after the Board has started a different group.
+                        // Check the Hive's group and reconcile the beat before replaying player actions.
+                        if (!local && !string.IsNullOrEmpty(w.group_id))
+                        {
+                            _outboxGroupConfirmed = true;
+                            FlushOutbox(w.group_id, Time.realtimeSinceStartup, SendJson);
                         }
                         if (!_welcomedThisLink)
                         {
@@ -463,7 +481,8 @@ namespace Beeswax
                     case MsgType.GroupReset:
                         var g = BeeswaxProtocol.Parse<GroupReset>(json);
                         if (g.group_id.Length > 0) GroupId = g.group_id;
-                        LastScore = null;
+                        InvalidateGroupScore();
+                        _outbox.Clear();
                         CancelPendingFx();
                         Raise(OnGroupReset, g);
                         break;
@@ -546,10 +565,27 @@ namespace Beeswax
 
         // ---------------------------------------------------------------- send
         /// <summary>Tell the Hive the beat machine entered beat n (Unity is the only beat clock).</summary>
-        public void SendBeatSet(int n)
+        public void SendBeatSet(int n, int? scoreSeconds = null)
         {
+            if (n == Beat.Pre) _scoreRequiresNewRun = false;
+            if (_scoreRequiresNewRun) scoreSeconds = null;
             LastBeat = n;
-            if (Send(new BeatSet(n))) _beatSentAt = Time.realtimeSinceStartup; // if offline: re-sent after the next welcome
+            _lastBeatScoreSeconds = scoreSeconds;
+            SendBeatMessage(n, scoreSeconds);
+        }
+
+        void SendBeatMessage(int n, int? scoreSeconds)
+        {
+            if (Send(new BeatSet(n, scoreSeconds))) _beatSentAt = Time.realtimeSinceStartup; // re-sent after the next welcome when needed
+        }
+
+        void InvalidateGroupScore()
+        {
+            LastScore = null;
+            _lastBeatScoreSeconds = null;
+            // A local finale may still be running after an offline group reset. Do not let its next beat
+            // publish the previous group's frozen time under the new ID. The next Pre clears the guard.
+            _scoreRequiresNewRun = LastBeat >= Beat.Smoker;
         }
 
         public void SendSwarmArrived(int socket) => SendOrQueue(new SwarmArrived { socket = socket });
@@ -560,8 +596,8 @@ namespace Beeswax
         /// <summary>
         /// Tell the Hive the player chose `choice` at `station` (authoritative; `correct` is computed here).
         /// The Hive answers with the window scene, Beeswax's line (say) and fx. Returns true if it went out now;
-        /// false if offline (then it is queued for outboxMaxAgeSeconds, so play the outcome locally: BeeswaxStations
-        /// does both) or if the pair is not in CHOICES (logged, not sent).
+        /// false if offline (queued briefly for the last known Hive group, with a local outcome from
+        /// BeeswaxStations) or if the pair is not in CHOICES (logged, not sent).
         /// </summary>
         public bool SendChoiceMade(string station, string choice)
         {
@@ -721,18 +757,22 @@ namespace Beeswax
         bool SendOrQueue(BusMessage msg)
         {
             string json = BeeswaxProtocol.ToJson(msg);
-            if (SendJson(json)) return true;
+            if (_outboxGroupConfirmed && SendJson(json)) return true;
+            // An action taken before ever joining a group has only its local outcome.
+            if (string.IsNullOrEmpty(GroupId)) return false;
             if (_outbox.Count >= 16) _outbox.RemoveAt(0);
-            _outbox.Add((Time.realtimeSinceStartup, json));
+            _outbox.Add((Time.realtimeSinceStartup, GroupId, json));
             return false;
         }
 
-        void FlushOutbox()
+        void FlushOutbox(string group, float now, Func<string, bool> send)
         {
-            float now = Time.realtimeSinceStartup;
-            foreach (var (at, json) in _outbox)
-                if (now - at <= outboxMaxAgeSeconds) SendJson(json);
-            _outbox.Clear();
+            while (_outbox.Count != 0)
+            {
+                var entry = _outbox[0];
+                if (entry.group == group && now - entry.at <= outboxMaxAgeSeconds && !send(entry.json)) return;
+                _outbox.RemoveAt(0);
+            }
         }
 
         // ---------------------------------------------------------------- return to the primary host

@@ -74,14 +74,16 @@ namespace VirtualBeeSwarm
 
         public void UpdateGrab(Vector3 handPoint)
         {
-            rigAnchor.position = handPoint + _grabOffset;
+            Vector3 position = handPoint + _grabOffset;
+            if (Bloom.MeadowLayout.Active) position.y = Bloom.MeadowLayout.FloorY;
+            rigAnchor.position = position;
         }
 
         public void EndGrab()
         {
             Holding = false;
             FacePlayer();
-            Save();
+            PlaceAt(new Pose(rigAnchor.position, rigAnchor.rotation));
         }
 
         void FacePlayer()
@@ -158,8 +160,7 @@ namespace VirtualBeeSwarm
                 fromHead.y = 0f;
                 if (Vector3.Dot(n, fromHead) < 0f) n = -n; // point away from the player, into the table
             }
-            rigAnchor.SetPositionAndRotation(mid + n * inset, Quaternion.LookRotation(n, Vector3.up));
-            Save();
+            PlaceAt(new Pose(mid + n * inset, Quaternion.LookRotation(n, Vector3.up)));
         }
 
         /// <summary>Aim and pinch (v3.1 V7, AR/ArRig): the rig goes exactly to this pose, saved for the session.</summary>

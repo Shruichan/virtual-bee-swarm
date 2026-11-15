@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -52,6 +54,34 @@ namespace VirtualBeeSwarm.Tests
         [Timeout(300000)]
         public IEnumerator FullRun_ForcedOffline() => FullRun(forceOffline: true);
 
+        [Test]
+        public void ReplayingASolvedStationDoesNotCountItTwice()
+        {
+            var gameObject = new GameObject("Station progress test");
+            try
+            {
+                var director = gameObject.AddComponent<GameDirector>();
+                director.NotifyStationSolved(GameStation.Smoker);
+                director.NotifyStationSolved(GameStation.Feed);
+                director.NotifyStationSolved(GameStation.Smoker);
+                Assert.AreEqual(2, director.SolvedStations);
+
+                director.NotifyStationSolved(GameStation.Wasps);
+                director.NotifyStationSolved(GameStation.Heat);
+                director.NotifyStationSolved(GameStation.Feed);
+                Assert.AreEqual(4, director.SolvedStations);
+
+                director.ResetToPre();
+                Assert.AreEqual(0, director.SolvedStations);
+                director.NotifyStationSolved(GameStation.Smoker);
+                Assert.AreEqual(1, director.SolvedStations);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
         IEnumerator FullRun(bool forceOffline)
         {
             string path = BuildGameScene.BuildScene("OfflineTest.unity", offline: true);
@@ -81,6 +111,7 @@ namespace VirtualBeeSwarm.Tests
             yield return null;
             Assert.IsFalse(net.Online, "the offline test scene must never be online");
             Assert.AreEqual(GameBeat.Pre, director.Beat);
+            if (ArtSlots.Enabled) AssertAuthoredSceneArt();
             director.Hornet = GameDirector.HornetMode.Always;
 
             // Start through the same prompt as the player and let the opening run in order.
@@ -116,6 +147,9 @@ namespace VirtualBeeSwarm.Tests
                 Assert.IsNotNull(ticket, "first ticket");
                 Assert.That(ticket.position.y - Bloom.MeadowLayout.Anchor.position.y,
                     Is.EqualTo(Bloom.MeadowTuning.ChoiceHeight).Within(0.02f), "tickets are at the meadow's hand height");
+                Assert.That(orderBoard.transform.localPosition.z,
+                    Is.EqualTo(-Bloom.MeadowLayout.RowOffset(Bloom.MeadowLayout.Scale)).Within(0.001f),
+                    "the order board follows the meadow's reachable choice row");
             }
 
             yield return PlayStation<SmokerStation>(director, GameIds.Choice.Swat, GameIds.Choice.Smoker);
@@ -176,6 +210,12 @@ namespace VirtualBeeSwarm.Tests
             yield return WaitUntil(() => map.UnloadDone, 20f, "final contract");
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
 
+            // Rehearsal controls can revisit a station without changing the score for this group.
+            director.GoTo(GameBeat.Heat, "test replay");
+            Assert.IsTrue(director.RunFinished, "replaying a solved station keeps the score frozen");
+            director.GoTo(GameBeat.Escape, "test replay");
+            Assert.AreEqual(scoreTime, director.RunSeconds, "re-entering escape keeps the same rescue score");
+
             // group reset puts everything back
             director.ResetToPre();
             yield return null;
@@ -184,6 +224,53 @@ namespace VirtualBeeSwarm.Tests
             Assert.AreEqual(0, hex.LitCount);
             Debug.Log("[VBSTest] full run OK (forceOffline=" + forceOffline + ")");
         }
+
+        static void AssertAuthoredSceneArt()
+        {
+            var clipboard = UnityEngine.Object.FindAnyObjectByType<SignHereClipboard>(FindObjectsInactive.Include);
+            var hive = UnityEngine.Object.FindAnyObjectByType<HiveBody>(FindObjectsInactive.Include);
+            var launch = UnityEngine.Object.FindAnyObjectByType<T0Sequence>();
+            var wasps = UnityEngine.Object.FindAnyObjectByType<WaspsStation>();
+            var swarm = UnityEngine.Object.FindAnyObjectByType<SwarmSystem>(FindObjectsInactive.Include);
+            Assert.IsNotNull(clipboard, "clipboard");
+            Assert.IsNotNull(hive, "hive");
+            Assert.IsNotNull(launch, "launch sequence");
+            Assert.IsNotNull(wasps, "wasps station");
+            Assert.IsNotNull(swarm, "worker swarm");
+
+            AssertAuthoredMeshes("SignHere", clipboard.transform);
+            AssertAuthoredMeshes("Hive", hive.transform);
+            AssertAuthoredMeshes("Rocket", new SerializedObject(launch).FindProperty("rocket").objectReferenceValue as Transform);
+            var waspRoots = new SerializedObject(wasps).FindProperty("wasps");
+            Assert.Greater(waspRoots.arraySize, 0, "the wasps station has wasps");
+            for (int i = 0; i < waspRoots.arraySize; i++)
+                AssertAuthoredMeshes("Wasp", waspRoots.GetArrayElementAtIndex(i).objectReferenceValue as Transform);
+
+            var worker = AssetDatabase.LoadAssetAtPath<Mesh>(ArtSlots.VbsRoot + "/Art/Bee/Bee_unit.asset");
+            var rigBake = Resources.Load<Mesh>(BeeVat.MeshResource);
+            Assert.IsNotNull(worker, "authored worker bee mesh");
+            Assert.IsNotNull(rigBake, "animated worker rig bake");
+            CollectionAssert.AreEqual(rigBake.vertices, worker.vertices, "the static worker uses the animated worker's rest pose");
+            Assert.AreEqual(worker, swarm.WorkerBeeMesh, "the swarm retains the authored static mesh for low-detail bees");
+            Debug.Log("[VBSTest] authored clipboard, hive, rocket, wasps and worker meshes verified");
+        }
+
+        static void AssertAuthoredMeshes(string slot, Transform root)
+        {
+            var prefab = ArtSlots.Prefab(slot);
+            Assert.IsNotNull(prefab, slot + " authored prefab");
+            Assert.IsNotNull(root, slot + " scene object");
+            var expected = new HashSet<Mesh>(VisualMeshes(prefab.transform));
+            Assert.IsTrue(VisualMeshes(root).Any(expected.Contains), slot + " uses the authored mesh in the generated scene");
+        }
+
+        static IEnumerable<Mesh> VisualMeshes(Transform root) =>
+            root.GetComponentsInChildren<MeshFilter>(true)
+                .Where(filter => filter.TryGetComponent(out MeshRenderer renderer) && renderer.enabled)
+                .Select(filter => filter.sharedMesh)
+                .Concat(root.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(renderer => renderer.enabled)
+                    .Select(renderer => renderer.sharedMesh))
+                .Where(mesh => mesh != null);
 
         static IEnumerator PlayStation<T>(GameDirector director, string wrong, string right) where T : StationBase
         {

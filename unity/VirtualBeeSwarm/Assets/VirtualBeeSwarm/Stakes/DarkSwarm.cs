@@ -134,12 +134,12 @@ namespace VirtualBeeSwarm.Stakes
         {
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
-            if (beeMesh == null) beeMesh = GameMeshes.CreateBeeMesh();
+            if (beeMesh == null) beeMesh = BeeVat.AuthoredWorkerMesh() ?? GameMeshes.CreateBeeMesh();
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_DarkBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
-            _lod = Bloom.BeeLod.Make(beeMesh, beeMaterial); // meadow: far bees low-poly (Quest budget)
+            _lod = Bloom.BeeLod.Make(beeMesh, beeMaterial); // meadow: far bees use the static worker model
             BeeVat.Apply(ref beeMesh, ref beeMaterial, "dark swarm"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
             Allocate();

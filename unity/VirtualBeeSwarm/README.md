@@ -59,6 +59,8 @@ materials and meshes are kept.
   activates a ticket. Pinch to grab a prop, or use the ray and pinch.
 - Use **ORDER UP** to order a smoker and pump it with the honey-dipper lever. Lift the hive and pour syrup into the
   feeder. Fit the entrance reducer, then set down the pebble dish and pull the lever to fill it.
+- The hive makes a sound when you lift it. With a Touch controller, the hand lifting it gets one short pulse.
+  The pebble dish gives a little dust and a thunk when it snaps into place.
 - Hold a pinch to ask the future window a **what if**, or use B/Y on a controller. Ask about a fire, then say
   **put it out**. Beeswax demonstrates and clears the fire if the player stays quiet, including when the Hive is down.
 - After the hive is saved, pull the lever to launch the rocket. The Moon appears at liftoff. The map and final
@@ -150,7 +152,7 @@ The rules are in `PLAN.md` (FBX in meters, Y-up, ≤1024 px textures, tri budget
 | `TableAnchor/Hive/LiftRoot/Body, Roof, Stand` | `HiveBody.bodyRenderers` (tinted when sick), `liftRoot`, `Door` (scale.x = door width), `DoorPoint`, `SwarmCenter`, `HeatGlow` |
 | `.../Hexagons/Hex1-4` | `HexagonPanel.hexagons` (smoker, feed, wasps, heat) |
 | `Beeswax/Body/*` (faces +Z) | `BeeswaxController.mouth` (scaled on Y), `leftWing`/`rightWing` (rotated on Z), `dustyRenderers`. The AudioSource + BeeswaxRoomVoice stay on `Beeswax`. |
-| `Swarm` (procedural bee) | `SwarmSystem.beeMesh` (~3.5 cm, +Z forward) + an instanced material |
+| `Swarm` | The worker rig's VAT bake supplies the nearby animation and the static mesh shared by the meadow and swarms. |
 | `HONEYMOON-1/*` | `Seat`, `Perch`, `Flame`, `CountdownDisplay` |
 | `FutureWindow/Portal/Frame*`, `Glow` | `LivePane (Orbis)` + `FallbackPane` (same size), `Embers` (+Z out of the window) |
 | Station props (`Smoker`, `HoneyJar`, `SyrupBottle`, `Wasp0-3`, `DeepBowl`, `PebbleDish`, `Drinker0-4`) | the references on each station component |

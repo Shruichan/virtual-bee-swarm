@@ -12,24 +12,22 @@
 
 **HONEYMOON**
 
-Subtitle if Devpost gives us room: *A bee union rep, your real table, and a rocket*
+Subtitle if Devpost gives us room: *A bee union rep, a meadow in your room, and a rocket*
 
-TODO: final name + team name ("Virtual Bee Swarm" or "Angry Virtual Bee Swarm") by Sat 9 AM. The team name stays out of the tagline and intro.
+Team: Angry Virtual Bee Swarm.
 
 ## Tagline (≤ 140 characters)
 
-> A bee union rep gives you four minutes to fix his hive on your real table. Then he leaves for the Moon anyway.
-
-(110 characters.) TODO: if a real fail ending ships (time runs out → the colony leaves), the old tagline works again: "A union-rep bee gives you four minutes in mixed reality to fix his hive. Fail, and the colony moves to the Moon."
+> A bee union rep gives you four minutes to fix his hive in your room. Then he leaves for the Moon anyway.
 
 ## What's live (short version)
 
 | What you see | How it works during the demo |
 |---|---|
-| The hive and the swarm on your real table, your hands | Live on the headset (passthrough + hand tracking) |
+| The floor-standing hive, meadow, and swarm in your room | Live on the headset (passthrough + hand tracking) |
 | Beeswax | Scripted character. Pre-recorded lines in a designed voice |
 | The meadow window | TODO pick one: live Visko Orbis stream steered by what you do and say / recorded Visko Orbis clips |
-| Understanding what you say | Live speech-to-text, then an AI picks what you meant from a fixed list |
+| Understanding what you say | When connected, speech-to-text plus keyword or AI intent routing. Offline, the game uses local controls and timers |
 
 Full table at the bottom.
 
@@ -45,26 +43,24 @@ The game is built on Adityash's hive pitch, and we wanted the beekeeping in it t
 
 ## What it does
 
-You put on a Meta Quest and a beehive is sitting on the real table in front of you. Beeswax flies in:
+A worker bee brings you a clipboard. Sign it and the crew carries a sick hive into the meadow on your floor. Beeswax talks from inside the hive as it arrives, then climbs out and gives you four minutes to fix it.
 
-> "The union voted. Fix my hive in four minutes, or we're moving to the Moon."
+Beeswax follows a prerecorded script through the ride. On a connected run, Ask Beeswax can answer a short question after the finale. He's a male bee (a drone), so he has no stinger and no job, "so they made me union rep." He's shop steward of Local 20,000 (there are over 20,000 known bee species): *Motion carried. Grievance filed. Noted for the minutes.* His rocket is parked next to the hive, fueled with honey.
 
-Beeswax is a scripted character. Everything he says on his own comes from our script. He's a male bee (a drone), so he has no stinger and no job, "so they made me union rep." He's shop steward of Local 20,000 (there are over 20,000 known bee species): *Motion carried. Grievance filed. Noted for the minutes.* His rocket is parked next to the hive, fueled with honey.
+Next to the hive is the meadow window, which changes with every choice you make. Order tools from the ticket board and the crew brings them to you. Each fix lights a hexagon:
 
-Next to the hive is the meadow window, which changes with every choice you make. Fix four problems and each fix lights a hexagon:
+1. **The bees are furious.** Order the smoker and pump the lever to calm them. Smoke dulls the alarm pheromone, which smells like bananas.
+2. **Is there enough food?** You lift the hive and it comes up way too easily (beekeepers call this hefting). Store-bought honey or sugar syrup? Store honey can carry American foulbrood spores, which kill hives and last for decades. Pick it and the meadow gets sick. Recover by ordering syrup and using the roof feeder.
+3. **Wasps at the door.** Choose the smaller reducer and fit it into the hive door. A smaller entrance leaves the guard bees less door to defend.
+4. **Heat wave.** Set down the shallow pebble dish and pump the water. The pebbles give bees somewhere to land. They spread the water in the hive and fan it. "Bee air conditioning."
 
-1. **The bees are furious.** Swat, spray water, or smoker? Smoke dulls the alarm pheromone and makes them fill up on honey. Beeswax: "Also, our alarm smells like bananas. Don't eat one near my house."
-2. **Is there enough food?** You lift the hive and it comes up way too easily (beekeepers call this hefting). Store-bought honey or sugar syrup? Store honey can carry American foulbrood spores, which kill hives and last for decades. Pick it and the meadow gets sick: "...Grievance filed."
-3. **Wasps at the door.** Make the entrance bigger or smaller? A smaller entrance leaves the guard bees less door to defend.
-4. **Heat wave.** Deep bowl, shallow dish with pebbles, or nothing? Bees can't swim and need somewhere to land. They spread the water in the hive and fan it. "Bee air conditioning."
+Wrong picks trigger a Beeswax response and count as grievances.
 
-Every wrong pick gets its own Beeswax line ("Water? Now they're wet AND angry."). TODO: confirm all six wrong-pick lines are in the build.
+Then it's your turn. Ask Beeswax "what if…" and the window shows it. **"What if a fire starts?"** "Don't. Say. That." The meadow catches fire, and embers leave the window and drift into your real room. "Put it out" brings the meadow back. With the Hive connected, the game can recognize both phrases even when the window uses recorded clips. If the Hive is offline, the local controls and timers still run the fire sequence.
 
-Then it's your turn. Ask Beeswax "what if…" and the window shows it. **"What if a fire starts?"** "Don't. Say. That." The meadow catches fire, and embers leave the window and drift into your real room. "Put it out" brings the meadow back. TODO: name other what-ifs only if they work on Sunday.
+Then the hive's healthy, the door opens and the bees head out to work. The headset shows "Hive saved in m:ss." The Beat Board shows the same time and the grievance count. The timer freezes after the fourth fix. Earth cancels the evacuation.
 
-Then the hive's healthy, the door opens and the bees head out to work. Score card: "Hive saved in TODO:time." (TODO if it ships: "Grievances filed: N", one per wrong pick.) "Motion carried. The union votes to stay."
-
-Then: "...I'm still going. Ticket's non-refundable." **"TAKE ME TO THE MOON!"** The rocket launches off the table with only Beeswax on board. The window turns into the Moon: grey dust, Earth hanging over the horizon. "...Not one flower." He crash-lands back on your table, covered in dust. A map shows more hives you haven't unlocked yet.
+Then: "…Shame to waste a ticket. Non-refundable." **"TAKE ME TO THE MOON!"** Pull the launch lever and the rocket takes off with only Beeswax on board. The window turns into the Moon: grey dust, Earth hanging over the horizon. "...Not one flower." He crash-lands back in the meadow, covered in dust. A map shows more hives you haven't unlocked yet.
 
 TODO (only if it shipped): **Hornet hum.** Fast players get a giant hornet. "My cousins in Japan do this. Never tried it. Make a fist." Fist to ball the swarm around it, then hum; the headset mic hears you and a thermometer climbs toward 46 °C. Too long: "STOP, you're cooking the girls!"
 
@@ -84,11 +80,11 @@ Every fact is sourced at the bottom.
 
 TODO: check every bullet against what we actually built. Some of this is still the plan as of Saturday 1 AM.
 
-- **Quest app:** Unity 6 + OpenXR + Meta XR SDK v209 on a Quest TODO:3-or-3S. Passthrough puts the hive on your table, hand tracking does the choices (TODO: which ones), the embers are Unity particles, and Unity runs the clock, so the demo finishes even if the server dies.
+- **Quest app:** Unity 6 + OpenXR + Meta XR SDK v209 on a Quest TODO:3-or-3S. Passthrough puts the hive and meadow in your room. The player orders tools with tickets and uses them by hand. Unity runs the timer and embers locally, so the scripted ride can keep moving without the Hive server.
 - **Hive server:** Bun + TypeScript + Hono. One WebSocket bus between the headset, a spectator page and the Beat Board, the web page our operator uses to watch a run and fix it live.
 - **Voice:** the Quest mic streams to the Hive, ElevenLabs Scribe turns it into text (local faster-whisper as backup), a keyword check runs first, then Claude picks one intent from a fixed list. Unity only runs what's on the list.
 - **The meadow window:** Visko's Orbis world model on Reactor makes the meadow as live video. There's no Unity SDK, so a Python relay turns the WebRTC stream into JPEG frames for the headset and changes the prompt mid-stream. Recorded Orbis clips play if live frames stop for 8 seconds.
-- **Beeswax and sound:** one ElevenLabs Voice Design voice, with every scripted line pre-rendered into the app. Sounds from Attractor Labs' SATIE (TODO: which ones), spatialized in Unity.
+- **Beeswax and sound:** one ElevenLabs Voice Design voice, with prerecorded ride dialogue in the app. Sounds from Attractor Labs' SATIE (TODO: which ones), spatialized in Unity.
 
 More detail is in the repo README.
 
@@ -140,7 +136,7 @@ We want judges to know exactly what they're seeing. Everything below was made th
 
 | Piece | During the demo | Status Sun AM |
 |---|---|---|
-| Hive on the real table, passthrough, hand interactions | Live, on the headset | TODO |
+| Floor-standing hive, passthrough, hand interactions | Live, on the headset | TODO |
 | The swarm (angry, calm, guarding, pouring out) | Live simulation on the headset | TODO |
 | The four stations and their outcomes | Scripted. Your choice picks which outcome plays | TODO |
 | Beeswax's scripted lines | Pre-rendered audio in the app (ElevenLabs designed voice) | TODO |

@@ -757,7 +757,7 @@ namespace VirtualBeeSwarm.EditorTools
             Req(cfg.targetDeviceTypes.Contains(OVRProjectConfig.DeviceType.Quest3) && cfg.targetDeviceTypes.Contains(OVRProjectConfig.DeviceType.Quest3S),
                 "target devices include Quest 3 and Quest 3S (Depth API)");
             Req(cfg.insightPassthroughSupport != OVRProjectConfig.FeatureSupport.None, "Meta passthrough support");
-            Req(cfg.handTrackingSupport != OVRProjectConfig.HandTrackingSupport.ControllersOnly, "Meta hand tracking support");
+            Req(cfg.handTrackingSupport == OVRProjectConfig.HandTrackingSupport.ControllersAndHands, "Meta hands and Touch controller support");
             Req((cfg.boundaryVisibilitySupport != OVRProjectConfig.FeatureSupport.None) == (mode == BoundaryMode.Contextual),
                 $"boundary visibility support matches the toggle ({mode})");
 

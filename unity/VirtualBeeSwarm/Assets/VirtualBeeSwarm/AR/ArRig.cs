@@ -423,6 +423,7 @@ namespace VirtualBeeSwarm.AR
         void ApplyPose(Pose pose, bool announce)
         {
             if (_anchor == null) return;
+            pose = Bloom.MeadowLayout.Grounded(pose);
             if (_placeAt != null && placement != null)
             {
                 _placeAt.Invoke(placement, new object[] { pose });

@@ -107,6 +107,13 @@ namespace VirtualBeeSwarm.Bloom
             return new Pose(p, Quaternion.LookRotation(fwd.normalized, Vector3.up));
         }
 
+        // the hive front sits ~0.05 rig units in front of the rig origin; at table scale the choice rows stood ~0.26 in front of it.
+        // Scaled up, that gap would grow with the rig and push the hive out of reach, so it only grows up to 1.5x.
+        const float HiveFrontZ = 0.05f;
+        static float RowPull(float s) => Mathf.Min(1f, 1.5f / Mathf.Max(1f, s));
+        /// <summary>How far (rig units) the choice rows stand in front of the rig origin at rig scale s.</summary>
+        public static float RowOffset(float s) => 0.26f * RowPull(s) - HiveFrontZ;
+
         /// <summary>The automatic pose for a head: on the floor ahead, the choice row meadow.distance from the eyes.</summary>
         public static Pose FreeStandPose(Transform head)
         {
@@ -117,7 +124,7 @@ namespace VirtualBeeSwarm.Bloom
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
             fwd.Normalize();
             float s = Active ? Scale : MeadowTuning.RigScale;
-            float dist = 0.21f * s + MeadowTuning.Distance;
+            float dist = RowOffset(s) * s + MeadowTuning.Distance;
             var scene = MeadowField.Instance != null ? MeadowField.Instance.CurrentScene() : null;
             if (scene != null)
             {
@@ -247,6 +254,7 @@ namespace VirtualBeeSwarm.Bloom
                 if (t.name != "Buttons" && t.name != "StartRow") continue;
                 Vector3 l = anchor.InverseTransformPoint(t.position);
                 l.y = MeadowTuning.ChoiceHeight / s;
+                if (l.z < HiveFrontZ) l.z = HiveFrontZ + (l.z - HiveFrontZ) * RowPull(s); // keep the hive within arm's reach
                 t.position = anchor.TransformPoint(l);
                 rows++;
                 for (int i = 0; i < t.childCount; i++)

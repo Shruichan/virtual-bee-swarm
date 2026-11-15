@@ -41,7 +41,7 @@ namespace VirtualBeeSwarm
         bool _interactable = true, _hovered;
         float _lastPressAt = -10f, _flashUntil = -1f;
         Vector3 _baseScale, _basePressPos;
-        int _pokesInside;
+        readonly PokeContacts _contacts = new();
         Color _shown = new Color(-1f, 0f, 0f, 0f);
 
         void Awake()
@@ -54,7 +54,7 @@ namespace VirtualBeeSwarm
         void OnDisable()
         {
             _hovered = false;
-            _pokesInside = 0;
+            _contacts.Clear();
             transform.localScale = _baseScale;
             if (pressVisual != null) pressVisual.localPosition = _basePressPos;
         }
@@ -118,15 +118,9 @@ namespace VirtualBeeSwarm
         // ------------------------------------------------------------ fingertip poke
         void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokesInside++;
-            if (_pokesInside == 1) Press();
+            if (isActiveAndEnabled && _contacts.Enter(other)) Press();
         }
 
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokesInside = Mathf.Max(0, _pokesInside - 1);
-        }
+        void OnTriggerExit(Collider other) => _contacts.Exit(other);
     }
 }

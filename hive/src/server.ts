@@ -532,7 +532,7 @@ export function startHive(opts: HiveOptions): Hive {
       onPlea: (text) => plea(text),
       onGroupReset: () => groupReset(),
       onOrbisRequest: (msg, from) => orbisRequest(msg, from),
-      onBeat: (n, prev) => beatEntered(n, prev),
+      onBeat: beatEntered,
       onHornetCooked: () => {
         state.memory.hornet_done = true;
         earOnce("hornet_done", "ear_aside_hornet");
@@ -1008,8 +1008,9 @@ export function startHive(opts: HiveOptions): Hive {
   // (hook, meet) is off the clock. A Board jump past smoker starts it at whichever station beat comes first.
   const ON_CLOCK = new Set<BeatName>(["smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
 
-  function beatEntered(n: number, prev: number): void {
-    if (n === prev) return; // a re-sent beat.set (Unity reconnect)
+  function beatEntered(n: number, prev: number, scoreSeconds?: number): void {
+    const needsQuestScore = scoreSeconds !== undefined && !state.score_authoritative;
+    if (n === prev && !needsQuestScore) return; // a re-sent beat.set (Unity reconnect)
     const name = BEATS[n];
     const now = Date.now();
     if (name === "hook") {
@@ -1017,18 +1018,18 @@ export function startHive(opts: HiveOptions): Hive {
       state.clock_start = null;
       state.saved_ms = null;
       state.score = null;
+      state.score_authoritative = false;
       variantTurn.clear(); // a new run starts on the base lines again (a group.reset clears it too)
       setScene("meadow", "hook");
     } else if (state.clock_start === null && name && ON_CLOCK.has(name)) {
       state.clock_start = now;
       observe(`score clock started at ${name}`);
     }
-    if (name === "escape") {
-      // v2.1: the score card. Frozen the first time the escape beat starts; re-sent if Unity comes back to escape.
-      const first = state.score === null;
-      const score = saveScore(state, now);
+    if (name === "escape" || needsQuestScore) {
+      const previous = state.score;
+      const score = saveScore(state, now, scoreSeconds);
       if (score) {
-        if (first) {
+        if (score !== previous) {
           log(`score: ${score.text} (grievances: ${score.grievances})`);
           observe(`score: ${score.text}`);
         }
@@ -1036,6 +1037,9 @@ export function startHive(opts: HiveOptions): Hive {
       } else {
         observe("no score: the clock never started (no station beat before escape)");
       }
+    }
+    if (n === prev) return; // recovering a score does not re-run this beat's cues
+    if (name === "escape") {
       setScene("full_bloom", "escape");
     } else if (name === "t0" && bus.count("quest") === 0) {
       // The Quest asks for the Moon at liftoff. In a Board-only rehearsal the beat itself is the cue.
@@ -1248,9 +1252,9 @@ export function startHive(opts: HiveOptions): Hive {
     const t0 = Date.now();
     const group = state.group_id;
     const stt: SttResultLike = pcm.length ? await safeTranscribe(pcm) : { text: "", ms: 0, provider: "none", error: "no_audio" };
+    if (group !== state.group_id) return;
     latency("voice.stt", stt.ms);
     bus.broadcast({ type: "transcript", text: stt.text, final: true, source, ms: Math.round(stt.ms), stt: stt.provider });
-    if (group !== state.group_id) return;
     if (!stt.text) {
       observe(`voice: heard nothing (${stt.error ?? stt.provider})`);
       // ASK BEESWAX: a press with nothing in it gets "Didn't catch that" instead of silence (no Claude call).
@@ -1283,6 +1287,7 @@ export function startHive(opts: HiveOptions): Hive {
     const beat = beatName(state);
     if (deps.ask?.wants(text, beat)) return askTurn(text, source, t0, group, beat, earReply, operator);
     const r = await safeRoute(text, { beat, recent });
+    if (group !== state.group_id) return null;
     deps.ask?.fixRouted(text, r); // canned/vetted answers; a lost question says "ask me again", not a random ack
     latency(operator ? "board.route" : "voice.route", r.ms);
     const intent: Intent = { type: "intent", name: r.intent, topic: r.topic, text, path: r.path, ms: Math.round(r.ms) };
@@ -1295,8 +1300,6 @@ export function startHive(opts: HiveOptions): Hive {
         `${Math.round(r.ms)} ms${r.error ? ` (${r.error})` : ""}${r.answer ? ` answer: "${r.answer}"` : ""}${custom}`,
     );
     if (r.blocked) log(`custom what-if refused: ${r.blocked}`);
-    if (group !== state.group_id) return null; // group reset mid-utterance
-
     const response: UtteranceResponse = { intent: r.intent, topic: r.topic, line_id: null, audio_url: null, caption: "" };
     if (!operator && !VOICE_BEATS.includes(beat)) {
       observe(`voice: not acting in beat ${beat}`);
@@ -1424,16 +1427,16 @@ export function startHive(opts: HiveOptions): Hive {
     operator: boolean,
   ): Promise<Understood | null> {
     const ask = deps.ask!;
-    const toRoom = beat !== "field" && (operator || bus.count("quest") > 0);
-    const onLive = () => toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
+    const toRoom = (beat !== "field" || source === "quest") && (operator || bus.count("quest") > 0);
+    const onLive = () => group === state.group_id && toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
     const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive });
+    if (group !== state.group_id) return null;
     latency("ask.route", a.ms);
     const name: IntentName = a.kind === "ack" ? "ack" : a.kind === "echo" || a.kind === "not_heard" ? "unknown" : "ask";
     const route: Routed = { intent: name, topic: null, answer: a.text || null, ms: a.ms, path: a.path === "claude" ? "claude" : "keyword", error: a.error };
     bus.broadcast({ type: "intent", name, topic: null, text, path: route.path, ms: Math.round(a.ms) });
     observe(`ask ${operator ? "operator" : source}: "${text.slice(0, 80)}" -> ${a.kind}${a.ask_id ? `/${a.ask_id}` : ""} via ${a.path} ${a.ms} ms${a.error ? ` (${a.error})` : ""}${a.text ? ` "${a.text}"` : ""}`);
     const response: UtteranceResponse = { intent: name, topic: null, line_id: null, audio_url: null, caption: "" };
-    if (group !== state.group_id) return null;
     if (a.kind !== "echo") {
       const reply: Reply = a.line_id ? lineReply(a.line_id, "room_ack_grievance") : a.text ? { line_id: null, text: a.text } : ackReply();
       if (toRoom) sayReply(reply, "room");
@@ -1447,14 +1450,18 @@ export function startHive(opts: HiveOptions): Hive {
     return { route, response };
   }
 
+  function discardPrimedSpeech(audio: AsyncIterable<Uint8Array>): void {
+    // Consume the buffered head so an early exit runs the iterator's cleanup for the provider stream.
+    void (async () => { for await (const _ of audio) break; })().catch(() => {});
+  }
+
   /** Live text with ask.ts loaded: its cached audio, or TTS once the first chunk is in (1.2 s at most), else the caption
    *  alone (Unity shows it and flaps his mouth), never a stream that ends silent. */
   async function speakPrimed(text: string): Promise<void> {
     const group = state.group_id;
     const audio = await deps.ask!.prepareSpeech(text, (t) => deps.ttsPcm(t)).catch(() => null);
     if (group !== state.group_id) {
-      // reset while waiting: start the prepared stream and drop it at once, so its finally closes the TTS stream
-      if (audio) void (async () => { for await (const _ of audio) break; })().catch(() => {});
+      if (audio) discardPrimedSpeech(audio);
       return;
     }
     if (!audio) {
@@ -1463,7 +1470,7 @@ export function startHive(opts: HiveOptions): Hive {
     }
     const tts_id = shortId("t");
     bus.say("room", null, { tts_id, caption: text });
-    void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => audio);
+    void bus.enqueueRoomTts(tts_id, text, deps.ttsSampleRate, () => audio, () => discardPrimedSpeech(audio));
   }
 
   /** Play a reply from Beeswax on the Quest: a pre-rendered line, or live TTS (caption only when TTS is down). */

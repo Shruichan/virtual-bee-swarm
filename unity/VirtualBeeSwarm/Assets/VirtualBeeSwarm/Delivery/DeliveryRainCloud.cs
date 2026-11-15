@@ -68,11 +68,20 @@ namespace VirtualBeeSwarm
         {
             if (BeeDelivery.Mode == DeliveryMode.Off || D == null || _state != State.Idle) return;
             EnsureCloud();
-            Vector3 c = hiveRoot != null ? hiveRoot.position : transform.position;
+            Vector3 c = AboveHive(heightAboveHive);
             Quaternion r = hiveRoot != null ? hiveRoot.rotation : Quaternion.identity;
-            D.Park(cloud, new Pose(c + Vector3.up * heightAboveHive, r), crew);
+            D.Park(cloud, new Pose(c, r), crew);
             _state = State.Coming;
-            Debug.Log("[VBS][Delivery] fire brigade: rain cloud on its way");
+            Debug.Log("[VBS][Delivery] fire brigade: rain cloud on its way at " + c.ToString("F2"));
+        }
+
+        Vector3 AboveHive(float height)
+        {
+            Vector3 origin = hiveRoot != null ? hiveRoot.position : transform.position;
+            origin.y += height;
+            if (Bloom.MeadowLayout.Active)
+                origin.y = Mathf.Max(origin.y, Bloom.MeadowLayout.RoofY + 0.15f);
+            return origin;
         }
 
         public void Stop()
@@ -176,8 +185,7 @@ namespace VirtualBeeSwarm
                 sh.angle = 60f;
                 sh.radius = 0.15f;
             }
-            Vector3 c = hiveRoot != null ? hiveRoot.position : transform.position;
-            _embers.transform.position = c + Vector3.up * 0.45f;
+            _embers.transform.position = AboveHive(0.45f);
             _embers.Emit(emberBurst);
         }
     }

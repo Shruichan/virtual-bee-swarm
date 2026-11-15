@@ -34,14 +34,14 @@ namespace VirtualBeeSwarm.EnvironmentArt
             }
         }
 
-        /// <summary>The Moon stage starts: centre the dome on the player, hide the Moon ball.</summary>
-        public void Begin()
+        /// <summary>Centre the dome on the player and use the authored ground when available.</summary>
+        public void Begin(bool hasMoonGround)
         {
             var cam = Camera.main;
             Vector3 c = cam != null ? cam.transform.position
                 : _anchor != null ? _anchor.TransformPoint(new Vector3(0f, 0.6f, -0.55f)) : new Vector3(0f, 1.4f, -0.6f);
             _root.SetPositionAndRotation(c, Quaternion.Euler(0f, _anchor != null ? _anchor.eulerAngles.y : 0f, 0f));
-            if (_moonBall != null && !_keepBall && _hidden == null)
+            if (hasMoonGround && _moonBall != null && !_keepBall && _hidden == null)
             {
                 var rs = _moonBall.GetComponentsInChildren<Renderer>(true);
                 int n = 0;

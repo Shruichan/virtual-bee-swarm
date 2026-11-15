@@ -53,6 +53,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
         public int BloomCount => _blooms.Length;
         public Transform Root => _root;
         public float Fit => _fit;
+        public bool HasMoonGround => _moon != null;
 
         public MeadowIsland(EnvironmentKit kit, Transform anchor, Transform hive)
         {
@@ -63,8 +64,12 @@ namespace VirtualBeeSwarm.EnvironmentArt
             _root.gameObject.layer = anchor.gameObject.layer;
             PlaceAtHive();
             _turf = MakeMesh("Turf", _root, kit.island, kit.ground, out _turfR);
-            _moon = MakeMesh("MoonGround", _root, kit.moonGround, kit.ground, out _);
-            _moon.gameObject.SetActive(false);
+            // The flag act uses MoonGround only when the authored surface can be rendered.
+            if (kit.moonGround != null && kit.ground != null)
+            {
+                _moon = MakeMesh("MoonGround", _root, kit.moonGround, kit.ground, out _);
+                _moon.gameObject.SetActive(false);
+            }
 
             var spots = kit.BloomSpots();
             var list = new List<Bloom>(spots.Length);
@@ -159,7 +164,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
         {
             _shown = false;
             _root.gameObject.SetActive(false);
-            _moon.gameObject.SetActive(false);
+            if (_moon != null) _moon.gameObject.SetActive(false);
             Restore();
         }
 
@@ -195,12 +200,15 @@ namespace VirtualBeeSwarm.EnvironmentArt
             _turf.localScale = new Vector3(s, 1f, s);
             bool turfOn = moonK < 0.93f;
             if (_turf.gameObject.activeSelf != turfOn) _turf.gameObject.SetActive(turfOn);
-            bool moonOn = moonK > 0.0005f;
-            if (_moon.gameObject.activeSelf != moonOn) _moon.gameObject.SetActive(moonOn);
-            if (moonOn)
+            if (_moon != null)
             {
-                float m = 0.02f + 0.98f * EaseOutCubic(moonK);
-                _moon.localScale = new Vector3(m, 1f, m);
+                bool moonOn = moonK > 0.0005f;
+                if (_moon.gameObject.activeSelf != moonOn) _moon.gameObject.SetActive(moonOn);
+                if (moonOn)
+                {
+                    float m = 0.02f + 0.98f * EaseOutCubic(moonK);
+                    _moon.localScale = new Vector3(m, 1f, m);
+                }
             }
 
             // the window's mood: tint (fire flickers), flower size, full-bloom extras, droop

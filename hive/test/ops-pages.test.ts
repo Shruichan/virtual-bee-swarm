@@ -299,6 +299,24 @@ describe("Beat Board (v2.1)", () => {
     expect(p.byId("ch_feed_store_honey").className).not.toContain("made");
   });
 
+  test("a new-group welcome clears the previous group's score and repairs after reconnect", async () => {
+    const p = runPage(boardHtml(STATION_TABLE), (url) => (url.startsWith("/lines.json") ? LINES : { ...HEALTH, group_id: "g1" }));
+    await p.settle();
+    p.ws.deliver({ type: "welcome", group_id: "g1", beat: 8, mode: "manual" });
+    p.ws.deliver({ type: "choice.made", station: "feed", choice: "sugar_syrup", correct: true });
+    p.ws.deliver({ type: "score", elapsed_s: 167, text: "Hive saved in 2:47", grievances: 2 });
+    p.ws.deliver({ type: "welcome", group_id: "g1", beat: 8, mode: "manual" });
+    expect(p.byId("score").textContent).toContain("Hive saved in 2:47");
+    expect(p.byId("hex_feed").textContent).toBe("LIT");
+
+    p.ws.deliver({ type: "welcome", group_id: "g2", beat: 0, mode: "manual" });
+    expect(p.byId("group").textContent).toBe("g2");
+    expect(p.byId("score").textContent).toBe("");
+    expect(p.byId("griev").textContent).toBe("0");
+    expect(p.byId("hex_feed").textContent).toBe("not yet");
+    expect(p.byId("ch_feed_sugar_syrup").classList.contains("made")).toBe(false);
+  });
+
   test("/health score card (an object) shows on load", async () => {
     const p = runPage(boardHtml(STATION_TABLE), (url) =>
       url.startsWith("/lines.json") ? LINES : { ...HEALTH, score: { elapsed_s: 200, text: "Hive saved in 3:20", grievances: 0 }, grievances: 0 },

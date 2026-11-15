@@ -334,6 +334,8 @@ namespace VirtualBeeSwarm
 
         protected override void OnResetState()
         {
+            LastScore = "";
+            if (scoreText != null) scoreText.text = LastScore;
             if (delivery != null && scoreCard != null) delivery.Release(scoreCard.transform, hide: true);
             SetActive(scoreCard, false);
             SetActive(_endPanel, false);

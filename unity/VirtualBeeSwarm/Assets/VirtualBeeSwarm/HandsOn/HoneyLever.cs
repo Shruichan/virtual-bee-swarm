@@ -22,7 +22,7 @@ namespace VirtualBeeSwarm.HandsOn
         /// <summary>A grab or a key on a lever that is not live.</summary>
         public event Action Refused;
 
-        public bool Grabbable => this != null && isActiveAndEnabled;
+        public bool Grabbable => this != null && isActiveAndEnabled && _live;
         public bool Held { get; private set; }
         public float Angle => _angle;
         public int Pulls { get; private set; }
@@ -41,6 +41,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _armed = true;
                 _painted = false;
                 if (_capsule != null) _capsule.enabled = value;
+                if (_ball != null) _ball.enabled = value;
                 Debug.Log("[VBS][HandsOn] lever " + (value ? "live" : "locked"));
             }
         }
@@ -49,6 +50,7 @@ namespace VirtualBeeSwarm.HandsOn
         Renderer[] _discs, _teeth;
         Renderer _flash;
         CapsuleCollider _capsule;
+        SphereCollider _ball;
         bool _live, _armed = true, _painted;
         float _angle, _vel, _target, _grabAngle, _pop, _flashAt = -1f;
         Vector3 _grabPoint;
@@ -111,6 +113,8 @@ namespace VirtualBeeSwarm.HandsOn
             ball.isTrigger = true;
             ball.center = lever._head.localPosition;
             ball.radius = 0.04f;
+            ball.enabled = false;
+            lever._ball = ball;
 
             lever._flash = HandsOnKit.Glow(PrimitiveType.Cylinder, "Flash", root, new Vector3(0f, 0.05f, 0f), new Vector3(0.16f, 0.002f, 0.16f), Color.clear);
             lever._flash.gameObject.SetActive(false);

@@ -552,6 +552,16 @@ namespace VirtualBeeSwarm
             RecountInFlight();
         }
 
+        /// <summary>Give a prop set down by hand its contact effects. Station completion stays with the station.</summary>
+        public void PlayManualTouchdown(Transform item)
+        {
+            var di = Register(item);
+            if (di == null || di.delivered) return;
+            di.delivered = true;
+            di.parked = false;
+            Touchdown(di);
+        }
+
         /// <summary>Drop the item from the system: flights snap (no callback), its crew leaves at once. hide: SetActive(false).</summary>
         public void Release(Transform item, bool hide)
         {
@@ -1445,6 +1455,7 @@ namespace VirtualBeeSwarm
         void Touchdown(DeliveryItem item)
         {
             var t = item.transform;
+            Log("touchdown " + t.name);
             GameSound.Cue(item.Heavy ? "touchdown_heavy" : "touchdown_light", t);
             if (TouchdownHook != null) { TouchdownHook(t, item.weight); return; }
             if (ArActive && Mode != DeliveryMode.Off)

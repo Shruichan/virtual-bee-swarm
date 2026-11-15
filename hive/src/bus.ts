@@ -81,7 +81,7 @@ export interface BusHooks {
   onPlea(text: string): void;
   onGroupReset?(group_id: string): void;
   /** Unity entered beat n (prev = the beat before; equal on a re-sent beat.set after a reconnect). */
-  onBeat?(n: number, prev: number): void;
+  onBeat?(n: number, prev: number, scoreSeconds?: number): void;
   onHornetCooked?(overshoot: boolean): void;
   /** A validated window request from the board or the quest (the Hive forwards it to the quest). */
   onOrbisRequest?(msg: OrbisRequest, from: Client): void;
@@ -113,6 +113,7 @@ export class Bus {
   private seq = 0;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private ttsTail: Promise<void> = Promise.resolve();
+  private ttsRun = new AbortController();
   private lastSwarm = new Map<number, number>();
 
   constructor(
@@ -129,6 +130,7 @@ export class Bus {
   stop(): void {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
+    this.ttsRun.abort();
     for (const ws of this.clients) ws.close(1001, "server stopping");
     this.clients.clear();
   }
@@ -301,18 +303,29 @@ export class Bus {
    * Stream one live room line to the Quest: tts.start, binary PCM16 chunks, tts.end.
    * Streams are queued so only one plays at a time.
    */
-  enqueueRoomTts(tts_id: string, caption: string, sampleRate: number, chunks: () => AsyncIterable<Uint8Array>): Promise<void> {
-    const job = () => this.streamTts(tts_id, caption, sampleRate, chunks);
+  enqueueRoomTts(
+    tts_id: string,
+    caption: string,
+    sampleRate: number,
+    chunks: () => AsyncIterable<Uint8Array>,
+    onDiscard?: () => void,
+  ): Promise<void> {
+    const { signal } = this.ttsRun;
+    const job = async () => {
+      if (signal.aborted || this.count("quest") === 0) {
+        onDiscard?.();
+        return;
+      }
+      await this.streamTts(tts_id, caption, sampleRate, chunks, signal);
+    };
     const run = this.ttsTail.then(job, job);
     this.ttsTail = run.catch(() => {});
     return run;
   }
 
-  private async streamTts(tts_id: string, caption: string, sampleRate: number, chunks: () => AsyncIterable<Uint8Array>): Promise<void> {
-    if (this.count("quest") === 0) {
-      log(`tts ${tts_id}: no Quest connected, skipping`);
-      return;
-    }
+  private async streamTts(
+    tts_id: string, caption: string, sampleRate: number, chunks: () => AsyncIterable<Uint8Array>, signal: AbortSignal,
+  ): Promise<void> {
     const t0 = Date.now();
     this.broadcast({ type: "tts.start", tts_id, sample_rate: sampleRate, caption }, ["quest"]);
     let bytes = 0;
@@ -321,8 +334,8 @@ export class Bus {
     try {
       it = chunks()[Symbol.asyncIterator]();
       for (;;) {
-        const next = await withTimeout(it.next(), 10_000, "tts chunk");
-        if (next.done) break;
+        const next = await withTimeout(it.next(), 10_000, "tts chunk", signal);
+        if (signal.aborted || next.done) break;
         let chunk = next.value;
         if (carry) {
           const merged = new Uint8Array(carry.length + chunk.length);
@@ -348,12 +361,14 @@ export class Bus {
         }
       }
     } catch (err) {
-      log(`tts ${tts_id}: stream failed:`, err instanceof Error ? err.message : err);
+      if (!signal.aborted) log(`tts ${tts_id}: stream failed:`, err instanceof Error ? err.message : err);
     } finally {
       it?.return?.()?.catch?.(() => {});
-      this.broadcast({ type: "tts.end", tts_id }, ["quest"]);
-      const secs = bytes / 2 / sampleRate;
-      this.observe({ type: "log", text: `tts ${tts_id}: ${secs.toFixed(1)} s of audio in ${Date.now() - t0} ms` });
+      if (!signal.aborted) {
+        this.broadcast({ type: "tts.end", tts_id }, ["quest"]);
+        const secs = bytes / 2 / sampleRate;
+        this.observe({ type: "log", text: `tts ${tts_id}: ${secs.toFixed(1)} s of audio in ${Date.now() - t0} ms` });
+      }
     }
   }
 
@@ -376,12 +391,12 @@ export class Bus {
     }
   }
 
-  private setBeat(n: number, origin?: Client): void {
+  private setBeat(n: number, origin?: Client, scoreSeconds?: number): void {
     const prev = this.state.beat;
     this.state.beat = n;
     this.broadcast({ type: "beat.set", n, name: BEATS[n]! }, "all", origin);
     if (n !== prev) log(`beat -> ${n} ${BEATS[n]}${origin ? "" : " (hive applied: no Quest connected)"}`);
-    this.hooks.onBeat?.(n, prev);
+    this.hooks.onBeat?.(n, prev, scoreSeconds);
   }
 
   private route(ws: Client, m: Record<string, unknown>): void {
@@ -425,7 +440,12 @@ export class Bus {
       case "beat.set": {
         if (!questOnly()) return;
         if (!isValidBeat(m.n)) return this.send(ws, { type: "error", message: `bad beat ${String(m.n)}` });
-        return this.setBeat(m.n, ws);
+        const name = BEATS[m.n];
+        const seconds = m.score_seconds;
+        const finale = name === "escape" || name === "t0" || name === "map" || name === "field";
+        const scoreSeconds = finale && typeof seconds === "number" && seconds >= 0 &&
+          Number.isSafeInteger(Math.round(seconds * 1000)) ? seconds : undefined;
+        return this.setBeat(m.n, ws, scoreSeconds);
       }
 
       case "beat.request": {
@@ -453,6 +473,8 @@ export class Bus {
       case "group.reset": {
         if (!boardOnly()) return;
         reset(this.state, str(m.group_id, 64) || undefined);
+        this.ttsRun.abort();
+        this.ttsRun = new AbortController();
         this.lastSwarm.clear();
         this.hooks.onGroupReset?.(this.state.group_id);
         this.broadcast({ type: "group.reset", group_id: this.state.group_id });
@@ -646,10 +668,19 @@ export class Bus {
   }
 }
 
-export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string, signal?: AbortSignal): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
+  let abort: (() => void) | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms);
+    if (signal) {
+      abort = () => reject(signal.reason);
+      if (signal.aborted) abort();
+      else signal.addEventListener("abort", abort, { once: true });
+    }
   });
-  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([p, timeout]).finally(() => {
+    clearTimeout(timer);
+    if (abort) signal?.removeEventListener("abort", abort);
+  });
 }
