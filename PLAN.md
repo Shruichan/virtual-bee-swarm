@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; optional generic spawner is table-only; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (HivePlacement provides grab-and-drop/two-point; wiring NamTest to start the hive spawner; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1445,3 +1445,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:24 PT · Nam Nguyen (agent) · `SpawnObject` now consumes the left/right `GameHands` pointer rays; serialized ray-start Transforms are no longer required. Editor diagnostics are clean; headset/recenter checks remain pending. → team
 - 2026-11-14 16:29 PT · Nam Nguyen (agent) · Aligning optional `SpawnObject` with the 2025 spawner's existing-object activation/cycling and surface-raycast behavior while retaining current `GameHands` and calibrated-table APIs. → team
 - 2026-11-14 16:30 PT · Nam Nguyen (agent) · `SpawnObject` now raycasts as before, activates/deactivates and cycles assigned scene objects, and faces the camera; runtime hookup is still absent from the generated scene builder, and headset verification remains pending. → team
+- 2026-11-14 16:37 PT · Nam Nguyen (agent) · Starting NamTest scene wiring to match the working GameScene start flow while spawning the hive prefab; checking the current scene and preserving its placement path. → team
