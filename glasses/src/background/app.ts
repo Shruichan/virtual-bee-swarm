@@ -73,6 +73,8 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
   // In scout mode the camera streams the whole time; a photo warm-up would fight it for the camera.
   if (config.fieldGuideMode && !config.scoutMode) scanner.warmCamera()
   const live = config.scoutMode ? new LiveStream(session.stream, config, log) : null
+  // Mirror the stream state to the Hive log so the laptop can see it without the phone's status page.
+  if (live) live.onState = (state, detail) => void hive.send("/glasses/event", {kind: "stream", state, detail: detail ?? null})
 
   const voice = new Voice({
     hive,
