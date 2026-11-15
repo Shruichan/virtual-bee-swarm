@@ -3,4 +3,4 @@
 import manifest from "../../miniapp.json"
 
 export const APP_VERSION: string = (manifest as {version?: string}).version ?? "?"
-export const BUILD_TAG = "scout-ask-6 (lines end by their known length when the player never reports the end; gap + stall retry)"
+export const BUILD_TAG = "scout-ask-7 (wake needs hey/hi/okay + Beeswax; his own lines from any speaker ignored)"
