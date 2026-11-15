@@ -31,7 +31,7 @@ def options() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--player", required=True, type=Path, help="Windows CaptureBuild player")
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--rooms", nargs="+", type=int, choices=range(1, 21), default=list(range(1, 21)))
+    parser.add_argument("--rooms", nargs="+", type=int, choices=range(1, 22), default=list(range(1, 22)))
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=2)
     parser.add_argument("--every", type=int, choices=(1, 2, 3), default=2, help="frame stride at 30 fps")
     parser.add_argument("--ffmpeg", help="FFmpeg with libx264, or use PATH/imageio-ffmpeg")
@@ -185,6 +185,7 @@ def room(number: int, args: argparse.Namespace, ffmpeg: str, clip_dir: Path | No
             sampled_fps=SOURCE_FPS / args.every,
             recorded_beats=names,
             hand_setups=[message for _, message in events if "done by hand" in message],
+            room_audit=next((message for _, message in reversed(events) if message.startswith("[VBS][RoomAudit] SUMMARY")), ""),
         )
         stage_subtitles(directory / "stages.srt", captured, length)
         storyboards(directory, frames, events, args.every)
