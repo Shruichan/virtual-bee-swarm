@@ -81,16 +81,44 @@ namespace VirtualBeeSwarm.Bloom.Meta
         {
             try
             {
-                var r = await MRUK.Instance.LoadSceneFromDevice(requestSceneCaptureIfNoDataFound: false, removeMissingRooms: true);
+                // RoomAware: room.requestCapture (default off) opens Space Setup once when the headset has no scan
+                VirtualBeeSwarm.RoomAware.RoomAwareTuning.EnsureLoaded();
+                bool ask = VirtualBeeSwarm.RoomAware.RoomAwareTuning.RequestSceneCapture;
+                var r = await MRUK.Instance.LoadSceneFromDevice(requestSceneCaptureIfNoDataFound: ask, removeMissingRooms: true);
                 bool ok = r == MRUK.LoadDeviceResult.Success;
                 Status = r.ToString() + (ok ? ", " + MRUK.Instance.Rooms.Count + " room(s)" : "");
-                Debug.Log("[VBS][Bloom] MRUK load: " + Status);
+                Debug.Log("[VBS][Bloom] MRUK load: " + Status + (ask ? " (Space Setup allowed)" : " (no Space Setup prompt)"));
+                Debug.Log("[VBS][Room] room scan: " + ScanSummary(r));
             }
             catch (Exception e)
             {
                 Status = "error: " + e.Message;
                 Debug.LogWarning("[VBS][Bloom] MRUK load: " + e.Message);
             }
+        }
+
+        /// <summary>RoomAware: say plainly whether this headset has a scan with furniture (the keep-outs need it).</summary>
+        static string ScanSummary(MRUK.LoadDeviceResult r)
+        {
+            if (r == MRUK.LoadDeviceResult.NoScenePermission)
+                return "NONE (NoScenePermission): the app may not read the room scan (USE_SCENE denied), so the depth fallback can't run either. Grant Spatial data in the app's permissions.";
+            if (r != MRUK.LoadDeviceResult.Success || MRUK.Instance == null || MRUK.Instance.Rooms.Count == 0)
+                return "NONE (" + r + "): no furniture known, placement uses the depth fallback. Run Space Setup (or room.requestCapture=true) to scan the room.";
+            var sb = new System.Text.StringBuilder();
+            int furniture = 0;
+            foreach (var room in MRUK.Instance.Rooms)
+            {
+                if (room == null) continue;
+                foreach (var a in room.Anchors)
+                {
+                    if (a == null || !a.VolumeBounds.HasValue || a.HasAnyLabel(MRUKAnchor.SceneLabels.GLOBAL_MESH)) continue;
+                    furniture++;
+                    if (sb.Length < 400) sb.Append(sb.Length > 0 ? ", " : "").Append(a.Label);
+                }
+            }
+            return furniture > 0
+                ? "found " + MRUK.Instance.Rooms.Count + " room(s) with " + furniture + " furniture volume(s): " + sb
+                : "found " + MRUK.Instance.Rooms.Count + " room(s) but NO furniture volumes (walls/floor only): add furniture in Space Setup; the depth fallback covers it meanwhile";
         }
 
         public bool TryFill(BloomScene s)
@@ -138,6 +166,7 @@ namespace VirtualBeeSwarm.Bloom.Meta
                     {
                         center = t.TransformPoint(b.center), rotation = rot,
                         half = new Vector3(Mathf.Abs(b.extents.x), height * 0.5f, Mathf.Abs(b.extents.y)), pillar = pillar,
+                        label = a.Label.ToString(),
                     });
                     vols++;
                     if (pillar) pillars++;

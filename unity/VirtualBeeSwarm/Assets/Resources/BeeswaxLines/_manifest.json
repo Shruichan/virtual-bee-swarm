@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-11-15T01:12:39.279Z",
-  "model": "eleven_multilingual_v2",
-  "voice_id": "SOYHLrjzK2X1ezoPC6cr",
+  "generated_at": "2026-11-15T12:25:13.535723+00:00",
+  "model": "eleven_flash_v2_5",
+  "voice_id": "QDutJflVBVtxM2TBSenF",
   "lines": {
     "room_pre": {
       "channel": "room",
@@ -12,9 +12,11 @@
         "prompt",
         "delivery"
       ],
-      "duration_s": 3.87,
+      "duration_s": 3.437,
       "mp3": "unity/room_pre.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "ed3adf7b4f4c4312888cf637bf745e98f1417bdf92452b9e67f14e2c1ceeaa01",
+      "spoken_text": "Delivery for you. One hive, slightly used. Sign here."
     },
     "room_pre_nudge": {
       "channel": "room",
@@ -25,9 +27,11 @@
         "hint",
         "poke"
       ],
-      "duration_s": 3.45,
+      "duration_s": 3.297,
       "mp3": "unity/room_pre_nudge.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3a798c77f38fe639616aa417c362cca2b1a80271256454d8511c761fd126ee9d",
+      "spoken_text": "Poke it with one finger. That's how you'll pick everything today."
     },
     "room_pre_signed": {
       "channel": "room",
@@ -38,9 +42,11 @@
         "signed",
         "window"
       ],
-      "duration_s": 2.35,
+      "duration_s": 1.625,
       "mp3": "unity/room_pre_signed.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "9ae41bc26c6d48f1ffb161576e7f3ce61b708978373d2848fb7b464ff3a7f8fa",
+      "spoken_text": "Signed. Crew, cut the window!"
     },
     "room_hook_carry": {
       "channel": "room",
@@ -51,22 +57,26 @@
         "delivery",
         "fact:drones"
       ],
-      "duration_s": 6.85,
+      "duration_s": 4.969,
       "mp3": "unity/room_hook_carry.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3ea1e4185b22806917b16ff74b65c2814c8ec792c710e4002f3a5818c34c58d6",
+      "spoken_text": "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract."
     },
     "room_hook_1": {
       "channel": "room",
-      "caption": "Let my hive die, and angry swarms ravage the Earth. You humans get the Moon.",
+      "caption": "Save our hive, or the swarms take Earth. That rocket is our backup plan.",
       "beat": "meet",
       "tags": [
         "meet",
         "load-bearing",
         "stakes"
       ],
-      "duration_s": 5.31,
+      "duration_s": 3.483,
       "mp3": "unity/room_hook_1.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "aadcf6ad61546f3648f8cc5340208925c162b4a3e8481d13949c58e901cf5d13",
+      "spoken_text": "Save our hive, or the swarms take Earth. That rocket is our backup plan."
     },
     "room_hook_2": {
       "channel": "room",
@@ -77,9 +87,11 @@
         "rocket",
         "stakes"
       ],
-      "duration_s": 5.46,
+      "duration_s": 4.226,
       "mp3": "unity/room_hook_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "5b8838120e451b2a38f1fcf87695584ae5de9f9a808502bdbb56d38e43c94a19",
+      "spoken_text": "Your evacuation rocket. Honeymoon One. We booked you a window seat."
     },
     "room_meet_1": {
       "channel": "room",
@@ -89,9 +101,11 @@
         "meet",
         "fact:species"
       ],
-      "duration_s": 8.39,
+      "duration_s": 6.502,
       "mp3": "unity/room_meet_1.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "67144bb2a4089b7ec21445e4f7a82572857f7fa0c070d7f175ac22d3067affb8",
+      "spoken_text": "Beeswax, like the candle. Shop steward, Local Twenty Thousand. One union, twenty thousand kinds of bee."
     },
     "room_meet_role": {
       "channel": "room",
@@ -102,9 +116,11 @@
         "load-bearing",
         "role"
       ],
-      "duration_s": 5.31,
+      "duration_s": 4.087,
       "mp3": "unity/room_meet_role.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "723ecb0b9387df88927ed02996ace5a79b9b0d38c777a44ad6724e3d95002e75",
+      "spoken_text": "My hive's sick. Beekeeper quit. You signed. Congratulations, beekeeper."
     },
     "room_meet_hey_beeswax": {
       "channel": "room",
@@ -115,10 +131,11 @@
         "ask",
         "voice"
       ],
-      "duration_s": 4.94,
+      "duration_s": 4.598,
       "mp3": "unity/room_meet_hey_beeswax.mp3",
       "pcm": null,
-      "provider": "local Qwen"
+      "sha256": "9e0ebe2d5a7a30f730e279bd170c2b455c795325049f1867bc7d7b1e93e5c5c4",
+      "spoken_text": "When you see Ask Beeswax, hold the mic and say, “Hey Beeswax,” then ask your question."
     },
     "room_forecast": {
       "channel": "room",
@@ -130,9 +147,11 @@
         "window",
         "forecast"
       ],
-      "duration_s": 5.59,
+      "duration_s": 4.18,
       "mp3": "unity/room_forecast.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "bbc9321305049a4e38a40e985dd103bbd1fb44ed2c5ce8f9766b75ab49f41ee5",
+      "spoken_text": "Job perk: that window shows the future. Paris, tomorrow. Bee-utiful."
     },
     "room_meet_2": {
       "channel": "room",
@@ -143,9 +162,11 @@
         "load-bearing",
         "stakes"
       ],
-      "duration_s": 3.4,
+      "duration_s": 2.972,
       "mp3": "unity/room_meet_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "03009b435d405c3cdcc77217ff1c04c2200e45b2a2df61ad6f05566c2195fcef",
+      "spoken_text": "Four problems. Four minutes. Or you're on that rocket."
     },
     "room_meet_stat": {
       "channel": "room",
@@ -155,9 +176,11 @@
         "map",
         "fact:colonies"
       ],
-      "duration_s": 6.53,
+      "duration_s": 5.341,
       "mp3": "unity/room_meet_stat.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "cc14ab537dc9e4f419587c9c07a7e940db00f86e7459f5c53973c450ba10d66e",
+      "spoken_text": "In one recent year, American beekeepers lost more than half their hives. Somebody has to be loud."
     },
     "room_smoker_intro": {
       "channel": "room",
@@ -168,9 +191,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 4.52,
+      "duration_s": 3.529,
       "mp3": "unity/room_smoker_intro.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "94a6f81e4efa9faf51d28567b5be89dc97afe5e0c3ee71d95132dfd269eae4c0",
+      "spoken_text": "Problem one: the girls are buzzing mad. Calm them down. Pick one."
     },
     "room_hint_smoker": {
       "channel": "room",
@@ -180,9 +205,11 @@
         "station:smoker",
         "hint"
       ],
-      "duration_s": 3.69,
+      "duration_s": 2.879,
       "mp3": "unity/room_hint_smoker.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "6b77115c67b2587475a67335382fb4c1b02d6eb61014a89affd2d887cbef1d8e",
+      "spoken_text": "Off the record? Beekeepers don't swat. They puff."
     },
     "room_smoker_swat": {
       "channel": "room",
@@ -194,9 +221,11 @@
         "wrong",
         "fact:alarm"
       ],
-      "duration_s": 5.72,
+      "duration_s": 4.551,
       "mp3": "unity/room_smoker_swat.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "ed6a95646b0cfc21515fcbac74a17780d484006b0d5b1ea26fa7c1eaff509a56",
+      "spoken_text": "You swatted a union member?! Squish one bee and her alarm smell calls the whole shift."
     },
     "room_smoker_spray_water": {
       "channel": "room",
@@ -208,9 +237,11 @@
         "wrong",
         "fact:alarm"
       ],
-      "duration_s": 6.48,
+      "duration_s": 4.783,
       "mp3": "unity/room_smoker_spray_water.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "d098bb6438f8fb21133f1ebc22c581f42f53e5c2a05cdfad9e38d1201b019f22",
+      "spoken_text": "Water? Now they're wet and still buzzing mad. Smoke masks the alarm smell."
     },
     "room_smoker_smoker": {
       "channel": "room",
@@ -222,22 +253,26 @@
         "correct",
         "fact:smoke"
       ],
-      "duration_s": 7.4,
+      "duration_s": 6.13,
       "mp3": "unity/room_smoker_smoker.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0bd017b22dce4e1d55c96aa6cc5450772fc0b5bd860a5076533eb85d16338710",
+      "spoken_text": "Ahh. Smoke covers our alarm smell and makes us fill up on honey. The alarm? Smells like bananas."
     },
     "room_smoker_banana": {
       "channel": "room",
-      "caption": "Don't go bananas near my hive. And don't eat a banana, either.",
+      "caption": "Don't turn into a banana.",
       "beat": "smoker",
       "tags": [
         "station:smoker",
         "joke",
         "cut-if-behind"
       ],
-      "duration_s": 3.74,
+      "duration_s": 1.486,
       "mp3": "unity/room_smoker_banana.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "ea563f3735c452546dc42143a687cb25d59b8418aeb2776f204cf417890f45ec",
+      "spoken_text": "Don't turn into a banana."
     },
     "room_smoker_hand": {
       "channel": "room",
@@ -249,9 +284,11 @@
         "palm",
         "fact:sting"
       ],
-      "duration_s": 6.95,
+      "duration_s": 5.016,
       "mp3": "unity/room_smoker_hand.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "c0afbbd6fce9ff14cba95b1f360ad4e390977097fe8f0d602111ec722ef9ee99",
+      "spoken_text": "They're calm. Hold out your hand. These ones are virtual. Real ones? Bee-hold, but don't touch."
     },
     "room_feed_intro": {
       "channel": "room",
@@ -262,9 +299,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 4.99,
+      "duration_s": 3.715,
       "mp3": "unity/room_feed_intro.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "876f135ee8b25168679029381721b2eac418105dd9f9d2376eca0c7a739cb2b0",
+      "spoken_text": "Problem two. Speaking of honey, any left? Now lift the hive."
     },
     "room_lift_light": {
       "channel": "room",
@@ -276,9 +315,11 @@
         "load-bearing",
         "fact:heft"
       ],
-      "duration_s": 6.74,
+      "duration_s": 5.201,
       "mp3": "unity/room_lift_light.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "ebdb9f728f5976d75a1175384734342ed91236eaed4755653b9fdee76cecccf4",
+      "spoken_text": "Light, right? That's bad. Full hives are heavy with honey. The movers were being dramatic."
     },
     "room_feed_tip": {
       "channel": "room",
@@ -288,9 +329,11 @@
         "station:feed",
         "load-bearing"
       ],
-      "duration_s": 1.18,
+      "duration_s": 0.975,
       "mp3": "unity/room_feed_tip.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "37a61bae25394b4d8f9c8fd20728b46daa1a76faf4abd5e67ca1a2f2592fc0f3",
+      "spoken_text": "We're starving."
     },
     "room_feed_rocket_fuel": {
       "channel": "room",
@@ -301,9 +344,11 @@
         "optional",
         "rocket"
       ],
-      "duration_s": 3.74,
+      "duration_s": 3.715,
       "mp3": "unity/room_feed_rocket_fuel.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "edc8dabf70e7783f1a0a0d4e6673e6f42f5c7f35f3f34a3d37da60f893474939",
+      "spoken_text": "Where'd the honey go? , Your rocket. Somebody had to fuel it."
     },
     "room_feed_prompt": {
       "channel": "room",
@@ -314,9 +359,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 3.09,
+      "duration_s": 2.415,
       "mp3": "unity/room_feed_prompt.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "b2c6daab8cf77d6b7fcc538655392ddfc7bf395f37ab67af73a1380d4bf14b26",
+      "spoken_text": "So feed us. Store-bought honey, or sugar syrup?"
     },
     "room_hint_feed": {
       "channel": "room",
@@ -326,9 +373,11 @@
         "station:feed",
         "hint"
       ],
-      "duration_s": 3.19,
+      "duration_s": 2.647,
       "mp3": "unity/room_hint_feed.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "67541002f6cc0ecdc5a5424d4434af1ec13de6cdde1026d8ab1b099f5f97399e",
+      "spoken_text": "Off the record? You don't know where store honey's been."
     },
     "room_feed_store_honey": {
       "channel": "room",
@@ -340,9 +389,11 @@
         "wrong",
         "fact:foulbrood"
       ],
-      "duration_s": 10.71,
+      "duration_s": 6.223,
       "mp3": "unity/room_feed_store_honey.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "c6c32034f9052842592bd9c46c567576dcb864ec5813b67f9b6c2ba50d5d8a8b",
+      "spoken_text": ", Honey. From a store. It can carry foulbrood. Its spores last decades. Fine on toast, deadly in a hive."
     },
     "room_feed_sugar_syrup": {
       "channel": "room",
@@ -354,9 +405,11 @@
         "correct",
         "fact:heft"
       ],
-      "duration_s": 6.61,
+      "duration_s": 5.062,
       "mp3": "unity/room_feed_sugar_syrup.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3f15e85481733729c16daeafc06a27409ba554bcc9b1b22c1ea7e17e3724060c",
+      "spoken_text": "Sugar syrup. Sweet. Beekeepers lift the hive to check for food, then feed syrup."
     },
     "room_feed_why": {
       "channel": "room",
@@ -366,22 +419,26 @@
         "station:feed",
         "fact:foulbrood"
       ],
-      "duration_s": 5.83,
+      "duration_s": 5.016,
       "mp3": "unity/room_feed_why.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0adb4c3fe36e8a16af9ebb818b604ab7c5d4ce06c2c83060a7c75199fb61fb34",
+      "spoken_text": "Why avoid store honey? It can carry foulbrood spores. Fine on toast, deadly in a hive."
     },
     "room_wasps_arrive": {
       "channel": "room",
-      "caption": "Uh oh. Problem three: wasps made a beeline for the syrup.",
+      "caption": "Bees feed their young pollen. Many wasps bring bugs. These want syrup.",
       "beat": "wasps",
       "tags": [
         "station:wasps",
         "load-bearing",
         "arrive"
       ],
-      "duration_s": 4.23,
+      "duration_s": 4.505,
       "mp3": "unity/room_wasps_arrive.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "d8abbe86a9befbc7e4e6f35523a593e4075c49a4bc42c7ed357e309df881193b",
+      "spoken_text": "Bees feed their young pollen. Many wasps bring bugs. These want syrup."
     },
     "room_wasps_batoff": {
       "channel": "room",
@@ -392,9 +449,11 @@
         "batoff",
         "fact:alarm_pheromone"
       ],
-      "duration_s": 7.08,
+      "duration_s": 5.712,
       "mp3": "unity/room_wasps_batoff.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "c92e16428d4fcefc89453a502f02df6bdbc35ba56d3d73ff9a339daba2a9a2be",
+      "spoken_text": "Guard duty! Bounce 'em, don't squish 'em. A squished wasp's alarm scent calls in her nestmates."
     },
     "room_wasps_batoff_nice": {
       "channel": "room",
@@ -405,9 +464,11 @@
         "batoff",
         "fact:guard_bees"
       ],
-      "duration_s": 5.91,
+      "duration_s": 4.783,
       "mp3": "unity/room_wasps_batoff_nice.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "7ba46c6f4fbeada425de499c663938bdc59ddffcd71dd94174c770910f7cfd4a",
+      "spoken_text": "Look at you, bouncing. Real guard bees check everyone at the door and shove intruders out."
     },
     "room_wasps_batoff_door": {
       "channel": "room",
@@ -417,9 +478,11 @@
         "station:wasps",
         "batoff"
       ],
-      "duration_s": 5.41,
+      "duration_s": 4.226,
       "mp3": "unity/room_wasps_batoff_door.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "38b02d3f07c86947e1a0b63f0bfa242ddef1905351b06c00df8f09586e33b7dc",
+      "spoken_text": "One made it to the door! Guards are on her. Shoving's in the job description."
     },
     "room_wasps_batoff_done": {
       "channel": "room",
@@ -429,9 +492,11 @@
         "station:wasps",
         "batoff"
       ],
-      "duration_s": 6.12,
+      "duration_s": 5.341,
       "mp3": "unity/room_wasps_batoff_done.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "7b9eb8724965d132796ee0f783b17c054ca4f05d51709b519d2da5956d4e4c99",
+      "spoken_text": "Shift's over. Zero squished, zero alarm smell. Overtime's bee-yond my pay grade."
     },
     "room_wasps_intro": {
       "channel": "room",
@@ -442,9 +507,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 5.83,
+      "duration_s": 3.854,
       "mp3": "unity/room_wasps_intro.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "f958850601b09ddf9d8e63fc778f2d8afc063e6f11fc8d2cff0f887d2d9614d3",
+      "spoken_text": "Nobody ordered wasps. We're short on guards. Make the door bigger, or smaller?"
     },
     "room_hint_wasps": {
       "channel": "room",
@@ -454,9 +521,11 @@
         "station:wasps",
         "hint"
       ],
-      "duration_s": 3.97,
+      "duration_s": 3.204,
       "mp3": "unity/room_hint_wasps.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3a91df2acb5871d0efb579ec52f2d8f74658514d0ada414d4354e2b2b1a35eca",
+      "spoken_text": "Off the record? Think castle. Big gate or small gate?"
     },
     "room_wasps_bigger_door": {
       "channel": "room",
@@ -467,9 +536,11 @@
         "choice:bigger_door",
         "wrong"
       ],
-      "duration_s": 6.19,
+      "duration_s": 5.294,
       "mp3": "unity/room_wasps_bigger_door.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "af943ff01892056c7eac719499900251aad3941e65cb91371eac4c6c72f21f2f",
+      "spoken_text": "Bigger?! You built the wasps a drive-through. More door takes more guards. Grievance filed."
     },
     "room_wasps_smaller_door": {
       "channel": "room",
@@ -481,9 +552,11 @@
         "correct",
         "fact:reducer"
       ],
-      "duration_s": 6.98,
+      "duration_s": 5.016,
       "mp3": "unity/room_wasps_smaller_door.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "af5cd56d4458f5a48526c145a59586f516197b04385eb82ec32540879cf36c80",
+      "spoken_text": "That's an entrance reducer. Smaller door, fewer guards needed to hold it. Buzz off, wasps."
     },
     "room_hornet_1": {
       "channel": "room",
@@ -493,9 +566,11 @@
         "hornet",
         "load-bearing"
       ],
-      "duration_s": 5.91,
+      "duration_s": 4.365,
       "mp3": "unity/room_hornet_1.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "952a8ce9a0ea0643b3c46b5311083d4ff80ac9b19c0da56ae4d969d2c6509bd6",
+      "spoken_text": "giant hornet! My cousins in Japan cook these. Never tried it. Make a fist!"
     },
     "room_hornet_2": {
       "channel": "room",
@@ -505,9 +580,11 @@
         "hornet",
         "load-bearing"
       ],
-      "duration_s": 0.94,
+      "duration_s": 0.836,
       "mp3": "unity/room_hornet_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "17254d04397b98a1d522f8b5ef571b25ddf6feecccd5a5a70c724d83cac12621",
+      "spoken_text": "Now hum!"
     },
     "room_hornet_3": {
       "channel": "room",
@@ -518,9 +595,11 @@
         "nudge",
         "fact:hornet"
       ],
-      "duration_s": 7.79,
+      "duration_s": 5.619,
       "mp3": "unity/room_hornet_3.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "c39870bd6e39e2ff60d45115fa4963e84d8ce6f4b57e9fea2da2e6cf6f0fcf7d",
+      "spoken_text": "Louder! In Japan it takes over five hundred bees and about forty-six degrees Celsius. We're winging it. louder!"
     },
     "room_hornet_4": {
       "channel": "room",
@@ -531,9 +610,11 @@
         "overshoot",
         "load-bearing"
       ],
-      "duration_s": 1.78,
+      "duration_s": 1.625,
       "mp3": "unity/room_hornet_4.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0a20de1596c303ea31a18d2bd397ec7083452e5fc77c129b85fd370ad7c33472",
+      "spoken_text": "stop, you're cooking the girls!"
     },
     "room_heat_intro": {
       "channel": "room",
@@ -544,9 +625,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 5.28,
+      "duration_s": 3.854,
       "mp3": "unity/room_heat_intro.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "f484e9f1f86f60b03a309d522fa0c7718ea2a9ebd0c0298d8c5f2d0ebdcef168",
+      "spoken_text": "Last problem: heat wave. The babies are cooking. Pick a water dish."
     },
     "room_hint_heat": {
       "channel": "room",
@@ -557,9 +640,11 @@
         "hint",
         "fact:water"
       ],
-      "duration_s": 4.81,
+      "duration_s": 3.762,
       "mp3": "unity/room_hint_heat.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "e78f0a95e51d0fff31703180e952ee6c5d1e81fd25390e84207301e35fc3b466",
+      "spoken_text": "Off the record? Bees can't swim. Where would a bee stand to drink?"
     },
     "room_heat_deep_bowl": {
       "channel": "room",
@@ -571,9 +656,11 @@
         "wrong",
         "fact:water"
       ],
-      "duration_s": 7.73,
+      "duration_s": 6.595,
       "mp3": "unity/room_heat_deep_bowl.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "599eb2061d1b7c2f39d34223d96f38b0e9039ed3bece64b6fec734e1c34ca148",
+      "spoken_text": "A deep bowl? That's a pool. Bees drown in deep water, and the lifeguard's on strike. Grievance filed."
     },
     "room_heat_nothing": {
       "channel": "room",
@@ -584,9 +671,11 @@
         "choice:nothing",
         "wrong"
       ],
-      "duration_s": 9.22,
+      "duration_s": 6.502,
       "mp3": "unity/room_heat_nothing.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "9cf4d5329750f8d13300677ca4022d0b3f9f703cf025c05fbf1e3eb130f4fc3e",
+      "spoken_text": "Nothing? In a heat wave? We cool the hive with water. No water, no air conditioning. Grievance filed. Angrily."
     },
     "room_heat_pebble_dish": {
       "channel": "room",
@@ -598,9 +687,11 @@
         "correct",
         "fact:cooling"
       ],
-      "duration_s": 7.21,
+      "duration_s": 6.409,
       "mp3": "unity/room_heat_pebble_dish.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "25a21082659527bd0a4d2fafa07b06f1f6ff3eba52a66864d6fe6ddd7b6ed56d",
+      "spoken_text": "Pebbles! Somewhere to land. We spread water drops in the hive and fan our wings. Bee air conditioning."
     },
     "room_whatif_prompt": {
       "channel": "room",
@@ -611,9 +702,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 5.88,
+      "duration_s": 3.808,
       "mp3": "unity/room_whatif_prompt.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "b13d0d4c40c5c1b0da5d6dfb47fd891a484d72e3214891f9127dd0bd113b4984",
+      "spoken_text": "Four for four! Now you drive the window. Pinch, hold, and ask me \"what if.\""
     },
     "room_whatif_notfire": {
       "channel": "room",
@@ -624,9 +717,11 @@
         "prompt",
         "load-bearing"
       ],
-      "duration_s": 2.95,
+      "duration_s": 2.276,
       "mp3": "unity/room_whatif_notfire.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3e6c587c6eb437a826eb011d096392474baeb1ed405daa9a61522b18df259806",
+      "spoken_text": "Rain, flowers, anything. Just not fire."
     },
     "room_hint_whatif": {
       "channel": "room",
@@ -636,9 +731,11 @@
         "whatif",
         "hint"
       ],
-      "duration_s": 3.27,
+      "duration_s": 2.415,
       "mp3": "unity/room_hint_whatif.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "77e2cb44c4f57d594b6e39ba07c3ba946e2f762ec5c7078021ffd36798f1278f",
+      "spoken_text": "Try asking about a fire. , Actually, don't."
     },
     "room_whatif_fire": {
       "channel": "room",
@@ -649,9 +746,11 @@
         "topic:fire",
         "load-bearing"
       ],
-      "duration_s": 6.32,
+      "duration_s": 3.297,
       "mp3": "unity/room_whatif_fire.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "54e0167cb72598d4bb3395a5727c1cff788a36800ae0ea383ea911c4f0ec9264",
+      "spoken_text": "Don't say that. , You said it. Watch the window. I can't look."
     },
     "room_whatif_fire_2": {
       "channel": "room",
@@ -662,9 +761,11 @@
         "topic:fire",
         "alt:room_whatif_fire"
       ],
-      "duration_s": 6.06,
+      "duration_s": 3.808,
       "mp3": "unity/room_whatif_fire_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "803e7e901049cc53001515045c237971ebf9f77b46c31e54d965fee4fff045c3",
+      "spoken_text": "Don't say that. , Again?! You get your own spreadsheet. Watch the window."
     },
     "room_whatif_fire_3": {
       "channel": "room",
@@ -675,9 +776,11 @@
         "topic:fire",
         "alt:room_whatif_fire"
       ],
-      "duration_s": 6.19,
+      "duration_s": 3.39,
       "mp3": "unity/room_whatif_fire_3.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "689fdd2323bf8fd1b0a9d2e1528b115c46ae95d6a55cb338e67a0269a76d8925",
+      "spoken_text": "Don't say that. , Why does everybody say that? Watch the window."
     },
     "room_whatif_putout": {
       "channel": "room",
@@ -688,9 +791,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 3.61,
+      "duration_s": 2.693,
       "mp3": "unity/room_whatif_putout.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "2a3bc06d4a78e2dd81dc6c5397cc2f31eceaaa78bbed4e0ce27e57a1e1ceed31",
+      "spoken_text": "It's spreading! Pinch and say \"put it out\"! say IT!"
     },
     "room_whatif_out": {
       "channel": "room",
@@ -702,9 +807,11 @@
         "relief",
         "fact:fire"
       ],
-      "duration_s": 6.53,
+      "duration_s": 4.969,
       "mp3": "unity/room_whatif_out.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "4379cdc5bd4b52be0652a08885f44645622dda88e95f13cc58375ac8f5b5f08e",
+      "spoken_text": "Fire brigade! , It's out. Bees don't fight fires. We help burned land grow back."
     },
     "room_whatif_out_2": {
       "channel": "room",
@@ -716,9 +823,11 @@
         "relief",
         "alt:room_whatif_out"
       ],
-      "duration_s": 4.34,
+      "duration_s": 3.39,
       "mp3": "unity/room_whatif_out_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "83941a614e2637b570b096594c0d7bbe83bd3b18880b6c0fad2aeb998242bd3f",
+      "spoken_text": "It's out. I'm putting \"no fire\" in the bylaws. In bold."
     },
     "room_whatif_out_3": {
       "channel": "room",
@@ -730,9 +839,11 @@
         "relief",
         "alt:room_whatif_out"
       ],
-      "duration_s": 4.86,
+      "duration_s": 3.854,
       "mp3": "unity/room_whatif_out_3.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "18797f8b2350376d1d4228443222bb5513efbb7009b539241dd52f0cad2592dd",
+      "spoken_text": "Fire's out. I'm not crying, that's smoke. Motion carried."
     },
     "room_whatif_rain": {
       "channel": "room",
@@ -742,9 +853,11 @@
         "whatif",
         "topic:rain"
       ],
-      "duration_s": 6.56,
+      "duration_s": 4.69,
       "mp3": "unity/room_whatif_rain.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "6ac2347507965c96cc046a1df7589b27ed73a9965b0056d549658cd3b94422c1",
+      "spoken_text": "Rain? Fine. Hardly anybee forages in the rain. We'll stay in and do paperwork."
     },
     "room_whatif_flowers": {
       "channel": "room",
@@ -754,9 +867,11 @@
         "whatif",
         "topic:flowers"
       ],
-      "duration_s": 7.45,
+      "duration_s": 4.737,
       "mp3": "unity/room_whatif_flowers.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0dbc829c1aa027a179bcfd35da386c7411c46a67abf858cd6a0e8c8e64678378",
+      "spoken_text": "Flowers? Now you're talking. More flowers, more food. I don't forage, but I'll allow it."
     },
     "room_whatif_spray": {
       "channel": "room",
@@ -766,9 +881,11 @@
         "whatif",
         "topic:spray"
       ],
-      "duration_s": 7.81,
+      "duration_s": 6.13,
       "mp3": "unity/room_whatif_spray.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "7b5230d78454a690a45826b30ce7f434506b80ae4f86bf43ea6689105c083e10",
+      "spoken_text": "Pesticide? It drifts onto the flowers, and we carry it home to the babies. Grievance filed. Twice."
     },
     "room_whatif_winter": {
       "channel": "room",
@@ -778,9 +895,11 @@
         "whatif",
         "topic:winter"
       ],
-      "duration_s": 7.87,
+      "duration_s": 6.966,
       "mp3": "unity/room_whatif_winter.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "2a9bf5d260d8ba7f8c1ba92052f7ffdd0a6df282521f3389504cbb2fbf70be9a",
+      "spoken_text": "Winter? The girls huddle around the queen and shiver to keep her warm. Drones get kicked out. Grievance pending."
     },
     "room_whatif_custom": {
       "channel": "room",
@@ -792,9 +911,11 @@
         "morph",
         "load-bearing"
       ],
-      "duration_s": 3.63,
+      "duration_s": 2.833,
       "mp3": "unity/room_whatif_custom.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "32fbd4b2c3c87893a5d80434dd1d1edb170478a1cde90de5820209ceee9cf431",
+      "spoken_text": "Hold on. I'm picturing it. , Okay. Watch the window."
     },
     "room_whatif_custom_2": {
       "channel": "room",
@@ -806,9 +927,11 @@
         "morph",
         "alt:room_whatif_custom"
       ],
-      "duration_s": 3.74,
+      "duration_s": 2.879,
       "mp3": "unity/room_whatif_custom_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "d1d788bfb3757013c1433b8fbbf786fe2887bf3737d5cbca12d222242c495cd3",
+      "spoken_text": "Not on the agenda. , I'll allow it. Picturing it now."
     },
     "room_whatif_custom_3": {
       "channel": "room",
@@ -820,9 +943,11 @@
         "morph",
         "alt:room_whatif_custom"
       ],
-      "duration_s": 4.16,
+      "duration_s": 3.251,
       "mp3": "unity/room_whatif_custom_3.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "6d99659e40143eabff43ea28febe208adb7c3a4877fc18093e35ba726f3afcd0",
+      "spoken_text": "New motion. Let me picture it. Don't rush me. Union rules."
     },
     "room_whatif_custom_clips": {
       "channel": "room",
@@ -834,9 +959,11 @@
         "clips",
         "load-bearing"
       ],
-      "duration_s": 5.41,
+      "duration_s": 4.319,
       "mp3": "unity/room_whatif_custom_clips.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "a2946f81679be844c9fe8249f2a538ed3c4b93e80ccab6e49d6191befa29b392",
+      "spoken_text": "I'm picturing it. The window isn't. It's on its union break. Ask about rain."
     },
     "room_whatif_refuse": {
       "channel": "room",
@@ -848,9 +975,11 @@
         "refuse",
         "load-bearing"
       ],
-      "duration_s": 6.14,
+      "duration_s": 4.644,
       "mp3": "unity/room_whatif_refuse.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "f9be4bf6cba818f980e4e577829fa771390931c610dc15da4c761e5e6c5c6ad7",
+      "spoken_text": "Grievance filed. Not that one. Ask something I could show the queen. She's my mom."
     },
     "room_whatif_back": {
       "channel": "room",
@@ -860,9 +989,11 @@
         "whatif",
         "undo"
       ],
-      "duration_s": 5.88,
+      "duration_s": 3.994,
       "mp3": "unity/room_whatif_back.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "489f14b9b4f2acf019e76a15488929899226c7e81ce7213b6fb54ecf423458dc",
+      "spoken_text": "Fine. Back to how it was. Like it never happened. It's in the minutes, though."
     },
     "room_whatif_nothing": {
       "channel": "room",
@@ -872,9 +1003,11 @@
         "whatif",
         "undo"
       ],
-      "duration_s": 3.56,
+      "duration_s": 2.322,
       "mp3": "unity/room_whatif_nothing.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "01e1209ab4e7a8f1a9647253521dd8edaea698d06e1167c0ffdaa947d86ba267",
+      "spoken_text": "Undo what? Nothing's on fire. Yet."
     },
     "room_adjourn": {
       "channel": "room",
@@ -885,9 +1018,11 @@
         "load-bearing",
         "vote"
       ],
-      "duration_s": 5.07,
+      "duration_s": 2.601,
       "mp3": "unity/room_adjourn.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "24bad3de5e28bf48eef260083c9e9354a9d7f2ab2ef6f20c1a521fd385a98f37",
+      "spoken_text": "Motion to adjourn. Seconded, by me. All in favor?"
     },
     "room_live_filler": {
       "channel": "room",
@@ -897,9 +1032,11 @@
         "filler",
         "live"
       ],
-      "duration_s": 3.03,
+      "duration_s": 2.229,
       "mp3": "unity/room_live_filler.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "e7e1491722519d1da4e1fe19ea8c3732cb828355a3738c02887881e4fd3e91dd",
+      "spoken_text": "I could drone on all day. Short version:"
     },
     "room_escape": {
       "channel": "room",
@@ -911,9 +1048,11 @@
         "load-bearing",
         "stakes"
       ],
-      "duration_s": 4.21,
+      "duration_s": 3.576,
       "mp3": "unity/room_escape.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "82a20bdaf938e0a5dc92cc54a4440475874a75928955fa96a2e416a71f116bf1",
+      "spoken_text": "Motion carried. No ravaging today. Cancel the evacuation."
     },
     "room_escape_minutes": {
       "channel": "room",
@@ -924,9 +1063,11 @@
         "load-bearing",
         "recap"
       ],
-      "duration_s": 6.12,
+      "duration_s": 5.155,
       "mp3": "unity/room_escape_minutes.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "e52187d6b01b51a3c7c84029cb2719b243ba57f99c0ae7bfdcea33d921ff98eb",
+      "spoken_text": "For the minutes: smoke, syrup, small door, shallow water. That's real beekeeping."
     },
     "room_escape_credit": {
       "channel": "room",
@@ -936,9 +1077,11 @@
         "escape",
         "cut-if-behind"
       ],
-      "duration_s": 3.03,
+      "duration_s": 2.601,
       "mp3": "unity/room_escape_credit.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "b6c540c51776665217bdde49bb7c0343d3c6f087ebd5fdac96860260aa584a01",
+      "spoken_text": "Thanks, beekeeper. , Strike that from the minutes."
     },
     "room_t0_1": {
       "channel": "room",
@@ -948,9 +1091,11 @@
         "t0",
         "rocket"
       ],
-      "duration_s": 2.8,
+      "duration_s": 1.95,
       "mp3": "unity/room_t0_1.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0349d7bb0237687688739120bf08b56435a5e075275124bfc56b8cb5dade95a5",
+      "spoken_text": ", Shame to waste a ticket. Non-refundable."
     },
     "room_t0_2": {
       "channel": "room",
@@ -960,9 +1105,11 @@
         "t0",
         "load-bearing"
       ],
-      "duration_s": 1.52,
+      "duration_s": 1.3,
       "mp3": "unity/room_t0_2.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "36b341fbe6f78532f5d7b0c37750fbdb350582c9f270387883a563fd6578f999",
+      "spoken_text": "take ME TO the moon!"
     },
     "room_t0_earth": {
       "channel": "room",
@@ -973,9 +1120,11 @@
         "optional",
         "fact:earth"
       ],
-      "duration_s": 7.16,
+      "duration_s": 4.737,
       "mp3": "unity/room_t0_earth.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "85d8a647a0e80afba99da6a9eace876144a93343ab0971882d3c75dab4f3027e",
+      "spoken_text": "Look at Earth. From up here, it barely moves. Just hangs there. Like a drone. I oughta know."
     },
     "room_t0_3": {
       "channel": "room",
@@ -985,9 +1134,11 @@
         "t0",
         "fact:flowers"
       ],
-      "duration_s": 3.4,
+      "duration_s": 2.786,
       "mp3": "unity/room_t0_3.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "d7307d76d40f65254babf3a9fa0e53e61306b3d8d598f623845dacb5557bf5ff",
+      "spoken_text": ", Not one flower. We've only found them on Earth."
     },
     "room_t0_4": {
       "channel": "room",
@@ -996,9 +1147,11 @@
       "tags": [
         "t0"
       ],
-      "duration_s": 3.5,
+      "duration_s": 2.601,
       "mp3": "unity/room_t0_4.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "f09116b879b61662ceb9f3f6aabcfeae22b4863734b26d184b75e4c82d345c58",
+      "spoken_text": "I'm back. Nobody saw that. Mind your own beeswax."
     },
     "room_t0_fake_moon": {
       "channel": "room",
@@ -1007,10 +1160,11 @@
       "tags": [
         "t0"
       ],
-      "duration_s": 3.82,
+      "duration_s": 3.39,
       "mp3": "unity/room_t0_fake_moon.mp3",
       "pcm": null,
-      "source": "local Qwen3-TTS-12Hz-0.6B-Base"
+      "sha256": "8d6f9a377d72659b06d22290c96cd543b196fdf7e403d43365c82207230bb3fc",
+      "spoken_text": "Turns out the Moon was fake. Union rules say you get it anyway."
     },
     "room_truth": {
       "channel": "room",
@@ -1021,9 +1175,11 @@
         "load-bearing",
         "fact:varroa"
       ],
-      "duration_s": 8.81,
+      "duration_s": 5.062,
       "mp3": "unity/room_truth.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "9cd4b981b8989d27ba1e2510d5eeb82466ec838419adf3ddc20e090bc0ac6148",
+      "spoken_text": "Truth time. Real swarms are gentle. Real hives die quietly: mites, hunger, heat, poison."
     },
     "room_map": {
       "channel": "room",
@@ -1034,9 +1190,11 @@
         "load-bearing",
         "fact:wild"
       ],
-      "duration_s": 6.01,
+      "duration_s": 4.551,
       "mp3": "unity/room_map.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "f310957857564f89a5c6b74f6a7dca0e95bce17b666a170184095a6055e781ee",
+      "spoken_text": "Same time tomorrow? Other hives have it worse. Wild bees don't even get a beekeeper."
     },
     "room_end_contract": {
       "channel": "room",
@@ -1047,9 +1205,11 @@
         "load-bearing",
         "contract"
       ],
-      "duration_s": 7.03,
+      "duration_s": 5.108,
       "mp3": "unity/room_end_contract.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "396d45b77805f21fdb59f0d9669b91970c93f2a66c831dfcb9301863a6d9ecae",
+      "spoken_text": "You're hired. New contract: plant flowers, skip bug spray, add a pebble dish. Hive five."
     },
     "room_ack_minutes": {
       "channel": "room",
@@ -1058,9 +1218,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.36,
+      "duration_s": 1.161,
       "mp3": "unity/room_ack_minutes.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "7e2a3dfbc3422aed9dd719f01176ca675701990f36d78e5dbc9e6e073c5cd4ab",
+      "spoken_text": "Noted for the minutes."
     },
     "room_ack_allow": {
       "channel": "room",
@@ -1069,9 +1231,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.05,
+      "duration_s": 0.929,
       "mp3": "unity/room_ack_allow.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "4dbfb58f2336e588625a351b21d03c594bc1cf8952f971f8982b25e6b0d6f77f",
+      "spoken_text": "I'll allow it."
     },
     "room_ack_grievance": {
       "channel": "room",
@@ -1080,9 +1244,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.28,
+      "duration_s": 1.068,
       "mp3": "unity/room_ack_grievance.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "39ccffa48a9f2cf34a45ad4a6e61f9089768448431d91f94747dcbf3f2d980ba",
+      "spoken_text": "Grievance filed."
     },
     "room_ack_carried": {
       "channel": "room",
@@ -1091,9 +1257,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.28,
+      "duration_s": 1.161,
       "mp3": "unity/room_ack_carried.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "7ee1b8e229f644cad8433b6add487f6ae42850fa04bc6790bcceb93d940a1d97",
+      "spoken_text": "Motion carried."
     },
     "room_ack_denied": {
       "channel": "room",
@@ -1102,9 +1270,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.28,
+      "duration_s": 1.022,
       "mp3": "unity/room_ack_denied.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "fcd71430dd9074964223f1d415c0017cd3eef155f1854182bc4c1cd8d7c84e44",
+      "spoken_text": "Motion denied."
     },
     "room_ack_tabled": {
       "channel": "room",
@@ -1113,9 +1283,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.78,
+      "duration_s": 1.486,
       "mp3": "unity/room_ack_tabled.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "0c25ae72ede12592553102bdb0a9cdb30f31d794ab5b564fac3b060f0119ce64",
+      "spoken_text": "Tabled until the next meeting."
     },
     "room_ack_spreadsheet": {
       "channel": "room",
@@ -1124,9 +1296,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 1.73,
+      "duration_s": 1.393,
       "mp3": "unity/room_ack_spreadsheet.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "c9a03a8983955a1986e02813f704b5e8dff6a4f1cd0723e397382fe9fe80447e",
+      "spoken_text": "Adding that to the spreadsheet."
     },
     "room_ack_order": {
       "channel": "room",
@@ -1135,9 +1309,11 @@
       "tags": [
         "ack"
       ],
-      "duration_s": 3.03,
+      "duration_s": 2.368,
       "mp3": "unity/room_ack_order.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "b5b96dacc5af61608c17016dd790b8ab24cf4eb6dc08b02b9ec5d5f81364931d",
+      "spoken_text": "Point of order. Hive first, questions later."
     },
     "room_crew_heavy": {
       "channel": "room",
@@ -1147,9 +1323,11 @@
         "courier",
         "heavy"
       ],
-      "duration_s": 1.88,
+      "duration_s": 1.579,
       "mp3": "unity/room_crew_heavy.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "955e79b47268d3a80f09b466b979b49418df36fc4bb1e9d96e3fa0f45e94c85e",
+      "spoken_text": "Lift with your wings, ladies!"
     },
     "room_fact_festoon": {
       "channel": "room",
@@ -1161,9 +1339,11 @@
         "operator",
         "fact:festoon"
       ],
-      "duration_s": 6.19,
+      "duration_s": 4.969,
       "mp3": "unity/room_fact_festoon.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "03c4d7f0e96e099e216ab6cdcb91a0de2ef04e96c099450731eb925fa65339f0",
+      "spoken_text": "That's festooning. We hook our legs together into chains. Scientists still aren't sure why."
     },
     "room_strike_lookup": {
       "channel": "room",
@@ -1174,9 +1354,11 @@
         "strike",
         "first-grievance"
       ],
-      "duration_s": 6.32,
+      "duration_s": 5.619,
       "mp3": "unity/room_strike_lookup.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "549bbe0318808a42b05d10678a141dbca1bce86922ee70303e10aaa44c6ece6f",
+      "spoken_text": "Look up. Bees don't picket. We swarm. Every grievance makes it bigger. Pick again."
     },
     "room_timeout": {
       "channel": "room",
@@ -1185,9 +1367,11 @@
       "tags": [
         "timeout"
       ],
-      "duration_s": 2.95,
+      "duration_s": 2.415,
       "mp3": "unity/room_timeout.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "3877d3f4d6f783ac8b734f3c930dd40b05191dbabfc0a579022949309148556e",
+      "spoken_text": "Overruled. I'll pick for you. Watch closely."
     },
     "room_clock_zero": {
       "channel": "room",
@@ -1197,9 +1381,11 @@
         "timeout",
         "clock"
       ],
-      "duration_s": 4.89,
+      "duration_s": 3.576,
       "mp3": "unity/room_clock_zero.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "a366f0c33276ee03412242fc156751a620b4e97dfff73dc7f8664b01340b2782",
+      "spoken_text": "Time's up. , I'm granting an extension. Union discretion. Keep going."
     },
     "room_canned_unclear": {
       "channel": "room",
@@ -1209,9 +1395,11 @@
         "canned",
         "glasses"
       ],
-      "duration_s": 2.72,
+      "duration_s": 1.486,
       "mp3": "unity/room_canned_unclear.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "df9166713cad364aa9dcfe8ab6f77cbe397ec147936e3955e78d35e63dd3fff5",
+      "spoken_text": "What IS that? Not on the agenda."
     },
     "room_verdict_person": {
       "channel": "room",
@@ -1222,9 +1410,11 @@
         "item:person",
         "glasses"
       ],
-      "duration_s": 3.63,
+      "duration_s": 2.229,
       "mp3": "unity/room_verdict_person.mp3",
-      "pcm": null
+      "pcm": null,
+      "sha256": "483a2ebd952a51521efee435ed66d38aff870957a64182bb7c28fdfb07287494",
+      "spoken_text": "That's a person. I review hives, not people."
     },
     "ear_practice": {
       "channel": "ear",
@@ -1234,9 +1424,11 @@
         "practice",
         "load-bearing"
       ],
-      "duration_s": 2.14,
+      "duration_s": 1.765,
       "mp3": "unity/ear_practice.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_practice.pcm",
+      "sha256": "4e0c7b6103ab7b79dfb70f1686a155a9e85067e50c2507df10ae299d150cec5c",
+      "spoken_text": "Testing. You smell like coffee."
     },
     "ear_not_now": {
       "channel": "ear",
@@ -1246,33 +1438,29 @@
         "system",
         "load-bearing"
       ],
-      "duration_s": 1.7,
+      "duration_s": 1.347,
       "mp3": "unity/ear_not_now.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_not_now.pcm",
+      "sha256": "cc2db7e4530b53625b002c423ead83fe99e420b95f467887b1afb4f103308cdc",
+      "spoken_text": "Not now, I'm monologuing."
     },
     "ear_no_signal": {
       "channel": "ear",
       "caption": "I can't reach the hive. Check the hotspot.",
-      "beat": null,
-      "tags": [
-        "system",
-        "load-bearing"
-      ],
-      "duration_s": 2.67,
+      "duration_s": 2.183,
       "mp3": "unity/ear_no_signal.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_no_signal.pcm",
+      "sha256": "6306f5138af0c75f570fa5fcd1bd23cd47e94861bf630a0e39412363d56ea755",
+      "spoken_text": "I can't reach the hive. Check the hotspot."
     },
     "ear_scan_failed": {
       "channel": "ear",
       "caption": "Lost the signal. Press again.",
-      "beat": null,
-      "tags": [
-        "system",
-        "load-bearing"
-      ],
-      "duration_s": 2.14,
+      "duration_s": 1.347,
       "mp3": "unity/ear_scan_failed.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_scan_failed.pcm",
+      "sha256": "bf88fe260571195bd764f8574d4b7a60b053d3c9ac9ea039c49834115e0d554e",
+      "spoken_text": "Lost the signal. Press again."
     },
     "ear_hold_still": {
       "channel": "ear",
@@ -1282,9 +1470,11 @@
         "filler",
         "load-bearing"
       ],
-      "duration_s": 1.78,
+      "duration_s": 1.44,
       "mp3": "unity/ear_hold_still.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hold_still.pcm",
+      "sha256": "a29cc21f4715a1096e5bb1af7625028dc15875cfe9fa40515e0a101f5d298d5e",
+      "spoken_text": "Hold still. I'm reviewing it."
     },
     "ear_hold_still_2": {
       "channel": "ear",
@@ -1294,9 +1484,11 @@
         "filler",
         "load-bearing"
       ],
-      "duration_s": 3.03,
+      "duration_s": 2.043,
       "mp3": "unity/ear_hold_still_2.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hold_still_2.pcm",
+      "sha256": "1f68a60e7e9e1a51943543f44088370bf8502b93c0d6a9c20d546b1b164abfc9",
+      "spoken_text": "Still reviewing. Union rules. No rushing."
     },
     "ear_canned_unclear": {
       "channel": "ear",
@@ -1306,9 +1498,11 @@
         "canned",
         "load-bearing"
       ],
-      "duration_s": 2.77,
+      "duration_s": 1.486,
       "mp3": "unity/ear_canned_unclear.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_canned_unclear.pcm",
+      "sha256": "df9166713cad364aa9dcfe8ab6f77cbe397ec147936e3955e78d35e63dd3fff5",
+      "spoken_text": "What IS that? Not on the agenda."
     },
     "ear_hint_smoker": {
       "channel": "ear",
@@ -1318,9 +1512,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 2.14,
+      "duration_s": 1.718,
       "mp3": "unity/ear_hint_smoker.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hint_smoker.pcm",
+      "sha256": "826386d66c9f310eaf458341286954804b83d26531e16fa997a1fdb6f9d6bf35",
+      "spoken_text": "Psst. The smoker. Poke it."
     },
     "ear_hint_feed": {
       "channel": "ear",
@@ -1330,9 +1526,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 3.09,
+      "duration_s": 2.322,
       "mp3": "unity/ear_hint_feed.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hint_feed.pcm",
+      "sha256": "2eb9937e0ddb6f708cf09be2dffca5fd4871d035913c7e21bd29205dc7cc5cdb",
+      "spoken_text": "Psst. Lift the hive first. Then syrup."
     },
     "ear_hint_wasps": {
       "channel": "ear",
@@ -1342,9 +1540,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 2.56,
+      "duration_s": 1.858,
       "mp3": "unity/ear_hint_wasps.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hint_wasps.pcm",
+      "sha256": "1e3502a80553940a5434b21084ff46c4ace61df9bb93de274be3687b4277bb6b",
+      "spoken_text": "Psst. Smaller door. Fewer guards."
     },
     "ear_hint_heat": {
       "channel": "ear",
@@ -1354,9 +1554,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 2.61,
+      "duration_s": 1.95,
       "mp3": "unity/ear_hint_heat.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hint_heat.pcm",
+      "sha256": "4f1f5136694cde167b8e2ff4455311773ad71f895163ccc7f2331ee16b0c4aa6",
+      "spoken_text": "Psst. Shallow water. With pebbles."
     },
     "ear_hint_whatif": {
       "channel": "ear",
@@ -1366,9 +1568,11 @@
         "hint",
         "load-bearing"
       ],
-      "duration_s": 2.43,
+      "duration_s": 1.672,
       "mp3": "unity/ear_hint_whatif.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_hint_whatif.pcm",
+      "sha256": "da06191edbf061ad9cb732bde5f5706db0e3ef8d5a8197f07644a7acd448448c",
+      "spoken_text": "Ask me: what if a fire starts?"
     },
     "ear_aside_window": {
       "channel": "ear",
@@ -1377,9 +1581,11 @@
       "tags": [
         "aside"
       ],
-      "duration_s": 3.09,
+      "duration_s": 2.926,
       "mp3": "unity/ear_aside_window.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_aside_window.pcm",
+      "sha256": "8e0b8200ee7ef5ad5965af7ea769c495a90ffc66d232dcae71478a56f2a508bc",
+      "spoken_text": "That's the meadow window. Your choices show up there."
     },
     "ear_aside_hornet": {
       "channel": "ear",
@@ -1388,9 +1594,444 @@
       "tags": [
         "aside"
       ],
-      "duration_s": 2.8,
+      "duration_s": 2.183,
       "mp3": "unity/ear_aside_hornet.mp3",
-      "pcm": null
+      "pcm": "glasses/pcm/ear_aside_hornet.pcm",
+      "sha256": "1ccebeb4704442d04ab272efd1826cf34a23821c90a639f01a56674a9a413ec1",
+      "spoken_text": "Not all wasps are bad. Just that guy."
+    },
+    "room_pal_boop_giggle": {
+      "channel": "room",
+      "caption": "Hee! Quit it. I'm on the clock.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "boop"
+      ],
+      "duration_s": 1.44,
+      "mp3": "unity/room_pal_boop_giggle.mp3",
+      "pcm": null,
+      "sha256": "e7f4b7c91a7b0fc6449c385655a5c377439d91eb9c0d1e3b6af2e5671520ba18",
+      "spoken_text": "Hee! Quit it. I'm on the clock."
+    },
+    "room_pal_boop_file": {
+      "channel": "room",
+      "caption": "Was that a boop? That's harassment. I'm filing.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "boop"
+      ],
+      "duration_s": 2.276,
+      "mp3": "unity/room_pal_boop_file.mp3",
+      "pcm": null,
+      "sha256": "ef88060f6dd7ecefbc98a54da3e6401f14d5464e9434070f6b2de25fc9bcebe4",
+      "spoken_text": "Was that a boop? That's harassment. I'm filing."
+    },
+    "room_pal_boop_blush": {
+      "channel": "room",
+      "caption": "Okay. One boop. Off the record.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "boop"
+      ],
+      "duration_s": 2.136,
+      "mp3": "unity/room_pal_boop_blush.mp3",
+      "pcm": null,
+      "sha256": "1ecb314d9a43d0070677a50813172c17b408d23ba9db827a0f52fcdffe9ce88e",
+      "spoken_text": "Okay. One boop. Off the record."
+    },
+    "room_pal_wave": {
+      "channel": "room",
+      "caption": "Hi! Waving's free. Dues aren't.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "wave"
+      ],
+      "duration_s": 1.811,
+      "mp3": "unity/room_pal_wave.mp3",
+      "pcm": null,
+      "sha256": "428c222085ef3e1de86c1410dc14298bf8d1f2094cc3bd4b585b4680cc8d280f",
+      "spoken_text": "Hi! Waving's free. Dues aren't."
+    },
+    "room_pal_highfive": {
+      "channel": "room",
+      "caption": "Up top! I'd go high-six, but you're a finger short.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "highfive"
+      ],
+      "duration_s": 3.019,
+      "mp3": "unity/room_pal_highfive.mp3",
+      "pcm": null,
+      "sha256": "33a0fe2ab45fcf3aea4b43fdef628c1189c30f2b60b24830290bc9a4839b3157",
+      "spoken_text": "Up top! I'd go high-six, but you're a finger short."
+    },
+    "room_pal_palm": {
+      "channel": "room",
+      "caption": "Bee-hold. Foragers away from home rarely sting. Too busy. Real ones? Look, don't touch.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "palm",
+        "fact:foragers"
+      ],
+      "duration_s": 4.737,
+      "mp3": "unity/room_pal_palm.mp3",
+      "pcm": null,
+      "sha256": "2fa9ac369a67128dcd9b6a0a2c47d8c29e0539602bea08d7378b877ca6fd3419",
+      "spoken_text": "Bee-hold. Foragers away from home rarely sting. Too busy. Real ones? Look, don't touch."
+    },
+    "room_pal_honey_offer": {
+      "channel": "room",
+      "caption": "Bonus shift. Pinch that frame's top bar and pull it out.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "honey"
+      ],
+      "duration_s": 2.879,
+      "mp3": "unity/room_pal_honey_offer.mp3",
+      "pcm": null,
+      "sha256": "524be93c60d34b65512a8591e884d5cea9862186e68ed2425e191da838e13ec5",
+      "spoken_text": "Bonus shift. Pinch that frame's top bar and pull it out."
+    },
+    "room_pal_honey_caps": {
+      "channel": "room",
+      "caption": "See the wax lids? Bees cap honey once it's ripe. Scrape them off.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "honey",
+        "fact:honey_caps"
+      ],
+      "duration_s": 3.529,
+      "mp3": "unity/room_pal_honey_caps.mp3",
+      "pcm": null,
+      "sha256": "1c7097a6ca89cf5979a847eb3c8a8839c407ef0553ba5ad7f46ac90dd1fac74b",
+      "spoken_text": "See the wax lids? Bees cap honey once it's ripe. Scrape them off."
+    },
+    "room_pal_honey_help": {
+      "channel": "room",
+      "caption": "Fine, I'll scrape. Drones can't make wax. Taking it off, I can do.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "honey",
+        "fact:drones"
+      ],
+      "duration_s": 3.854,
+      "mp3": "unity/room_pal_honey_help.mp3",
+      "pcm": null,
+      "sha256": "a46e3737018bc86ff5e22b7bb55cc018c86c5cbe37f749d38332108f5f5873f2",
+      "spoken_text": "Fine, I'll scrape. Drones can't make wax. Taking it off, I can do."
+    },
+    "room_pal_honey_winter": {
+      "channel": "room",
+      "caption": "That's plenty. The rest stays. They eat it all winter.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "honey",
+        "fact:winter_honey"
+      ],
+      "duration_s": 2.926,
+      "mp3": "unity/room_pal_honey_winter.mp3",
+      "pcm": null,
+      "sha256": "cb1d0073599450507d9781006cd37b349f9147bd1d6172f1c523fd2293654e08",
+      "spoken_text": "That's plenty. The rest stays. They eat it all winter."
+    },
+    "room_pal_dance": {
+      "channel": "room",
+      "caption": "I don't forage, but I took the seminar. The waggle points to food from the sun. Longer waggle, farther flowers.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "dance",
+        "fact:waggle"
+      ],
+      "duration_s": 7.709,
+      "mp3": "unity/room_pal_dance.mp3",
+      "pcm": null,
+      "sha256": "c071333d69e3096d919a4eb1cca30340f465e99fe7229ae62437b552a52f70a3",
+      "spoken_text": "I don't forage, but I took the seminar. The waggle points to food from the sun. Longer waggle, farther flowers."
+    },
+    "room_pal_show_me": {
+      "channel": "room",
+      "caption": "Motion carried. Eyes on the window.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "show_me",
+        "window"
+      ],
+      "duration_s": 1.997,
+      "mp3": "unity/room_pal_show_me.mp3",
+      "pcm": null,
+      "sha256": "db72f522ad2be052a465bf54bfac3f59f8bd65f2dcc96bbf01130257347aff47",
+      "spoken_text": "Motion carried. Eyes on the window."
+    },
+    "room_pal_pet": {
+      "channel": "room",
+      "caption": "Gentle. They like you. Don't tell them I said that.",
+      "beat": null,
+      "tags": [
+        "pals",
+        "pet",
+        "swarm"
+      ],
+      "duration_s": 3.297,
+      "mp3": "unity/room_pal_pet.mp3",
+      "pcm": null,
+      "sha256": "00a41217f08d8a78802389ac062ac4b590d68e4ac2b766b1258007f2f735f2d9",
+      "spoken_text": "Gentle. They like you. Don't tell them I said that."
+    },
+    "ask_bananas": {
+      "channel": "room",
+      "caption": "Our alarm smell shares a chemical with bananas. Smoke drowns it out. Noted for the minutes.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 4.737,
+      "mp3": "unity/ask_bananas.mp3",
+      "pcm": null,
+      "sha256": "7e8ac8411347800808a8b59c8cd1af0afe5cfd7d79599ef204f2679fc2be20a1",
+      "spoken_text": "Our alarm smell shares a chemical with bananas. Smoke drowns it out. Noted for the minutes."
+    },
+    "ask_drone_sting": {
+      "channel": "room",
+      "caption": "No. A stinger's a modified egg-laying tube, and drones don't lay eggs. All buzz, no sting.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 5.573,
+      "mp3": "unity/ask_drone_sting.mp3",
+      "pcm": null,
+      "sha256": "1002e63f93d853ce5e50b37bd4878e8e33bee2def29c1a77a7ab314951736a9a",
+      "spoken_text": "No. A stinger's a modified egg-laying tube, and drones don't lay eggs. All buzz, no sting."
+    },
+    "ask_wildfire": {
+      "channel": "room",
+      "caption": "We don't stop fires. But wild bees often bounce back after one and pollinate what regrows.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 5.016,
+      "mp3": "unity/ask_wildfire.mp3",
+      "pcm": null,
+      "sha256": "bf18465293ce9e418e322535f403897ac2a5f21c0fe1faa146551b50022835b7",
+      "spoken_text": "We don't stop fires. But wild bees often bounce back after one and pollinate what regrows."
+    },
+    "ask_help_most": {
+      "channel": "room",
+      "caption": "Wild ones. About four thousand kinds live in the US, with no beekeeper. Plant flowers.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 4.412,
+      "mp3": "unity/ask_help_most.mp3",
+      "pcm": null,
+      "sha256": "38ab84bfc549237965835e69fa23fcabbec4284ff76107d7c19403b160b02800",
+      "spoken_text": "Wild ones. About four thousand kinds live in the US, with no beekeeper. Plant flowers."
+    },
+    "ask_killing": {
+      "channel": "room",
+      "caption": "A big one is a mite called varroa. It spreads viruses. Grievance filed.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 4.412,
+      "mp3": "unity/ask_killing.mp3",
+      "pcm": null,
+      "sha256": "15e6b0a5b01d8c3972517d66eb699ab5df834bc0630bdfbf33dd506bc5b8ba46",
+      "spoken_text": "A big one is a mite called varroa. It spreads viruses. Grievance filed."
+    },
+    "ask_sting_help": {
+      "channel": "room",
+      "caption": "Stung? Tell a grown-up. Allergic? That's a doctor's job, not a union job.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 5.341,
+      "mp3": "unity/ask_sting_help.mp3",
+      "pcm": null,
+      "sha256": "ebced146826db39b3398047615514a4b3a1fb1d54f7a60ce61a780d1942f3fef",
+      "spoken_text": "Stung? Tell a grown-up. Allergic? That's a doctor's job, not a union job."
+    },
+    "ask_offlist": {
+      "channel": "room",
+      "caption": "That's above my drone pay grade. Ask me about smoke, syrup, doors, water or wild bees.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 4.923,
+      "mp3": "unity/ask_offlist.mp3",
+      "pcm": null,
+      "sha256": "6f07f021a14aeb08e3b6107b82973576691d3a6e00e7939280b10e7ab9b5b925",
+      "spoken_text": "That's above my drone pay grade. Ask me about smoke, syrup, doors, water or wild bees."
+    },
+    "ask_people": {
+      "channel": "room",
+      "caption": "I rate hives, not people. Back to work.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 2.229,
+      "mp3": "unity/ask_people.mp3",
+      "pcm": null,
+      "sha256": "6551cba79ec2e5066374bdfee06102af3de40f3804b62d4422f86f6d2851a5c9",
+      "spoken_text": "I rate hives, not people. Back to work."
+    },
+    "ask_stall": {
+      "channel": "room",
+      "caption": "My spreadsheet froze. Ask me again. Union pace.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 3.437,
+      "mp3": "unity/ask_stall.mp3",
+      "pcm": null,
+      "sha256": "3928b3cc377e49bf4c419ccb7cf766b516fd985e4d8d7ea9e3717ac5602ed2a9",
+      "spoken_text": "My spreadsheet froze. Ask me again. Union pace."
+    },
+    "ask_not_heard": {
+      "channel": "room",
+      "caption": "Didn't catch that. Hold the pinch the whole time you talk.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 2.879,
+      "mp3": "unity/ask_not_heard.mp3",
+      "pcm": null,
+      "sha256": "d05f6e1484df65420d69e0f2e5b5416ba25442933ded02466aed75f7c9c01d65",
+      "spoken_text": "Didn't catch that. Hold the pinch the whole time you talk."
+    },
+    "ask_offline": {
+      "channel": "room",
+      "caption": "I can't reach the hive. Poke a question on the card.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 2.786,
+      "mp3": "unity/ask_offline.mp3",
+      "pcm": null,
+      "sha256": "95aa26e07513734a49c7ef12171a5a35974f17541600c400cbafa0e67189b07c",
+      "spoken_text": "I can't reach the hive. Poke a question on the card."
+    },
+    "room_feed_lift_hint": {
+      "channel": "room",
+      "caption": "Grab the hive and rock it back and forth. Feel how heavy it is.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 3.204,
+      "mp3": "unity/room_feed_lift_hint.mp3",
+      "pcm": null,
+      "sha256": "0c3f9f2a1a2b55e83fc7b7cd33b0c63c1d829e0c50c4d26cc1784f8af9b7e0e9",
+      "spoken_text": "Grab the hive and rock it back and forth. Feel how heavy it is."
+    },
+    "room_feed_rock_retry": {
+      "channel": "room",
+      "caption": "Hold on. Pick it back up and give it a rock. We still need to feel how heavy it is.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 4.272,
+      "mp3": "unity/room_feed_rock_retry.mp3",
+      "pcm": null,
+      "sha256": "2aa831095a2c0be0a937cbc163034899703e31ead4fd3fef1f288c87f9b3939e",
+      "spoken_text": "Hold on. Pick it back up and give it a rock. We still need to feel how heavy it is."
+    },
+    "room_heat_pebble_toss": {
+      "channel": "room",
+      "caption": "Toss in more pebbles. Bees can't swim. They drink standing up, like at a bar.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 5.016,
+      "mp3": "unity/room_heat_pebble_toss.mp3",
+      "pcm": null,
+      "sha256": "4ccd95a34fe6df86264ab29e70d091f196e900b5357001147bbabcab86b92f45",
+      "spoken_text": "Toss in more pebbles. Bees can't swim. They drink standing up, like at a bar."
+    },
+    "room_heat_pebble_cheer": {
+      "channel": "room",
+      "caption": "Bar's open. First round's on the hive.",
+      "beat": null,
+      "tags": [],
+      "duration_s": 2.183,
+      "mp3": "unity/room_heat_pebble_cheer.mp3",
+      "pcm": null,
+      "sha256": "67f0bcda27d6604259bbdeecb3fccf012a490d3b8ef83dc6b90ac1098df99a0b",
+      "spoken_text": "Bar's open. First round's on the hive."
+    },
+    "room_wasps_stinger": {
+      "channel": "room",
+      "caption": "I wasn't hiding. Drones can't sting. A stinger's a modified egg-laying tube. Girls only.",
+      "duration_s": 4.969,
+      "mp3": "unity/room_wasps_stinger.mp3",
+      "pcm": null,
+      "sha256": "833ea367c85a9da46e3311998f6b6fbbc60b28a5103c30b0e54405b1299e530a",
+      "spoken_text": "I wasn't hiding. Drones can't sting. A stinger's a modified egg-laying tube. Girls only."
+    },
+    "room_heat_mom": {
+      "channel": "room",
+      "caption": "The queen's in there. She's everybody's mom. Including mine.",
+      "duration_s": 2.972,
+      "mp3": "unity/room_heat_mom.mp3",
+      "pcm": null,
+      "sha256": "e351646841d21de75ecf9e1e5defeedded8856f6b771c05c3531f6dd6816a8d7",
+      "spoken_text": "The queen's in there. She's everybody's mom. Including mine."
+    },
+    "room_whatif_smoke_why": {
+      "channel": "room",
+      "caption": "Why do we gulp honey when you smoke us? Nobody's sure. One idea: smoke means fire, so we pack a lunch.",
+      "duration_s": 6.409,
+      "mp3": "unity/room_whatif_smoke_why.mp3",
+      "pcm": null,
+      "sha256": "0756d4ba406cf3f026c3c141bfb210697db781ef5b47c14b3caaab5ef7126488",
+      "spoken_text": "Why do we gulp honey when you smoke us? Nobody's sure. One idea: smoke means fire, so we pack a lunch."
+    },
+    "room_ask_anything": {
+      "channel": "room",
+      "caption": "Got a bee question? Pinch and ask. I've got half a minute and a spreadsheet.",
+      "duration_s": 3.762,
+      "mp3": "unity/room_ask_anything.mp3",
+      "pcm": null,
+      "sha256": "c42a50502c25eb2991b83e4f00e63d22ca261ce0f8d954ad197fcfcb4e6fa469",
+      "spoken_text": "Got a bee question? Pinch and ask. I've got half a minute and a spreadsheet."
+    },
+    "room_throw_syrup": {
+      "channel": "room",
+      "caption": "Careful! That's the GOOD syrup.",
+      "beat": null,
+      "tags": [
+        "throwables",
+        "throw",
+        "syrup"
+      ],
+      "duration_s": 1.718,
+      "mp3": "unity/room_throw_syrup.mp3",
+      "pcm": null,
+      "sha256": "3cef51f0eb906e3e51b30aba98ec227bdba358a5372bd20cb54c7d733da8d30c",
+      "spoken_text": "Careful! That's the GOOD syrup."
+    },
+    "room_throw_property": {
+      "channel": "room",
+      "caption": "Hey! That's union property!",
+      "beat": null,
+      "tags": [
+        "throwables",
+        "throw"
+      ],
+      "duration_s": 1.765,
+      "mp3": "unity/room_throw_property.mp3",
+      "pcm": null,
+      "sha256": "466242e75c4ad5ad690b14feec15d79d20607aaf9b7b3476d5b90e8251cbd28e",
+      "spoken_text": "Hey! That's union property!"
+    },
+    "room_throw_writeup": {
+      "channel": "room",
+      "caption": "Who threw that? I'm writing it up.",
+      "beat": null,
+      "tags": [
+        "throwables",
+        "throw"
+      ],
+      "duration_s": 1.672,
+      "mp3": "unity/room_throw_writeup.mp3",
+      "pcm": null,
+      "sha256": "7fd5e92c72acfa59ef77e5ce6bfd5ba9119703ade7146d807c5e7c8ed2e6ff8c",
+      "spoken_text": "Who threw that? I'm writing it up."
     }
   }
 }

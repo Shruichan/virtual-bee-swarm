@@ -278,11 +278,12 @@ describe("ask fact guard", () => {
   });
 
   test("the guard instructions and the off-list answer are in the prompt", () => {
-    expect(SYSTEM_PROMPT).toContain("Facts come ONLY from the vetted fact list below");
-    expect(SYSTEM_PROMPT).toContain("never fill a gap from your own knowledge");
+    expect(SYSTEM_PROMPT).toContain("Use the vetted fact list below first");
+    expect(SYSTEM_PROMPT).toContain("Never use a number, date, name, place or study that is not on the list");
+    expect(SYSTEM_PROMPT).toContain("Be generous with common bee knowledge");
     expect(SYSTEM_PROMPT).toContain(`answer exactly: ${OFF_LIST_ANSWER}`);
     expect(SYSTEM_PROMPT).toContain("At most thirty words");
-    expect(SYSTEM_PROMPT).toContain("## Vetted fact list (the only facts Beeswax may use)");
+    expect(SYSTEM_PROMPT).toContain("## Vetted fact list (use these first; the only source of numbers)");
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/); // nothing per-request in the cached prefix
   });
 
@@ -290,7 +291,7 @@ describe("ask fact guard", () => {
     expect(cleanAnswer(OFF_LIST_ANSWER)).toBe(OFF_LIST_ANSWER);
     expect(OFF_LIST_ANSWER.split(" ").length).toBeLessThanOrEqual(MAX_ANSWER_WORDS);
     mockClient(() => reply({ intent: "ask", topic: null, custom_prompt: null, answer: OFF_LIST_ANSWER }));
-    expect(await route("how long do bees live", ctx("meet"))).toMatchObject({ intent: "ask", answer: OFF_LIST_ANSWER, path: "claude" });
+    expect(await route("how many bees are on earth right now", ctx("meet"))).toMatchObject({ intent: "ask", answer: OFF_LIST_ANSWER, path: "claude" });
   });
 
   test("a long answer is clipped to 30 words", async () => {

@@ -104,6 +104,16 @@ namespace VirtualBeeSwarm.Capture
                 Box("Sleeper sofa", 0.87f, 0.28f, 0.79f, 0.89f, 1.81f),
                 Box("Coffee table", -0.25f, 0.20f, 0.80f, 0.45f, 0.60f, 5f),
                 Box("Hall cabinet", -1.075f, 0.57f, 0.51f, 1.54f, 0.61f)),
+            // Nam's headset clip: a desk with a monitor ahead, tall shelves to the right, clutter on the floor
+            new RoomPlaytestConfig("21-cluttered-desk", "Cluttered desk room with a monitor and shelves", 4.0f, 4.2f, 2.42f, 1.62f,
+                new Vector3(0.2f, 1.66f, -0.9f), new Vector3(0.1f, 1.0f, 1.2f),
+                Box("Desk", 0.1f, 1.24f, 1.5f, 0.74f, 0.72f),
+                new RoomPlaytestBox("Monitor", 0.1f, 0.95f, 1.36f, 0.62f, 0.42f, 0.2f),
+                Box("Desk chair", 0.25f, 0.6f, 0.6f, 1.05f, 0.6f, 15f),
+                Box("Tall shelves", 1.7f, 0.5f, 0.5f, 1.9f, 1.3f),
+                Box("Bookcase", -1.6f, 1.0f, 0.6f, 1.7f, 0.4f),
+                Box("Floor boxes", -0.9f, -0.1f, 0.55f, 0.4f, 0.45f, 10f),
+                Box("Plant", 1.25f, -1.2f, 0.4f, 1.1f, 0.4f)),
         };
 
         static RoomPlaytestBox Box(string name, float x, float z, float width, float height, float depth,

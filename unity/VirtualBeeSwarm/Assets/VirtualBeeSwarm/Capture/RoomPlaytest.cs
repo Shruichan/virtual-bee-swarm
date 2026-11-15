@@ -127,7 +127,7 @@ namespace VirtualBeeSwarm.Capture
             AddWall(new Vector3(half, midY, midZ), Vector3.left, Config.Depth);
             AddWall(new Vector3(0f, midY, back), Vector3.forward, Config.Width);
             foreach (var box in Config.Furniture)
-                scene.Volumes.Add(new BloomBox { center = box.Center, rotation = box.Rotation, half = box.Size * 0.5f, pillar = box.Pillar });
+                scene.Volumes.Add(new BloomBox { center = box.Center, rotation = box.Rotation, half = box.Size * 0.5f, pillar = box.Pillar, label = box.Name });
             if (!MeadowLayout.Active && room != null && room.HasTable)
             {
                 var table = room.Table;

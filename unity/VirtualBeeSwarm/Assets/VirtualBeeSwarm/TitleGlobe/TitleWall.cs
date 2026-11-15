@@ -7,12 +7,13 @@ using UnityEngine.Video;
 namespace VirtualBeeSwarm.Title
 {
     /// <summary>
-    /// The documentary wall inside the title globe (tuning title.wall, default on; never in comfort mode): an open
-    /// cylinder round the player with rows of small bee monitors, each row sliding sideways at its own speed, like the
-    /// end of a nature doc showreel. Two mosaic videos feed every screen (StreamingAssets/wall_strip_0/1.mp4: 16 x 4
-    /// Orbis wall clips of 240x135 each, a 6 s loop); the shader (Resources/VBS_TitleWall) scrolls, frames and collapses
-    /// them, so the wall costs two decoders. Prepared while the title shows, posters (Resources/wall_poster_N) until the
-    /// first frame; on Linux players VBS_GLOBE_CLIPS/wall_strip_N.webm (VP8) stands in. Owned by <see cref="TitleGlobe"/>.
+    /// The documentary wall of the load-in screen (tuning title.wall, default on): an open cylinder round the player with
+    /// rows of small bee monitors, each row sliding sideways at its own speed, like the end of a nature doc showreel.
+    /// Two mosaic videos feed every screen (StreamingAssets/wall_strip_0/1.mp4: 16 x 4 Orbis wall clips of 240x135 each,
+    /// a 6 s loop); the shader (Resources/VBS_TitleWall) scrolls, frames and collapses them, so the wall costs two
+    /// decoders. Posters (Resources/wall_poster_N) until the first frame, so it is a full wall from the very first frame;
+    /// on Linux players VBS_GLOBE_CLIPS/wall_strip_N.webm (VP8) stands in. Drawn in an overlay queue with no depth test
+    /// (over everything in the room). Owned by <see cref="LoadWall"/>.
     /// </summary>
     public class TitleWall
     {
@@ -51,7 +52,7 @@ namespace VirtualBeeSwarm.Title
             }
         }
 
-        public TitleWall(Transform parent, float radius, int rows, Action<string> log)
+        public TitleWall(Transform parent, float radius, int rows, int queue, Action<string> log)
         {
             _log = log;
             var shader = Resources.Load<Shader>("VBS_TitleWall");
@@ -63,7 +64,7 @@ namespace VirtualBeeSwarm.Title
             }
             float slotW = 2f * Mathf.PI * radius / Around;
             float pitch = slotW * (2f * Bezel + (1f - 2f * Bezel) * 9f / 16f); // a 16:9 screen inside a bezel of even width
-            _mat = new Material(shader) { name = "VBS_TitleWall", renderQueue = 2989 }; // before the inside-out globe (2990)
+            _mat = new Material(shader) { name = "VBS_TitleWall", renderQueue = queue };
             _mat.SetFloat("_Rows", rows);
             _mat.SetFloat("_Around", Around);
             _mat.SetFloat("_SlotAspect", slotW / pitch);
@@ -126,7 +127,7 @@ namespace VirtualBeeSwarm.Title
             Log("wall strips: " + string.Join(", ", Array.ConvertAll(_url, u => u == null ? "(poster only)" : Path.GetFileName(u))));
         }
 
-        /// <summary>While the title shows: get both strips decoding-ready, so the wall opens on a live frame.</summary>
+        /// <summary>Get both strips decoding-ready (the posters show until their first frame).</summary>
         public void Prepare()
         {
             for (int i = 0; i < Strips; i++)
@@ -147,7 +148,7 @@ namespace VirtualBeeSwarm.Title
             }
         }
 
-        /// <summary>START: the strips roll (the wall itself shows once the player is inside the globe).</summary>
+        /// <summary>The strips roll (each starts once it is prepared).</summary>
         public void Play()
         {
             for (int i = 0; i < Strips; i++)
@@ -165,7 +166,14 @@ namespace VirtualBeeSwarm.Title
             _shown = true;
         }
 
-        /// <summary>reveal 0..1 lights the rows from eye level out; collapse 0..1 folds them in and burns them away.</summary>
+        /// <summary>Keep it round the eyes (it never turns with the head).</summary>
+        public void Follow(Vector3 eye)
+        {
+            if (_root != null) _root.position = eye + Vector3.down * 0.05f;
+        }
+
+        /// <summary>reveal 0..1 lights the rows from eye level out; collapse 0..1 folds them in and burns them away;
+        /// speed scales the rows' slide (0 = still screens: comfort).</summary>
         public void Tick(float dt, float alpha, float reveal, float collapse, float speed)
         {
             if (_mat == null) return;

@@ -21,6 +21,12 @@ namespace VirtualBeeSwarm.HandsOn
 
         public bool Grabbable => this != null && enabled && Live;
 
+        /// <summary>[Throwables hook] Released: a let-go with hand speed (true = Throwables now flies it).
+        /// InFlight: true while it flies or floats home, so Update leaves the transform alone.</summary>
+        public static Func<CarryProp, bool> Released, InFlight;
+        /// <summary>[Throwables hook] The last grab/hand point the pointer gave (the hand, not the prop): release speed.</summary>
+        public Vector3 HandPoint { get; private set; }
+
         Vector3 _offset, _target;
         float _tip;
 
@@ -48,22 +54,29 @@ namespace VirtualBeeSwarm.HandsOn
             Held = true;
             _offset = transform.position - grabPoint;
             _target = transform.position;
+            HandPoint = grabPoint; // [Throwables hook]
             Grabbed?.Invoke();
         }
 
         public void UpdateGrab(Vector3 handPoint)
         {
             _target = handPoint + _offset;
+            HandPoint = handPoint; // [Throwables hook]
             if (_target.y < FloorY) _target.y = FloorY;
         }
 
-        public void EndGrab() => Held = false;
+        public void EndGrab()
+        {
+            Held = false;
+            Released?.Invoke(this); // [Throwables hook]
+        }
 
         void OnEnable() => BeeswaxBody.MarkDirty(); // [BeeswaxBody hook] a new prop: Beeswax's body rescans now
 
         void Update()
         {
             if (!Live) return;
+            if (InFlight != null && InFlight(this)) return; // [Throwables hook]
             float dt = Time.deltaTime;
             Vector3 to = Held ? _target : Home.position;
             transform.position = Vector3.Lerp(transform.position, to, 1f - Mathf.Exp(-(Held ? 28f : 9f) * dt));

@@ -47,6 +47,8 @@ namespace VirtualBeeSwarm
         public event Action<float> Lifted;
         public event Action Rocked;
         public event Action RockReleasedEarly;
+        /// <summary>A brisk shake (or a completed rock) while held: the bees inside buzz up (dartiros).</summary>
+        public event Action Shaken;
 
         public bool LiftEnabled { get; set; }
         public bool Grabbable => LiftEnabled && isActiveAndEnabled;
@@ -248,6 +250,7 @@ namespace VirtualBeeSwarm
             _shakeUntil = now + ShakeDuration;
             ShakeCount++;
             GameSound.Cue("hive_shake", SwarmCenter);
+            Shaken?.Invoke();
         }
 
         void ApplyLift(float up, float side, float depth)

@@ -24,8 +24,9 @@ namespace VirtualBeeSwarm
             HandsOnKit.Prim(PrimitiveType.Cube, "Title Band", panel, new Vector3(0f, 0.071f, -0.006f),
                 new Vector3(0.38f, 0.052f, 0.007f), HandsOnKit.Honey);
             HandsOnKit.Text("Title", panel, new Vector3(0f, 0.071f, -0.012f), "MAPS", 0.0048f, HandsOnKit.Ink);
+            // a restart needs a second poke (an accidental brush shouldn't throw the whole ride away)
             MapMenuButton.Build(panel, "Replay this hive", new Vector3(0f, 0.004f, -0.014f),
-                new Vector2(0.30f, 0.057f), HandsOnKit.Cream, replay);
+                new Vector2(0.30f, 0.057f), HandsOnKit.Cream, replay, confirmLabel: "Sure? Poke again");
             MapMenuButton.Build(panel, "Back", new Vector3(0f, -0.062f, -0.014f),
                 new Vector2(0.14f, 0.046f), HandsOnKit.Brass, back);
         }
@@ -38,7 +39,8 @@ namespace VirtualBeeSwarm
                 if (head == null) return;
                 Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
                 forward = forward.sqrMagnitude > 0.001f ? forward.normalized : Vector3.forward;
-                var position = head.position + forward * 0.52f - Vector3.up * 0.22f;
+                // just under eye level, above where resting hands hang (it was 0.22 m down, easy to brush)
+                var position = head.position + forward * 0.55f - Vector3.up * 0.08f;
                 _root.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
             }
             _tab.SetActive(visible && !open);
@@ -53,10 +55,29 @@ namespace VirtualBeeSwarm
         Action _click;
         Renderer _face;
         Color _color;
+        TextMesh _label;
+        string _text, _confirm;
+        float _shownAt = -10f, _armedUntil = -1f;
+        static float s_lastClick = -10f;
+        const float ShowGuard = 0.4f, ClickGuard = 0.8f, ConfirmGuard = 0.25f, ConfirmSeconds = 3f;
 
         public bool Interactable => isActiveAndEnabled;
 
-        public static GameObject Build(Transform parent, string label, Vector3 position, Vector2 size, Color color, Action click)
+        void OnEnable() => _shownAt = Time.unscaledTime;
+
+        void Update()
+        {
+            if (_armedUntil >= 0f && Time.unscaledTime > _armedUntil) Disarm();
+        }
+
+        void Disarm()
+        {
+            _armedUntil = -1f;
+            if (_label != null && _text != null) _label.text = _text;
+        }
+
+        public static GameObject Build(Transform parent, string label, Vector3 position, Vector2 size, Color color, Action click,
+            string confirmLabel = null)
         {
             var button = new GameObject(label);
             button.transform.SetParent(parent, false);
@@ -70,6 +91,9 @@ namespace VirtualBeeSwarm
             target.isTrigger = true;
             target.size = new Vector3(size.x, size.y, 0.036f);
             HandsOnKit.Text("Label", button.transform, Vector3.back * 0.006f, label.ToUpperInvariant(), 0.0032f, HandsOnKit.Ink);
+            view._label = button.GetComponentInChildren<TextMesh>(true);
+            view._text = label.ToUpperInvariant();
+            view._confirm = string.IsNullOrEmpty(confirmLabel) ? null : confirmLabel.ToUpperInvariant();
             return button;
         }
 
@@ -77,13 +101,27 @@ namespace VirtualBeeSwarm
 
         public void Click()
         {
-            if (Interactable) _click?.Invoke();
+            if (!Interactable) return;
+            float now = Time.unscaledTime;
+            // a finger already resting where the button appears, or a double contact, isn't a click
+            bool confirming = _confirm != null && _armedUntil >= 0f; // a quick second poke on an armed button counts
+            if (now - _shownAt < ShowGuard || now - s_lastClick < (confirming ? ConfirmGuard : ClickGuard)) return;
+            s_lastClick = now;
+            if (_confirm != null && _armedUntil < 0f)
+            {
+                _armedUntil = now + ConfirmSeconds;
+                if (_label != null) _label.text = _confirm;
+                return;
+            }
+            Disarm();
+            _click?.Invoke();
         }
 
         void OnDisable()
         {
             _contacts.Clear();
             SetHover(false);
+            Disarm();
         }
 
         void OnTriggerEnter(Collider other)

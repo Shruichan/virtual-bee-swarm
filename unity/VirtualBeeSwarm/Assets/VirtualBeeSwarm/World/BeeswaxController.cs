@@ -220,6 +220,9 @@ namespace VirtualBeeSwarm
             if (t == null && captionRoot != null) captionRoot.localPosition = _captionBaseLocal;
         }
 
+        /// <summary>Where his caption is parked right now (null: over him). [polish hook: LevelMap keeps it off the map / end card]</summary>
+        public Transform CaptionAnchor => _captionAnchor;
+
         // ------------------------------------------------------------ hive door (V14)
         /// <summary>v3.1 pre: inside the hive (riding its door point, body hidden) until ClimbOut.</summary>
         public void HideInside(Transform door)

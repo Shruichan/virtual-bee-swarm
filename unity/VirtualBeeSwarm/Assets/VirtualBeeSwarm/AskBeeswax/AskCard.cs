@@ -7,13 +7,15 @@ namespace VirtualBeeSwarm.Ask
     public enum AskCardLook { Idle, Listening, Thinking, Answer }
 
     /// <summary>
-    /// The ASK BEESWAX card (ride script v2): a honey-yellow board (0.5 m wide) a crew flies in and parks at the player's
+    /// The ASK BEESWAX card (ride script v2): a near-black board with a honey frame and title band (0.5 m wide) a crew flies in and parks at the player's
     /// right hand, 1 m away, so every line reads from the standing spot; the chips take a ray + pinch or a step and a poke.
     ///   ASK BEESWAX / [state line, the biggest text] / three hexes / 4 TRY chips or the answer / MINUTES: n QUESTIONS NOTED
     ///   idle       three quiet hexes, the chips
     ///   listening  red border that pulses, the hexes bounce like a mic meter
     ///   thinking   one hex lit at a time, sweeping
-    ///   answer     the chips swap for Beeswax's answer in dark ink on the yellow board (kept a few seconds after he stops)
+    ///   answer     the chips swap for Beeswax's answer in big cream letters (kept a few seconds after he stops)
+    /// dartiros: was dark ink on a honey board, which reads as black-on-brown through passthrough; light-on-dark holds up
+    /// in any room light. Only the chip and the title band are light, with dark ink.
     /// Quest budget: one opaque unlit board, 4 chip boxes and 3 hexes (shared materials, no lights, no shadows), TextMeshes
     /// whose text changes only when the state does. Per frame it only writes a few scales. Built once; hidden until opened.
     /// </summary>
@@ -54,15 +56,19 @@ namespace VirtualBeeSwarm.Ask
         float _punchAt = -9f;
 
         static Font _font;
-        static Material _boardMat, _chipMat, _edgeMat, _hexMat;
+        static Material _boardMat, _chipMat, _edgeMat, _hexMat, _bandMat;
         static Mesh _hexMesh;
 
-        static readonly Color Board = new Color(1f, 0.83f, 0.33f, 1f);
-        static readonly Color Edge = new Color(0.16f, 0.11f, 0.05f, 1f);
-        static readonly Color EdgeListening = new Color(0.86f, 0.16f, 0.1f, 1f);
-        static readonly Color Ink = new Color(0.14f, 0.09f, 0.03f, 1f);
-        static readonly Color HexIdle = new Color(0.72f, 0.55f, 0.18f, 1f);
-        static readonly Color ChipIdle = new Color(1f, 0.95f, 0.78f, 1f);
+        static readonly Color Board = new Color(0.075f, 0.06f, 0.04f, 1f);   // near-black, warm
+        static readonly Color Edge = new Color(1f, 0.76f, 0.2f, 1f);          // honey frame
+        static readonly Color EdgeListening = new Color(0.95f, 0.22f, 0.14f, 1f);
+        static readonly Color Ink = new Color(0.1f, 0.06f, 0.02f, 1f);        // only on the light chip and title band
+        static readonly Color Paper = new Color(1f, 0.96f, 0.86f, 1f);        // the text on the board
+        static readonly Color HoneyText = new Color(1f, 0.8f, 0.3f, 1f);
+        static readonly Color Band = new Color(1f, 0.8f, 0.28f, 1f);
+        static readonly Color HexIdle = new Color(0.78f, 0.58f, 0.18f, 1f);
+        static readonly Color HexLit = new Color(1f, 0.85f, 0.35f, 1f);
+        static readonly Color ChipIdle = new Color(1f, 0.86f, 0.4f, 1f);
         static readonly Color ChipHover = new Color(1f, 1f, 1f, 1f);
 
         public void Build()
@@ -87,8 +93,10 @@ namespace VirtualBeeSwarm.Ask
 
             float top = Height * 0.5f;
             _grip = PanelGrip.Add(_root.transform, _root.transform, new Vector3(0f, top + 0.01f, 0f), delivered: true);
-            Text("Title", new Vector3(0f, top - 0.030f, -0.004f), "ASK BEESWAX", 0.0042f, FontStyle.Bold);
-            _status = Text("Status", new Vector3(0f, top - 0.076f, -0.004f), AskFlow.StatusIdle, StatusBig, FontStyle.Bold);
+            _bandMat = _bandMat != null ? _bandMat : GameMaterials.Create("[VBS] Ask Band", Band);
+            Box("Title Band", _root.transform, new Vector3(0f, top - 0.030f, -0.0045f), new Vector3(Width - 0.03f, 0.046f, 0.002f), _bandMat);
+            Text("Title", new Vector3(0f, top - 0.030f, -0.0065f), "ASK BEESWAX", 0.0042f, FontStyle.Bold, color: Ink);
+            _status = Text("Status", new Vector3(0f, top - 0.080f, -0.004f), AskFlow.StatusIdle, StatusBig, FontStyle.Bold);
             for (int i = 0; i < 3; i++)
             {
                 var go = new GameObject("Hex " + i);
@@ -106,9 +114,9 @@ namespace VirtualBeeSwarm.Ask
             _chips = new AskChip[1];
             _chipLabels = new GameObject[_chips.Length];
             _chips[0] = Chip(0, new Vector3(0f, top - 0.215f, -0.006f), AskLines.ChipLabels[0]);
-            _answer = Text("Answer", new Vector3(0f, top - 0.218f, -0.004f), "", 0.0030f, FontStyle.Bold);
+            _answer = Text("Answer", new Vector3(0f, top - 0.222f, -0.004f), "", 0.0034f, FontStyle.Bold);
             _answer.gameObject.SetActive(false);
-            _minutes = Text("Minutes", new Vector3(0f, -top + 0.022f, -0.004f), AskFlow.MinutesText(0), 0.0022f, FontStyle.Bold);
+            _minutes = Text("Minutes", new Vector3(0f, -top + 0.022f, -0.004f), AskFlow.MinutesText(0), 0.0024f, FontStyle.Bold, color: HoneyText);
             _root.SetActive(false);
         }
 
@@ -175,8 +183,8 @@ namespace VirtualBeeSwarm.Ask
         {
             if (_answer == null) return;
             text = text ?? "";
-            _answer.characterSize = text.Length > 120 ? 0.0025f : 0.0030f;
-            _answer.text = GameMaterials.Wrap(text, text.Length > 120 ? 40 : 33);
+            _answer.characterSize = text.Length > 120 ? 0.0028f : 0.0034f; // bigger than before (0.0025 / 0.0030)
+            _answer.text = GameMaterials.Wrap(text, text.Length > 120 ? 35 : 29);
             _answer.gameObject.SetActive(true);
             SetChipsActive(false);
             AnswerShown = true;
@@ -209,7 +217,7 @@ namespace VirtualBeeSwarm.Ask
             if (_root == null) return;
             Look = look;
             GameMaterials.Tint(_edgeR, look == AskCardLook.Listening ? EdgeListening : Edge);
-            Color hex = look == AskCardLook.Listening ? EdgeListening : look == AskCardLook.Idle ? HexIdle : Ink;
+            Color hex = look == AskCardLook.Listening ? EdgeListening : look == AskCardLook.Idle ? HexIdle : HexLit; // ink would vanish on the dark board
             for (int i = 0; i < 3; i++) GameMaterials.Tint(_hexR[i], hex);
         }
 
@@ -272,13 +280,14 @@ namespace VirtualBeeSwarm.Ask
             col.size = new Vector3(1f, 1f, 4f); // a little depth in front, so a poke registers before the finger hits the board
             var chip = go.AddComponent<AskChip>();
             chip.Init(i, r, ChipIdle, ChipHover, this);
-            _chipLabels[i] = Text("ChipLabel " + i, pos + new Vector3(0f, 0f, -0.006f), label, 0.00245f, FontStyle.Bold).gameObject;
+            _chipLabels[i] = Text("ChipLabel " + i, pos + new Vector3(0f, 0f, -0.006f), label, 0.0026f, FontStyle.Bold, color: Ink).gameObject;
             return chip;
         }
 
         internal void RaiseChip(int i) => ChipPressed?.Invoke(i);
 
-        TextMesh Text(string name, Vector3 pos, string text, float size, FontStyle style, TextAnchor anchor = TextAnchor.MiddleCenter)
+        TextMesh Text(string name, Vector3 pos, string text, float size, FontStyle style, TextAnchor anchor = TextAnchor.MiddleCenter,
+            Color? color = null)
         {
             var go = new GameObject(name);
             go.transform.SetParent(_root.transform, false);
@@ -290,7 +299,7 @@ namespace VirtualBeeSwarm.Ask
             tm.fontStyle = style;
             tm.anchor = anchor;
             tm.alignment = anchor == TextAnchor.MiddleLeft ? TextAlignment.Left : TextAlignment.Center;
-            tm.color = Ink;
+            tm.color = color ?? Paper;
             if (_font != null)
             {
                 tm.font = _font;

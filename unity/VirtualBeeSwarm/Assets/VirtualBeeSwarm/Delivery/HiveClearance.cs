@@ -80,7 +80,7 @@ namespace VirtualBeeSwarm
         static readonly List<Bounds> Parts = new List<Bounds>(16);
 
         /// <summary>The hive's parts as boxes in its own space (body, roof, lid, stand), from their meshes (works while parts are hidden; skips glows, bees, text).</summary>
-        static bool HiveParts(Transform hive, List<Bounds> parts)
+        internal static bool HiveParts(Transform hive, List<Bounds> parts) // [Throwables hook] internal: the throw bounces off these boxes
         {
             var toLocal = hive.worldToLocalMatrix;
             float hs = Mathf.Max(1e-4f, Mathf.Abs(hive.lossyScale.y));

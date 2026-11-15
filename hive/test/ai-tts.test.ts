@@ -83,24 +83,17 @@ test("speech budget is shared by streaming and whole-file renders", async () => 
   }
 });
 
-test("local voice handles live PCM and MP3 without using the paid provider", async () => {
+test("one voice: a leftover VBS_LOCAL_TTS_URL is ignored, live lines still use the ElevenLabs voice", async () => {
   const previous = process.env.VBS_LOCAL_TTS_URL;
-  const url = "http://127.0.0.1:8243/speak";
-  process.env.VBS_LOCAL_TTS_URL = url;
-  delete process.env.ELEVENLABS_API_KEY;
+  process.env.VBS_LOCAL_TTS_URL = "http://127.0.0.1:8243/speak";
   try {
-    mockFetch(() => new Response(new Uint8Array(6402)));
+    mockFetch(() => new Response(streamOf([bytes(6)]), { status: 200 }));
     expect(ttsAvailable()).toBe(true);
-    expect((await collect(ttsPcm("That's the queen."))).map((chunk) => chunk.length)).toEqual([3200, 3200, 2]);
-    expect(await ttsMp3("That's the queen.")).toHaveLength(6402);
-    expect(calls.map(({ url: requestUrl, init }) => [requestUrl, JSON.parse(String(init?.body))])).toEqual([
-      [url, { text: "That's the queen.", format: "pcm" }],
-      [url, { text: "That's the queen.", format: "mp3" }],
-    ]);
-
-    mockFetch(() => new Response(null, { status: 503 }));
-    expect(await collect(ttsPcm("That's the queen."))).toEqual([]);
-    expect(calls).toHaveLength(1);
+    expect(await collect(ttsPcm("That's the queen."))).toHaveLength(1);
+    expect(await ttsMp3("That's the queen.")).toHaveLength(6);
+    expect(calls.map((c) => c.url).every((u) => u.includes("/v1/text-to-speech/voice123"))).toBe(true);
+    delete process.env.ELEVENLABS_API_KEY;
+    expect(ttsAvailable()).toBe(false); // no key: no voice at all (captions), never the local one
   } finally {
     if (previous === undefined) delete process.env.VBS_LOCAL_TTS_URL;
     else process.env.VBS_LOCAL_TTS_URL = previous;
@@ -123,7 +116,7 @@ describe("ttsPcm", () => {
     expect(url).toContain("output_format=pcm_16000");
     const body = JSON.parse(String(init?.body));
     expect(body.model_id).toBe("eleven_flash_v2_5");
-    expect(body.voice_settings).toEqual({ speed: 0.95 });
+    expect(body.voice_settings).toEqual({ stability: 0.6, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 0.95 });
     expect(body.text).toBe("Motion denied.");
   });
 

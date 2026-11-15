@@ -1,26 +1,28 @@
 // Beeswax's live voice: ElevenLabs Flash v2.5 with the Voice-Designed voice (ELEVENLABS_VOICE_ID).
 // ttsPcm streams PCM16 for room lines on the Quest; ttsMp3 renders a whole mp3 for the glasses.
+// One voice everywhere (dartiros): the recorded lines and every live line are this ElevenLabs voice. The local
+// "younger" rehearsal voice (tts-qwen/, VBS_LOCAL_TTS_URL, 60e20f2) is no longer used: it sounded different from the
+// recorded lines and went silent, with no fallback, whenever that server was down.
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { noteFailure, noteOk } from "./services";
+import { speakable } from "./speakable";
 
 export const TTS_SAMPLE_RATE = 16000;
 export const TTS_MODEL = "eleven_flash_v2_5";
 const LIVE_VOICE_SPEED = 0.95;
+/** Calmer delivery (Rome, 04:00): steadier, not over-acted. Live speech and rendered clips use the same settings. */
+const CALM_VOICE = { stability: 0.6, similarityBoost: 0.75, style: 0, useSpeakerBoost: true };
 
 /** Timeouts (ms) and the text cap. Mutable so tests can shorten them. */
 export const ttsLimits = { firstByteMs: 5000, idleMs: 5000, totalMs: 30_000, maxChars: 500 };
 
 type ConvertFormat = "mp3_44100_64" | "mp3_44100_128" | "pcm_16000";
 
-function localVoiceUrl(): string {
-  return process.env.VBS_LOCAL_TTS_URL?.trim() ?? "";
-}
-
 export function ttsAvailable(): boolean {
-  return Boolean(localVoiceUrl()) || elevenLabsAvailable();
+  return elevenLabsAvailable();
 }
 
 export function elevenLabsAvailable(): boolean {
@@ -65,8 +67,9 @@ function env(): { client: ElevenLabsClient; voiceId: string } {
   return { client: cached.client, voiceId };
 }
 
+/** The text ElevenLabs hears: speakable() (no CAPS, one "!", no "..."/staccato); captions keep the written line. */
 function clean(text: unknown): string {
-  return typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, ttsLimits.maxChars) : "";
+  return typeof text === "string" ? speakable(text.replace(/\s+/g, " ").trim()).slice(0, ttsLimits.maxChars) : "";
 }
 
 function errText(e: unknown): string {
@@ -95,18 +98,6 @@ async function* readChunks(stream: ReadableStream<Uint8Array>): AsyncGenerator<U
   }
 }
 
-async function requestLocalVoice(url: string, text: string, format: "pcm" | "mp3"): Promise<Response> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, format }),
-    signal: AbortSignal.timeout(ttsLimits.totalMs),
-    redirect: "error",
-  });
-  if (!response.ok || !response.body) throw new Error(`Local voice unavailable (HTTP ${response.status})`);
-  return response;
-}
-
 function concat(parts: Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
@@ -125,19 +116,6 @@ function concat(parts: Uint8Array[]): Uint8Array {
 export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
   const t = clean(text);
   if (!t) return;
-  const local = localVoiceUrl();
-  if (local) {
-    try {
-      const response = await requestLocalVoice(local, t, "pcm");
-      const pcm = new Uint8Array(await response.arrayBuffer());
-      if (!pcm.length || pcm.length % 2 !== 0) throw new Error("Local voice returned invalid PCM");
-      // Stay below the Quest bus frame cap.
-      for (let offset = 0; offset < pcm.length; offset += 3200) yield pcm.subarray(offset, offset + 3200);
-    } catch (e) {
-      console.warn(`[tts] local voice failed: ${errText(e)}`);
-    }
-    return;
-  }
   if (!elevenLabsAvailable()) {
     console.warn("[tts] unavailable (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID unset)");
     noteFailure("elevenlabs_tts", new Error("not configured"));
@@ -153,7 +131,7 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
     const budgeted = reserveTts(t);
     const request = client.textToSpeech.stream(
       voiceId,
-      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000", voiceSettings: { speed: LIVE_VOICE_SPEED } },
+      { text: t, modelId: TTS_MODEL, outputFormat: "pcm_16000", voiceSettings: { ...CALM_VOICE, speed: LIVE_VOICE_SPEED } },
       { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: ttsLimits.firstByteMs / 1000 },
     );
     const stream = await withTimeout(request, ttsLimits.firstByteMs, "TTS response");
@@ -199,7 +177,7 @@ export async function ttsBytes(
         text: t,
         modelId: opts.model ?? TTS_MODEL,
         outputFormat: opts.format ?? "mp3_44100_64",
-        voiceSettings: opts.speed === undefined ? undefined : { speed: opts.speed },
+        voiceSettings: { ...CALM_VOICE, speed: opts.speed ?? LIVE_VOICE_SPEED },
       },
       { abortSignal: ac.signal, maxRetries: budgeted ? 0 : 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
     );
@@ -220,14 +198,5 @@ export async function ttsBytes(
 
 /** A whole mp3 of the line (for the glasses' audio_url). Rejects when TTS is unavailable or fails. */
 export async function ttsMp3(text: string): Promise<Uint8Array> {
-  const local = localVoiceUrl();
-  if (local) {
-    const t = clean(text);
-    if (!t) throw new Error("TTS: empty text");
-    const response = await requestLocalVoice(local, t, "mp3");
-    const audio = new Uint8Array(await response.arrayBuffer());
-    if (!audio.length) throw new Error("Local voice returned no audio");
-    return audio;
-  }
   return ttsBytes(text, { format: "mp3_44100_64", speed: LIVE_VOICE_SPEED });
 }

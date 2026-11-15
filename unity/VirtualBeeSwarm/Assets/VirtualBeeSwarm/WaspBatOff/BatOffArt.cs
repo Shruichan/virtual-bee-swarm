@@ -98,8 +98,8 @@ namespace VirtualBeeSwarm.BatOff
         TextMeshPro _count;
         Transform _sticker;
         float _popAt = -10f, _shownAt = -10f;
-        int _shown = -1;
-        bool _visible;
+        int _shown = -1, _goal;
+        bool _visible, _won;
 
         public static GuardDutyCard Create(Transform parent)
         {
@@ -131,15 +131,27 @@ namespace VirtualBeeSwarm.BatOff
             if (on == _visible) return;
             _visible = on;
             gameObject.SetActive(on);
-            if (on) { _shownAt = Time.time; _shown = -1; SetCount(0); }
+            if (on) { _shownAt = Time.time; _shown = -1; _won = false; SetCount(0); }
         }
+
+        /// <summary>Bounce this many to win: the count reads "n / goal" (0 = just "n bounced").</summary>
+        public void SetGoal(int goal) { _goal = goal; _shown = -1; }
 
         public void SetCount(int n)
         {
-            if (n == _shown) return;
+            if (n == _shown || _won) return;
             if (_shown >= 0) _popAt = Time.time;
             _shown = n;
-            if (_count != null) _count.text = n + " bounced"; // only on a change: no per-frame strings
+            // only on a change: no per-frame strings
+            if (_count != null) _count.text = _goal > 0 ? n + "/" + _goal + " bounced" : n + " bounced";
+        }
+
+        /// <summary>The player bounced enough: the card says so and pops.</summary>
+        public void SetWon(int n)
+        {
+            _won = true;
+            _popAt = Time.time;
+            if (_count != null) _count.text = "YOU WIN! " + n + " bounced"; // [polish] a bare count read like a typo
         }
 
         void LateUpdate()

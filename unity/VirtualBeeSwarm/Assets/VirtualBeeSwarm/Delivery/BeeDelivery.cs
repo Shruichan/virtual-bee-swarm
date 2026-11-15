@@ -720,6 +720,7 @@ namespace VirtualBeeSwarm
             Init();
             var item = Register(t);
             HiveClearance.Push(t, ref worldPos, worldRot, item); // never set down / parked inside the hive model
+            RoomAware.RoomKeepOut.PushOut(t, targetParent, ref worldPos, worldRot, item); // [RoomAware] hook: nor inside real furniture (not home/socket on the rig)
             if (Mode == DeliveryMode.Off)
             {
                 if (item.job >= 0) { Snap(item.job, false); if (item.job >= 0) FreeJob(item.job); }

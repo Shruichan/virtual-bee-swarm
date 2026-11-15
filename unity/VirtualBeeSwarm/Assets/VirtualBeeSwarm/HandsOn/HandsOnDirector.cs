@@ -402,6 +402,9 @@ namespace VirtualBeeSwarm.HandsOn
             Log("picked up " + (_item != null ? _item.name : "?"));
         }
 
+        /// <summary>[Throwables hook] A thrown prop is flying or floating home: the crew assist waits.</summary>
+        public static void PlayerBusy() { if (Instance != null) Instance.Progress(); }
+
         /// <summary>The player is doing something: the crew assist waits a little longer.</summary>
         void Progress()
         {

@@ -18,9 +18,9 @@ namespace VirtualBeeSwarm.Title
     ///             shows through; the sphere stays put in the world, only the video moves), and bursts into petals and
     ///             pollen (0.65 s) onto the room the hook is already turning into the meadow. It runs alongside the hook:
     ///             it adds no time to it.
-    ///   wall      (title.wall, default on) inside the globe the player stands in a documentary wall instead: rows of
-    ///             bee monitors scrolling round them (<see cref="TitleWall"/>, two mosaic videos prepared in pre), held
-    ///             wallSeconds, then the rows fold in and burst. The dive then lasts <see cref="DiveSeconds"/> (~5 s).
+    ///   load wall (title.wall) the documentary wall of bee monitors is no longer inside the dive: it is the load-in
+    ///             screen before the title (<see cref="LoadWall"/>). While it covers the room the ball can't be pinched
+    ///             and its footage waits (no extra decoders during the load); when it lifts the ball pops in again.
     ///   comfort   (StakesFlags.Comfort) no wrap: the globe just dissolves where it is, with a small burst.
     ///   clips     StreamingAssets/globe_*.mp4 (on Android the names in <see cref="AndroidClips"/>), else meadow.mp4 +
     ///             full_bloom.mp4; globe_flight.mp4 is kept for the dive (prepared in pre, it plays inside the sphere);
@@ -53,14 +53,6 @@ namespace VirtualBeeSwarm.Title
         [SerializeField] float comfortSeconds = 0.7f;
         [SerializeField, Range(0f, 0.7f)] float insideAlpha = 0.7f;
         [SerializeField] float insideRadius = 1.6f;
-        [Tooltip("title.wall: how long the player stands in the documentary wall before it collapses (s).")]
-        [SerializeField] float wallSeconds = 3.8f;
-        [SerializeField] float wallRevealSeconds = 0.8f;
-        [Tooltip("The globe's own footage fades out over this while the wall lights up (s).")]
-        [SerializeField] float wallCrossSeconds = 0.45f;
-        [Tooltip("Nearer than most rooms' walls (and the vines on them), so the screens stay in front.")]
-        [SerializeField] float wallRadius = 1.4f;
-        [SerializeField] int wallRows = 11;
         [SerializeField] Vector2Int videoSize = new Vector2Int(832, 480);
         [SerializeField] KeyCode diveKey = KeyCode.I;
         [SerializeField] bool log = true;
@@ -104,17 +96,14 @@ namespace VirtualBeeSwarm.Title
         RenderTexture _flightRt;
         string _flightUrl;
         bool _flightReady, _flightBad, _flightOn, _flightShown;
-        // title.wall: the documentary wall the globe opens into (decided at each Show; never in comfort mode)
-        TitleWall _wall;
-        bool _wallOn, _sphereGone;
+        // while the load wall covers the room: the footage waits, and the ball pops in again when it lifts
+        bool _footageWaits, _wasCovered;
 
         /// <summary>True from START until the burst has finished (or comfort's dissolve).</summary>
         public bool Diving => _state == State.Approach || _state == State.Inside || _state == State.Burst || _state == State.Comfort;
 
-        /// <summary>START to the end of the burst, as things stand (the wall holds longer than the bee flight).</summary>
-        public float DiveSeconds => StakesFlags.Comfort ? comfortSeconds : approachSeconds + InsideSeconds + burstSeconds;
-
-        float InsideSeconds => _wallOn ? wallSeconds : insideSeconds;
+        /// <summary>START to the end of the burst, as things stand.</summary>
+        public float DiveSeconds => StakesFlags.Comfort ? comfortSeconds : approachSeconds + insideSeconds + burstSeconds;
 
         static readonly int TexId = Shader.PropertyToID("_MainTex");
         static readonly int AlphaId = Shader.PropertyToID("_Alpha");
@@ -194,7 +183,6 @@ namespace VirtualBeeSwarm.Title
                 if (o != null) Destroy(o);
             foreach (var m in _beeMats) if (m != null) Destroy(m);
             _burst?.Destroy();
-            _wall?.Destroy();
         }
 
         void Build()
@@ -261,7 +249,6 @@ namespace VirtualBeeSwarm.Title
             _beePrev = new Vector3[_bees.Count];
 
             _burst = new GlobeBurst(transform);
-            _wall = new TitleWall(transform, wallRadius, wallRows, Log);
 
             _rt = new RenderTexture(videoSize.x, videoSize.y, 0) { name = "VBS_GlobeVideo", wrapMode = TextureWrapMode.Clamp };
             _rt.Create();
@@ -366,11 +353,18 @@ namespace VirtualBeeSwarm.Title
             SetLook(alpha: 0f, inside: false, dissolve: 0f);
             transform.rotation = Quaternion.identity;
             if (_mat != null) _mat.SetTexture(TexId, _hasFrame ? (Texture)_rt : Still);
+            _footageWaits = LoadWall.Covering; // the load wall's two strips decode now: the ball's clips start when it lifts
+            _wasCovered = _footageWaits;
+            if (!_footageWaits) StartLoops();
+            Log("up (" + why + "), " + Usable() + " clip(s)" + (_cur >= 0 ? ", first " + Path.GetFileName(_urls[_cur]) : "") +
+                (_footageWaits ? ", footage waits for the load wall" : ""));
+        }
+
+        void StartLoops()
+        {
+            _footageWaits = false;
             StartFootage();
-            _wallOn = GlobeFlags.Wall && !StakesFlags.Comfort && _wall != null && _wall.Usable;
-            if (_wallOn) _wall.Prepare(); // the wall replaces the bee flight: two strip decoders instead of one
-            else if (!StakesFlags.Comfort) PrepareFlight(); // comfort never wraps: no second decoder idling
-            Log("up (" + why + "), " + Usable() + " clip(s)" + (_cur >= 0 ? ", first " + Path.GetFileName(_urls[_cur]) : ""));
+            if (!StakesFlags.Comfort) PrepareFlight(); // comfort never wraps: no second decoder idling
         }
 
         void Hide(string why)
@@ -382,7 +376,6 @@ namespace VirtualBeeSwarm.Title
             SetVisible(false);
             if (_vp != null) _vp.Stop();
             StopFlight();
-            _wall?.Stop();
             _loading = -1;
             Log("down (" + why + ")");
         }
@@ -407,13 +400,12 @@ namespace VirtualBeeSwarm.Title
         void OnApplicationPause(bool paused)
         {
             // headset off and on again: the held flight player can go stale
-            if (paused || _state != State.Showing || StakesFlags.Comfort) return;
-            if (_wallOn) _wall.Prepare();
-            else PrepareFlight();
+            if (paused || _state != State.Showing || StakesFlags.Comfort || _footageWaits) return;
+            PrepareFlight();
         }
 
         // ------------------------------------------------------------------ START
-        public bool Interactable => Up && Time.time - _shownAt > popSeconds * 0.6f && _director != null && _director.Beat == GameBeat.Pre;
+        public bool Interactable => Up && !LoadWall.Covering && Time.time - _shownAt > popSeconds * 0.6f && _director != null && _director.Beat == GameBeat.Pre;
         public void SetHover(bool hovered) => _hoverGoal = hovered && Interactable ? 1f : 0f;
         public void Click() => Pinched("pointer");
 
@@ -454,9 +446,7 @@ namespace VirtualBeeSwarm.Title
                 return;
             }
             _state = State.Approach;
-            _sphereGone = false;
-            if (_wallOn) _wall.Play();
-            else if (_flightVp != null && _flightReady && !_flightBad)
+            if (_flightVp != null && _flightReady && !_flightBad)
             {
                 _flightVp.Play();
                 _flightOn = true;
@@ -477,6 +467,22 @@ namespace VirtualBeeSwarm.Title
             if (_state == State.Showing)
             {
                 if (!GlobeFlags.On) { Hide("title.globe=off"); return; }
+                bool covered = LoadWall.Covering;
+                if (covered && !_wasCovered && !_footageWaits)
+                {
+                    // the load wall closes again (headset back on, a group reset): no globe decoders under it
+                    _footageWaits = true;
+                    if (_vp != null) _vp.Stop();
+                    StopFlight();
+                    _loading = -1;
+                }
+                if (_wasCovered && !covered)
+                {
+                    // the load wall lifts: the ball pops in where the player can see it, and its footage starts
+                    if (_placed) _shownAt = t;
+                    if (_footageWaits) StartLoops();
+                }
+                _wasCovered = covered;
                 if (head != null) TickShowing(head, t);
                 if (GameInput.KeyDown(diveKey) && Interactable) Pinched("key " + diveKey);
             }
@@ -599,34 +605,17 @@ namespace VirtualBeeSwarm.Title
                         _state = State.Inside;
                         _stateAt = t;
                         _centre = eye;
-                        if (_wallOn) _wall.Show(eye, transform.rotation);
-                        Log(_wallOn ? "inside the globe: the documentary wall" : "inside the globe");
+                        Log("inside the globe");
                     }
                     break;
                 }
                 case State.Inside:
                 {
-                    k = Mathf.Clamp01((t - _stateAt) / InsideSeconds);
+                    k = Mathf.Clamp01((t - _stateAt) / insideSeconds);
                     float r = Mathf.Lerp(insideRadius * 0.75f, insideRadius, k);
                     _sphere.position = _centre;
                     _sphere.localScale = Vector3.one * (r * _meshScale);
-                    if (_wallOn)
-                    {
-                        // the globe's footage gives way to the wall lighting up round the player
-                        float since = t - _stateAt;
-                        float fade = Mathf.Clamp01(since / wallCrossSeconds);
-                        SetLook(insideAlpha * (1f - fade), true, 0f);
-                        if (fade >= 1f && !_sphereGone)
-                        {
-                            _sphereGone = true;
-                            _sphere.gameObject.SetActive(false);
-                            if (_vp != null) _vp.Stop(); // the wall's two strips are the only decoders left
-                            _loading = -1;
-                        }
-                        float rev = Mathf.Clamp01(since / wallRevealSeconds);
-                        _wall.Tick(Time.deltaTime, insideAlpha, rev * rev * (3f - 2f * rev), 0f, 1f);
-                    }
-                    else SetLook(insideAlpha, head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, 0f);
+                    SetLook(insideAlpha, head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, 0f);
                     if (k >= 1f)
                     {
                         _state = State.Burst;
@@ -642,8 +631,7 @@ namespace VirtualBeeSwarm.Title
                     float r = Mathf.Lerp(insideRadius, insideRadius * 1.5f, 1f - (1f - k) * (1f - k));
                     _sphere.position = _centre;
                     _sphere.localScale = Vector3.one * (r * _meshScale);
-                    if (_wallOn) _wall.Tick(Time.deltaTime, insideAlpha, 1f, 1f - (1f - k) * (1f - k), 1f + 5f * k); // the rows race and fold in
-                    else SetLook(insideAlpha * (1f - 0.3f * k), head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, k);
+                    SetLook(insideAlpha * (1f - 0.3f * k), head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, k);
                     if (k >= 1f) Done();
                     break;
                 }
@@ -670,7 +658,6 @@ namespace VirtualBeeSwarm.Title
             SetVisible(false);
             if (_vp != null) _vp.Stop();
             StopFlight();
-            _wall?.Stop();
             _loading = -1;
             Log("gone");
         }
@@ -805,7 +792,7 @@ namespace VirtualBeeSwarm.Title
         void TickFootage(float t)
         {
             if (_vp == null) return;
-            if (_advance)
+            if (_advance && !_footageWaits)
             {
                 _advance = false;
                 int i = NextClip(_cur);
@@ -825,7 +812,7 @@ namespace VirtualBeeSwarm.Title
                 _mat.SetTexture(TexId, _rt);
             }
             // a new shot every few seconds, only while it sits there (not mid-dive)
-            if (_state == State.Showing && _cur >= 0 && t - _shotAt > shotSeconds && Usable() > 1) Load(NextClip(_cur));
+            if (_state == State.Showing && !_footageWaits && _cur >= 0 && t - _shotAt > shotSeconds && Usable() > 1) Load(NextClip(_cur));
         }
 
         // ------------------------------------------------------------------ helpers

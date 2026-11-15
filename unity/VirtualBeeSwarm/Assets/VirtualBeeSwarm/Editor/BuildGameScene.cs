@@ -260,12 +260,12 @@ namespace VirtualBeeSwarm.Editor
             var embers = embersGo.AddComponent<EmbersFx>();
             Set(embers, "net", net);
 
-            // what-if UI over the window
+            // what-if UI under the window, in front of its feet (polish: above it, it sat over eye level, near the ceiling in small rooms)
             var whatIfUi = Child("WhatIfUI", windowT, new Vector3(0f, 0f, -0.02f));
-            var prompt = Text("Prompt", whatIfUi, new Vector3(0f, paneH / 2f + 0.07f, 0f), "Ask me anything.\n\"What if...?\"", 0.006f, Color.white, TextAnchor.MiddleCenter);
+            var prompt = Text("Prompt", whatIfUi, new Vector3(0f, -paneH / 2f - 0.08f, -0.1f), "Ask me anything.\n\"What if...?\"", 0.006f, Color.white, TextAnchor.MiddleCenter);
             var transcript = Text("Transcript", whatIfUi, new Vector3(0f, paneH / 2f - 0.02f, 0f), "", 0.0045f, new Color(1f, 0.95f, 0.7f), TextAnchor.UpperCenter);
-            var hint = Text("Hint", whatIfUi, new Vector3(0f, paneH / 2f + 0.025f, 0f), "", 0.0032f, new Color(0.8f, 0.85f, 0.9f), TextAnchor.MiddleCenter);
-            var mic = Prim(PrimitiveType.Sphere, "MicIndicator", whatIfUi, new Vector3(paneW / 2f + 0.05f, paneH / 2f + 0.07f, 0f), Vector3.one * 0.02f, M("VBS_MicLight"));
+            var hint = Text("Hint", whatIfUi, new Vector3(0f, -paneH / 2f - 0.03f, -0.1f), "", 0.0032f, new Color(0.8f, 0.85f, 0.9f), TextAnchor.MiddleCenter);
+            var mic = Prim(PrimitiveType.Sphere, "MicIndicator", whatIfUi, new Vector3(paneW / 2f + 0.05f, -paneH / 2f - 0.03f, -0.1f), Vector3.one * 0.02f, M("VBS_MicLight"));
 
             // Beeswax -----------------------------------------------------
             var home = Child("BeeswaxHome", anchor, new Vector3(0.12f, 0.42f, 0.08f));

@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 27f3fe344b3ce9cd2aa84942a9a2147c4f35d5fa51f8c7bd5cc81dc09dd30385
+// lines.json sha256 e6bf13e10517f9d9b8183ac56656e1f155b80f3d3d8bb2da90e473ef705d18c7
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,7 +44,7 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "27f3fe344b3ce9cd2aa84942a9a2147c4f35d5fa51f8c7bd5cc81dc09dd30385";
+        public const string LinesSha256 = "e6bf13e10517f9d9b8183ac56656e1f155b80f3d3d8bb2da90e473ef705d18c7";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
@@ -170,6 +170,10 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomPalHoneyWinter = new GameLine("room_pal_honey_winter", "That's plenty. The rest stays. They eat it all winter."); // room | - | pals, honey, fact:winter_honey
         public static readonly GameLine RoomPalDance = new GameLine("room_pal_dance", "I don't forage, but I took the seminar. The waggle points to food from the sun. Longer waggle, farther flowers."); // room | - | pals, dance, fact:waggle
         public static readonly GameLine RoomPalShowMe = new GameLine("room_pal_show_me", "Motion carried. Eyes on the window."); // room | - | pals, show_me, window
+        public static readonly GameLine RoomPalPet = new GameLine("room_pal_pet", "Gentle. They like you. Don't tell them I said that."); // room | - | pals, pet, swarm
+        public static readonly GameLine RoomThrowSyrup = new GameLine("room_throw_syrup", "Careful! That's the GOOD syrup."); // room | - | throwables, throw, syrup
+        public static readonly GameLine RoomThrowProperty = new GameLine("room_throw_property", "Hey! That's union property!"); // room | - | throwables, throw
+        public static readonly GameLine RoomThrowWriteup = new GameLine("room_throw_writeup", "Who threw that? I'm writing it up."); // room | - | throwables, throw
 
         // ------------------------------------------------------------ local only: the game plays these, lines.json doesn't have them
         public static readonly GameLine RoomFeedLiftHint = new GameLine("room_feed_lift_hint", "Grab the hive and rock it back and forth. Feel how heavy it is.");
@@ -245,7 +249,7 @@ namespace VirtualBeeSwarm
             EarCannedUnclear, EarHintSmoker, EarHintFeed, EarHintWasps, EarHintHeat, EarHintWhatif,
             EarAsideWindow, EarAsideHornet, RoomPalBoopGiggle, RoomPalBoopFile, RoomPalBoopBlush, RoomPalWave,
             RoomPalHighfive, RoomPalPalm, RoomPalHoneyOffer, RoomPalHoneyCaps, RoomPalHoneyHelp, RoomPalHoneyWinter,
-            RoomPalDance, RoomPalShowMe,
+            RoomPalDance, RoomPalShowMe, RoomPalPet, RoomThrowSyrup, RoomThrowProperty, RoomThrowWriteup,
         };
 
         static readonly GameLine[] LocalLines = { RoomFeedLiftHint, RoomFeedRockRetry };

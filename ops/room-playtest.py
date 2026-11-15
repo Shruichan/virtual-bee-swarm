@@ -31,7 +31,7 @@ def options() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--player", required=True, type=Path, help="Windows CaptureBuild player")
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--rooms", nargs="+", type=int, choices=range(1, 21), default=list(range(1, 21)))
+    parser.add_argument("--rooms", nargs="+", type=int, choices=range(1, 22), default=list(range(1, 22)))
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=2)
     parser.add_argument("--every", type=int, choices=(1, 2, 3), default=2, help="frame stride at 30 fps")
     parser.add_argument("--ffmpeg", help="FFmpeg with libx264, or use PATH/imageio-ffmpeg")
@@ -177,14 +177,19 @@ def room(number: int, args: argparse.Namespace, ffmpeg: str, clip_dir: Path | No
         ordered = iter(names)
         full_ride = all(name in ordered for name in REQUIRED) and len({frame for frame, _ in captured}) >= len(REQUIRED)
         length = len(frames) * args.every / SOURCE_FPS
+        hand_setups = [message for _, message in events if "done by hand" in message]
+        completed = {message.rsplit("autopilot ", 1)[-1].split(":", 1)[0] for message in hand_setups}
+        full_hands = {"smoker", "feed", "wasps", "heat"} <= completed
         result.update(
-            ok=process.returncode == 0 and full_ride,
+            ok=process.returncode == 0 and full_ride and full_hands,
             returncode=process.returncode,
             seconds=round(length, 2),
             frames=len(frames),
             sampled_fps=SOURCE_FPS / args.every,
             recorded_beats=names,
-            hand_setups=[message for _, message in events if "done by hand" in message],
+            hand_setups=hand_setups,
+            hand_setups_complete=full_hands,
+            room_audit=next((message for _, message in reversed(events) if message.startswith("[VBS][RoomAudit] SUMMARY")), ""),
         )
         stage_subtitles(directory / "stages.srt", captured, length)
         storyboards(directory, frames, events, args.every)

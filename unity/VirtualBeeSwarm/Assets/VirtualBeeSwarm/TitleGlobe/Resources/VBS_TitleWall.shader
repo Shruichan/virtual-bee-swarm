@@ -1,9 +1,10 @@
-// The documentary wall inside the title globe (TitleWall.cs): one open cylinder round the player, rows of small
-// monitors, every row sliding sideways at its own speed. Two mosaic videos feed it (wall_strip_0/1: 16 x 4 tiles of
-// 240x135 each, so eight strip rows); the scroll, the bezels, the glow and the collapse all happen here, so hundreds of
-// moving screens cost two decoders. Mesh uv.x = 0..1 round the cylinder, uv.y = 0.._Rows (row units).
-// One pass, alpha blended like the globe (the Quest compositor mixes passthrough by the eye buffer's alpha), ZWrite on,
-// single-pass instanced / multiview stereo macros.
+// The documentary wall of the load-in screen (TitleWall.cs, owned by LoadWall.cs): one open cylinder round the
+// player, rows of small monitors, every row sliding sideways at its own speed. Two mosaic videos feed it (wall_strip_0/1:
+// 16 x 4 tiles of 240x135 each, so eight strip rows); the scroll, the bezels, the glow and the collapse all happen here,
+// so hundreds of moving screens cost two decoders. Mesh uv.x = 0..1 round the cylinder, uv.y = 0.._Rows (row units).
+// One pass, alpha blended (the Quest compositor mixes passthrough by the eye buffer's alpha: at _Alpha 1 over the dark
+// dome it writes alpha 1, so no passthrough shows), single-pass instanced / multiview stereo macros.
+// By default ZTest Always + ZWrite Off in an overlay queue: drawn over everything in the room, whatever its depth.
 Shader "VirtualBeeSwarm/TitleWall"
 {
     Properties
@@ -21,6 +22,8 @@ Shader "VirtualBeeSwarm/TitleWall"
         _Glow ("Screen glow", Range(0, 2)) = 0.6
         _Bezel ("Bezel color", Color) = (0.035, 0.03, 0.03, 1)
         _GlowColor ("Rim glow", Color) = (1, 0.84, 0.5, 1)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 8
+        [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 0
     }
     SubShader
     {
@@ -30,9 +33,9 @@ Shader "VirtualBeeSwarm/TitleWall"
         Pass
         {
             Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
-            // depth on: room dressing past the wall (vines, light shafts, motes: later transparents) stays behind the
-            // screens instead of drawing over them; what is nearer (the hive, Beeswax, captions, petals) still shows
-            ZWrite On
+            // the load wall hides the whole room: no depth test against it (nothing pokes through), no depth written
+            ZTest [_ZTest]
+            ZWrite [_ZWrite]
             Cull Back // the inside faces only: from outside (the wide capture camera) you look through to the far side
 
             CGPROGRAM

@@ -1,4 +1,7 @@
-# Beeswax's local voice
+# Beeswax's local voice (not used)
+
+> The Hive no longer calls this service: every Beeswax line, recorded or live, uses the one ElevenLabs voice (see
+> `src/tts.ts`). Kept for reference only. Remove `VBS_LOCAL_TTS_URL` and `ASK_TTS_FIRST_CHUNK_MS=12000` from `hive/.env`.
 
 This service uses a youthful, childlike Beeswax voice designed to stay in a comfortable middle register. FFmpeg plays each generated line at 1.1× its original pace and keeps the pitch. The reference was synthesized with Qwen3-TTS VoiceDesign.
 

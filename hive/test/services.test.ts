@@ -52,14 +52,14 @@ describe("service alerts", () => {
     expect(list[0]!.count).toBe(2);
   });
 
-  test("voice consistency: local rehearsal voice and a different voice id are flagged", () => {
+  test("voice consistency: a different voice id is flagged; a leftover local voice setting is ignored", () => {
     expect(checkVoiceConsistency({ ELEVENLABS_VOICE_ID: "abc" }, "abc")).toBe("match");
     expect(serviceAlerts()).toHaveLength(0);
     expect(checkVoiceConsistency({ ELEVENLABS_VOICE_ID: "xyz" }, "abc")).toBe("mismatch");
     expect(serviceAlerts()[0]!.fix).toContain("ELEVENLABS_VOICE_ID=abc");
     resetServices();
-    expect(checkVoiceConsistency({ VBS_LOCAL_TTS_URL: "http://127.0.0.1:8300", ELEVENLABS_VOICE_ID: "abc" }, "abc")).toBe("local");
-    expect(serviceAlerts()[0]!.problem).toContain("local rehearsal voice");
+    expect(checkVoiceConsistency({ VBS_LOCAL_TTS_URL: "http://127.0.0.1:8300", ELEVENLABS_VOICE_ID: "abc" }, "abc")).toBe("match");
+    expect(serviceAlerts()).toHaveLength(0);
   });
 
   test("ElevenLabs credits: reads what's left and warns when low; a key without user_read is skipped quietly", async () => {
