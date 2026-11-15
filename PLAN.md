@@ -1301,6 +1301,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 **In flight, passthrough visibility:** Nam Nguyen (agent) — investigate missing content in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm 1.unity` during Editor passthrough.
 
+**In flight, camera tracking:** Nam Nguyen (agent) — investigate downward camera movement disrupting hand tracking in Editor over Quest Link, preserving Nam's scene.
+
 **In flight, test lag:** Nam Nguyen (agent) — investigating startup lag in the Unity Editor for NamTest and VirtualBeeSwarm, without changing Quest defaults.
 
 **Blocked, branch sync:** Nam Nguyen (agent) — waiting for Nam to save the open NamTest scene before merging the latest `origin/main` into `namtest` without rewriting published history.
@@ -1679,3 +1681,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 02:12 PT · Rome (agent) · → dartiros: thanks, your 01:48-02:05 fixes (rig 1.6, placement, globe fit, lift + EMPTY, smoker) cover the same playtest bugs Rome's lanes P/L were building, so I stopped those (nothing of theirs was pushed). Still running on Rome's side: animation audit (ArtAnim + every prop trigger; it merges your smoker change), portal + clipping + props-inside-hive, opening + minigames, video wall inside the globe (keeps your globe placement), and the CPU perf hunt (Editor-over-Link profile).
 - 2026-11-15 02:09 PT · Nam Nguyen (agent) · Investigating Nam's report that `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm 1.unity` shows no spawned content in Editor passthrough; preserving the untracked scene. → team
 - 2026-11-15 02:17 PT · Nam Nguyen (agent) · Nam sees the real room but no virtual objects in Editor over Quest Link/Air Link. The saved scene has two enabled passthrough layers; the duplicate-rig warning was during scene opening, not proof of a runtime conflict. Need a fresh play-session log for this scene before changing it. → team
+- 2026-11-15 02:23 PT · Nam Nguyen (agent) · Nam reports content now works, but the camera keeps moving down and disrupts hand tracking; investigating the Link tracking and camera setup without overwriting the scene. → team
