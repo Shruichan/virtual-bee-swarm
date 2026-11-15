@@ -1,7 +1,7 @@
 [
   {"id": "scout_intro_1", "kind": "intro", "text": "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant."},
   {"id": "scout_intro_2", "kind": "intro", "text": "Bees are super important for our planet. Six things around you matter a lot to bees."},
-  {"id": "scout_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? I'll always BEE here, so interrupt me anytime!"},
+  {"id": "scout_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? Just say \"Hey Beeswax\" and I'll BEE right there!"},
   {"id": "scout_chime", "kind": "chime", "text": "Bee fact found!"},
 
   {"id": "scout_hook_beehive", "kind": "hook", "label": "beehive", "text": "A beehive! That's home sweet home for bees. Would you like to learn more?"},
@@ -11,9 +11,10 @@
   {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Uh oh, bug spray! This one is important. Would you like to learn more?"},
   {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "A bee hotel! Wild bees check in here. Would you like to learn more?"},
 
-  {"id": "scout_any_q_1", "kind": "any_q", "text": "Got any questions? Bee my guest!"},
-  {"id": "scout_any_q_2", "kind": "any_q", "text": "Curious about anything? Just ask me!"},
-  {"id": "scout_any_q_3", "kind": "any_q", "text": "Any questions? I'm all ears. Well, all antennae."},
+  {"id": "scout_any_q_1", "kind": "any_q", "text": "Questions? Just say \"Hey Beeswax\"!"},
+  {"id": "scout_any_q_2", "kind": "any_q", "text": "Curious? Say \"Hey Beeswax\" and ask away!"},
+  {"id": "scout_any_q_3", "kind": "any_q", "text": "Want to know more? Start with \"Hey Beeswax\"!"},
+  {"id": "scout_wake_ack", "kind": "any_q", "text": "Yes? I'm all antennae!"},
 
   {"id": "scout_no_1", "kind": "no", "text": "Don't worry, I'll BEE right here if you need anything."},
   {"id": "scout_no_2", "kind": "no", "text": "No problem! Just buzz me if you change your mind."},
