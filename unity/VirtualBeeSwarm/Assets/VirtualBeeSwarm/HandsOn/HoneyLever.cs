@@ -31,6 +31,8 @@ namespace VirtualBeeSwarm.HandsOn
         public Pose CradlePose => new Pose(_pad.position + transform.up * 0.012f, transform.rotation);
         public Vector3 HeadPosition => _head.position;
 
+        void RefreshVisibility() => gameObject.SetActive(_live || (_pad != null && _pad.gameObject.activeSelf));
+
         public bool Live
         {
             get => _live;
@@ -42,6 +44,7 @@ namespace VirtualBeeSwarm.HandsOn
                 _painted = false;
                 if (_capsule != null) _capsule.enabled = value;
                 if (_ball != null) _ball.enabled = value;
+                RefreshVisibility();
                 Debug.Log("[VBS][HandsOn] lever " + (value ? "live" : "locked"));
             }
         }
@@ -125,12 +128,14 @@ namespace VirtualBeeSwarm.HandsOn
 
             lever.Apply();
             lever.Paint();
+            lever.RefreshVisibility();
             return lever;
         }
 
         public void ShowCradle(bool on)
         {
             if (_pad != null && _pad.gameObject.activeSelf != on) _pad.gameObject.SetActive(on);
+            RefreshVisibility();
         }
 
         // ------------------------------------------------------------ grab (IGameGrabTarget)
@@ -185,6 +190,7 @@ namespace VirtualBeeSwarm.HandsOn
         {
             StopSim();
             Held = false;
+            _angle = _target = _vel = 0f;
         }
 
         // ------------------------------------------------------------ motion

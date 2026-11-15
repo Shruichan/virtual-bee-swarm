@@ -6,7 +6,7 @@ namespace VirtualBeeSwarm
     /// <summary>
     /// A small kinematic trigger sphere that follows one index fingertip (from GameHands, any SDK), so
     /// ChoiceButtons can be poked. Alternatively parent it under a fingertip bone and set followHandSource = false.
-    /// Its collider turns off while the hand isn't tracked.
+    /// Its collider turns off when input switches to a controller or tracking is lost.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(SphereCollider))]
@@ -17,6 +17,7 @@ namespace VirtualBeeSwarm
         [SerializeField] float radius = 0.009f;
 
         public GameHand Hand => hand;
+        internal bool AcceptsPokes => !(GameHands.For(hand) is IControllerPoseSource source && source.IsController(hand));
         internal uint ContactVersion { get; private set; }
 
         Rigidbody _rb;
@@ -30,11 +31,12 @@ namespace VirtualBeeSwarm
             _col = GetComponent<SphereCollider>();
             _col.isTrigger = true;
             _col.radius = radius;
+            _col.enabled = !followHandSource && AcceptsPokes;
         }
 
         void OnEnable()
         {
-            if (!followHandSource) _col.enabled = true;
+            if (!followHandSource) _col.enabled = AcceptsPokes;
         }
 
         void OnDisable() => LoseContact();
@@ -49,7 +51,16 @@ namespace VirtualBeeSwarm
 
         void Update()
         {
-            if (!followHandSource) return;
+            if (!AcceptsPokes)
+            {
+                if (_col.enabled) LoseContact();
+                return;
+            }
+            if (!followHandSource)
+            {
+                if (!_col.enabled) _col.enabled = true;
+                return;
+            }
             bool tracked = GameHands.TryGetIndexTip(hand, out var p);
             if (tracked)
             {
@@ -68,7 +79,7 @@ namespace VirtualBeeSwarm
         public bool Enter(Collider collider)
         {
             if (collider == null || !collider.enabled ||
-                !collider.TryGetComponent<GameFingertip>(out var finger) || !finger.isActiveAndEnabled)
+                !collider.TryGetComponent<GameFingertip>(out var finger) || !finger.isActiveAndEnabled || !finger.AcceptsPokes)
                 return false;
 
             // Unity skips OnTriggerExit when a collider is disabled or destroyed inside a trigger.

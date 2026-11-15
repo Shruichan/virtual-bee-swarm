@@ -30,7 +30,7 @@ namespace VirtualBeeSwarm.Dressing
         public static bool AutoInstall = true;
         public static DressingDirector Instance { get; private set; }
 
-        public static bool On = true, Nest = true, Tufts = true, Solitary = true, Visitors = true, Wasp = true, Seed = true, Habitat = true;
+        public static bool On = true, Nest = false, Tufts = true, Solitary = true, Visitors = true, Wasp = true, Seed = true, Habitat = false;
 
         [Header("Layout (TableAnchor space; the player stands at -Z)")]
         [SerializeField] Vector3 nestPosition = new Vector3(-0.3f, 0f, 0.21f);

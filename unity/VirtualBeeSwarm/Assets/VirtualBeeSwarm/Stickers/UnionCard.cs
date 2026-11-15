@@ -56,7 +56,8 @@ namespace VirtualBeeSwarm.Theme
             _body = new GameObject("Body").transform;
             _body.SetParent(transform, false);
             UiCard.Create(_body, "Card", new Vector2(Width, Height), UiCard.Look.Paper);
-            _grip = PanelGrip.Add(transform, _body, new Vector3(0f, Height * 0.5f + 0.008f, 0f));
+            _grip = PanelGrip.Add(transform, _body, new Vector3(0f, Height * 0.5f + 0.008f, 0f),
+                panelArea: new Vector2(Width, Height));
             // the easel leg: a dark slab behind, so it reads as a thing standing on the table
             var leg = StickerArt.Shape(_body, false, UiTheme.DarkBrown, new Vector2(0.05f, Height * 0.8f), "Leg");
             leg.localPosition = new Vector3(0f, -Height * 0.08f, 0.03f);

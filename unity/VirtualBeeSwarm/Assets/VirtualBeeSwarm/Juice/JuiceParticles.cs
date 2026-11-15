@@ -61,6 +61,7 @@ namespace VirtualBeeSwarm.Juice
                           float upBias = 0.6f, float drag = 2.5f, float delay = 0f)
         {
             float now = Time.time + delay;
+            float minimumSize = QuestPerf.On ? 0.018f : 0f;
             for (int k = 0; k < n && _ns < MaxSparks; k++)
             {
                 Vector3 d = Random.onUnitSphere;
@@ -70,7 +71,7 @@ namespace VirtualBeeSwarm.Juice
                 s.vel = d.normalized * speed * Random.Range(0.5f, 1f);
                 s.born = now + Random.Range(0f, 0.04f);
                 s.life = life * Random.Range(0.7f, 1.15f);
-                s.size = size * Random.Range(0.7f, 1.2f);
+                s.size = Mathf.Max(minimumSize, size * Random.Range(0.7f, 1.2f));
                 s.spin = Random.Range(-12f, 12f);
                 s.drag = drag;
                 s.gravity = gravity;
@@ -87,6 +88,7 @@ namespace VirtualBeeSwarm.Juice
             Vector3 u = Vector3.Cross(normal, Mathf.Abs(normal.y) > 0.9f ? Vector3.right : Vector3.up).normalized;
             Vector3 v = Vector3.Cross(normal, u);
             float now = Time.time + delay, a0 = Random.Range(0f, 6.283f);
+            if (QuestPerf.On) size = Mathf.Max(0.018f, size);
             for (int k = 0; k < n && _ns < MaxSparks; k++)
             {
                 float a = a0 + k * 6.2831853f / n;

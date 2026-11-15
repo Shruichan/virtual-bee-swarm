@@ -17,13 +17,18 @@ namespace VirtualBeeSwarm
         public bool Grabbable => isActiveAndEnabled && Ready && !Held &&
             (!_delivered || BeeDelivery.Instance == null || !BeeDelivery.Instance.IsFlying(_panel));
 
-        public static PanelGrip Add(Transform panel, Transform parent, Vector3 localPosition, bool delivered = false)
+        public static PanelGrip Add(Transform panel, Transform parent, Vector3 localPosition, bool delivered = false, Vector2? panelArea = null)
         {
             var tab = new GameObject("Panel Grab Tab");
             tab.transform.SetParent(parent, false);
             tab.transform.localPosition = localPosition;
             var trigger = tab.AddComponent<BoxCollider>();
-            trigger.size = new Vector3(0.074f, 0.018f, 0.028f);
+            if (panelArea is Vector2 area)
+            {
+                trigger.size = new Vector3(area.x, area.y + 0.055f, 0.056f);
+                trigger.center = -localPosition + Vector3.up * 0.012f;
+            }
+            else trigger.size = new Vector3(0.085f, 0.028f, 0.035f);
             trigger.isTrigger = true;
             HandsOnKit.Prim(PrimitiveType.Cube, "Tab", tab.transform, Vector3.zero,
                 new Vector3(0.074f, 0.017f, 0.007f), HandsOnKit.Honey);

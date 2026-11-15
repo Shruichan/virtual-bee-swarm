@@ -37,7 +37,7 @@ namespace VirtualBeeSwarm
         IGameGrabTarget _lastGrabTarget;
         float _grabDistance;
         bool _directGrab;
-        bool _panelGripHeld;
+        bool _panelGripHeld, _grabHeldByGrip;
         readonly Collider[] _overlap = new Collider[8];
         readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
 
@@ -68,7 +68,7 @@ namespace VirtualBeeSwarm
             // ---- holding something
             if (_grab != null)
             {
-                bool stillHeld = _grab is PanelGrip panel ? gripHeld && panel.Held && panel.Ready : held && _grab.Grabbable;
+                bool stillHeld = _grab is PanelGrip panel ? (_grabHeldByGrip ? gripHeld : held) && panel.Held && panel.Ready : held && _grab.Grabbable;
                 if (!stillHeld)
                 {
                     _grab.EndGrab();
@@ -98,7 +98,7 @@ namespace VirtualBeeSwarm
                     if (g is PanelGrip)
                     {
                         // The nearby tab must be touched deliberately, rather than winning an overlapping chip's poke.
-                        if (!gripDown || (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.018f * 0.018f) continue;
+                        if ((!gripDown && !down) || (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.028f * 0.028f) continue;
                     }
                     else if (!down) continue;
                     if (g is HoneyLever lever && !lever.Live)
@@ -107,7 +107,7 @@ namespace VirtualBeeSwarm
                         lockedLeverPoint = handPoint;
                         continue;
                     }
-                    BeginDirectGrab(g, handPoint);
+                    BeginDirectGrab(g, handPoint, controller && gripDown && g is PanelGrip);
                     return;
                 }
             }
@@ -135,12 +135,13 @@ namespace VirtualBeeSwarm
             DrawRay(HasRay, ray, target != null || grabTarget != null ? hitDistance : idleRayLength);
 
             if (!down && !gripDown) return;
-            if (grabTarget is PanelGrip ? gripDown : grabTarget != null && down)
+            if (grabTarget is PanelGrip ? gripDown || down : grabTarget != null && down)
             {
                 SetHover(null);
                 _grab = grabTarget;
                 _directGrab = false;
                 _grabDistance = hitDistance;
+                _grabHeldByGrip = controller && gripDown && grabTarget is PanelGrip;
                 grabTarget.BeginGrab(ray.GetPoint(hitDistance));
             }
             else if (down && target != null) target.Click();
@@ -163,11 +164,12 @@ namespace VirtualBeeSwarm
                 device.SendHapticImpulse(0, 0.25f, 0.09f);
         }
 
-        void BeginDirectGrab(IGameGrabTarget target, Vector3 point)
+        void BeginDirectGrab(IGameGrabTarget target, Vector3 point, bool byGrip = false)
         {
             SetHover(null);
             _grab = target;
             _directGrab = true;
+            _grabHeldByGrip = byGrip;
             target.BeginGrab(point);
         }
 
