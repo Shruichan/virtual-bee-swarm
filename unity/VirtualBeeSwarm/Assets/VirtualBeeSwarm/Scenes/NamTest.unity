@@ -2195,11 +2195,15 @@ MonoBehaviour:
   beeswax: {fileID: 695244473}
   scoreCard: {fileID: 1994414828}
   scoreText: {fileID: 453991732}
-  holdSeconds: 15
+  scoreHoldSeconds: 6
   delivery: {fileID: 0}
   cardWidth: 0.44
   cardLocalPosition: {x: -0.08, y: 0.75, z: -0.04}
   cardTiltDegrees: 14
+  endCardAhead: 0.62
+  endCardBelowEye: 0.3
+  endCardTiltDegrees: 22
+  endCardCrew: 6
 --- !u!114 &188932117
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2225,10 +2229,13 @@ MonoBehaviour:
   fireKey: 102
   putOutKey: 112
   talkInAllVoiceBeats: 1
-  completeAfterFireOutSeconds: 4
   emberBackupDelaySeconds: 4
-  offlineAutoFireSeconds: 9
-  offlineAutoPutOutSeconds: 8
+  offlineFireAfterSeconds: 13
+  putOutAfterSeconds: 14
+  hintAfterSilenceSeconds: 8
+  putOutHintSeconds: 4
+  adjournAfterWhatIfSeconds: 5
+  fireAfterSilenceSeconds: 25
   wrapChars: 36
 --- !u!114 &188932118
 MonoBehaviour:
@@ -2295,17 +2302,16 @@ MonoBehaviour:
   clipboardDelay: 0.6
   clipboardAhead: 0.45
   clipboardBelowEye: 0.1
+  clipboardYaw: 25
   clipboardTilt: 15
-  clipboardCrew: 4
-  nudgeAfterSeconds: 6
   stampHoldSeconds: 0.45
   windowOpenAt: 0.6
   hiveAwayAt: 1.4
   threatLineAt: 1.4
+  hiveFlightSeconds: 4.5
   hookMark: {fileID: 0}
   logHook: 1
   forecast: {fileID: 0}
-  peacefulMinSeconds: 3
 --- !u!1 &189831521
 GameObject:
   m_ObjectHideFlags: 0
@@ -2449,7 +2455,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4381978925716056965, guid: f016e98848a54b6f4a9a8a7416c6ec8d, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5600420561948495767, guid: f016e98848a54b6f4a9a8a7416c6ec8d, type: 3}
       propertyPath: m_IsActive
@@ -2775,7 +2781,7 @@ Camera:
   m_TargetEye: 2
   m_HDR: 0
   m_AllowMSAA: 1
-  m_AllowDynamicResolution: 0
+  m_AllowDynamicResolution: 1
   m_ForceIntoRT: 0
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
@@ -5765,6 +5771,8 @@ MonoBehaviour:
   maxOutcomeSeconds: 10
   retryPauseSeconds: 0.8
   maxParkWaitSeconds: 4
+  hintAfterSeconds: 8
+  noPickTimeoutSeconds: 20
   smokePuff: {fileID: 1093702674}
   waterPuff: {fileID: 1980422342}
   puffParticles: 25
@@ -10759,7 +10767,7 @@ MonoBehaviour:
   _monoscopic: 0
   _sharpenType: 0
   _disableRecording: 0
-  _enableDynamicResolution: 0
+  _enableDynamicResolution: 1
   minDynamicResolutionScale: 1
   maxDynamicResolutionScale: 1
   quest2MinDynamicResolutionScale: 0.7
@@ -10814,7 +10822,7 @@ MonoBehaviour:
   requestBodyTrackingPermissionOnStartup: 0
   requestFaceTrackingPermissionOnStartup: 0
   requestEyeTrackingPermissionOnStartup: 0
-  requestScenePermissionOnStartup: 0
+  requestScenePermissionOnStartup: 1
   requestRecordAudioPermissionOnStartup: 0
   requestPassthroughCameraAccessPermissionOnStartup: 0
   _localDimming: 1
@@ -12356,6 +12364,7 @@ MonoBehaviour:
   onColor: {r: 1, g: 0.75, b: 0.1, a: 1}
   celebrateColor: {r: 1, g: 0.95, b: 0.55, a: 1}
   popScale: 1.35
+  faceMaterialIndex: -1
 --- !u!1 &817817397
 GameObject:
   m_ObjectHideFlags: 0
@@ -12717,16 +12726,16 @@ MonoBehaviour:
   - {fileID: 188932116}
   - {fileID: 188932115}
   - {fileID: 188932113}
-  maxSeconds:
+  beatCapSeconds:
   - 0
-  - 15
-  - 22
-  - 45
+  - 25
+  - 48
+  - 55
+  - 85
+  - 50
+  - 40
+  - 50
   - 60
-  - 50
-  - 40
-  - 50
-  - 40
   - 25
   - 45
   - 0
@@ -22090,6 +22099,8 @@ MonoBehaviour:
   maxOutcomeSeconds: 10
   retryPauseSeconds: 0.8
   maxParkWaitSeconds: 4
+  hintAfterSeconds: 8
+  noPickTimeoutSeconds: 20
   wasps:
   - {fileID: 2000478623}
   - {fileID: 2056018374}
@@ -30476,12 +30487,14 @@ MonoBehaviour:
   maxOutcomeSeconds: 10
   retryPauseSeconds: 0.8
   maxParkWaitSeconds: 4
+  hintAfterSeconds: 8
+  noPickTimeoutSeconds: 20
   honeyJar: {fileID: 1243271731}
   syrupBottle: {fileID: 1458247713}
   pourPoint: {fileID: 69769689}
   requireMistakeFirst: 0
-  liftHintAfterSeconds: 10
-  giveUpLiftAfterSeconds: 20
+  liftHintSeconds: 8
+  liftGiveUpSeconds: 18
 --- !u!1 &1426057615
 GameObject:
   m_ObjectHideFlags: 0
@@ -31173,7 +31186,7 @@ Camera:
   m_TargetEye: 3
   m_HDR: 0
   m_AllowMSAA: 1
-  m_AllowDynamicResolution: 0
+  m_AllowDynamicResolution: 1
   m_ForceIntoRT: 0
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
@@ -32863,7 +32876,7 @@ Camera:
   m_TargetEye: 1
   m_HDR: 0
   m_AllowMSAA: 1
-  m_AllowDynamicResolution: 0
+  m_AllowDynamicResolution: 1
   m_ForceIntoRT: 0
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
@@ -38322,6 +38335,8 @@ MonoBehaviour:
   maxOutcomeSeconds: 10
   retryPauseSeconds: 0.8
   maxParkWaitSeconds: 4
+  hintAfterSeconds: 8
+  noPickTimeoutSeconds: 20
   deepBowl: {fileID: 444010503}
   pebbleDish: {fileID: 1389801182}
   pebbleSpots:
