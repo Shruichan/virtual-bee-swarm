@@ -9,7 +9,11 @@
 //   open "http://localhost:8243/scout/slides?token=dev&vision=http://localhost:8243/fake-vision"
 //
 // Flags: --port N (default 8243), --speed X (demo speed multiplier, default 1),
-//        --audio-dir DIR (default hive/lines/scout_audio; files named <line_id>.mp3).
+//        --audio-dir DIR (default hive/lines/scout_audio; files named <line_id>.mp3),
+//        --mode demo|slides (default demo). slides = no script: the fake glasses look at whatever /scout/slides
+//          shows and a small copy of the game's rules decides found / blocked (busy, cooldown, already found,
+//          declined); honey_jar is declined once, --weak LABEL (default bug_spray) is never seen clearly.
+//        --practice starts with practice mode on (also POST /scout/practice {on}).
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { scoutDashboardHtml, scoutSlidesHtml } from "../src/scout-dashboard";
@@ -18,6 +22,7 @@ import {
   SCOUT_LABELS,
   SCOUT_LINES,
   type ScoutAnswer,
+  type ScoutBlockReason,
   type ScoutClass,
   type ScoutEvent,
   type ScoutHop,
@@ -40,6 +45,8 @@ function args(argv: string[]): Record<string, string> {
 const opt = args(process.argv.slice(2));
 const PORT = Number(opt.port ?? 8243);
 const SPEED = Math.max(0.1, Number(opt.speed ?? 1));
+const MODE = opt.mode === "slides" ? "slides" : "demo";
+const WEAK = new Set(String(opt.weak ?? "bug_spray").split(","));
 const HIVE = resolve(import.meta.dir, "..");
 const AUDIO_DIR = resolve(opt["audio-dir"] ?? join(HIVE, "lines", "scout_audio"));
 const LINES: ScoutLine[] = await Bun.file(join(HIVE, "lines", "scout_lines.json")).json();
@@ -56,7 +63,7 @@ function send(c: ReadableStreamDefaultController<Uint8Array>, chunk: string) {
   }
 }
 function emit(ev: ScoutEvent) {
-  const chunk = `data: ${JSON.stringify(ev)}\n\n`;
+  const chunk = `event: ${ev.type}\ndata: ${JSON.stringify(ev)}\n\n`; // named events, like the real Hive
   for (const c of clients) send(c, chunk);
   if (ev.type !== "frame") console.log(new Date().toISOString().slice(11, 19), ev.type, JSON.stringify(ev).slice(0, 110));
 }
@@ -65,7 +72,7 @@ setInterval(() => {
 }, 15000);
 
 // ------------------------------------------------------------------ fake game state + frames
-const state: ScoutState = { phase: "intro", found: [], skipped: [], offer: null, current: null, started_at: null };
+const state: ScoutState = { phase: MODE === "slides" ? "looking" : "intro", found: [], skipped: [], offer: null, current: null, started_at: MODE === "slides" ? Date.now() : null, practice: opt.practice === "1" };
 function pushState(patch: Partial<ScoutState>) {
   Object.assign(state, patch);
   emit({ type: "state", state: { ...state, found: [...state.found], skipped: [...state.skipped] } });
@@ -82,17 +89,19 @@ let fps = 7.5;
 setInterval(() => {
   for (const c of CLASSES) {
     let goal = 0.06 + Math.random() * 0.08;
-    if (c === target) goal = c === SCOUT_BACKGROUND ? 0.72 : 0.84;
-    else if (c === SCOUT_BACKGROUND) goal = target === SCOUT_BACKGROUND ? 0.72 : 0.2;
-    else if (CONFUSE[target] === c) goal = 0.38;
+    const weak = MODE === "slides" && WEAK.has(target);
+    if (c === target) goal = c === SCOUT_BACKGROUND ? 0.72 : weak ? 0.5 : 0.84;
+    else if (c === SCOUT_BACKGROUND) goal = target === SCOUT_BACKGROUND ? 0.72 : weak ? 0.44 : 0.2;
+    else if (CONFUSE[target] === c) goal = weak ? 0.42 : 0.38;
     level[c] = Math.min(0.99, Math.max(0, level[c] + (goal - level[c]) * 0.28 + (Math.random() - 0.5) * 0.06));
   }
-  const top = CLASSES.map((label) => ({ label, score: Math.round(level[label] * 1000) / 1000 }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+  const all = CLASSES.map((label) => ({ label, score: Math.round(level[label] * 1000) / 1000 })).sort((a, b) => b.score - a.score);
+  const top = all.slice(0, 3);
+  const scores = Object.fromEntries(all.map((x) => [x.label, x.score]));
   fps = Math.max(5, Math.min(9.5, fps + (Math.random() - 0.5) * 0.4));
   state.current = top[0]!;
-  emit({ type: "frame", frame: { at: Date.now(), frame_ms: 38 + Math.random() * 22, fps, top, source: "rtsp://127.0.0.1:8554/scout" } });
+  emit({ type: "frame", frame: { at: Date.now(), frame_ms: 38 + Math.random() * 22, fps, top, scores, source: "rtsp://127.0.0.1:8554/scout" } });
+  if (MODE === "slides") slideGame(top);
 }, 200);
 
 // ------------------------------------------------------------------ the scripted demo loop
@@ -127,9 +136,17 @@ async function demo() {
     say(SCOUT_LINES.intro[1]!);
     await sleep(3500);
     pushState({ phase: "looking" });
-    for (const b of BEATS) {
+    for (const [i, b] of BEATS.entries()) {
       target = SCOUT_BACKGROUND;
-      await sleep(jitter(2200, 3200));
+      await sleep(jitter(1200, 1800));
+      if (i === 1) {
+        // the wearer glances back at the beehive: seen steadily, silent by design
+        target = "beehive";
+        await sleep(1500);
+        emit({ type: "blocked", label: "beehive", reason: "already_found", score: state.current?.score ?? 0.8, at: Date.now() });
+        target = SCOUT_BACKGROUND;
+      }
+      await sleep(jitter(1000, 1400));
       let slideAt = 0;
       if (b.slide) {
         slideAt = Date.now();
@@ -149,7 +166,10 @@ async function demo() {
       pushState({ phase: "offering", offer: b.label });
       await sleep(1300);
       say(SCOUT_LINES.hook(b.label));
-      await sleep(3000);
+      await sleep(1500);
+      const other = CONFUSE[b.label];
+      if (i === 3 && other && other !== SCOUT_BACKGROUND) emit({ type: "blocked", label: other as ScoutLabel, reason: "busy", score: 0.71, at: Date.now() });
+      await sleep(1500);
       if (b.answer === "other") {
         emit({ type: "heard", text: b.reply, answer: "other", at: Date.now() });
         await sleep(2500);
@@ -181,6 +201,94 @@ async function demo() {
     pushState({ phase: "done", offer: null });
     await sleep(12000);
   }
+}
+
+// ------------------------------------------------------------------ slides mode: a small copy of the game's rules
+const TUNE = { steadyMs: 900, minScore: 0.6, minMargin: 0.12, gapMs: 4000 };
+const game = {
+  busyUntil: 0,
+  run: null as { label: ScoutLabel; since: number } | null,
+  lastFind: null as { label: ScoutLabel; at: number } | null,
+  lastSlide: null as { label: ScoutClass | null; at: number; recv: number } | null,
+  blockedKey: "",
+};
+function eligible(l: ScoutLabel): boolean {
+  if (state.practice) {
+    const lf = game.lastFind;
+    return !(lf && lf.label === l && (!game.lastSlide || game.lastSlide.recv <= lf.at));
+  }
+  if (state.found.includes(l)) return false;
+  return !state.skipped.includes(l) || SCOUT_LABELS.every((x) => x === l || state.found.includes(x));
+}
+function blocked(label: ScoutLabel, reason: ScoutBlockReason, score: number, episode: string) {
+  const key = `${reason}:${label}:${episode}`;
+  if (key === game.blockedKey) return;
+  game.blockedKey = key;
+  emit({ type: "blocked", label, reason, score, at: Date.now() });
+}
+function slideGame(top: { label: ScoutClass; score: number }[]) {
+  const now = Date.now();
+  const best = top[0];
+  const counts = !!best && best.label !== SCOUT_BACKGROUND && best.score >= TUNE.minScore && best.score - (top[1]?.score ?? 0) >= TUNE.minMargin;
+  if (state.phase !== "looking") {
+    game.run = null;
+    if (counts && best!.label !== state.offer) blocked(best!.label as ScoutLabel, "busy", best!.score, `${state.phase}:${game.busyUntil}`);
+    return;
+  }
+  if (!counts) {
+    game.run = null;
+    return;
+  }
+  const l = best!.label as ScoutLabel;
+  if (!game.run || game.run.label !== l) game.run = { label: l, since: now };
+  const look = now - game.run.since;
+  if (look < TUNE.steadyMs) return;
+  const reason: ScoutBlockReason | null = !eligible(l)
+    ? state.found.includes(l) || state.practice ? "already_found" : "skipped"
+    : now < game.busyUntil + TUNE.gapMs ? "cooldown" : null;
+  if (reason) blocked(l, reason, best!.score, String(game.run.since));
+  else void offer(l, best!.score, look);
+}
+async function offer(l: ScoutLabel, score: number, look: number) {
+  const now = Date.now();
+  game.lastFind = { label: l, at: now };
+  game.run = null;
+  state.phase = "offering";
+  state.offer = l;
+  emit({ type: "found", label: l, score, at: now, look_ms: look });
+  pushState({});
+  latency("frame_to_found", look);
+  if (game.lastSlide?.label === l) latency("slide_to_found", now - game.lastSlide.at);
+  await sleep(120);
+  say(SCOUT_LINES.chime);
+  latency("found_to_say", Date.now() - now);
+  await sleep(1300);
+  say(SCOUT_LINES.hook(l));
+  await sleep(2600);
+  const yes = !(l === "honey_jar" && !state.skipped.includes(l) && !state.found.includes(l));
+  emit({ type: "heard", text: yes ? "yeah" : "nah", answer: yes ? "yes" : "no", at: Date.now() });
+  if (yes) {
+    const h = Date.now();
+    await sleep(300);
+    latency("answer_to_fact", Date.now() - h);
+    pushState({ phase: "telling" });
+    say(SCOUT_LINES.fact(l));
+    await sleep(5500);
+    const repeat = state.found.includes(l);
+    const found = repeat ? state.found : [...state.found, l];
+    pushState({ found, skipped: state.skipped.filter((x) => x !== l) });
+    if (!repeat && found.length < SCOUT_LABELS.length) {
+      say(SCOUT_LINES.progress(found.length));
+      await sleep(2000);
+    }
+  } else {
+    await sleep(300);
+    say(SCOUT_LINES.no[0]!);
+    pushState({ skipped: [...state.skipped, l] });
+    await sleep(1500);
+  }
+  game.busyUntil = Date.now();
+  pushState({ phase: "looking", offer: null });
 }
 
 // ------------------------------------------------------------------ fake vision worker (under /fake-vision)
@@ -234,7 +342,17 @@ Bun.serve({
     if (p === "/scout/slide" && req.method === "POST") {
       const s = (await req.json()) as ScoutSlide;
       emit({ type: "slide", label: s.label, at: s.at });
+      if (MODE === "slides") {
+        game.lastSlide = { label: s.label, at: s.at, recv: Date.now() };
+        setTimeout(() => (target = s.label ?? SCOUT_BACKGROUND), 500); // stream + vision lag
+      }
       return json({ ok: true });
+    }
+    if (p === "/scout/practice" && req.method === "POST") {
+      const b = (await req.json()) as { on?: unknown };
+      if (typeof b.on !== "boolean") return json({ error: "on (boolean) required" }, { status: 400 });
+      pushState({ practice: b.on });
+      return json(state);
     }
     if (p === "/fake-vision/health") {
       return json({ ok: true, model: "fake-dinov2-small", source: "rtsp://127.0.0.1:8554/scout", fps, refs } satisfies VisionHealth);
@@ -255,7 +373,7 @@ Bun.serve({
   },
 });
 
-console.log(`scout dashboard dev harness on http://localhost:${PORT}/  (speed x${SPEED}, audio from ${AUDIO_DIR}${existsSync(AUDIO_DIR) ? "" : " [missing: audio will 404]"})`);
+console.log(`scout dashboard dev harness on http://localhost:${PORT}/  (mode ${MODE}, speed x${SPEED}, audio from ${AUDIO_DIR}${existsSync(AUDIO_DIR) ? "" : " [missing: audio will 404]"})`);
 console.log(`  dashboard: http://localhost:${PORT}/scout?token=dev&stream=scouttest&vision=http://localhost:${PORT}/fake-vision`);
 console.log(`  slides:    http://localhost:${PORT}/scout/slides?token=dev&vision=http://localhost:${PORT}/fake-vision`);
-demo();
+if (MODE === "demo") demo();

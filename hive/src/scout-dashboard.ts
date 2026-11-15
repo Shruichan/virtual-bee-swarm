@@ -7,7 +7,7 @@
 //   player  "iframe" = MediaMTX's own player page instead of the built-in WHEP player
 //   webrtc  MediaMTX WebRTC base URL (default http://<page host>:8889)
 //   vision  vision worker base URL (default http://<page host>:8242)
-//   (slides only) auto=0 starts in manual mode, labels=1 starts with the label tag on
+//   (slides only) auto=1 starts in auto mode (default manual: Space = next), labels=1 starts with the label tag on
 import {
   SCOUT_BACKGROUND,
   SCOUT_LABEL_NAMES,
@@ -243,6 +243,7 @@ const DASHBOARD = `<!doctype html>
   #timeline .found .tg { background: var(--honey); color: #2a1802; } #timeline .found .tx { color: var(--amber); font-weight: 800; }
   #timeline .say .tg { background: rgba(108, 184, 255, .2); color: var(--sky); }
   #timeline .heard .tg { background: rgba(143, 209, 111, .2); color: var(--meadow); }
+  #timeline .blocked .tg { background: rgba(246, 183, 46, .15); color: var(--amber); }
   #timeline .slide .tg { background: rgba(195, 155, 255, .2); color: var(--plum); }
   #timeline .latency .tx { color: var(--dim); }
   #timeline .empty { color: var(--mute); font-style: italic; display: block; border: 0; }
@@ -261,6 +262,47 @@ const DASHBOARD = `<!doctype html>
   button.ghost { cursor: pointer; background: transparent; border: 1px solid var(--line); color: var(--dim); font-size: .86rem; font-weight: 700; line-height: 1;
     padding: .45rem .8rem; border-radius: 999px; flex: none; }
   button.ghost:hover { color: var(--text); border-color: var(--honey); }
+
+  /* practice switch */
+  #practice { display: flex; align-items: center; gap: .6rem; cursor: pointer; background: var(--panel2); border: 1px solid var(--line); color: var(--dim);
+    font-size: .95rem; font-weight: 800; padding: .45rem .9rem .45rem .5rem; border-radius: 999px; white-space: nowrap; margin-left: auto; }
+  #practice i { position: relative; width: 2.4rem; height: 1.35rem; border-radius: 999px; background: #4a3d29; flex: none; transition: background .2s; }
+  #practice i::after { content: ""; position: absolute; top: .18rem; left: .2rem; width: 1rem; height: 1rem; border-radius: 50%; background: #d8ccb4; transition: left .2s; }
+  #practice.on { border-color: var(--meadow); color: var(--text); }
+  #practice.on i { background: var(--meadow); }
+  #practice.on i::after { left: 1.2rem; background: #fff; }
+  #practice.err { border-color: var(--bad); }
+  #phase { margin-left: 0; }
+
+  /* slide check (screen test) */
+  #checks { display: none; flex: 0 0 46%; min-height: 0; flex-direction: column; overflow: hidden; }
+  body.slidemode #checks { display: flex; }
+  body.slidemode .tilesrow, body.slidemode .lat { display: none; }
+  #checks .cardhead { margin-bottom: .35rem; }
+  #checksum { font-size: 1.15rem; font-weight: 900; color: var(--text); white-space: nowrap; }
+  #checksum small { color: var(--dim); font-weight: 700; font-size: .85rem; margin-left: .5rem; }
+  .crow { display: grid; grid-template-columns: 4.4rem 9.6rem 10.6rem minmax(0, 1fr); gap: .7rem; align-items: center; padding: .3rem 0;
+    border-bottom: 1px solid rgba(255,255,255,.05); font-size: 1rem; }
+  .crow > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .crow.head { font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); padding: 0 0 .25rem; }
+  .crow time { color: var(--mute); font-size: .85rem; font-weight: 600; }
+  .crow .shw { font-weight: 800; }
+  .crow .saw { color: var(--dim); font-weight: 600; }
+  .crow .saw.hit { color: var(--text); }
+  .crow.blank { font-size: .85rem; padding: .12rem 0; }
+  .crow.blank .shw, .crow.blank .saw { color: var(--mute); font-weight: 600; font-style: italic; }
+  .crow.live { background: linear-gradient(90deg, rgba(246, 183, 46, .1), transparent); }
+  .res { display: flex; align-items: center; gap: .5rem; }
+  .res b { flex: none; display: inline-flex; align-items: center; padding: .14rem .6rem; border-radius: 999px; font-size: .85rem; font-weight: 900; }
+  .res span { color: var(--dim); font-size: .88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .res.ok b { background: var(--meadow); color: #0d2207; }
+  .res.wrong b { background: var(--bad); color: #2b0703; }
+  .res.miss b { background: rgba(239, 106, 87, .2); color: var(--bad); }
+  .res.blocked b { background: rgba(246, 183, 46, .2); color: var(--amber); }
+  .res.pend b { background: var(--panel2); color: var(--dim); }
+  #checklist { flex: 1; min-height: 0; overflow: hidden; -webkit-mask: linear-gradient(#000 80%, transparent); mask: linear-gradient(#000 80%, transparent); }
+  #checklist .none { color: var(--mute); font-style: italic; padding: .6rem 0; }
+  #checksbtn.on { color: var(--text); border-color: var(--honey); }
 
   /* enrol drawer */
   #enrol { position: fixed; top: 0; right: 0; bottom: 0; width: 30rem; max-width: 92vw; z-index: 20; background: #1b140c; border-left: 1px solid var(--line);
@@ -285,7 +327,8 @@ const DASHBOARD = `<!doctype html>
 </head>
 <body>
 <header>
-  <div class="brand"><div class="logo"><i></i></div><div><h1>BEE SCOUT <b>LIVE</b></h1><small>Streaming from Mentra Live glasses &middot; Beeswax talks in the wearer's ear</small></div></div>
+  <div class="brand"><div class="logo"><i></i></div><div><h1>BEE SCOUT <b>LIVE</b></h1><small>Live from Mentra Live glasses &middot; Beeswax in the wearer's ear</small></div></div>
+  <button id="practice" title="POST /scout/practice"><i></i><span>Practice mode: every slide can trigger</span></button>
   <div id="phase"><b>-</b><span>waiting for the Hive</span></div>
   <div id="clock" class="num">--:--<small>elapsed</small></div>
 </header>
@@ -302,6 +345,11 @@ const DASHBOARD = `<!doctype html>
     </div>
     <div class="tilesrow"><div class="cardhead"><span class="label">Scout progress</span><span class="meta num" id="progtxt">0 of 6 facts found</span></div><div class="tiles" id="tiles"></div></div>
     <div class="lat" id="lat"></div>
+    <div class="card" id="checks">
+      <div class="cardhead"><span class="label">Slide check &middot; did each slide trigger?</span><span id="checksum">-</span><button class="ghost" id="checksclear">Clear</button></div>
+      <div class="crow head"><span>time</span><span>screen showed</span><span>AI saw</span><span>result</span></div>
+      <div id="checklist"><div class="none">Start the screen test (/scout/slides): each slide shows up here.</div></div>
+    </div>
   </section>
   <section class="right">
     <div class="card" id="saycard">
@@ -333,6 +381,7 @@ const DASHBOARD = `<!doctype html>
   <span class="chip" id="hstream"><i></i>Stream: <b>-</b></span>
   <span class="chip" id="hvision"><i></i>Vision: <b>-</b></span>
   <span id="refs"></span>
+  <button class="ghost" id="checksbtn" title="Slide check panel (S)">Slide check</button>
   <button class="ghost" id="enrolbtn" title="Enrol references (E)">Calibrate</button>
 </footer>
 <aside id="enrol">
@@ -342,7 +391,7 @@ const DASHBOARD = `<!doctype html>
   <div id="enrolmsg"></div>
   <div class="label">References per label</div>
   <table id="reftable"></table>
-  <p class="kbd">Keys: M mirror audio &middot; E calibrate &middot; Esc close</p>
+  <p class="kbd">Keys: M mirror audio &middot; S slide check &middot; E calibrate &middot; Esc close</p>
 </aside>
 <script>
 (function () {
@@ -383,6 +432,7 @@ const DASHBOARD = `<!doctype html>
     p.querySelector("b").textContent = S.phase || "-";
     p.querySelector("span").textContent = S.phase ? (PHASES[S.phase] || "") : "waiting for the Hive";
     var found = S.found || [], skipped = S.skipped || [];
+    $("practice").classList.toggle("on", !!S.practice);
     CFG.LABELS.forEach(function (l) {
       var t = $("tile_" + l), f = found.indexOf(l) >= 0, s = !f && skipped.indexOf(l) >= 0, o = S.offer === l;
       var cls = "tile" + (f ? " found" : "") + (s && !o ? " skipped" : "") + (o ? " offer" : "");
@@ -431,6 +481,7 @@ const DASHBOARD = `<!doctype html>
     });
     var lead = top[0];
     CLASSES.forEach(function (c) { bars[c].row.classList.toggle("lead", !!lead && lead.label === c); });
+    checkFrame(fr, lead);
     $("fps").textContent = (fr.fps || 0).toFixed(1) + " fps \\u00b7 " + Math.round(fr.frame_ms || 0) + " ms/frame";
     $("scorecard").classList.remove("stale");
     showGuess(lead || null);
@@ -603,6 +654,111 @@ const DASHBOARD = `<!doctype html>
     slideTimer = setTimeout(function () { t.className = "ov"; }, 8000);
   }
 
+  // ------------------------------------------------------------------ slide check: per screen-test slide, did it trigger and why not
+  var BLOCKED = { already_found: "Already found (silent by design)", skipped: "Declined earlier (comes back later)", busy: "Beeswax was mid-line", cooldown: "4 s pause after a line" };
+  var wins = [], CARRY_MS = 3000, FRAME_CARRY_MS = 1500, userHidChecks = 0;
+  function isObj(l) { return l != null && l !== CFG.BACKGROUND; }
+  function short(l) { return name(l).split(" /")[0]; }
+  function setSlideMode(on) { document.body.classList.toggle("slidemode", on); $("checksbtn").classList.toggle("on", on); }
+  function checkSlide(ev) {
+    var now = Date.now(), last = wins[wins.length - 1];
+    if (last) last.end = now;
+    wins.push({ label: ev.label, at: ev.at, recv: now, end: 0, max: {}, led: {}, found: null, s2f: null, blocked: [] });
+    if (wins.length > 60) wins.shift();
+    if (now - userHidChecks > 60000) setSlideMode(true);
+    renderChecks();
+  }
+  // Stream + vision lag: a find or block just after an object slide ended still belongs to that slide.
+  function winFor(label) {
+    var w = wins[wins.length - 1], prev = wins[wins.length - 2];
+    if (!w) return null;
+    if (!isObj(w.label) && prev && isObj(prev.label) && Date.now() - w.recv < CARRY_MS && (label == null || label === prev.label || !isObj(w.label))) return prev;
+    return w;
+  }
+  function note1(w, fr, lead) {
+    var sc = fr.scores && typeof fr.scores === "object" ? fr.scores : null;
+    (fr.top || []).forEach(function (x) { if (!(x.score <= (w.max[x.label] || 0))) w.max[x.label] = x.score; });
+    if (sc) for (var c in sc) if (typeof sc[c] === "number" && !(sc[c] <= (w.max[c] || 0))) w.max[c] = sc[c];
+    if (lead && lead.score >= CFG.MIN_SCORE) w.led[lead.label] = Math.max(w.led[lead.label] || 0, lead.score);
+  }
+  var checkDirty = false;
+  function checkFrame(fr, lead) {
+    var w = wins[wins.length - 1], prev = wins[wins.length - 2];
+    if (!w) return;
+    note1(w, fr, lead);
+    if (prev && isObj(prev.label) && Date.now() - w.recv < FRAME_CARRY_MS) note1(prev, fr, lead);
+    checkDirty = true;
+  }
+  setInterval(function () { if (checkDirty) { checkDirty = false; renderChecks(); } }, 500);
+  function checkFound(ev) { var w = winFor(ev.label); if (w && !w.found) { w.found = ev; renderChecks(); } }
+  function checkS2F(ms) { for (var i = wins.length - 1; i >= Math.max(0, wins.length - 3); i--) if (wins[i].found && wins[i].s2f == null) { wins[i].s2f = ms; renderChecks(); return; } }
+  function checkBlocked(ev) { var w = winFor(ev.label); if (w) { w.blocked.push(ev); renderChecks(); } }
+  function bestSeen(w) { // best non-background label that led a frame, else background
+    var best = null;
+    CFG.LABELS.forEach(function (l) { if (w.led[l] && (!best || w.led[l] > best.score)) best = { label: l, score: w.led[l] }; });
+    if (best) return { text: short(best.label) + " " + pct(best.score), hit: true };
+    var raw = null;
+    CFG.LABELS.forEach(function (l) { if (w.max[l] && (!raw || w.max[l] > raw.score)) raw = { label: l, score: w.max[l] }; });
+    if (w.max[CFG.BACKGROUND] != null) return { text: "background " + pct(w.max[CFG.BACKGROUND]), hit: false, raw: raw };
+    return { text: raw ? short(raw.label) + " " + pct(raw.score) : "no frames", hit: false, raw: raw };
+  }
+  function verdict(w, live) {
+    var L = w.label;
+    if (w.found) {
+      if (w.found.label === L) {
+        var s2f = w.s2f != null ? w.s2f : (w.found.at && w.at ? w.found.at - w.at : null);
+        return { cls: "ok", tag: "\u2713 Bee fact found", sub: "look " + secs(w.found.look_ms || 0) + (s2f != null && s2f >= 0 ? " \u00b7 slide\u2192found " + secs(s2f) : "") };
+      }
+      return { cls: "wrong", tag: isObj(L) ? "Wrong object" : "Fired on blank", sub: "found " + name(w.found.label) + " " + pct(w.found.score) };
+    }
+    if (!isObj(L)) return null;
+    var b = w.blocked.filter(function (x) { return x.label === L; })[0] || w.blocked[0];
+    if (b) return { cls: "blocked", tag: BLOCKED[b.reason] || b.reason, sub: b.label !== L ? "saw " + name(b.label) + " " + pct(b.score) : pct(b.score) + " match, silent" };
+    if (live) return { cls: "pend", tag: "watching\u2026", sub: "" };
+    if (!w.led[L]) {
+      var bs = bestSeen(w), r = bs.hit ? bs.text : bs.raw ? short(bs.raw.label) + " " + pct(bs.raw.score) : bs.text;
+      return { cls: "miss", tag: "Not recognized", sub: "best: " + r };
+    }
+    return { cls: "miss", tag: "Seen, not steady", sub: name(L) + " " + pct(w.led[L]) + ", needs " + pct(CFG.MIN_SCORE) + " for 0.9 s" };
+  }
+  function renderChecks() {
+    var box = $("checklist"); box.textContent = "";
+    var objs = 0, hits = 0, wrong = 0, n = wins.length;
+    if (!n) { box.appendChild(el("div", "none", "Start the screen test (/scout/slides): each slide shows up here.")); $("checksum").textContent = "-"; return; }
+    for (var i = n - 1; i >= 0; i--) {
+      var w = wins[i], live = i === n - 1 || (i === n - 2 && Date.now() - wins[n - 1].recv < CARRY_MS), obj = isObj(w.label);
+      var v = verdict(w, live);
+      if (obj) { objs++; if (w.found && w.found.label === w.label) hits++; else if (w.found) wrong++; }
+      if (!obj && !v && i !== n - 1 && n - i > 12) continue; // keep old blank rows out of the way
+      var row = el("div", "crow" + (obj ? "" : " blank") + (i === n - 1 ? " live" : ""));
+      row.appendChild(el("time", "num", hhmmss(w.recv)));
+      row.appendChild(el("span", "shw", obj ? short(w.label) : "blank"));
+      var bs = bestSeen(w); row.appendChild(el("span", "saw num" + (bs.hit ? " hit" : ""), bs.text));
+      var res = el("span", "res" + (v ? " " + v.cls : ""));
+      if (v) { res.appendChild(el("b", "", v.tag)); if (v.sub) res.appendChild(el("span", "num", v.sub)); }
+      else res.appendChild(el("span", "", "\u2013"));
+      row.appendChild(res);
+      box.appendChild(row);
+    }
+    var sum = $("checksum"); sum.textContent = hits + " of " + objs + " object slides triggered";
+    if (wrong) sum.appendChild(el("small", "", wrong + " wrong"));
+  }
+  $("checksclear").addEventListener("click", function () { wins = []; renderChecks(); });
+  $("checksbtn").addEventListener("click", function () {
+    var on = !document.body.classList.contains("slidemode");
+    setSlideMode(on); if (!on) userHidChecks = Date.now();
+  });
+
+  // ------------------------------------------------------------------ practice mode (POST /scout/practice)
+  $("practice").addEventListener("click", function () {
+    var btn = $("practice"), on = !btn.classList.contains("on");
+    btn.classList.toggle("on", on); btn.classList.remove("err");
+    fetch("/scout/practice?" + TQ, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: on }) })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function (st) { var s2 = st && st.state ? st.state : st; if (s2 && s2.phase) { S = s2; renderState(); } })
+      .catch(function () { btn.classList.toggle("on", !on); btn.classList.add("err"); });
+  });
+
   // ------------------------------------------------------------------ Hive events
   function handle(ev) {
     if (!ev || !ev.type) return;
@@ -613,8 +769,11 @@ const DASHBOARD = `<!doctype html>
       case "say": onSay(ev); addLog("say", lineKind(ev.line_id) || "say", ev.caption || ev.line_id, ev.at); break;
       case "heard": onHeard(ev); addLog("heard", "heard", "\\u201c" + ev.text + "\\u201d \\u2192 " + ev.answer, ev.at); break;
       case "latency": onLatency(ev.hop, ev.ms); addLog("latency", "latency", (HOPNAME[ev.hop] || ev.hop) + ": " + secs(ev.ms)); break;
-      case "slide": onSlide(ev); addLog("slide", "slide", ev.label == null ? "blank screen" : name(ev.label), ev.at); break;
+      case "slide": onSlide(ev); checkSlide(ev); addLog("slide", "slide", ev.label == null ? "blank screen" : name(ev.label), ev.at); break;
+      case "blocked": checkBlocked(ev); addLog("blocked", "silent", name(ev.label) + ": " + (BLOCKED[ev.reason] || ev.reason), ev.at); break;
     }
+    if (ev.type === "found") checkFound(ev);
+    if (ev.type === "latency" && ev.hop === "slide_to_found") checkS2F(ev.ms);
   }
   function fetchState() {
     fetch("/scout/state?" + TQ, { cache: "no-store" }).then(function (r) {
@@ -634,7 +793,7 @@ const DASHBOARD = `<!doctype html>
     };
     var parse = function (e) { try { handle(JSON.parse(e.data)); } catch (err) {} };
     es.onmessage = parse;
-    ["frame", "found", "say", "heard", "state", "latency", "slide"].forEach(function (t) { es.addEventListener(t, parse); });
+    ["frame", "found", "say", "heard", "state", "latency", "slide", "blocked"].forEach(function (t) { es.addEventListener(t, parse); });
   }
   function renderHive() {
     if (hiveOk) chip("hhive", "ok", "live");
@@ -773,6 +932,7 @@ const DASHBOARD = `<!doctype html>
   addEventListener("keydown", function (e) {
     if (e.target && (e.target.tagName === "SELECT" || e.target.tagName === "INPUT")) return;
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
+    else if (e.key === "s" || e.key === "S") $("checksbtn").click();
     else if (e.key === "e" || e.key === "E") openEnrol(!$("enrol").classList.contains("on"));
     else if (e.key === "Escape") openEnrol(false);
   });
@@ -812,7 +972,9 @@ const SLIDES = `<!doctype html>
   #help code { color: #ffd36b; font: 600 15px ui-monospace, Menlo, monospace; word-break: break-all; }
   #help kbd { display: inline-block; min-width: 26px; padding: 2px 7px; border-radius: 6px; background: #3a2d1a; color: #fbf3e2; font-family: inherit; font-weight: 700; font-size: 14px; }
   #help .keys { font-size: 15px; line-height: 2; }
-  #help .keys span { white-space: nowrap; margin: 0 7px; }
+  #help .keys span { white-space: nowrap; margin: 0 4px; }
+  #help .more { font-size: 13px; color: #8a7d66; }
+  #help .more kbd { font-size: 12px; min-width: 20px; }
 </style>
 </head>
 <body class="idle">
@@ -821,7 +983,8 @@ const SLIDES = `<!doctype html>
 <div id="mode">auto</div>
 <div id="post" title="POST /scout/slide"></div>
 <div id="help"><h1>Bee Scout screen test</h1><p id="hmsg">Loading slides...</p>
-  <p class="keys"><span><kbd>Space</kbd> / <kbd>&rarr;</kbd> next</span> <span><kbd>A</kbd> auto on/off</span> <span><kbd>L</kbd> labels</span> <span><kbd>B</kbd> blank</span> <span><kbd>F</kbd> full screen</span> <span><kbd>H</kbd> this help</span></p></div>
+  <p class="keys"><span><kbd>Space</kbd> = next</span> &middot; <span><kbd>A</kbd> = auto</span> &middot; <span><kbd>F</kbd> = full screen</span> &middot; <span><kbd>L</kbd> = label</span></p>
+  <p class="more">Also <kbd>B</kbd> blank now, <kbd>H</kbd> shows this again.</p></div>
 <script>
 (function () {
   "use strict";
@@ -830,9 +993,9 @@ const SLIDES = `<!doctype html>
   var token = Q.get("token") || "";
   var host = location.hostname || "localhost";
   var VISION = (Q.get("vision") || ("http://" + host + ":" + CFG.PORTS.vision)).replace(/\\/+$/, "");
-  var OBJ_MS = 4000, BLANK_MS = 2000;
+  var OBJ_MS = 4000, BLANK_MS = 2000, HOLD_AFTER_MS = 1000, HOLD_CAP_MS = 25000;
   function $(id) { return document.getElementById(id); }
-  var slides = [], deck = [], lastLabel = null, showing = null, auto = Q.get("auto") !== "0", timer = null, front = $("a"), back = $("b"), loadedOnce = false;
+  var slides = [], deck = [], lastLabel = null, showing = null, auto = Q.get("auto") === "1", timer = null, front = $("a"), back = $("b"), loadedOnce = false;
 
   function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function nextSlide() {
@@ -864,17 +1027,46 @@ const SLIDES = `<!doctype html>
   }
   function step() {
     if (timer) clearTimeout(timer);
-    timer = null;
+    timer = null; hold = null; showMode();
     if (!slides.length) return;
     if (showing) { blank(); schedule(BLANK_MS); }
     else { show(nextSlide()); schedule(OBJ_MS); }
   }
   function schedule(ms) { timer = auto ? setTimeout(step, ms) : null; }
   function setAuto(on) {
-    auto = on; $("mode").textContent = on ? "auto" : "manual";
+    auto = on; hold = null; showMode();
     if (timer) clearTimeout(timer);
     timer = null;
     if (on) schedule(showing ? OBJ_MS : BLANK_MS);
+  }
+  function showMode() {
+    $("mode").textContent = hold ? "waiting for Beeswax" : (auto ? "auto" : "manual") + (practice ? " \u00b7 practice" : "");
+  }
+
+  // Practice mode pacing: after a "Bee fact found", hold the slide until the game is looking again (+1 s), so the
+  // offer and fact finish before the next object. Capped at 25 s. Outside practice: plain 4 s / 2 s.
+  var practice = false, phase = "looking", hold = null;
+  function onHive(ev) {
+    if (ev.type === "state" && ev.state) { practice = !!ev.state.practice; phase = ev.state.phase; showMode(); }
+    else if (ev.type === "found" && practice && auto && slides.length) {
+      if (timer) clearTimeout(timer);
+      timer = null; phase = "offering"; hold = { cap: Date.now() + HOLD_CAP_MS, lookingAt: 0 }; showMode();
+    }
+  }
+  setInterval(function () {
+    if (!hold) return;
+    var now = Date.now();
+    if (phase === "looking") { if (!hold.lookingAt) hold.lookingAt = now; } else hold.lookingAt = 0;
+    if ((hold.lookingAt && now - hold.lookingAt >= HOLD_AFTER_MS) || now >= hold.cap) { hold = null; showMode(); if (auto) step(); }
+  }, 200);
+  function hive() {
+    var q = "?token=" + encodeURIComponent(token);
+    fetch("/scout/state" + q, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) { if (st && st.phase) onHive({ type: "state", state: st }); }).catch(function () {});
+    var es = new EventSource("/scout/events" + q);
+    var parse = function (e) { try { onHive(JSON.parse(e.data)); } catch (err) {} };
+    es.onmessage = parse;
+    es.addEventListener("state", parse); es.addEventListener("found", parse);
+    es.onerror = function () { if (es.readyState === 2) setTimeout(hive, 5000); };
   }
   function fail(msg) {
     var h = $("hmsg"); h.textContent = "";
@@ -888,8 +1080,8 @@ const SLIDES = `<!doctype html>
       slides = (Array.isArray(list) ? list : (list && list.slides) || []).filter(function (s) { return s && s.url && s.label; });
       if (!slides.length) { fail("The vision worker has no slides yet."); setTimeout(load, 5000); return; }
       var labels = {}; slides.forEach(function (s) { labels[s.label] = 1; });
-      $("hmsg").textContent = slides.length + " slides of " + Object.keys(labels).length + " objects. Starts on a blank, then " + (OBJ_MS / 1000) + " s object / " + (BLANK_MS / 1000) + " s blank.";
-      setTimeout(function () { $("help").className = "off"; }, 3500);
+      $("hmsg").textContent = slides.length + " slides of " + Object.keys(labels).length + " objects. " + (auto ? "Auto: " + (OBJ_MS / 1000) + " s object / " + (BLANK_MS / 1000) + " s blank." : "Manual: press Space for the first slide.");
+      setTimeout(function () { $("help").className = "off"; }, 5000);
       if (!loadedOnce) { loadedOnce = true; blank(); setAuto(auto); }
     }).catch(function () { fail("Can't reach the vision worker at " + VISION + "."); setTimeout(load, 5000); });
   }
@@ -898,14 +1090,15 @@ const SLIDES = `<!doctype html>
     if (k === " " || k === "ArrowRight" || k === "PageDown") { e.preventDefault(); step(); }
     else if (k === "a" || k === "A") setAuto(!auto);
     else if (k === "l" || k === "L") document.body.classList.toggle("labels");
-    else if (k === "b" || k === "B") { if (timer) clearTimeout(timer); blank(); schedule(BLANK_MS); }
+    else if (k === "b" || k === "B") { if (timer) clearTimeout(timer); hold = null; showMode(); blank(); schedule(BLANK_MS); }
     else if (k === "h" || k === "H" || k === "?") $("help").classList.toggle("off");
     else if (k === "f" || k === "F") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {}); }
   });
   var idleT = null;
   addEventListener("mousemove", function () { document.body.classList.remove("idle"); if (idleT) clearTimeout(idleT); idleT = setTimeout(function () { document.body.classList.add("idle"); }, 2000); });
   if (Q.get("labels") === "1") document.body.classList.add("labels");
-  if (!auto) $("mode").textContent = "manual";
+  showMode();
+  hive();
   load();
 })();
 </script>
