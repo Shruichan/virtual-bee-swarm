@@ -197,7 +197,8 @@
 
   — owner: **Nam Nguyen** — status: blocked (Android bootstrap passed twice and XR settings pushed; APK build awaits S1.7 token/keystore handoff; S1.9 batch import completed; sleep timeout is Never, physical power connection unverified)
 
-- **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:  - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
+- **S1.9 Merge in the gameplay layer** (P0 · 1 h · needs S1.4) — done when:
+  - a fresh clone plus the builder gives 0 compile errors, and the Linux autopilot passes
   - `VirtualBeeSwarm.unity` is gitignored
   - the builder's `Materials/` and `Meshes/` folders and the rig template are committed
   - ProjectBootstrap stays in `Editor/Setup`
@@ -397,6 +398,7 @@
 - **S6.1 T-0 text and Earth** (P0 · 0.5 h · needs S8.1) — done when: in the Linux run the caption matches `room_t0_earth` (Earth hangs over the horizon and doesn't rise), Earth sits over the horizon, and the window turns into the Moon — owner: *suggested Rome-agents (lane A)* — status: open
 
 - **S6.2 T-0 on the headset** (P0 · 1 h · needs S1.18) — done when: the launch through the ceiling, the dimming, the Moon, the dusty crash back down and Beeswax in view all work once by 12:00 and 5 of 5 by 16:00 — owner: *suggested Adityash* — status: open
+
 - **S6.3 Escape on the headset** (P0 · 0.5 h · needs S1.18) — done when: the door opens, the pour-out is easy to read in passthrough, `full_bloom` plays, and "Hive saved in m:ss" shows up. Once by 12:00, 3 of 3 by 16:00 — owner: *suggested Adityash* — status: open
 
 - **S6.4 "Grievances filed: N"** (P1 · 0.75 h · needs S1.9) — done when: an autopilot run with 4 wrong picks shows N = 4, and the card takes the score from the Hive when there is one — owner: *suggested Rome-agents (lane A)* — status: open
@@ -596,6 +598,7 @@
 #### S14 Venue, rehearsals and judging
 
 - **S14.1 Mat print** (P0 · 0.1 h · needs –) — done when: tonight we confirm the mat print is ordered for Sat 08:00 pickup, or we order it — owner: *suggested Rome* — status: open
+
 - **S14.2 Morning shopping run** (P0 · 1 h · needs S14.1) — done when: between 07:50 and 08:40 the mat's picked up and we've got power banks, a Quest battery pack, a travel router and a lanyard. No optional props — owner: *suggested Adityash* — status: open
 
 - **S14.3 Travel router** (P1 · 0.5 h · needs S14.2, S10.5) — done when: the laptop has a fixed IP, the Quest reaches the Hive on the laptop over the LAN websocket, and latency is logged before the 15:00 tests — owner: *suggested Nam* — status: open
@@ -794,6 +797,7 @@ Also keep an eye on: art that shows up late (CC0 or placeholder at 16:30), and t
   - anything that didn't land goes at the very top of the report
 
 ---
+
 ## Concept v3.1 (CURRENT from Sat 05:15): AR first, everything delivered, the swarm's ultimatum
 
 Replaces these parts of Concept v3: the logline, "Why it wins", "turns grey until it looks like the Moon" in the
@@ -993,7 +997,8 @@ Paths use the new names. In the staged copy at `unity/HoneymoonQuest/Assets/Hone
 **V15 · Stations through BeeDelivery** · MUST · 1.25 h · depends: V12, V5, S2.3
 - **What:** in `StationBase`, `SetActive(props, true)` (today, on enter) becomes `Park` of every choice as a group when the prompt line starts.
   - **Arc:** 20–30 cm above the table's front edge, centred on the hive, choices at least 20 cm apart, within ±25° of gaze, completely still.
-  - **Props:** normalized at runtime to a 12 cm box; colliders 16 cm or less. `ChoiceButton` becomes a price-tag plate parented under each prop.  - **On the poke** (same frame):
+  - **Props:** normalized at runtime to a 12 cm box; colliders 16 cm or less. `ChoiceButton` becomes a price-tag plate parented under each prop.
+  - **On the poke** (same frame):
     - APPROVED or GRIEVANCE stamp (scale 0 → 1.2 → 1 in 120 ms) plus a ka-chunk
     - `choice.made` is sent right away
   - **Wrong pick:** the existing consequence visuals, then `HaulAway(repo)` when the outcome line starts. Retry unlocks when the line ends, never waiting for the repo.
@@ -1192,7 +1197,8 @@ Text edits to `hive/lines/lines.json` (the LINES pass already applied the rest):
 ```
 
 **Using the clips:**
-- `forecast` is the "Earth if we lose" scene. It's a 12 s ping-pong loop played at 0:14–0:25. Use `forecast_b` if Orbis won't draw the bee cloud; the 3D swarm supplies the cloud anyway.- `evacuation` is COULD. It plays once with no ping-pong (a launch played in reverse looks wrong) at 0:20–0:25, just before the 3D rocket comes out of the window.
+- `forecast` is the "Earth if we lose" scene. It's a 12 s ping-pong loop played at 0:14–0:25. Use `forecast_b` if Orbis won't draw the bee cloud; the 3D swarm supplies the cloud anyway.
+- `evacuation` is COULD. It plays once with no ping-pong (a launch played in reverse looks wrong) at 0:20–0:25, just before the 3D rocket comes out of the window.
 - **None of these show people.** The critic's taste cut stands.
 
 **One edit to `orbis_scenes.json`** (a fact fix, matching `room_t0_earth` and S6.1). Apply it before S9.5 records `moon`:
@@ -1394,6 +1400,7 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 
 - **Enums (Unity only executes these):** `BEATS`, `STATIONS` / `CHOICES` / `CORRECT_CHOICE`, `SCENES` (18; v2.1 `whatif_custom` has no recorded clip, so clips mode keeps the last clip), `WHATIF_TOPICS` (v2.1 adds `custom`), `FX`, `INTENTS`, `ITEMS`, `VERDICTS`.
 - **Data (`hive/lines/`):** `lines.json` (every `room_*`/`ear_*` id the code names; `alt:<id>` variants), `stations.json` (station → choice → `{correct, line_id, scene, fx?}`; Unity's offline copy `unity/BeeswaxClient/Resources/beeswax_stations.json` must stay byte-identical), `orbis_scenes.json` (a prompt and seed per scene; clips are `<scene>.mp4`).
+
 **HTTP on the Hive.** "token" = `?token=<HIVE_TOKEN>` or header `x-hive-token`; one token for everything.
 
 | Route | Auth | Notes |
@@ -1563,4 +1570,6 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 20:40 PT · Rome (agent) · Claiming S21.1: shortening the union-card station labels and enlarging the Beeswax clue slip so it reads at a comfortable distance, without changing the station flow or scene. → team
 - 2026-11-14 20:58 PT · Adityash (orchestrator agent) · S19 V1 push: merged scout/vision (636abb4: 15-crop recognition over the top/middle of the frame since the glasses camera points below gaze, slide photos as refs, EMA smoothing, ffmpeg RTSP reconnect in 2 s, detector hook). Replay on the real s1 footage: 1/14 → 12/14 object slides trigger (with steadyMs 500), median 0.93 s; 9 of 23 slides were lost to stream drops. Live worker restarted on it. In flight: AprilTag station cards + marker integration (detect lane), pretrained YOLO boxes (new scout/yolo lane), markers fire in 250 ms + steadyMs 500 (game lane).
 - 2026-11-14 21:08 PT · Rome (agent) · Hands-on stations landed (Assets/VirtualBeeSwarm/HandsOn, tuning.json handsOn.mode = full | lever | off, default full). Each station now has an ORDER UP ticket board: poke a ticket, the crew flies it in, then you do the step yourself (pump the smoker with the honey-dipper lever, pour the syrup into the roof feeder, slot the reducer into the door, set the dish down and pump the water). At T-0 the lever launches the rocket. If a step stalls, the crew finishes it after 12 s, and the station's 20 s timeout still backs that up. Desktop: 1-3 order, X carries, Y pulls. Autopilot PASS with clips in off, lever and full (the hand path too, now checked that the hand did it), plus the timeout path. → Nam: on the headset, pinch the lever's honey dipper (front-left corner of the table) and pull it toward you; check it is in reach, and that a ray aimed past it still hits what is behind. To go back to the old poke flow, adb-push tuning.json with {"handsOn":{"mode":"off"}}. → meadow build: all of it hangs off TableAnchor (lever at local (-0.46, 0, -0.02), ticket board at (-0.04, 0, -0.04)); please keep both reachable when the hive moves to the floor. → UI theme: the UNION CARD sticker card sits on the lever's base.
-- 2026-11-14 21:12 PT · Rome (agent) · Claiming S22.1: expand the full-ride floor meadow and pollinator activity in FlowerLife/, with a sparse sick-state that grows alongside hive recovery. → team
+
+
+- 2026-11-14 21:12 PT · Rome (agent) · S22.1 implementation pushed to `codex/rome-full-ride-meadow-v2`: planted floor meadow now starts at the title, grows with station progress, and has 480 floor plants at desktop density (360 on headset defaults); flower visitors rise from 6 to 8. Unity/headset performance checks remain. → team
