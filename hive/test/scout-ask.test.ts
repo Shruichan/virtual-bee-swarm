@@ -407,6 +407,8 @@ describe("barge-in (real ScoutGame, fake clock)", () => {
     };
 
     game.setPractice(true); // a steady look plays the chime + the two fact lines straight away
+    game.start(); // "Start your adventure": the game is silent (waiting) until then
+    advance(8000); // the intro lines, then the practice gap
     look("pebble_dish", 700);
     expect(game.state().phase).toBe("telling");
     expect(says.map((s) => s.line_id)).toContain("scout_fact_pebble_dish");
@@ -497,6 +499,10 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     });
     const post = (path: string, body: unknown) =>
       app.request(`${path}?token=t`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    // waiting: Ask Beeswax is silent until "Start your adventure" (POST /scout/reset)
+    expect((await (await post("/scout/utterance", { text: "Hey Beeswax, why do bees need pebbles?" })).json()).routed).toBeUndefined();
+    await post("/scout/reset", {});
+    sent.length = 0;
     // the judge screen's feed: heard events, question: true only for wake-word questions
     let feed = "";
     const sse = (await app.request("/scout/events?token=t")).body!.getReader();
@@ -554,6 +560,8 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     });
     const post = (path: string, body: unknown) =>
       app.request(`${path}?token=t`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await post("/scout/reset", {}); // start the journey (the game is silent while waiting)
+    sent.length = 0;
     let feed = "";
     const sse = (await app.request("/scout/events?token=t")).body!.getReader();
     void (async () => {
