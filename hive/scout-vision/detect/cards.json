@@ -1,12 +1,12 @@
 {
-  "_comment": "Station cards for make_cards.py, in booth station order. image: file under image_root (relative to hive/scout-vision). Pictures: dartiros' Virtual Bee Swarm game art rendered by station_art/render_dart.py + compose.py (sunflower and bee hotel built in the same style there; the spray bottle relabelled BUG SPRAY, the pebble dish recoloured blue).",
+  "_comment": "Station cards for make_cards.py, in booth station order. image: file under image_root (relative to hive/scout-vision). These exact files are also the reference photos for the image matcher. The cartoon game-art renders live in station_art/renders/.",
   "image_root": "detect/card_images",
   "cards": [
-    {"label": "native_flower", "name": "Sunflower", "image": "native_flower.jpg"},
-    {"label": "honey_jar", "name": "Store honey", "image": "honey_jar.jpg"},
-    {"label": "bug_spray", "name": "Bug spray", "image": "bug_spray.jpg"},
-    {"label": "bee_hotel", "name": "Bee hotel", "image": "bee_hotel.jpg"},
-    {"label": "pebble_dish", "name": "Bee water dish", "image": "pebble_dish.jpg"},
-    {"label": "beehive", "name": "Beehive", "image": "beehive.jpg"}
+    {"label": "native_flower", "name": "Sunflower", "image": "native_flower.jpg", "credit": "Fir0002 (flagstaffotos.com.au), GFDL 1.2, Wikimedia Commons: Sunflower sky backdrop.jpg"},
+    {"label": "honey_jar", "name": "Honeycomb", "image": "honey_jar.jpg", "credit": "Skander zarrad, CC BY-SA 4.0, Wikimedia Commons: Un détail sur le plateau d'une ruche avec les alvéoles remplies de miel.jpg"},
+    {"label": "bug_spray", "name": "Bug spray", "image": "bug_spray.jpg", "credit": "Shell Oil Company via DPLA, public domain, Wikimedia Commons: Shell Tox Aerosol Insecticide - DPLA - 68498813d587ef22a5652c7e01915dab (page 2).jpg (cropped, brand marks removed)"},
+    {"label": "bee_hotel", "name": "Bee hotel", "image": "bee_hotel.jpg", "credit": "Daniel Ballmer, CC BY-SA 4.0, Wikimedia Commons: Wildbienenlöcher.jpg"},
+    {"label": "pebble_dish", "name": "Bee water dish", "image": "pebble_dish.jpg", "credit": "Fred Cherrygarden, CC BY-SA 4.0, Wikimedia Commons: Honeybee Drinking Fountain.jpg"},
+    {"label": "beehive", "name": "Beehive", "image": "beehive.jpg", "credit": "Alabama Extension, CC0, Wikimedia Commons"}
   ]
 }
