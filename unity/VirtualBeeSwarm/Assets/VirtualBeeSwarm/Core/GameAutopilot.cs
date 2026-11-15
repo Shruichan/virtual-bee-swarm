@@ -13,6 +13,10 @@ namespace VirtualBeeSwarm
     /// Voice (S8.2/S8.3): waits for GameNet.PreloadVoice before START, counts every line Beeswax starts (pre-rendered clip,
     /// caption only, or live stream) and logs "[VBSAutopilot] voice: ..." before the result; requireClips makes a
     /// caption-only line, or a clip that wasn't preloaded, a failure.
+    /// Ride script v2: while it runs, RidePacing is locked to the main path (no optional line, no cut-if-behind), so a
+    /// smoke run only says must-render lines. It waits for the what-if prompt ("Just not fire.") before asking about the
+    /// fire, and for the unload (room_end_contract) before the reset. VBS_AUTOPILOT_MISTAKES="smoker,feed" limits the
+    /// wrong picks to those stations (the script's typical run); default: every station.
     /// </summary>
     public class GameAutopilot : MonoBehaviour
     {
@@ -139,7 +143,9 @@ namespace VirtualBeeSwarm
             if (!string.IsNullOrEmpty(envDelay) && float.TryParse(envDelay, System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var dly)) pickDelaySeconds = Mathf.Max(0f, dly);
             if (pickDelaySeconds > 0f) Debug.Log("[VBSAutopilot] pick delay " + pickDelaySeconds.ToString("0.0") + " s at each station");
+            _mistakes = ReadMistakes();
             Running = true;
+            RidePacing.AutopilotLock = true;
             _routine = StartCoroutine(RunAll());
         }
 
@@ -147,6 +153,7 @@ namespace VirtualBeeSwarm
         {
             if (_routine != null) StopCoroutine(_routine);
             Running = false;
+            RidePacing.AutopilotLock = false;
             Time.timeScale = 1f;
             Debug.Log("[VBSAutopilot] " + why);
         }
@@ -230,6 +237,7 @@ namespace VirtualBeeSwarm
                 if (_notPreloaded.Count > 0) Fail("clips not preloaded during the intro: " + string.Join(", ", _notPreloaded));
             }
             Running = false;
+            RidePacing.AutopilotLock = false;
             Passed = !_failed;
             Debug.Log("[VBSAutopilot] " + (Passed ? "PASS" : "FAIL") + " after " +
                       (Time.realtimeSinceStartup - started).ToString("0") + " s real" +
@@ -299,10 +307,13 @@ namespace VirtualBeeSwarm
             }
             else if (whatIf != null)
             {
+                yield return WaitFor(() => whatIf.PromptDone, "what-if prompt + room_whatif_notfire");
+                yield return Seconds(1f);
                 whatIf.LocalWhatIfFire();
                 Check(net == null || net.CurrentScene == GameIds.Scene.WhatIfFire, "window scene = whatif_fire (is " + (net != null ? net.CurrentScene : "-") + ")");
                 yield return WaitFor(() => embers != null && embers.Emitting, "embers emitting");
-                yield return Seconds(3f);
+                yield return WaitFor(() => net == null || !net.IsSpeaking, "the fire line ends");
+                yield return Seconds(2f); // "put it out!" before the 4 s put-out hint (the script's typical run has none)
                 whatIf.LocalPutOut();
                 Check(embers == null || !embers.Emitting, "embers stopped");
                 Check(whatIf.FireOut, "fire out");
@@ -318,6 +329,9 @@ namespace VirtualBeeSwarm
             yield return WaitBeat(GameBeat.T0);
             yield return WaitBeat(GameBeat.Map);
             Check(director.SolvedStations == 4, "4 stations solved (" + director.SolvedStations + ")");
+            var map = FindAnyObjectByType<LevelMap>();
+            yield return WaitFor(() => map == null || map.UnloadDone, "unload (room_end_contract)");
+            Check(escape == null || escape.EndCardShown, "end card shown");
             yield return Seconds(2f);
 
             director.ResetToPre();
@@ -328,6 +342,17 @@ namespace VirtualBeeSwarm
         }
 
         int _run;
+        string _mistakes = "";
+
+        static string ReadMistakes()
+        {
+            string env = null;
+            try { env = Environment.GetEnvironmentVariable("VBS_AUTOPILOT_MISTAKES"); } catch (Exception) { }
+            if (env != null) Debug.Log("[VBSAutopilot] wrong picks only at: " + (env.Length > 0 ? env : "(none)"));
+            return env;
+        }
+
+        bool MistakeAt(GameStation s) => makeMistakes && (_mistakes == null || ("," + _mistakes.Replace(" ", "") + ",").Contains("," + GameIds.StationName(s) + ","));
 
         /// <summary>
         /// START: with deliveries on/swirl, wait for the SIGN HERE clipboard to park and sign it like a poke (V14);
@@ -387,7 +412,7 @@ namespace VirtualBeeSwarm
                 Debug.Log("[VBSAutopilot] " + typeof(T).Name + ": picking after " + pickDelaySeconds.ToString("0.0") + " s; hint showing = " +
                           (sd != null && sd.Hinting));
             }
-            if (makeMistakes)
+            if (MistakeAt(st.Station))
             {
                 st.Choose(wrong);
                 yield return WaitFor(() => st.Choosing || st.Solved, typeof(T).Name + " retry");
