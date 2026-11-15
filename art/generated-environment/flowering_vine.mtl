@@ -1,0 +1,48 @@
+# Soft matte palette for a stylized AR meadow.
+newmtl leaf_green
+Kd 0.240 0.520 0.220
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl leaf_light
+Kd 0.400 0.690 0.280
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl stem
+Kd 0.200 0.390 0.160
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl petal_white
+Kd 1.000 0.940 0.780
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl petal_lilac
+Kd 0.620 0.370 0.820
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl petal_pink
+Kd 0.940 0.480 0.660
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl petal_sun
+Kd 1.000 0.690 0.120
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
+
+newmtl pollen
+Kd 1.000 0.820 0.260
+Ka 0.15 0.15 0.15
+Ks 0.05 0.05 0.05
+Ns 10
