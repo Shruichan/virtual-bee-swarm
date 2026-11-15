@@ -263,7 +263,7 @@ namespace VirtualBeeSwarm
             var eyes = camera.transform;
             Vector3 front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
-            Vector3 position = eyes.position + front * 0.8f - Vector3.up * 0.3f; // [polish] was 0.65 / 0.17: out of the face, down by the hive
+            Vector3 position = eyes.position + front * 0.8f - Vector3.up * 0.42f + eyes.right * 0.22f; // final audit: off the caption // [polish] was 0.65 / 0.17: out of the face, down by the hive
             _emptyCard.SetPositionAndRotation(position, Quaternion.LookRotation(position - eyes.position, Vector3.up));
             _emptyCard.gameObject.SetActive(true);
         }

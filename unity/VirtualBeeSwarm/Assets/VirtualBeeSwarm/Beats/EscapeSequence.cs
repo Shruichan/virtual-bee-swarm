@@ -31,12 +31,12 @@ namespace VirtualBeeSwarm
         [Tooltip("Its spot in the card's parent (the TableAnchor): up over the hive's left, clear of Beeswax and his caption.")]
         [SerializeField] Vector3 cardLocalPosition = new Vector3(-0.08f, 0.75f, -0.04f);
         [Tooltip("Tilted back this much so it faces a standing player's eye.")]
-        [SerializeField] float cardTiltDegrees = 14f;
+        [SerializeField] float cardTiltDegrees = 6f; // final audit: was 14, read tilted back
         [Header("End card (v2, map beat)")]
         [Tooltip("Reading distance ahead of the head. The vertical offset is capped to keep the contract in view.")]
         [SerializeField] float endCardAhead = 0.78f;
         [SerializeField] float endCardAboveEye = -0.15f; // dartiros: the win card sat too high; below eye level now
-        [SerializeField] float endCardTiltDegrees = 22f;
+        [SerializeField] float endCardTiltDegrees = 8f; // final audit: was 22, read tilted back
         [SerializeField] int endCardCrew = 6;
 
         public string LastScore { get; private set; } = "";
