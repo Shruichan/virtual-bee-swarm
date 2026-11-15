@@ -12,7 +12,7 @@ using Object = UnityEngine.Object;
 namespace VirtualBeeSwarm.Capture.Editor
 {
     /// <summary>
-    /// Builds a silent Linux player of a generated capture scene: the offline desktop scene + ShowCapture (stand-in room,
+    /// Builds a silent Windows or Linux player of a generated capture scene: the offline desktop scene + ShowCapture (stand-in room,
     /// POV + wide cameras, PNG frames), the autopilot started by ShowCapture with delivery on.
     ///   Unity -batchmode -nographics -quit -projectPath P -executeMethod VirtualBeeSwarm.Capture.Editor.CaptureBuild.Build
     ///   P/Builds/Capture/vbs-capture.x86_64 -batchmode -force-vulkan  (env VBS_CAPTURE_OUT=dir; needs a GPU + an X display)
@@ -33,10 +33,19 @@ namespace VirtualBeeSwarm.Capture.Editor
             string scenePath = null;
             try
             {
-                if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneLinux64)
-                    throw new Exception("active build target is " + EditorUserBuildSettings.activeBuildTarget + ", not Linux64");
+                BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+                if (target != BuildTarget.StandaloneLinux64 && target != BuildTarget.StandaloneWindows64)
+                    throw new Exception("active build target is " + target + ", expected Linux64 or Windows64");
                 scenePath = BuildGameScene.BuildScene(SceneFile, offline: true, withRig: false);
                 var scene = EditorSceneManager.OpenScene(scenePath);
+
+                var roomType = Type.GetType("MetaXRAudioRoomAcousticProperties, Meta.XR.Audio");
+                if (roomType != null)
+                {
+                    var room = Object.FindAnyObjectByType(roomType) as Behaviour;
+                    if (room == null) room = (Behaviour)new GameObject("Disabled Meta Audio Room").AddComponent(roomType);
+                    room.enabled = false;
+                }
 
                 var ap = Object.FindAnyObjectByType<GameAutopilot>(FindObjectsInactive.Include);
                 if (ap == null) throw new Exception("no GameAutopilot in the generated scene");
@@ -57,6 +66,7 @@ namespace VirtualBeeSwarm.Capture.Editor
                 var mat = new Material(shader);
                 AssetDatabase.CreateAsset(mat, TempMat);
                 var cap = new GameObject("ShowCapture").AddComponent<ShowCapture>();
+                cap.gameObject.AddComponent<RoomPlaytest>();
                 var cso = new SerializedObject(cap);
                 cso.FindProperty("litTemplate").objectReferenceValue = mat;
                 cso.ApplyModifiedPropertiesWithoutUndo();
@@ -108,8 +118,8 @@ namespace VirtualBeeSwarm.Capture.Editor
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = new[] { scenePath },
-                    locationPathName = Path.Combine(outDir, "vbs-capture.x86_64"),
-                    target = BuildTarget.StandaloneLinux64,
+                    locationPathName = Path.Combine(outDir, target == BuildTarget.StandaloneWindows64 ? "vbs-capture.exe" : "vbs-capture.x86_64"),
+                    target = target,
                     options = BuildOptions.None,
                 });
                 Debug.Log("[VBSCapture] build " + report.summary.result + " errors=" + report.summary.totalErrors + " -> " + outDir);

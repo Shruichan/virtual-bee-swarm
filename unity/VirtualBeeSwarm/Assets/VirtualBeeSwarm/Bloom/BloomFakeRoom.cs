@@ -13,6 +13,9 @@ namespace VirtualBeeSwarm.Bloom
     /// </summary>
     public sealed class BloomFakeRoom : IBloomSceneSource
     {
+#if !UNITY_ANDROID || UNITY_EDITOR
+        public static System.Func<RoomModel, BloomScene, bool> CaptureOverride { get; set; }
+#endif
         public const float SideWall = 2.97f, Depth = 5.95f, // meadow: the whole capture room floor (6 m)
             PillarSize = 0.35f, PillarAlong = 1.4f, PillarOut = 0.9f;
 
@@ -27,6 +30,14 @@ namespace VirtualBeeSwarm.Bloom
         public bool TryFill(BloomScene scene)
         {
             var rig = ArRig.Instance;
+#if !UNITY_ANDROID || UNITY_EDITOR
+            if (CaptureOverride != null)
+            {
+                bool captured = CaptureOverride(rig != null ? rig.Room : null, scene);
+                Status = scene.Name;
+                return captured;
+            }
+#endif
             bool ok = rig != null && Fill(rig.Room, scene);
             Status = ok ? "3 walls, 2 pillars, table" : "no table yet";
             return ok;
@@ -95,6 +106,9 @@ namespace VirtualBeeSwarm.Bloom
         /// <summary>Desktop only: grey stand-ins for the pillars and side walls so captures make sense.</summary>
         public void ShowBoxes(BloomScene s, Transform parent, bool on)
         {
+#if !UNITY_ANDROID || UNITY_EDITOR
+            if (CaptureOverride != null) on = false; // The capture fixture renders these same scan bounds.
+#endif
             if (!on || s == null)
             {
                 if (_boxes != null) _boxes.SetActive(false);

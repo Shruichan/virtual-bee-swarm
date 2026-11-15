@@ -205,6 +205,24 @@ in the comment at the top of `Editor/GameSmokeBuild.cs`.
   S1.10 check passes. The cold IL2CPP D build had 0 script errors and 0 script warnings. The aapt2 check passed, and
   the signer is the shared debug key (SHA-256 `39:5E:44:51:…:CE:87:5D`).
 
+## Room recordings
+
+Build a Windows capture player from Unity 6000.2.9f1 with
+`-batchmode -quit -force-d3d11 -buildTarget StandaloneWindows64 -executeMethod VirtualBeeSwarm.Capture.Editor.CaptureBuild.Build`.
+Set `CAPTURE_OUT` if you want the player outside the project. The default output is `Builds/Capture`.
+
+From the repo root, use Python with Pillow and FFmpeg with H.264 support. The runner accepts FFmpeg on PATH,
+`--ffmpeg`, or the binary bundled with `imageio-ffmpeg`.
+
+```powershell
+py ops/room-playtest.py --player "C:\path\to\vbs-capture.exe" --out "C:\path\to\room-review"
+```
+
+Open `index.html` in the output folder. It links each room's video, review frames, and event timeline. Use
+`--rooms 4 9 20` to repeat selected cases in a fresh output folder. The desktop run uses furniture volumes for
+placement and sightline checks. Dialogue is reconstructed from the captured timestamps. Quest tracking,
+passthrough, physical reach, and headset frame time still need a device run.
+
 ## Known gaps
 
 - The current floor-first layout still needs headset checks for placement, hand and controller reach, passthrough,
