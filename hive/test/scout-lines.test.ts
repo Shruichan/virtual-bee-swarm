@@ -13,7 +13,7 @@ const lines = [...demo, ...booth];
 const byId = new Map(lines.map((l) => [l.id, l]));
 
 /** Every id SCOUT_LINES implies, with the kind (and label) it must have. */
-const expected: { id: string; kind: ScoutLine["kind"]; label?: ScoutLabel }[] = [
+const expected: { id: string; kind: string; label?: ScoutLabel }[] = [
   ...SCOUT_LINES.intro.map((id) => ({ id, kind: "intro" as const })),
   { id: SCOUT_LINES.chime, kind: "chime" },
   ...SCOUT_LABELS.flatMap((label) => [
@@ -33,6 +33,15 @@ const expected: { id: string; kind: ScoutLine["kind"]; label?: ScoutLabel }[] = 
   { id: SCOUT_BOOTH_LINES.no, kind: "no" },
   { id: SCOUT_BOOTH_LINES.done, kind: "done" },
   { id: SCOUT_TEACHER_LINE, kind: "teacher" }, // POST /scout/teacher
+  // multi-part lines the game plays when they exist, and the after-fact question prompts
+  { id: "scout_intro_3", kind: "intro" },
+  { id: `${SCOUT_BOOTH_LINES.intro}_2`, kind: "intro" },
+  { id: `${SCOUT_BOOTH_LINES.intro}_3`, kind: "intro" },
+  { id: `${SCOUT_LINES.done}_2`, kind: "done" },
+  { id: `${SCOUT_LINES.done}_3`, kind: "done" },
+  { id: `${SCOUT_BOOTH_LINES.done}_2`, kind: "done" },
+  { id: `${SCOUT_BOOTH_LINES.done}_3`, kind: "done" },
+  ...[1, 2, 3].map((n) => ({ id: `scout_any_q_${n}`, kind: "ask" })),
   ...Object.values(SCOUT_BOOTH_LINES.dir).map((id) => ({ id, kind: "direction" as const })),
   ...SCOUT_LABELS.flatMap((label) => [
     { id: `${SCOUT_LINES.fact(label)}_2`, kind: "fact" as const, label },
@@ -102,14 +111,14 @@ describe("scout_lines.json + scout_lines_booth.json", () => {
     expect([...ids].sort()).toEqual(expected.map((e) => e.id).sort());
     for (const e of expected) {
       const l = byId.get(e.id)!;
-      expect({ id: l.id, kind: l.kind, label: l.label }).toEqual({ id: e.id, kind: e.kind, label: e.label });
+      expect({ id: l.id, kind: l.kind as string, label: l.label }).toEqual({ id: e.id, kind: e.kind, label: e.label });
     }
   });
 
   test("every line is short, digit-free and shouts at most one word", () => {
     for (const l of lines) {
       const why = `${l.id}: ${l.text}`;
-      expect(l.text.trim().length > 0, why).toBe(true);
+      if (l.id !== SCOUT_LINES.idle) expect(l.text.trim().length > 0, why).toBe(true); // idle nudge is switched off
       expect(l.text.length <= 110, why).toBe(true);
       expect(words(l.text).length <= 20, why).toBe(true);
       expect(/\d/.test(l.text), why).toBe(false);
@@ -171,9 +180,10 @@ describe("scout_lines.json + scout_lines_booth.json", () => {
 describe("scout_audio", () => {
   test.skipIf(!existsSync(SCOUT_MANIFEST_FILE))("every line has a current mp3 with a duration", () => {
     const manifest = readManifest();
-    expect(Object.keys(manifest).sort()).toEqual(lines.map((l) => l.id).sort());
+    const voiced = lines.filter((l) => l.text.trim()); // empty text = switched off, no audio
+    expect(Object.keys(manifest).sort()).toEqual(voiced.map((l) => l.id).sort());
     let bytes = 0;
-    for (const l of lines) {
+    for (const l of voiced) {
       const m = manifest[l.id]!;
       const file = join(SCOUT_AUDIO_DIR, `${l.id}.mp3`);
       expect(existsSync(file), file).toBe(true);

@@ -1,25 +1,33 @@
 [
-  {"id": "scout_intro_1", "kind": "intro", "text": "Beeswax here. Boss of the bee union. I live in your ear now. Congratulations, scout."},
-  {"id": "scout_intro_2", "kind": "intro", "text": "Six things around here matter to bees. Look right at one. When I ask, say YES."},
+  {"id": "scout_intro_1", "kind": "intro", "text": "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant."},
+  {"id": "scout_intro_2", "kind": "intro", "text": "Bees are super important for our planet. Six things around you matter a lot to bees."},
+  {"id": "scout_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? I'll always BEE here, so interrupt me anytime!"},
   {"id": "scout_chime", "kind": "chime", "text": "Bee fact found!"},
 
-  {"id": "scout_hook_beehive", "kind": "hook", "label": "beehive", "text": "A beehive! Home sweet home. Would you like to learn more?"},
-  {"id": "scout_hook_native_flower", "kind": "hook", "label": "native_flower", "text": "A flower. Finally, lunch. Would you like to learn more?"},
-  {"id": "scout_hook_honey_jar", "kind": "hook", "label": "honey_jar", "text": "Store honey. Yummy for you, trouble for us. Would you like to learn more?"},
-  {"id": "scout_hook_pebble_dish", "kind": "hook", "label": "pebble_dish", "text": "A water dish with pebbles! Somebody gets bees. Would you like to learn more?"},
-  {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Bug spray. Ugh. Don't get me started. Would you like to learn more?"},
-  {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "A home for my wild cousins! Would you like to learn more?"},
+  {"id": "scout_hook_beehive", "kind": "hook", "label": "beehive", "text": "A beehive! That's home sweet home for bees. Would you like to learn more?"},
+  {"id": "scout_hook_native_flower", "kind": "hook", "label": "native_flower", "text": "A sunflower! Bees love a sunny snack. Would you like to learn more?"},
+  {"id": "scout_hook_honey_jar", "kind": "hook", "label": "honey_jar", "text": "Honeycomb! Every cell is a tiny honey jar. Would you like to learn more?"},
+  {"id": "scout_hook_pebble_dish", "kind": "hook", "label": "pebble_dish", "text": "A bee water dish! Perfect for thirsty bees. Would you like to learn more?"},
+  {"id": "scout_hook_bug_spray", "kind": "hook", "label": "bug_spray", "text": "Uh oh, bug spray! This one is important. Would you like to learn more?"},
+  {"id": "scout_hook_bee_hotel", "kind": "hook", "label": "bee_hotel", "text": "A bee hotel! Wild bees check in here. Would you like to learn more?"},
 
-  {"id": "scout_no_1", "kind": "no", "text": "Fine. Saving it for later."},
-  {"id": "scout_no_2", "kind": "no", "text": "Your call. I'll be right here. Grumbling."},
-  {"id": "scout_rude", "kind": "rude", "text": "Fine! I'll just sit here. In your ear. Quietly. Mostly."},
-  {"id": "scout_silence", "kind": "silence", "text": "Nothing? I'll put you down as a no."},
-  {"id": "scout_idle", "kind": "idle", "text": "Slow day. Walk up to something and look right at it. I'll do the rest."},
+  {"id": "scout_any_q_1", "kind": "ask", "text": "Got any questions? Bee my guest!"},
+  {"id": "scout_any_q_2", "kind": "ask", "text": "Curious about anything? Just ask me!"},
+  {"id": "scout_any_q_3", "kind": "ask", "text": "Any questions? I'm all ears. Well, all antennae."},
+
+  {"id": "scout_no_1", "kind": "no", "text": "Don't worry, I'll BEE right here if you need anything."},
+  {"id": "scout_no_2", "kind": "no", "text": "No problem! Just buzz me if you change your mind."},
+  {"id": "scout_rude", "kind": "rude", "text": "Okay! I'll be quiet now. Look at something when you're ready for more."},
+  {"id": "scout_silence", "kind": "silence", "text": "No worries, we can come back to it."},
+  {"id": "scout_idle", "kind": "idle", "text": ""},
 
   {"id": "scout_progress_1", "kind": "progress", "text": "One down. Five to go."},
   {"id": "scout_progress_2", "kind": "progress", "text": "Two! I'm mildly impressed. Don't tell anyone."},
   {"id": "scout_progress_3", "kind": "progress", "text": "Three down. Halfway! I'd help, but boy bees don't do chores. It's in the contract."},
   {"id": "scout_progress_4", "kind": "progress", "text": "Four. You're making me look good."},
   {"id": "scout_progress_5", "kind": "progress", "text": "Five. One left. Don't you dare slow down."},
-  {"id": "scout_done", "kind": "done", "text": "Six for six! You're an official bee scout. Your jobs: plant flowers, skip bug spray, put out a pebble dish."}
+
+  {"id": "scout_done", "kind": "done", "text": "You found them all! Bee Scout badge earned!"},
+  {"id": "scout_done_2", "kind": "done", "text": "Now you know: flowers feed us, honey takes millions of flower visits, and bug spray hurts bees."},
+  {"id": "scout_done_3", "kind": "done", "text": "Give bees a home and a drink, and help save the hives. BEE-autiful work, scout!"}
 ]

@@ -1,8 +1,10 @@
 [
-  {"id": "scout_booth_intro", "kind": "intro", "text": "Hey, I'm Beeswax, your bee assistant. Fuzzy, grumpy, and in your ear. Walk up to something and look at it."},
+  {"id": "scout_booth_intro", "kind": "intro", "text": "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant."},
+  {"id": "scout_booth_intro_2", "kind": "intro", "text": "Bees are super important for our planet. Six things around you matter a lot to bees."},
+  {"id": "scout_booth_intro_3", "kind": "intro", "text": "Walk up to one and look at it. Got a question? I'll always BEE here, so interrupt me anytime!"},
   {"id": "scout_chime_ask", "kind": "chime", "text": "Bee fact found! Would you like to learn more?"},
-  {"id": "scout_silence_yes", "kind": "silence", "text": "Nothing? I'll take that as a yes."},
-  {"id": "scout_booth_no", "kind": "no", "text": "Your call. I'll be right here. Grumbling."},
+  {"id": "scout_silence_yes", "kind": "silence", "text": "I'll take that as a yes."},
+  {"id": "scout_booth_no", "kind": "no", "text": "Don't worry, I'll BEE right here if you need anything."},
 
   {"id": "scout_fact_native_flower", "kind": "fact", "label": "native_flower", "text": "This is a sunflower. It grew wild in North America first.", "source": "https://plants.ces.ncsu.edu/plants/helianthus-annuus/"},
   {"id": "scout_fact_native_flower_2", "kind": "fact", "label": "native_flower", "text": "Some scientists think one in three bites you eat is thanks to pollinators like me.", "source": "https://usda.azureedge.us/node/48771"},
@@ -28,7 +30,9 @@
   {"id": "scout_fact_beehive_2", "kind": "fact", "label": "beehive", "text": "The year before, more than half: the worst on record. Tiny mites spreading bee viruses are a big reason.", "source": "https://wire.auburn.edu/content/agriculture/2025/06/2506-beekeepers-survey.php https://www.ars.usda.gov/news-events/news/research-news/2025/usda-researchers-find-viruses-from-miticide-resistant-parasitic-mites-are-cause-of-recent-honey-bee-colony-collapses/"},
   {"id": "scout_next_beehive", "kind": "direction", "label": "beehive", "text": "Last adventure. One step to your left. It's the big one."},
 
-  {"id": "scout_booth_done", "kind": "done", "text": "You found them all! Bee scout badge earned. Now go tell a human. Bees can't text."},
+  {"id": "scout_booth_done", "kind": "done", "text": "You found them all! Bee Scout badge earned!"},
+  {"id": "scout_booth_done_2", "kind": "done", "text": "Now you know: flowers feed us, honey takes millions of flower visits, and bug spray hurts bees."},
+  {"id": "scout_booth_done_3", "kind": "done", "text": "Give bees a home and a drink, and help save the hives. BEE-autiful work, scout!"},
 
   {"id": "scout_dir_left", "kind": "direction", "text": "A little to your left."},
   {"id": "scout_dir_right", "kind": "direction", "text": "A little to your right."},
