@@ -399,17 +399,17 @@ namespace VirtualBeeSwarm.Theme
         // ------------------------------------------------------------ clue slip, tucked behind the union card
         void BuildClue()
         {
-            _clue = UiCard.Create(_card.transform, "ClueSlip", new Vector2(0.24f, 0.058f), UiCard.Look.Slip);
+            _clue = UiCard.Create(_card.transform, "ClueSlip", new Vector2(0.29f, 0.07f), UiCard.Look.Slip);
             _clue.transform.localPosition = new Vector3(0.012f, UnionCard.Height * 0.5f + 0.019f, 0.006f);
             _clue.transform.localRotation = Quaternion.Euler(0f, 0f, -3.5f);
-            var bee = StickerArt.Quad(_clue.transform, StickerArt.Winking, 0.052f, "Bee");
-            bee.localPosition = new Vector3(-0.094f, 0.004f, -0.004f);
+            var bee = StickerArt.Quad(_clue.transform, StickerArt.Winking, 0.056f, "Bee");
+            bee.localPosition = new Vector3(-0.108f, 0.004f, -0.004f);
             bee.localRotation = Quaternion.Euler(0f, 0f, 10f);
-            _clueText = UiTheme.NewText(_clue.transform, "Text", "", 8.6f, UiTheme.Ink, new Vector2(0.168f, 0.044f), align: TextAlignmentOptions.Left);
+            _clueText = UiTheme.NewText(_clue.transform, "Text", "", 8.6f, UiTheme.Ink, new Vector2(0.204f, 0.052f), align: TextAlignmentOptions.Left);
             _clueText.enableAutoSizing = true;
             _clueText.fontSizeMax = 8.6f;
-            _clueText.fontSizeMin = 5.5f;
-            _clueText.transform.localPosition = new Vector3(0.026f, 0.0015f, -0.002f);
+            _clueText.fontSizeMin = 7.2f;
+            _clueText.transform.localPosition = new Vector3(0.028f, 0.0015f, -0.002f);
             _clue.gameObject.SetActive(false);
         }
 
