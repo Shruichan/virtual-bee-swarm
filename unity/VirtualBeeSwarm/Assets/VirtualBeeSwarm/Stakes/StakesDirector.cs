@@ -9,6 +9,8 @@ namespace VirtualBeeSwarm.Stakes
     ///   hook     on "angry swarms" (1.3 s into room_hook_1, or 16 s into the beat if that line never starts) 150 dark
     ///            bees pour out of the window over the player into the band; the room dims to 25 %.
     ///   meet     the band thins to 80; the dim eases to 12 % over 3 s.
+    ///   v2 (ride script v2): room_hook_1 moved into meet, so the pour waits for it there (fallback meetFallbackSeconds
+    ///            into meet, never in the hook), and the thinning + dim happen on room_meet_2's "Four minutes" (RulesNow).
     ///   smoker…  the boarding clock starts at the first station. Each wrong pick +30 bees, a tendril to the table and a
     ///            6-bee dive (stops 40 cm from the face); the first one also plays room_strike_lookup once Beeswax is
     ///            quiet. Each fix −20 (never below 24 before the escape, so there is something to send home).
@@ -50,6 +52,8 @@ namespace VirtualBeeSwarm.Stakes
         [SerializeField] float pourDelayIntoLine = 1.3f;
         [Tooltip("Pour anyway this long into the hook if the line never started (V14's hook says it at ~0:14).")]
         [SerializeField] float hookFallbackSeconds = 16f;
+        [Tooltip("v2: room_hook_1 is said in meet (~15 s in); pour anyway this long into meet if it never started.")]
+        [SerializeField] float meetFallbackSeconds = 28f;
         [SerializeField] float dimHookSeconds = 1.5f;
         [SerializeField] float dimStationsSeconds = 3f;
         [SerializeField] float escapeDimSeconds = 2f;
@@ -112,7 +116,7 @@ namespace VirtualBeeSwarm.Stakes
 
         bool _poured, _explicitChoices, _subscribed;
         float _hookEnteredAt = -1f, _pourAt = -1f, _strikeAt = -1f, _strikeDeadline = -1f;
-        bool _strikeDone;
+        bool _strikeDone, _rulesDone;
 
         // ------------------------------------------------------------------ install
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -218,8 +222,26 @@ namespace VirtualBeeSwarm.Stakes
         /// <summary>IntroSequence (V14): the words "angry swarms" are now. Pours at once instead of guessing from the line start.</summary>
         public void StakesLineNow()
         {
-            if (director != null && director.Beat != GameBeat.Hook) return;
+            if (director != null && director.Beat != GameBeat.Hook && director.Beat != GameBeat.Meet) return;
             _pourAt = Time.time;
+        }
+
+        /// <summary>
+        /// v2, IntroSequence: room_meet_2's "Four minutes" (BOARDING lights). The band thins to the meet size and the dim
+        /// eases to the stations level, what entering meet did before v2. Pours first if the threat never did.
+        /// </summary>
+        public void RulesNow()
+        {
+            if (director == null || director.Beat != GameBeat.Meet || _rulesDone) return;
+            _rulesDone = true;
+            if (!_poured) Pour();
+            if (StakesFlags.Swarm && swarm != null)
+            {
+                if (swarm.Mode == DarkSwarmMode.Deck) swarm.SetCount(meetCount);
+                else swarm.Snap(meetCount);
+            }
+            PassthroughDim.Request(DimKey, StakesFlags.DimStations, dimStationsSeconds);
+            Debug.Log("[VBS][Stakes] \"Four minutes\": swarm " + meetCount + ", dim to the stations level");
         }
 
         // ------------------------------------------------------------------ events
@@ -234,7 +256,7 @@ namespace VirtualBeeSwarm.Stakes
 
         void HandleVoiceLine(GameNet.VoiceLineInfo info)
         {
-            if (director == null || director.Beat != GameBeat.Hook || _poured || _pourAt >= 0f) return;
+            if (director == null || (director.Beat != GameBeat.Hook && director.Beat != GameBeat.Meet) || _poured || _pourAt >= 0f) return;
             if (info.id != stakesLineId) return;
             // V14: on the words "angry swarms", from the clip length and where they sit in the line; else the fixed delay
             float delay = HookTiming.ThreatOffset(info, pourDelayIntoLine);
@@ -288,7 +310,7 @@ namespace VirtualBeeSwarm.Stakes
 
             if (beat == GameBeat.Hook)
             {
-                _hookEnteredAt = Time.time;
+                _hookEnteredAt = -1f; // v2: no threat line in the hook; the fallback timer runs in meet
                 _pourAt = -1f;
                 if (prev == GameBeat.Pre) { _poured = false; return; } // pours on the line (Update)
                 // came back from later: the hook's end state
@@ -300,6 +322,14 @@ namespace VirtualBeeSwarm.Stakes
 
             if (beat == GameBeat.Meet)
             {
+                if (prev == GameBeat.Hook && !_poured)
+                {
+                    // v2: the threat is said in meet; pour on its words (Update), thin + dim on "Four minutes" (RulesNow)
+                    _hookEnteredAt = Time.time;
+                    _rulesDone = false;
+                    return;
+                }
+                _rulesDone = true;
                 if (_poured && showSwarm && swarm.Mode == DarkSwarmMode.Deck) swarm.SetCount(meetCount);
                 else if (showSwarm) swarm.Snap(meetCount);
                 PassthroughDim.Request(DimKey, StakesFlags.DimStations, _poured ? dimStationsSeconds : 0.5f);
@@ -374,9 +404,10 @@ namespace VirtualBeeSwarm.Stakes
 
             float now = Time.time;
             var beat = director.Beat;
-            if (beat == GameBeat.Hook && !_poured)
+            if ((beat == GameBeat.Hook || beat == GameBeat.Meet) && !_poured)
             {
-                if (_pourAt < 0f && _hookEnteredAt >= 0f && now - _hookEnteredAt >= hookFallbackSeconds)
+                float fallback = beat == GameBeat.Meet ? meetFallbackSeconds : hookFallbackSeconds;
+                if (_pourAt < 0f && _hookEnteredAt >= 0f && now - _hookEnteredAt >= fallback)
                 {
                     Debug.Log("[VBS][Stakes] " + stakesLineId + " not heard: pouring on the fallback timer");
                     _pourAt = now;

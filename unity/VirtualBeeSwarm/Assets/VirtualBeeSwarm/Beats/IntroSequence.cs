@@ -19,10 +19,15 @@ namespace VirtualBeeSwarm
     ///         mark; the rocket is flown in on room_hook_2. Deliveries overlap the lines, so the hook runs about as
     ///         long as with deliveries off; no line is ever cut (each one holds for its clip).
     /// delivery.mode off: today's START button, the hive and rocket in place, Beeswax on the rocket perch.
-    /// Forecast (stakes.forecast, both modes): the window opens on a peaceful Paris (ForecastMoment) and room_hook_1 waits
-    /// until that has been fully open peacefulMinSeconds by the time "angry swarms" is said; on those words the window
-    /// cuts to the ravaged world (a giant laser-eyed bee topples the Eiffel Tower) as the dark swarm pours. With deliveries
-    /// off the window now opens at the start of the hook instead of in meet.
+    /// Ride script v2 (staging): pre = room_pre as the clipboard parks, room_pre_nudge 6 s later (every 10 s), and
+    /// room_pre_signed on the poke. hook = the ring, the window opens on the faded meadow, the hive flies in on its chains
+    /// over room_hook_carry (from inside the box) and lands near "contract". meet = he squeezes out on room_meet_1,
+    /// room_meet_role, room_forecast (peaceful Paris on "future"), room_hook_1 (pour + cut on "angry swarms"),
+    /// room_hook_2 (the rocket comes through as it starts), room_meet_2 (on "Four minutes": the band thins, the dim
+    /// eases, the window goes back to the meadow, he drops to the hive door).
+    /// Forecast (stakes.forecast, both modes): v2 moves it into meet. room_forecast turns the window to peaceful Paris on
+    /// "future"; on room_hook_1's "angry swarms" it cuts to the ravaged world (a giant laser-eyed bee topples the Eiffel
+    /// Tower) as the dark swarm pours; room_meet_2's "Four minutes" sends the window back to the meadow.
     /// </summary>
     public class IntroSequence : BeatBehaviour
     {
@@ -51,8 +56,9 @@ namespace VirtualBeeSwarm
         [Tooltip("Top leans away from the player (degrees).")]
         [SerializeField] float clipboardTilt = 15f;
         [SerializeField] int clipboardCrew = 4;
-        [Tooltip("room_pre plays once when nobody signs this long after the clipboard lands (and the headset is on).")]
+        [Tooltip("v2: room_pre_nudge when nobody signs this long after room_pre (then every nudgeRepeatSeconds).")]
         [SerializeField] float nudgeAfterSeconds = 6f;
+        [SerializeField] float nudgeRepeatSeconds = 10f;
         [Tooltip("The APPROVED stamp shows this long before the crew flies the clipboard out.")]
         [SerializeField] float stampHoldSeconds = 0.45f;
 
@@ -60,17 +66,17 @@ namespace VirtualBeeSwarm
         [SerializeField] float windowOpenAt = 0.6f;
         [Tooltip("The hive leaves the window before the ring cut (2 s) is quite closed.")]
         [SerializeField] float hiveAwayAt = 1.4f;
-        [Tooltip("Beeswax starts the threat from inside the flying hive (not before hiveAwayAt).")]
+        [Tooltip("v2: room_hook_carry starts from inside the box as the hive clears the ring (it lands near \"contract\").")]
         [SerializeField] float threatLineAt = 1.4f;
+        [Tooltip("The hive's festoon flight (BeeDelivery.festoonSeconds): its departure is delayed so it lands on \"contract\".")]
+        [SerializeField] float hiveFlightSeconds = 4.5f;
         [Tooltip("Where Beeswax flies after climbing out (empty: his home point).")]
         [SerializeField] Transform hookMark;
         [SerializeField] bool logHook = true;
 
-        [Header("Forecast (room_hook_1: peaceful Paris, cut to the ravaged one on \"angry swarms\")")]
+        [Header("Forecast (v2, in meet: peaceful on room_forecast, cut on room_hook_1)")]
         [Tooltip("Empty: found in the scene, else added to the window at runtime (then without SFX).")]
         [SerializeField] ForecastMoment forecast;
-        [Tooltip("The peaceful forecast is fully open at least this long before the cut (room_hook_1 starts late enough).")]
-        [SerializeField] float peacefulMinSeconds = 3f;
 
         bool Delivering => delivery != null && BeeDelivery.Mode != DeliveryMode.Off;
         bool Forecasting => forecast != null && window != null && StakesFlags.Forecast;
@@ -81,13 +87,16 @@ namespace VirtualBeeSwarm
 
         // pre
         float _clipParkedAt = -1f, _preStartedAt, _presenceAt = -1f;
-        bool _nudged, _stamped;
+        bool _stamped, _preSaid, _signedSaid;
+        float _nextNudgeAt = -1f;
+        int _nudges;
         int _presence = -1; // -1 unknown (desktop, no sensor), 0 off, 1 on
         TextMesh _instructions;
         string _instructionsText;
 
         // hook
         float _hookStartedAt = -1f, _threatAt = -1f, _hook2At = -1f, _hiveLandedAt = -1f, _outAt = -1f, _windowAt = -1f;
+        float _meetStartedAt = -1f;
         bool _hiveLanded;
         string _heardId;
         float _heardAt, _heardClip;
@@ -159,11 +168,13 @@ namespace VirtualBeeSwarm
             if (beat <= GameBeat.Hook || delivery == null) return;
             if (signHere != null && signHere.gameObject.activeSelf) { signHere.Arm(false); delivery.Release(signHere.transform, hide: true); }
             if (hive != null) delivery.EnsureHome(hive.transform, DeliveryStyle.Festoon, 0, HiveLanded);
-            if (Rocket != null) delivery.EnsureHome(Rocket, DeliveryStyle.Crown, 12);
+            // hook -> meet: the rocket flies in on room_hook_2 (Meet does it); any later beat: it is simply there
+            if (Rocket != null && !(beat == GameBeat.Meet && prev == GameBeat.Hook)) delivery.EnsureHome(Rocket, DeliveryStyle.Crown, 12);
             if (beeswax != null)
             {
                 beeswax.SetCaptionAnchor(null);
-                beeswax.EmergeNow(HookMark);
+                // v2: in meet he squeezes out of the door on room_meet_1 (Meet does it); any later beat: just out
+                if (!(beat == GameBeat.Meet && prev == GameBeat.Hook)) beeswax.EmergeNow(HookMark);
             }
         }
 
@@ -193,9 +204,10 @@ namespace VirtualBeeSwarm
             if (!IsActive || ActiveBeat != GameBeat.Pre || director == null) return;
             Log("SIGN HERE signed (" + how + ") " + (Time.time - _preStartedAt).ToString("0.0") + " s into pre" +
                 (_clipParkedAt >= 0f ? ", " + (Time.time - _clipParkedAt).ToString("0.0") + " s after it landed" : "") +
-                (_nudged ? ", after the room_pre nudge" : ""));
+                (_nudges > 0 ? ", after " + _nudges + " room_pre_nudge" : ""));
             clip.Arm(false);
             if (delivery != null) { delivery.Stamp(clip.transform, true); _stamped = true; }
+            SaySigned();
             director.Next("sign here");
         }
 
@@ -235,11 +247,16 @@ namespace VirtualBeeSwarm
             {
                 LastHookSeconds = Time.time - _hookStartedAt;
                 Log("hook beat " + LastHookSeconds.ToString("0.00") + " s (delivery " + BeeDelivery.ModeName(BeeDelivery.Mode) +
-                    (delivery == null ? ", no BeeDelivery" : "") + "): threat line +" + Fmt(_threatAt) + ", room_hook_2 +" + Fmt(_hook2At) +
-                    (Delivering ? ", hive landed +" + Fmt(_hiveLandedAt) + ", Beeswax out +" + Fmt(_outAt) : "") +
-                    (_windowAt >= 0f ? ", window open +" + Fmt(_windowAt) : "") +
-                    (forecast != null && forecast.Summary.Length > 0 ? " | " + forecast.Summary : ""));
+                    (delivery == null ? ", no BeeDelivery" : "") + "): room_hook_carry +" + Fmt(_threatAt) +
+                    (Delivering ? ", hive landed +" + Fmt(_hiveLandedAt) : "") +
+                    (_windowAt >= 0f ? ", window open +" + Fmt(_windowAt) : ""));
                 _hookStartedAt = -1f;
+            }
+            if (beat == GameBeat.Meet && _meetStartedAt >= 0f)
+            {
+                Log("meet beat " + (Time.time - _meetStartedAt).ToString("0.00") + " s: Beeswax out +" + Fmt(_outAt) + ", room_hook_1 +" +
+                    Fmt(_threatAt) + ", room_hook_2 +" + Fmt(_hook2At) + (forecast != null && forecast.Summary.Length > 0 ? " | " + forecast.Summary : ""));
+                _meetStartedAt = -1f;
             }
             if (beat == GameBeat.Meet && window != null && !window.IsOpen) window.Open(); // skipped ahead: still open it
         }
@@ -275,7 +292,9 @@ namespace VirtualBeeSwarm
             if (swarm != null) swarm.ResetSwarm();
             if (embers != null) embers.ResetFx();
             _clipParkedAt = -1f;
-            _nudged = _stamped = false;
+            _stamped = _preSaid = _signedSaid = false;
+            _nextNudgeAt = -1f;
+            _nudges = 0;
             _presence = -1;
             _presenceAt = -1f;
             if (signHere != null)
@@ -328,13 +347,28 @@ namespace VirtualBeeSwarm
                     if (p == 1 && _presence == 0) PlaceClipboard("headset on"); // OVRManager.HMDMounted, without the Meta SDK
                     _presence = p;
                 }
-                if (!_nudged && _clipParkedAt >= 0f && Time.time - _clipParkedAt >= nudgeAfterSeconds && _presence != 0 &&
-                    (net == null || !net.IsSpeaking))
+                bool quiet = net == null || !net.IsSpeaking;
+                if (!_preSaid && _clipParkedAt >= 0f && _presence != 0)
                 {
-                    _nudged = true;
-                    Log("room_pre nudge: nobody signed " + nudgeAfterSeconds.ToString("0") + " s after the clipboard landed");
+                    // v2: room_pre the moment the clipboard parks (voice off-stage: Beeswax is still inside the hive)
+                    _preSaid = true;
+                    Log("room_pre: the clipboard parked");
                     if (net != null) net.Say(GameLines.PreStart);
+                    _nextNudgeAt = -1f;
                 }
+                else if (_preSaid && quiet && _presence != 0)
+                {
+                    if (_nextNudgeAt < 0f) _nextNudgeAt = Time.time + (_nudges == 0 ? nudgeAfterSeconds : nudgeRepeatSeconds);
+                    else if (Time.time >= _nextNudgeAt)
+                    {
+                        _nudges++;
+                        _nextNudgeAt = -1f;
+                        var nudge = RideLines.PreNudge;
+                        Log(nudge.id + " #" + _nudges + ": nobody signed");
+                        if (net != null) net.Say(nudge);
+                    }
+                }
+                else if (!quiet) _nextNudgeAt = -1f; // the timer counts from the end of the last line
                 yield return null;
             }
         }
@@ -383,36 +417,61 @@ namespace VirtualBeeSwarm
         }
 
         // ------------------------------------------------------------ hook
+        /// <summary>room_pre_signed once per run: on the poke, or at the start of the hook when START came another way.</summary>
+        void SaySigned()
+        {
+            if (_signedSaid || net == null) return;
+            _signedSaid = true;
+            if (_preSaid || net.IsSpeaking) net.StopVoice(); // cut room_pre / a nudge (playing or queued): the signature is the answer
+            net.Say(RideLines.PreSigned);
+        }
+
         IEnumerator Hook()
         {
             _hookStartedAt = Time.time;
             _threatAt = _hook2At = _hiveLandedAt = _outAt = _windowAt = -1f;
             bool delivering = Delivering && hive != null;
             bool flyHive = delivering && !IsDelivered(hive.transform);
-            Log("start (delivery " + BeeDelivery.ModeName(BeeDelivery.Mode) + (Forecasting ? ", forecast" : "") + ")");
+            Log("start (delivery " + BeeDelivery.ModeName(BeeDelivery.Mode) + (Forecasting ? ", forecast in meet" : "") + ")");
             if (UseClipboard && signHere.gameObject.activeSelf) StartCoroutine(ClipboardAway());
+            if (UseClipboard) SaySigned(); // started by N / Space / the Board: "Crew, cut the window!" still opens it
+            var carry = RideLines.HookCarry;
 
             if (flyHive)
             {
-                // 20 bees cut the ring; the window opens; the hive leaves on 6 bee chains before the ring is quite
-                // closed, and Beeswax starts the threat from inside it while it flies (4.5 s)
+                // 20 bees cut the ring; the window opens on the faded meadow; the hive swings out on 6 bee chains while
+                // Beeswax complains from inside the box (room_hook_carry), landing on "contract"
                 _hiveLanded = false;
                 delivery.CutRing(() => Log("ring cut done"));
                 Log("ring cut");
                 yield return UntilHook(windowOpenAt);
-                OpenWindow(threatLineAt);
-                yield return UntilHook(hiveAwayAt);
-                delivery.DeliverHome(hive.transform, DeliveryStyle.Festoon, 0, HiveLandedInHook);
-                Log("hive away");
-                yield return UntilHook(ThreatLineAt(threatLineAt));
+                OpenWindow();
+                yield return UntilHook(Mathf.Max(hiveAwayAt, threatLineAt));
+                _threatAt = HookTime();
+                Log(carry.id + " (from inside the box)");
+                bool away = false;
+                yield return SayAndHold(carry, 2f, 9f, (len, heardAt) =>
+                {
+                    // leave so the 4.5 s festoon flight ends on "contract"
+                    float contractAt = LineTime.WordAt(len, carry.caption, "contract", 0.85f);
+                    return heardAt + Mathf.Max(0f, contractAt - hiveFlightSeconds);
+                }, () =>
+                {
+                    away = true;
+                    delivery.DeliverHome(hive.transform, DeliveryStyle.Festoon, 0, HiveLandedInHook);
+                    Log("hive away");
+                });
+                if (!away) { delivery.DeliverHome(hive.transform, DeliveryStyle.Festoon, 0, HiveLandedInHook); Log("hive away (late)"); }
+                float from = Time.time;
+                while (!_hiveLanded && Time.time - from < hiveFlightSeconds + 1.5f) yield return null;
             }
             else if (delivering)
             {
-                // came back to the hook with the hive already here: just the lines (and Beeswax out if he isn't)
-                OpenWindow(0f);
+                // came back to the hook with the hive already here: just the line
+                OpenWindow();
                 _hiveLanded = true;
-                if (beeswax != null && beeswax.Inside) ClimbOut();
-                yield return UntilHook(ThreatLineAt(0f));
+                _threatAt = HookTime();
+                yield return SayAndHold(carry, 2f, 9f);
             }
             else
             {
@@ -422,29 +481,9 @@ namespace VirtualBeeSwarm
                     beeswax.WhipAround();
                 }
                 if (swarm != null) swarm.SetMode(SwarmMode.Idle);
-                if (Forecasting)
-                {
-                    // the window opens now (without the forecast it waits for meet) so the forecast can show
-                    OpenWindow(0f);
-                    yield return UntilHook(ThreatLineAt(0f));
-                }
-            }
-
-            _threatAt = HookTime();
-            Log("threat line (room_hook_1)");
-            yield return SayAndHold(GameLines.Hook, 3f, 9f); // the dark swarm pours on "angry swarms" (StakesDirector)
-            _hook2At = HookTime();
-            if (delivering && Rocket != null && !IsDelivered(Rocket))
-            {
-                delivery.DeliverHome(Rocket, DeliveryStyle.Crown, 12); // flown in nose-up on "Your evacuation rocket"
-                Log("rocket away");
-            }
-            yield return SayAndHold(GameLines.Hook2, 1.5f, 8f);
-            if (delivering)
-            {
-                // the hive must be down and Beeswax out before meet sends him to his spot (normally long done)
-                float from = Time.time;
-                while ((!_hiveLanded || (beeswax != null && (beeswax.Inside || beeswax.Climbing))) && Time.time - from < 3f) yield return null;
+                OpenWindow();
+                _threatAt = HookTime();
+                yield return SayAndHold(carry, 2f, 9f);
             }
             Complete(0.4f);
         }
@@ -453,10 +492,9 @@ namespace VirtualBeeSwarm
         {
             HiveLanded();
             _hiveLanded = true;
-            if (!IsActive || ActiveBeat != GameBeat.Hook) return; // snapped by a beat change: HandleBeatChanged puts Beeswax out
+            if (!IsActive || ActiveBeat != GameBeat.Hook) return; // snapped by a beat change
             _hiveLandedAt = HookTime();
-            Log("hive landed");
-            ClimbOut();
+            Log("hive landed (the door bulges; Beeswax is still inside)");
         }
 
         void ClimbOut()
@@ -467,33 +505,20 @@ namespace VirtualBeeSwarm
             if (outward.sqrMagnitude < 1e-4f) outward = HeadPosition() - hive.transform.position;
             beeswax.ClimbOut(outward, HookMark, () =>
             {
-                if (_hookStartedAt < 0f) return;
-                _outAt = HookTime();
-                Log("Beeswax out of the door, flying up to his mark");
+                if (_meetStartedAt < 0f) return;
+                _outAt = Time.time - _meetStartedAt;
+                Log("Beeswax out of the door, up to his mark");
             });
             Log("Beeswax squeezes out");
         }
 
-        /// <summary>Open the window; with the forecast on, it shows peaceful Paris until the cut on "angry swarms".</summary>
-        void OpenWindow(float threatFloor)
+        /// <summary>Open the window on the faded meadow (v2: the forecast waits for room_forecast in meet).</summary>
+        void OpenWindow()
         {
             if (window == null) return;
             window.Open();
             _windowAt = HookTime();
-            if (!Forecasting) return;
-            float lineAt = ThreatLineAt(threatFloor), words = ThreatWordsOffset();
-            forecast.ShowPeaceful(lineAt + words - _windowAt);
-            Log("window opening on the forecast: room_hook_1 at +" + lineAt.ToString("0.00") + ", \"" + HookTiming.ThreatWords +
-                "\" (the cut) ~" + words.ToString("0.00") + " s into it, so peaceful is fully open " +
-                (lineAt + words - _windowAt - window.OpenSeconds).ToString("0.00") + " s before the cut");
-        }
-
-        /// <summary>When room_hook_1 may start: not before `floor`, and with the forecast on not before the peaceful
-        /// window has been fully open peacefulMinSeconds when "angry swarms" is said.</summary>
-        float ThreatLineAt(float floor)
-        {
-            if (!Forecasting || _windowAt < 0f) return floor;
-            return Mathf.Max(floor, _windowAt + window.OpenSeconds + peacefulMinSeconds - ThreatWordsOffset());
+            if (net != null) net.RequestScene(GameIds.Scene.Meadow, sendToHive: true);
         }
 
         /// <summary>Seconds into room_hook_1 when "angry swarms" is said (the same estimate StakesDirector pours on).</summary>
@@ -512,6 +537,7 @@ namespace VirtualBeeSwarm
         }
 
         float HookTime() => _hookStartedAt >= 0f ? Time.time - _hookStartedAt : -1f;
+        float MeetTime() => _meetStartedAt >= 0f ? Time.time - _meetStartedAt : -1f;
 
         IEnumerator UntilHook(float seconds)
         {
@@ -519,11 +545,12 @@ namespace VirtualBeeSwarm
         }
 
         /// <summary>
-        /// Say a line and hold until it has really finished: at least its clip length from the moment it started (it
-        /// may queue behind room_pre), and while Beeswax is still talking. Same on the headset and in a silent smoke
-        /// player (no audio = IsSpeaking drops at once, so SayAndWait would cut the hook short there).
+        /// Say a line and hold until it has really finished: at least its length from the moment it started (it may queue
+        /// behind another line), and while Beeswax is still talking. Same on the headset and in a silent smoke player (no
+        /// audio = IsSpeaking drops at once, so SayAndWait would cut the intro short there). cueAt(length, startedAt)
+        /// returns when to run `cue` (game time; on a word of the line); it runs at the latest when the line ends.
         /// </summary>
-        IEnumerator SayAndHold(GameLine line, float minSeconds, float maxSeconds)
+        IEnumerator SayAndHold(GameLine line, float minSeconds, float maxSeconds, System.Func<float, float, float> cueAt = null, System.Action cue = null)
         {
             _heardId = null;
             if (net != null) net.Say(line);
@@ -532,31 +559,82 @@ namespace VirtualBeeSwarm
             while (_heardId != line.id && net != null && Time.time - said < 6f) yield return null; // queued behind another line
             bool heard = _heardId == line.id;
             float start = heard ? _heardAt : said;
-            float clip = heard ? _heardClip : 0f;
+            float len = heard && _heardClip > 0f ? _heardClip : LineTime.Seconds(net, line);
+            float hold = heard ? len : 0f;
+            float fireAt = cue != null ? (cueAt != null ? cueAt(len, start) : start) : -1f;
             while (true)
             {
+                if (fireAt >= 0f && Time.time >= fireAt) { fireAt = -1f; cue(); }
                 float t = Time.time - start;
-                if (t >= maxSeconds && t >= clip) break;
                 bool talking = net != null && net.IsSpeaking;
-                if (t >= minSeconds && t >= clip && !talking) break;
+                if ((t >= maxSeconds && t >= hold) || (t >= minSeconds && t >= hold && !talking)) break;
                 yield return null;
             }
+            if (fireAt >= 0f) cue();
         }
 
-        // ------------------------------------------------------------ meet
+        // ------------------------------------------------------------ meet (v2: who, your role, the forecast, the rules)
         IEnumerator Meet()
         {
+            _meetStartedAt = Time.time;
+            _outAt = _threatAt = _hook2At = -1f;
+            bool delivering = Delivering && hive != null;
             if (beeswax != null)
             {
-                beeswax.EmergeNow(HookMark); // only if he never got out (a jump past the hook)
-                beeswax.Detach();
-                beeswax.GoPresent();
+                if (delivering && beeswax.Inside) ClimbOut(); // he says his name mid-squeeze
+                else
+                {
+                    beeswax.EmergeNow(HookMark); // only if he never got out (a jump past the hook)
+                    beeswax.Detach();
+                    beeswax.GoPresent();
+                }
             }
-            yield return Wait(0.8f);
-            if (window != null) window.Open();
-            if (net != null) net.RequestScene(GameIds.Scene.Meadow, sendToHive: true);
-            yield return SayAndWait(GameLines.MeetIntro, 2f, 8f);
-            yield return SayAndWait(GameLines.Meet, 2f, 6f); // room_meet_window is off the demo path (v3.1)
+            if (window != null && !window.IsOpen) window.Open();
+            yield return SayAndHold(GameLines.MeetIntro, 2f, 9f);   // room_meet_1
+            yield return SayAndHold(RideLines.MeetRole, 2f, 8f);    // raps the roof on "sick", jabs a leg on "You signed"
+
+            // "Job perk: that window shows the future." The window goes to peaceful Paris on "future"; the cut to the
+            // ravaged one comes on "angry swarms" in room_hook_1 (StakesDirector pours, ForecastMoment cuts).
+            var fc = RideLines.Forecast;
+            yield return SayAndHold(fc, 2f, 8f, (len, at) => at + LineTime.WordAt(len, fc.caption, "future", 0.55f), () =>
+            {
+                if (!Forecasting) return;
+                float len = LineTime.Seconds(net, fc);
+                float rest = len - LineTime.WordAt(len, fc.caption, "future", 0.55f);
+                forecast.ShowPeaceful(rest + 0.45f + ThreatWordsOffset());
+                Log("window cross-fades to the forecast on \"future\"");
+            });
+
+            _threatAt = MeetTime();
+            Log("threat line (room_hook_1)");
+            yield return SayAndHold(GameLines.Hook, 3f, 9f); // the dark swarm pours on "angry swarms" (StakesDirector)
+
+            _hook2At = MeetTime();
+            yield return SayAndHold(GameLines.Hook2, 1.5f, 8f, null, () =>
+            {
+                // the rocket comes through the window as the line starts; planted on "window seat"
+                if (delivering && Rocket != null && !IsDelivered(Rocket))
+                {
+                    delivery.DeliverHome(Rocket, DeliveryStyle.Crown, 12);
+                    Log("rocket away");
+                }
+            });
+
+            var rules = GameLines.Meet; // room_meet_2: "Four problems. Four minutes. Or you're on that rocket."
+            yield return SayAndHold(rules, 2f, 7f, (len, at) => at + LineTime.WordAt(len, rules.caption, "Four minutes", 0.4f), () =>
+            {
+                var stakes = Stakes.StakesDirector.Instance;
+                if (stakes != null) stakes.RulesNow();
+                if (net != null) net.RequestScene(GameIds.Scene.Meadow, sendToHive: true); // the forecast ends; back to the (stormy) meadow
+                if (beeswax != null && hive != null)
+                {
+                    Vector3 door = hive.DoorPoint.position;
+                    Vector3 outward = door - hive.transform.position;
+                    outward.y = 0f;
+                    beeswax.FlyTo(door + (outward.sqrMagnitude > 1e-4f ? outward.normalized * 0.12f : Vector3.zero) + Vector3.up * 0.1f);
+                }
+                Log("\"Four minutes\": BOARDING lit, window back to the meadow, Beeswax drops to the hive door");
+            });
             Complete(0.4f);
         }
 
