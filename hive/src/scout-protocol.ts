@@ -116,7 +116,7 @@ export interface ScoutPractice { on: boolean }
 export type ScoutMode = "demo" | "practice" | "booth";
 
 /** POST /scout/mode (token): switch mode. `order` (booth only, optional) replaces the station order.
- *  Switching to booth restarts at the first station (no intro; POST /scout/reset plays it). Returns ScoutState.
+ *  Booth without `order` uses SCOUT_BOOTH_JUDGE_ORDER. Switching to booth restarts at the first station (no intro; POST /scout/reset plays it). Returns ScoutState.
  *  Env SCOUT_MODE=demo|practice|booth sets the startup default (SCOUT_PRACTICE=1 still means practice),
  *  SCOUT_ORDER=native_flower,honey_jar,... the booth order. */
 export interface ScoutModeRequest { mode: ScoutMode; order?: ScoutLabel[] }
@@ -130,6 +130,9 @@ export interface ScoutForce { label?: ScoutLabel }
 
 /** The walking order from the run-of-show: four judge stations, then the two optional ones. */
 export const SCOUT_BOOTH_ORDER: readonly ScoutLabel[] = ["native_flower", "honey_jar", "bug_spray", "bee_hotel", "pebble_dish", "beehive"];
+/** Judge mode: the first four stations. Booth mode uses this unless an `order` is passed (POST /scout/mode, SCOUT_ORDER),
+ *  so scout_booth_done lands after station 4. Pass SCOUT_BOOTH_ORDER for all six. */
+export const SCOUT_BOOTH_JUDGE_ORDER: readonly ScoutLabel[] = SCOUT_BOOTH_ORDER.slice(0, 4);
 
 export const SCOUT_BOOTH_TUNING = {
   offerTimeoutMs: 4000, // no answer to scout_chime_ask -> scout_silence_yes, then the fact (silence = yes)
@@ -139,7 +142,7 @@ export const SCOUT_BOOTH_TUNING = {
   // Direction cues from the expected object's most central box (normalized 0..1, 1280x720 stream):
   leftX: 0.375, //         box center x below this -> scout_dir_left
   rightX: 0.625, //        above this -> scout_dir_right
-  topY: 0.25, //           box center y above this line (top of frame; the camera aims ~15 deg below gaze) -> scout_dir_down
+  topY: 0.25, //           box center y above this line (top of frame; the camera aims ~15 deg below gaze) -> scout_dir_up (lift your head)
   minW: 0.0625, //         box narrower than this (80 px) -> scout_dir_closer
 } as const;
 
@@ -153,7 +156,7 @@ export const SCOUT_BOOTH_LINES = {
   rude: "scout_rude", //                           shared with demo mode
   next: (l: ScoutLabel) => `scout_next_${l}`, //   direction to station `l` ("One big step to your left.")
   done: "scout_booth_done", //                     after the last station's fact
-  dir: { left: "scout_dir_left", right: "scout_dir_right", closer: "scout_dir_closer", down: "scout_dir_down", lost: "scout_dir_lost" },
+  dir: { left: "scout_dir_left", right: "scout_dir_right", closer: "scout_dir_closer", up: "scout_dir_up", lost: "scout_dir_lost" },
 } as const;
 
 /** Hive -> dashboard over GET /scout/events (SSE, token). GET /scout/state returns ScoutState. */

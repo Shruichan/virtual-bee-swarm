@@ -15,6 +15,6 @@
   {"id": "scout_dir_left", "kind": "direction", "text": "A bit to your left."},
   {"id": "scout_dir_right", "kind": "direction", "text": "A bit to your right."},
   {"id": "scout_dir_closer", "kind": "direction", "text": "Come closer. I don't bite. I can't, actually."},
-  {"id": "scout_dir_down", "kind": "direction", "text": "Look down at it, like you're reading the label."},
+  {"id": "scout_dir_up", "kind": "direction", "text": "Lift your chin a little so I can see it."},
   {"id": "scout_dir_lost", "kind": "direction", "text": "Left. Your other left."}
 ]
