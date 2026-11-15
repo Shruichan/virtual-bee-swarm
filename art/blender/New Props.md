@@ -1,13 +1,12 @@
-# New props
+# Props and flags
 
-[Ten New Assets.blend](Ten%20New%20Assets.blend) contains the union badge, hive tool, frame rest, queen bee, queen cage, nectar droplet, watering can, flower pots, sample tray, and Moon flag. Textures are packed. The showcase uses display scales. Use the individual asset collections and their local transforms for game staging.
+[Open the Blender file](Ten%20New%20Assets.blend). It contains eleven assets and eighteen clips. The showcase scales the assets for review. Unity controls world placement and gameplay.
 
-| Asset | Clips |
-|---|---|
-| Queen bee | Hover flaps the wings and Blink closes the eyes. Her torso stays level and her root stays fixed. |
-| Frame rest | Inspect Comb Frame lifts and reseats the comb. |
-| Queen cage | Open Cage Plug pulls and replaces the cork. |
-| Watering can | Pour Tilt tips the can around its placement root. |
-| Moon flag | Flag Flutter deforms the cloth using shape keys. |
+- Queen bee has in-place Hover and Blink. The comb lifts from its stand and the cage cork pulls out.
+- The union badge has a pin settle, the hive tool has a lever motion, and the nectar droplet has a wobble.
+- Each flower pot has a separate soil insert, fill preview, and plant anchor. Unity reveals soil and attaches the flower.
+- The watering can has a separate water level, spout outlet, stream preview, and pour tilt. Unity decides when water flows, how much remains, and what it hits.
+- All three samples can lift individually for inspection.
+- The bee union Moon flag and human Earth flag each have a cloth flutter. Unity decides when either flag appears.
 
-Unity controls placement and travel. These animations are authored in Blender and still need Unity import and playback checks.
+Play frames 1–60 for the prop previews. Unity import and gameplay hookup still need testing.
