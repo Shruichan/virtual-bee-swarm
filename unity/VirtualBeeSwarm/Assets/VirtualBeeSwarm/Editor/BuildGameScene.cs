@@ -345,7 +345,7 @@ namespace VirtualBeeSwarm.Editor
             var intro = beats.gameObject.AddComponent<IntroSequence>();
             var preUi = Child("PreUI", anchor, new Vector3(0f, 0f, -0.05f));
             var preText = Text("Instructions", preUi, new Vector3(0f, 0.5f, 0.1f),
-                "Put the hive on the real table:\ngrab the base plate, or pinch the table's\nfront edge twice (left, then right).\nThen press START.\nHoney, the hive's waiting.", 0.004f, Color.white, TextAnchor.MiddleCenter);
+                "Press START to bee-gin", 0.004f, Color.white, TextAnchor.MiddleCenter);
             _ = preText;
             var startRow = Child("StartRow", preUi, new Vector3(0f, 0.1f, -0.16f));
             startRow.localRotation = Quaternion.Euler(25f, 0f, 0f);

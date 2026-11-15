@@ -276,7 +276,7 @@ namespace VirtualBeeSwarm
                 startButton.SetInteractable(true);
             }
             if (_instructions != null)
-                _instructions.text = clip && _instructionsText != null ? _instructionsText.Replace("Then press START.", "Then sign the clipboard.") : _instructionsText;
+                _instructions.text = clip && _instructionsText != null ? _instructionsText.Replace("Press START", "Sign here") : _instructionsText;
         }
 
         void ResetWorld()
