@@ -50,7 +50,7 @@ namespace VirtualBeeSwarm.Editor
             { "Meet", "room_meet_2", "" },
             { "SmokerPrompt", "room_smoker_intro", "= stations.json smoker.intro_line" },
             { "FeedPrompt", "room_feed_intro", "= stations.json feed.intro_line" },
-            { "FeedLiftHint", "room_feed_lift_hint", "the player hasn't lifted the hive yet" },
+            { "FeedLiftHint", "room_feed_lift_hint", "the player is checking the hive's weight" },
             { "FeedTooLight", "room_feed_tip", "after the lift" },
             { "FeedChoose", "room_feed_prompt", "" },
             { "WaspsPrompt", "room_wasps_intro", "= stations.json wasps.intro_line" },
@@ -73,11 +73,12 @@ namespace VirtualBeeSwarm.Editor
             { "Retry", "room_ack_denied", "" },
         };
 
-        // Lines the game plays that lines.json doesn't have (yet): caption only, no clip. Once lines.json has the id,
-        // its text wins and Check says to remove the entry here.
+        // Lines owned by the local game. Their recorded clips live under Resources/BeeswaxLines.
+        // If an id moves to the Hive line catalog, remove its duplicate here.
         static readonly string[,] LocalOnly =
         {
-            { "room_feed_lift_hint", "Grab it and lift. Union rules allow it." },
+            { "room_feed_lift_hint", "Grab the hive and rock it back and forth. Feel how heavy it is." },
+            { "room_feed_rock_retry", "Hold on. Pick it back up and give it a rock. We still need to feel how heavy it is." },
         };
 
         // Per GameStation (0..3): the alias of its prompt, which must be stations.json's intro_line.
@@ -402,7 +403,6 @@ namespace VirtualBeeSwarm.Editor
                   line.Channel + " | " + (line.Beat.Length > 0 ? line.Beat : "-") + " | " + string.Join(", ", line.Tags));
             L();
             L("        // ------------------------------------------------------------ local only: the game plays these, lines.json doesn't have them");
-            L("        // (no clip: caption only). Add them to hive/lines/lines.json + render them, and they come from there.");
             foreach (var kv in local)
                 L("        public static readonly GameLine " + Pascal(kv.Key) + " = new GameLine(" + Lit(kv.Key) + ", " + Lit(kv.Value) + ");");
             L();
@@ -447,15 +447,16 @@ namespace VirtualBeeSwarm.Editor
             L("            return all;");
             L("        }");
             L();
-            L("        /// <summary>The ids that have (or should have) a clip in Resources/BeeswaxLines: every lines.json line, in file order. Allocates.</summary>");
+            L("        /// <summary>The prerecorded line ids, in file order followed by local gameplay prompts.</summary>");
             L("        public static string[] ClipIds()");
             L("        {");
-            L("            var ids = new string[FileLines.Length];");
-            L("            for (int i = 0; i < ids.Length; i++) ids[i] = FileLines[i].id;");
+            L("            var ids = new string[FileLines.Length + LocalLines.Length];");
+            L("            for (int i = 0; i < FileLines.Length; i++) ids[i] = FileLines[i].id;");
+            L("            for (int i = 0; i < LocalLines.Length; i++) ids[FileLines.Length + i] = LocalLines[i].id;");
             L("            return ids;");
             L("        }");
             L();
-            L("        /// <summary>A line the game plays that lines.json doesn't have (caption only).</summary>");
+            L("        /// <summary>A line owned by the game rather than the Hive line catalog.</summary>");
             L("        public static bool IsLocalOnly(string id)");
             L("        {");
             L("            for (int i = 0; i < LocalLines.Length; i++)");
@@ -533,7 +534,7 @@ namespace VirtualBeeSwarm.Editor
             foreach (var kv in compiled)
             {
                 if (src.ById.ContainsKey(kv.Key)) continue;
-                if (isLocalOnly != null && (bool)isLocalOnly.Invoke(null, new object[] { kv.Key })) { local++; r.Warn("local-only line " + kv.Key + " is not in lines.json: caption only, no clip (lane D: add it to hive/lines/lines.json and render it)"); }
+                if (isLocalOnly != null && (bool)isLocalOnly.Invoke(null, new object[] { kv.Key })) local++;
                 else r.Error("GameLines id " + kv.Key + " is not in lines.json");
             }
             // Every GameLine field (the beat names too) must point at a known line with its exact caption.
