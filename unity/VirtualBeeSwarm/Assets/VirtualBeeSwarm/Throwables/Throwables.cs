@@ -634,7 +634,9 @@ namespace VirtualBeeSwarm.Throw
                     // the set-up prop is what the player reaches for: only an open-hand slap through it (palm inside the
                     // prop, fingers straight) knocks it, never a fingertip on the way to a pinch
                     bool tipIn = !live && tipSpeed >= KnockSpeed && b.Contains(hand.tip);
-                    bool palmIn = hand.palm && palmSpeed >= KnockSpeed && b.Contains(hand.centre) && (!live || hand.open);
+                    var palmBox = b;
+                    palmBox.Expand(0.06f); // the palm is a hand-sized surface, not a point: 3 cm more each side
+                    bool palmIn = hand.palm && palmSpeed >= KnockSpeed && palmBox.Contains(hand.centre) && (!live || hand.open);
                     if (!tipIn && !palmIn) continue;
                     Vector3 vel = tipIn ? _rawTipV[h] : _rawCentreV[h];
                     float speed = vel.magnitude;
@@ -879,6 +881,7 @@ namespace VirtualBeeSwarm.Throw
             else line = _said % 2 == 0 ? RideLines.Get("room_throw_property", "Hey! That's union property!")
                                        : RideLines.Get("room_throw_writeup", "Who threw that? I'm writing it up.");
             _net.Say(line);
+            if (PalBeeswax.Instance != null) PalBeeswax.Instance.HoldLines(6f); // [Pals] his pal lines keep their quiet gap after it
             _said++;
             _nextLine = now + 35f;
             Log("Beeswax: \"" + line.caption + "\" (" + line.id + ")");
@@ -888,6 +891,7 @@ namespace VirtualBeeSwarm.Throw
         bool Free()
         {
             if (_net.IsSpeaking || BeeswaxMotion.ShowMoment) return false;
+            if (PalBeeswax.Instance != null && !PalBeeswax.Instance.FreeToTalk) return false; // a pal line (boop, wave, pet) just played
             if (_bw != null && (!_bw.Visible || _bw.Inside)) return false;
             if (HandsOnDirector.Instance != null && HandsOnDirector.Instance.WaitingForLaunch) return false;
             if (_director == null) return true;
@@ -967,6 +971,9 @@ namespace VirtualBeeSwarm.Throw
             }
             return any;
         }
+
+        /// <summary>The prop's visible box in world space (price tag and text left out).</summary>
+        public static bool PropBounds(Transform root, out Bounds b) => WorldBounds(root, out b);
 
         static bool WorldBounds(Transform root, out Bounds b)
         {
