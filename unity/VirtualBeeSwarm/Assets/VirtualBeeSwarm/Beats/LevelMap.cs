@@ -86,6 +86,45 @@ namespace VirtualBeeSwarm
             bool visible = open || CanOpenMaps();
             if (visible && _menu == null) _menu = new MapMenu(transform, OpenMaps, ReplayHive, BackFromMaps);
             _menu?.Show(visible, open);
+            KeepCaptionClear();
+        }
+
+        // [polish] Beeswax's caption is drawn on top of everything, so over the map panel (room_map) and the held end
+        // card (room_end_contract) it covered the hexes and the contract. While either is up, park it just above its top edge.
+        Transform _capOver, _capAnchor;
+        Renderer[] _capRenderers;
+        bool _capMine;
+
+        void KeepCaptionClear()
+        {
+            if (beeswax == null) return;
+            Transform over = null;
+            if (IsActive && director != null && Handles(director.Beat))
+            {
+                if (mapRoot != null && mapRoot.activeInHierarchy) over = mapRoot.transform;
+                else if (_escape != null && _escape.EndCardShown) over = _escape.EndCard;
+            }
+            if (over == null)
+            {
+                if (_capMine && beeswax.CaptionAnchor == _capAnchor) beeswax.SetCaptionAnchor(null);
+                _capMine = false;
+                _capOver = null;
+                return;
+            }
+            if (beeswax.CaptionAnchor != null && beeswax.CaptionAnchor != _capAnchor) { _capMine = false; return; } // Ask parked it
+            if (over != _capOver) { _capOver = over; _capRenderers = over.GetComponentsInChildren<Renderer>(true); }
+            bool any = false;
+            Bounds b = default;
+            for (int i = 0; i < _capRenderers.Length; i++)
+            {
+                var r = _capRenderers[i];
+                if (r == null || !r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer) continue;
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            }
+            if (!any) return;
+            if (_capAnchor == null) { _capAnchor = new GameObject("[VBS] Map caption spot").transform; _capAnchor.SetParent(transform, false); }
+            _capAnchor.position = new Vector3(b.center.x, b.max.y + 0.025f, b.center.z);
+            if (!_capMine) { beeswax.SetCaptionAnchor(_capAnchor, 0f); _capMine = true; Debug.Log("[VBS][Caption] parked above " + over.name); }
         }
 
         bool CanOpenMaps()

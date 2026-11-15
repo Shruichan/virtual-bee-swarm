@@ -46,6 +46,7 @@ namespace VirtualBeeSwarm
         GameObject _endPanel;
         float _endPanelHeight, _cardBottom; // world metres: the panel, and the card's bottom below its pivot
         public bool EndCardShown => _endPanel != null && _endPanel.activeInHierarchy;
+        public Transform EndCard => scoreCard != null ? scoreCard.transform : null; // [polish hook: LevelMap parks the caption above it]
         // the held card draws after the room's text (TextMesh ignores depth, so the map's labels showed through it)
         readonly System.Collections.Generic.List<(Renderer r, Material[] mats)> _onTop = new System.Collections.Generic.List<(Renderer, Material[])>();
         readonly System.Collections.Generic.List<Material> _onTopMats = new System.Collections.Generic.List<Material>();
