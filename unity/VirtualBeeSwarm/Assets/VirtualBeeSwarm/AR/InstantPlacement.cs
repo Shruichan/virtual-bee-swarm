@@ -31,6 +31,8 @@ namespace VirtualBeeSwarm.AR
         const float HoldMiss = 0.35f, HoldFit = 0.2f;
         float _lastShowAt = -10f, _fitSince;
         bool _rawFit;
+        Bloom.BloomScene _scene;
+        float _nextScanRead;
         public bool Aiming { get; private set; }
         public ArHitStatus LastStatus { get; private set; } = ArHitStatus.NotReady;
         public int Placements { get; private set; }
@@ -96,14 +98,25 @@ namespace VirtualBeeSwarm.AR
 
             Vector3 fwd = Vector3.ProjectOnPlane(ray.direction, Vector3.up);
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(_rig.HeadForward(), Vector3.up);
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
             fwd.Normalize();
             bool meadow = Bloom.MeadowLayout.Active; // meadow: the big rig needs open FLOOR (never a table, bed or sofa)
-            bool fits = _rig.Raycaster.PlaceBox(ray, meadow ? boxSize * Bloom.MeadowLayout.Scale : boxSize, fwd, out var hit);
+            float now = Time.time;
+            if (meadow && !desktop && now >= _nextScanRead)
+            {
+                _nextScanRead = now + HoldMiss;
+                _scene = Bloom.MeadowField.Instance != null ? Bloom.MeadowField.Instance.CurrentScene() : null;
+            }
+            Vector3 footprint = meadow ? boxSize * Bloom.MeadowLayout.Scale : boxSize;
+            bool fits = _rig.Raycaster.PlaceBox(ray, footprint, fwd, out var hit);
             LastStatus = hit.status;
+            // A rejected box can still have a ray hit. Keep the red footprint visible at the actual surface.
+            if (hit.status != ArHitStatus.Hit && _rig.Raycaster.Raycast(ray, maxDistance, out var rejected))
+                hit = rejected;
             bool show = hit.status == ArHitStatus.Hit && (hit.point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
             fits = fits && show && hit.normal.y > 0.9f;
-            if (meadow && Mathf.Abs(hit.point.y - Bloom.MeadowLayout.FloorY) > 0.1f) fits = false;
-            float now = Time.time;
+            bool aboveFloor = meadow && Mathf.Abs(hit.point.y - (_scene?.FloorY ?? Bloom.MeadowLayout.FloorY)) > 0.1f;
+            if (aboveFloor || (fits && meadow && _scene != null && !OpenFloor(hit.point, fwd, footprint))) fits = false;
             if (!show)
             {
                 if (_ghost.activeSelf && now - _lastShowAt > HoldMiss) _ghost.SetActive(false);
@@ -112,6 +125,7 @@ namespace VirtualBeeSwarm.AR
             bool wasShown = _ghost.activeSelf;
             _lastShowAt = now;
             if (!wasShown) _ghost.SetActive(true);
+            _ghostRenderer.transform.localScale = new Vector3(footprint.x, 0.008f, footprint.y);
 
             var rot = Quaternion.LookRotation(fwd, Vector3.up);
             if (!wasShown || (hit.point - _ghost.transform.position).sqrMagnitude > 0.5f * 0.5f) _ghost.transform.SetPositionAndRotation(hit.point, rot);
@@ -126,8 +140,10 @@ namespace VirtualBeeSwarm.AR
             {
                 _lastFit = shownFit;
                 GameMaterials.Tint(_ghostRenderer, shownFit ? fitColor : noFitColor);
-                _ghostText.text = shownFit ? (desktop ? "DELIVER HERE\nrelease L" : "DELIVER HERE\npinch") : "doesn't fit here";
             }
+            string label = shownFit ? (desktop ? "DELIVER HERE\nrelease L" : "DELIVER HERE\npinch") :
+                aboveFloor ? "AIM AT OPEN FLOOR" : "MORE SPACE NEEDED";
+            if (_ghostText.text != label) _ghostText.text = label;
             if (place && fits)
             {
                 Placements++;
@@ -135,6 +151,19 @@ namespace VirtualBeeSwarm.AR
                 _rig.PlaceFromRaycast(new Pose(hit.point, Quaternion.LookRotation(fwd, Vector3.up)));
                 _ghost.SetActive(false);
             }
+        }
+
+        bool OpenFloor(Vector3 point, Vector3 forward, Vector3 footprint)
+        {
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            // Use the existing collision query as the first gate, then veto edges and furniture from the room scan.
+            for (int x = -2; x <= 2; x++)
+                for (int z = -2; z <= 2; z++)
+                {
+                    Vector3 sample = point + right * (x * footprint.x * 0.25f) + forward * (z * footprint.y * 0.25f);
+                    if (!_scene.InFloor(sample) || _scene.InVolume(sample, 0.04f)) return false;
+                }
+            return true;
         }
 
         bool DesktopRay(out Ray ray, out bool place)

@@ -74,7 +74,7 @@ namespace VirtualBeeSwarm
         {
             if (net == null) net = FindAnyObjectByType<GameNet>();
             if (hive == null) hive = FindAnyObjectByType<HiveBody>();
-            if (beeMesh == null) beeMesh = GameMeshes.CreateBeeMesh();
+            beeMesh = BeeVat.AuthoredWorkerMesh(beeMesh) ?? beeMesh ?? GameMeshes.CreateBeeMesh();
             _workerBeeMesh = beeMesh;
             if (beeMaterial == null)
                 beeMaterial = GameMaterials.Create("VBS_Bee (runtime)", Color.white, vertexColors: true, doubleSided: true);

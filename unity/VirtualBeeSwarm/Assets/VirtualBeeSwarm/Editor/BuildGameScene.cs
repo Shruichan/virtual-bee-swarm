@@ -658,7 +658,13 @@ namespace VirtualBeeSwarm.Editor
             }
             var rigScene = EditorSceneManager.OpenScene(template, OpenSceneMode.Additive);
             var names = new List<string>();
-            foreach (var go in rigScene.GetRootGameObjects()) names.Add(go.name);
+            foreach (var go in rigScene.GetRootGameObjects())
+            {
+                names.Add(go.name);
+                // Keep the authored lid visible when a player leans in to inspect or grip the hive.
+                foreach (var camera in go.GetComponentsInChildren<Camera>(true))
+                    camera.nearClipPlane = Mathf.Min(camera.nearClipPlane, 0.025f);
+            }
             EditorSceneManager.MergeScenes(rigScene, scene); // moves the objects; the template file is not changed
             SceneManager.SetActiveScene(scene);
             return "from " + template + " [" + string.Join(", ", names) + "]";

@@ -31,6 +31,8 @@ namespace VirtualBeeSwarm.Ask
         {
             get
             {
+                // A pinch on the grab tab also belongs to the card's pointer input.
+                if (_grip != null && _grip.Held) return true;
                 if (_chips == null) return false;
                 foreach (var c in _chips) if (c != null && c.isActiveAndEnabled && c.Hovered) return true;
                 return false;
@@ -47,6 +49,7 @@ namespace VirtualBeeSwarm.Ask
         readonly Transform[] _hex = new Transform[3];
         readonly Renderer[] _hexR = new Renderer[3];
         bool _flownIn;
+        PanelGrip _grip;
         float _punchAt = -9f;
 
         static Font _font;
@@ -82,6 +85,7 @@ namespace VirtualBeeSwarm.Ask
             Box("Board", _root.transform, Vector3.zero, new Vector3(Width, Height, 0.006f), _boardMat);
 
             float top = Height * 0.5f;
+            _grip = PanelGrip.Add(_root.transform, _root.transform, new Vector3(0f, top + 0.01f, 0f), delivered: true);
             Text("Title", new Vector3(0f, top - 0.030f, -0.004f), "ASK BEESWAX", 0.0042f, FontStyle.Bold);
             _status = Text("Status", new Vector3(0f, top - 0.076f, -0.004f), AskFlow.StatusIdle, StatusBig, FontStyle.Bold);
             for (int i = 0; i < 3; i++)
@@ -117,6 +121,8 @@ namespace VirtualBeeSwarm.Ask
         public void Show(Pose pose)
         {
             Build();
+            _grip.ResetPlacement();
+            _grip.Ready = true;
             ShowChips();
             SetLook(AskCardLook.Idle);
             var bd = BeeDelivery.Instance;
@@ -137,6 +143,8 @@ namespace VirtualBeeSwarm.Ask
         public void Hide(bool fly)
         {
             if (_root == null) return;
+            _grip.Ready = false;
+            _grip.ResetPlacement();
             var bd = BeeDelivery.Instance;
             if (_flownIn && bd != null)
             {
