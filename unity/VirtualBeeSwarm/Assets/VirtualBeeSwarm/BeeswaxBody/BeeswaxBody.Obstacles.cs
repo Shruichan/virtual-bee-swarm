@@ -12,8 +12,8 @@ namespace VirtualBeeSwarm
     /// </summary>
     public partial class BeeswaxBody
     {
-        public enum Group { Head, Hand, Surface, Hive, Rocket, Window, Card, Lever, Board, Socket, Carry, Prop, NewProp, Station, Count }
-        static readonly string[] GroupNames = { "head", "hand", "table", "hive", "rocket", "window", "card", "lever", "board", "socket", "carry", "prop", "newprop", "station" };
+        public enum Group { Head, Hand, Surface, Hive, Rocket, Window, Card, Lever, Board, Socket, Carry, Prop, NewProp, Station, Room, RoomWall, Count }
+        static readonly string[] GroupNames = { "head", "hand", "table", "hive", "rocket", "window", "card", "lever", "board", "socket", "carry", "prop", "newprop", "station", "room", "wall" };
         public static string GroupName(int g) => g >= 0 && g < GroupNames.Length ? GroupNames[g] : "?";
 
         const int MaskAll = (1 << (int)Group.Count) - 1;
@@ -103,6 +103,8 @@ namespace VirtualBeeSwarm
             AddAll<DeliveryItem>(Group.Prop);
             AddAll<NewPropAct>(Group.NewProp);
             AddAll<StationBase>(Group.Station); // the station props (the smoker on its stand...) while they are out
+            AddAll<RoomAware.RoomKeepOutProxy>(Group.Room); // [RoomAware] hook: real furniture from the room scan / depth
+            AddAll<RoomAware.RoomWallProxy>(Group.RoomWall); // [RoomAware] hook: the scan's walls (never in a detour box, see BoundsNear)
         }
 
         // ------------------------------------------------------------ the window's opening
@@ -429,6 +431,7 @@ namespace VirtualBeeSwarm
             {
                 var part = _parts[i];
                 if (Ignored(part) || part.kind != Kind.Mesh || (mask & (1 << part.group)) == 0) continue;
+                if (part.group == (int)Group.RoomWall) continue; // [RoomAware] hook: a wall's axis box would swallow the room
                 float t = Mathf.Clamp01(Vector3.Dot(part.box.c - p, pq) / l2);
                 if ((p + pq * t - part.box.c).sqrMagnitude > Sq(part.bound + near)) continue;
                 var bb = new Bounds(part.box.c, 2f * part.box.AabbExtents);
@@ -444,6 +447,7 @@ namespace VirtualBeeSwarm
                 {
                     var part = _parts[i];
                     if (Ignored(part) || part.kind != Kind.Mesh || (mask & (1 << part.group)) == 0) continue;
+                    if (part.group == (int)Group.Room || part.group == (int)Group.RoomWall) continue; // [RoomAware] hook: furniture against a wall would grow the detour to the whole room
                     var bb = new Bounds(part.box.c, 2f * part.box.AabbExtents);
                     if (grow.Intersects(bb)) bounds.Encapsulate(bb);
                 }
