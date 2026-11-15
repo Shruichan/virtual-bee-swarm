@@ -41,11 +41,16 @@ def draw_model(canvas,name,box):
         poly=[(ox+pts[k][0]*scale,oy-pts[k][1]*scale) for k in ix]; depth=sum(pts[k][2] for k in ix)/3; items.append((depth,poly,rgb))
     for _,poly,rgb in sorted(items,key=lambda item:item[0]): draw.polygon(poly,fill=rgb)
 
-canvas=Image.new("RGBA",(W,H),BG); draw=ImageDraw.Draw(canvas); bold="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"; reg="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-draw.text((W/2,24),"BEE SCOUT  •  MEADOW ENVIRONMENT PACK",font=ImageFont.truetype(bold,40),fill=(54,73,43,255),anchor="mt")
-labels=[("meadow_flowers","Flower clump"),("soft_grass_tuft","Soft grass"),("flowering_vine","Flowering vine")]
-for i,(name,label) in enumerate(labels):
-    x=35+i*520; draw.rounded_rectangle((x,95,x+490,710),radius=28,fill=(255,255,255,210),outline=(211,224,193,255),width=3)
-    draw_model(canvas,name,(x+35,150,420,480))
-    draw.text((x+245,650),label,font=ImageFont.truetype(bold,28),fill=(54,73,43,255),anchor="mt")
-canvas.save(ROOT/"preview.png")
+def render_preview():
+    canvas=Image.new("RGBA",(W,H),BG); draw=ImageDraw.Draw(canvas); bold="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"; reg="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    draw.text((W/2,24),"BEE SCOUT  •  MEADOW ENVIRONMENT PACK",font=ImageFont.truetype(bold,40),fill=(54,73,43,255),anchor="mt")
+    labels=[("meadow_flowers","Flower clump"),("soft_grass_tuft","Soft grass"),("flowering_vine","Flowering vine")]
+    for i,(name,label) in enumerate(labels):
+        x=35+i*520; draw.rounded_rectangle((x,95,x+490,710),radius=28,fill=(255,255,255,210),outline=(211,224,193,255),width=3)
+        draw_model(canvas,name,(x+35,150,420,480))
+        draw.text((x+245,650),label,font=ImageFont.truetype(bold,28),fill=(54,73,43,255),anchor="mt")
+    canvas.save(ROOT/"preview.png")
+
+
+if __name__ == "__main__":
+    render_preview()
