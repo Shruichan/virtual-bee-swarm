@@ -3,7 +3,7 @@
 // then Mentra TTS of the caption (a different voice, so it's the last resort).
 import type {SpeakerModule} from "@mentra/miniapp/background"
 import {CAPTIONS, LINES, SAMPLE_RATE, type Lines} from "./lines"
-import {deferred, describe, TimeoutError, withTimeout, type Deferred, type Log} from "./util"
+import {deferred, describe, sleep, TimeoutError, withTimeout, type Deferred, type Log} from "./util"
 
 export interface LineRef {
   line_id: string | null
@@ -45,6 +45,13 @@ const FIRST_CHUNK_B64 = 12_800
  *  scout_stop is what drops them. */
 const MAX_QUEUE_WAIT_MS = 10_000
 
+/** Between two url/speak plays (the host's player needs a moment to let go of the last one). */
+export const PLAY_GAP_MS = 200
+/** Wait at most this long for the previous play request to settle. */
+const SETTLE_MAX_MS = 800
+/** No "playing" this long after play(): the host stalled; stop and retry once (hosts that report states only). */
+export const STALL_MS = 4000
+
 export interface EarOptions {
   maxQueueWaitMs?: number
 }
@@ -68,6 +75,10 @@ export class Ear {
   private current: Job | null = null
 
   private maxQueueWaitMs: number
+  /** url/speak: when the last one ended, its still-unsettled request, and whether the host reports states. */
+  private lastEndAt = 0
+  private pending: Promise<unknown> | null = null
+  private statesSeen = false
 
   constructor(
     private speaker: Speaker,
@@ -223,25 +234,57 @@ export class Ear {
       return
     }
 
-    const calledAt = Date.now()
-    job.stop = () => this.speaker.stop()
-    // The host resolves play()/speak() when playback ends, but sometimes never does (seen live: the queue stalled
-    // 45 s, then everything behind it was dropped). A "stopped"/"idle" after "playing" also counts as the end.
-    let sawPlaying = false
-    let endedByState!: () => void
-    const ended = new Promise<void>((r) => (endedByState = r))
-    const off = this.speaker.onStateChange((e) => {
-      if (e.state === "playing") {
-        sawPlaying = true
-        markStarted()
-      } else if (sawPlaying && (e.state === "stopped" || e.state === "idle")) endedByState()
-    })
-    try {
-      const done = src.kind === "url" ? this.speaker.play({audioUrl: src.url, stopOtherAudio: true}) : this.speaker.speak(src.text, {stopOtherAudio: true})
-      await Promise.race([done, ended])
+    // Seen live: a url play started the moment the previous one finished never played (intro_2, every time). So:
+    // let the previous request settle, leave a short gap, and retry once if the host never reports "playing".
+    if (this.pending) await Promise.race([this.pending, sleep(SETTLE_MAX_MS)])
+    const gap = PLAY_GAP_MS - (Date.now() - this.lastEndAt)
+    if (gap > 0) await sleep(gap)
+    const firstAfterIdle = Date.now() - this.lastEndAt > 1000
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (job.cancelled) return
+      const calledAt = Date.now()
+      job.stop = () => this.speaker.stop()
+      this.log(`ear: play ${job.label} (${src.kind}${attempt ? ", retry" : ""})`)
+      // The host resolves play()/speak() when playback ends, but sometimes never does (seen live: the queue stalled
+      // 45 s, then everything behind it was dropped). A "stopped"/"idle" after "playing" also counts as the end.
+      let sawPlaying = false
+      let endedByState!: () => void
+      const ended = new Promise<"stopped">((r) => (endedByState = () => r("stopped")))
+      let stallTimer: ReturnType<typeof setTimeout> | undefined
+      // Only a host that reports states can be caught stalling (no "playing" in time); otherwise the line limit applies.
+      const stalled = new Promise<"stall">((r) => {
+        if (this.statesSeen) stallTimer = setTimeout(() => !sawPlaying && r("stall"), STALL_MS)
+      })
+      const off = this.speaker.onStateChange((e) => {
+        if (e.state === "playing") {
+          sawPlaying = true
+          this.statesSeen = true
+          markStarted()
+        } else if (sawPlaying && (e.state === "stopped" || e.state === "idle")) endedByState()
+      })
+      let how: "result" | "stopped" | "stall"
+      try {
+        // stopOtherAudio only when starting after a pause: back to back, our own previous line is already over
+        const opts = {stopOtherAudio: attempt === 0 && firstAfterIdle}
+        const done = src.kind === "url" ? this.speaker.play({audioUrl: src.url, ...opts}) : this.speaker.speak(src.text, opts)
+        this.pending = Promise.resolve(done).catch(() => {})
+        how = await Promise.race([Promise.resolve(done).then(() => "result" as const), ended, stalled])
+      } finally {
+        clearTimeout(stallTimer)
+        off()
+        this.lastEndAt = Date.now()
+      }
+      if (how === "stall" && attempt === 0) {
+        this.log(`ear: ${job.label} never started playing, retrying`)
+        try {
+          this.speaker.stop()
+        } catch {}
+        await sleep(PLAY_GAP_MS)
+        continue
+      }
       markStarted(calledAt) // host that never reported "playing"
-    } finally {
-      off()
+      this.log(`ear: end ${job.label} after ${Date.now() - calledAt} ms (${how})`)
+      return
     }
   }
 }
