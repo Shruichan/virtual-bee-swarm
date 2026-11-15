@@ -183,6 +183,7 @@ namespace VirtualBeeSwarm.Pebbles
                 float age = Time.time - _startedAt;
                 if (age > HardCapSeconds) { reason = "hard cap"; break; }
                 if (age > InviteSeconds && (!AnyInPlay() || age > PlayerCapSeconds)) { reason = "timeout"; break; }
+                if (_misses >= 4 && _landed == 0 && !AnyInPlay()) { reason = "4 misses"; break; } // polish: no long silent stretch of misses
                 yield return null;
             }
             if (!_running) yield break;
@@ -290,7 +291,10 @@ namespace VirtualBeeSwarm.Pebbles
             if (floor > _dishRoot.position.y - 0.1f || floor < eye.y - 2.2f) floor = Mathf.Min(_dishRoot.position.y - 0.6f, eye.y - 1.5f);
             _catchY = floor;
             float y = Mathf.Max(eye.y - 0.5f, floor + 0.45f);
-            Vector3 at = eye + fwd * 0.34f + right * 0.24f;
+            // polish: a dish the room moved far off (rooms 16/21: ~0.8 m from the bowl) got missed again and again. The
+            // bowl comes forward toward it, but stays within arm's reach (at most 0.52 m ahead of the eyes).
+            float ahead = Mathf.Clamp(toDish.magnitude - 0.55f, 0.34f, 0.52f);
+            Vector3 at = eye + fwd * ahead + right * 0.24f;
             at.y = y;
 
             if (_bowlRoot == null)
