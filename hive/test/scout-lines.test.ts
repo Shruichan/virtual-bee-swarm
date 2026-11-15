@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import raw from "../lines/scout_lines.json";
-import { SCOUT_AUDIO_DIR, SCOUT_MANIFEST_FILE, lineHash, readManifest } from "../scripts/scout-render";
+import { PLACEHOLDER, SCOUT_AUDIO_DIR, SCOUT_MANIFEST_FILE, VOICE_NAMES, lineHash, readManifest } from "../scripts/scout-render";
 import { SCOUT_LABELS, SCOUT_LINES, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 
 const lines = raw as ScoutLine[];
@@ -70,7 +70,7 @@ const UNSAFE = ["touch", "hold", "grab", "catch", "swat", "squish", "kill", "stu
 
 const words = (t: string) => t.split(/\s+/).filter(Boolean);
 const capsWords = (t: string) => words(t).map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => /^[A-Z]{2,}$/.test(w));
-const lastQuestion = (t: string) => t.slice(Math.max(t.lastIndexOf(". "), t.lastIndexOf("! "), t.lastIndexOf("? ", t.length - 2)) + 1).trim().toLowerCase();
+const HOOK_ENDING = "Would you like to learn more?";
 
 describe("scout_lines.json", () => {
   test("has exactly the ids SCOUT_LINES implies, once each, with the right kind and label", () => {
@@ -98,11 +98,13 @@ describe("scout_lines.json", () => {
     expect(byId.get(SCOUT_LINES.chime)!.text).toBe("Bee fact found!");
   });
 
-  test("hooks end with six different questions", () => {
-    const hooks = SCOUT_LABELS.map((label) => byId.get(SCOUT_LINES.hook(label))!.text);
-    for (const h of hooks) expect(h.endsWith("?"), h).toBe(true);
-    const questions = hooks.map(lastQuestion);
-    expect(new Set(questions).size, questions.join(" | ")).toBe(6);
+  test("hooks are short, name something first, and end with the same offer", () => {
+    for (const label of SCOUT_LABELS) {
+      const h = byId.get(SCOUT_LINES.hook(label))!.text;
+      expect(h.endsWith(` ${HOOK_ENDING}`), h).toBe(true);
+      expect(h.length <= 80, h).toBe(true); // heard right after the chime
+      expect(h.slice(0, -HOOK_ENDING.length).trim().length >= 10, h).toBe(true);
+    }
   });
 
   test("repeatable no barks start with different words", () => {
@@ -137,7 +139,7 @@ describe("scout_audio", () => {
       expect(existsSync(file), file).toBe(true);
       bytes += statSync(file).size;
       expect(m.ms > 0, l.id).toBe(true);
-      expect(["harry", "placeholder"]).toContain(m.voice);
+      expect(["harry", PLACEHOLDER, ...Object.values(VOICE_NAMES)]).toContain(m.voice);
       expect(m.chars, l.id).toBe(l.text.length);
       expect(m.hash, `${l.id} text changed: run bun scripts/scout-render.ts`).toBe(lineHash(l));
     }
