@@ -246,6 +246,16 @@ if (import.meta.main) {
     } else console.log("(--prod: hive/src/scout-ask.ts not found, skipped)");
   }
   let best = base;
+  // --check <file>: score one hand-edited prompt template (e.g. best_prompt.txt after a manual touch-up) as "final".
+  const checkAt = args.indexOf("--check");
+  if (checkAt >= 0) {
+    const r = await runPrompt(h, "final", readFileSync(args[checkAt + 1]!, "utf8").trim(), qs, "hand-checked final");
+    all.push(r);
+    printRound(r, all);
+    if (flag("--apply")) console.log(applyPrompt(r.prompt) ? "applied to hive/src/scout-ask-prompt.ts" : "nothing to apply to");
+    console.log(`spend this run ~$${costEstimate().toFixed(2)}`);
+    process.exit(0);
+  }
   const rounds = opt("--rounds", 4);
   for (let i = 1; i <= rounds; i++) {
     const { prompt, note } = await rewrite(best, all.filter((r) => r.name !== "prod"), qs);
