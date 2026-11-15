@@ -1,5 +1,5 @@
 [
-  {"id": "room_pre", "channel": "room", "beat": "pre", "text": "Delivery for you. One hive, slightly used. Sign here.", "tags": ["pre", "prompt", "delivery"]},
+  {"id": "room_pre", "channel": "room", "beat": "pre", "text": "Welcome, beekeeper! Today you'll learn how bees live, and how to help them. First, sign here.", "tags": ["pre", "prompt", "delivery"]},
   {"id": "room_pre_nudge", "channel": "room", "beat": "pre", "text": "Poke it with one finger. That's how you'll pick everything today.", "tags": ["pre", "hint", "poke"]},
   {"id": "room_pre_signed", "channel": "room", "beat": "pre", "text": "Signed. Crew, cut the window!", "tags": ["pre", "signed", "window"]},
   {"id": "room_hook_carry", "channel": "room", "beat": "hook", "text": "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract.", "tags": ["hook", "delivery", "fact:drones"]},

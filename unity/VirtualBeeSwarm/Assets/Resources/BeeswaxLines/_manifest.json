@@ -5,14 +5,14 @@
   "lines": {
     "room_pre": {
       "channel": "room",
-      "caption": "Delivery for you. One hive, slightly used. Sign here.",
+      "caption": "Welcome, beekeeper! Today you'll learn how bees live, and how to help them. First, sign here.",
       "beat": "pre",
       "tags": [
         "pre",
         "prompt",
         "delivery"
       ],
-      "duration_s": 3.437,
+      "duration_s": 5.41,
       "mp3": "unity/room_pre.mp3",
       "pcm": null,
       "sha256": "ed3adf7b4f4c4312888cf637bf745e98f1417bdf92452b9e67f14e2c1ceeaa01",

@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 579a46a2fc1adfb5c347369851b35c6b7656ad6cd573214cf4629d4655ac6077
+// lines.json sha256 1e4898ddb5c5fc9cb3818ffe2cf9a9233f2cd9580df465a5e71f555047a17b5a
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,11 +44,11 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "579a46a2fc1adfb5c347369851b35c6b7656ad6cd573214cf4629d4655ac6077";
+        public const string LinesSha256 = "1e4898ddb5c5fc9cb3818ffe2cf9a9233f2cd9580df465a5e71f555047a17b5a";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
-        public static readonly GameLine RoomPre = new GameLine("room_pre", "Delivery for you. One hive, slightly used. Sign here."); // room | pre | pre, prompt, delivery
+        public static readonly GameLine RoomPre = new GameLine("room_pre", "Welcome, beekeeper! Today you'll learn how bees live, and how to help them. First, sign here."); // room | pre | pre, prompt, delivery
         public static readonly GameLine RoomPreNudge = new GameLine("room_pre_nudge", "Poke it with one finger. That's how you'll pick everything today."); // room | pre | pre, hint, poke
         public static readonly GameLine RoomPreSigned = new GameLine("room_pre_signed", "Signed. Crew, cut the window!"); // room | pre | pre, signed, window
         public static readonly GameLine RoomHookCarry = new GameLine("room_hook_carry", "Easy! Easy! I'd help, but drones don't carry. No pollen baskets. It's in the contract."); // room | hook | hook, delivery, fact:drones
