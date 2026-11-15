@@ -40,7 +40,7 @@ Shader "VirtualBeeSwarm/Unlit"
 
         Pass
         {
-            Blend [_SrcBlend] [_DstBlend]
+            Blend [_SrcBlend] [_DstBlend], One OneMinusSrcAlpha // alpha: "over", so a see-through effect never punches a hole to passthrough
             ZWrite [_ZWrite]
             Cull [_Cull]
 

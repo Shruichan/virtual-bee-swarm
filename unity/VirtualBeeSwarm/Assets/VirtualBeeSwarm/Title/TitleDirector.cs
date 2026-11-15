@@ -68,6 +68,20 @@ namespace VirtualBeeSwarm.Title
         bool Delivering => delivery != null && BeeDelivery.Mode != DeliveryMode.Off;
         Transform Head => delivery != null ? delivery.Head : Camera.main != null ? Camera.main.transform : null;
 
+
+        // TitleGlobe hook (TitleGlobe/TitleGlobe.cs): where the logo floats, so the Orbis globe can sit beside it.
+        /// <summary>The logo is up and placed: its centre, the player's right and away (flat), and its width (m).</summary>
+        public static bool LogoSpot(out Vector3 pos, out Vector3 right, out Vector3 away, out float width)
+        {
+            var d = Instance;
+            bool ok = d != null && d._phase == Phase.Showing && d._placed;
+            pos = ok ? d._logoPos : Vector3.zero;
+            right = ok ? d._right : Vector3.right;
+            away = ok ? d._away : Vector3.forward;
+            width = d != null ? d.canvasWidth : 0.8f;
+            return ok;
+        }
+
         // ------------------------------------------------------------------ install
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()

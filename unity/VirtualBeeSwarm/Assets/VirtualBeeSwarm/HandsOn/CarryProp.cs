@@ -59,6 +59,8 @@ namespace VirtualBeeSwarm.HandsOn
 
         public void EndGrab() => Held = false;
 
+        void OnEnable() => BeeswaxBody.MarkDirty(); // [BeeswaxBody hook] a new prop: Beeswax's body rescans now
+
         void Update()
         {
             if (!Live) return;

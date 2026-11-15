@@ -132,6 +132,24 @@ namespace VirtualBeeSwarm
         }
         // ---- end hook ----
 
+        // ---- [BeeswaxBody hook] ----
+        // BeeswaxBody (BeeswaxBody/) keeps him out of the hive, the rocket, the props and the player's head: it moves his
+        // goal to a free spot, steers the stock flight around things, sets how far the climb pops him out of the door
+        // and where he sits on a rocket seat. Null GoalFilter, ClimbScale 1, AttachOffset zero = exactly the code below.
+        public interface IGoalFilter { Vector3 FilterGoal(Vector3 goal); Vector3 Steer(Vector3 from, Vector3 goal); }
+        public IGoalFilter GoalFilter { get; set; }
+        public float ClimbScale { get; set; } = 1f;
+        /// <summary>Where he sits on what he is attached to, in its rotation frame (world metres).</summary>
+        public Vector3 AttachOffset { get; set; }
+        public Transform DoorTransform => _door;
+        public Vector3 ClimbOutward => _climbOut;
+        public float ClimbExitDistance => squeezeTo + 0.012f;
+        /// <summary>How deep inside the door the squeeze starts (the rig's scale only, not the bigger pop).</summary>
+        public float ClimbInScale { get; set; } = 1f;
+        public Vector3 BodyBaseScale => _bodyBaseScale;
+        public Quaternion BodyBaseRot => _bodyBaseRot;
+        // ---- end hook ----
+
         // ------------------------------------------------------------ API
         public void FlyTo(Transform t)
         {
@@ -166,7 +184,7 @@ namespace VirtualBeeSwarm
 
         public void Detach()
         {
-            if (_attached != null) _target = _attached.position;
+            if (_attached != null) _target = _attached.position + _attached.rotation * AttachOffset; // [BeeswaxBody hook] AttachOffset
             _attached = null;
             RaiseOrdered("detach"); // [BeeswaxMotion hook]
         }
@@ -273,12 +291,14 @@ namespace VirtualBeeSwarm
             Vector3 right = Vector3.Cross(Vector3.up, _climbOut);
             Quaternion face = Quaternion.LookRotation(_climbOut, Vector3.up);
             float sq = Mathf.Max(0.05f, squeezeSeconds), pop = Mathf.Max(0.02f, popSeconds), sh = Mathf.Max(0.05f, shakeSeconds);
+            float cs = Mathf.Max(1f, ClimbScale); // [BeeswaxBody hook] a bigger body pops out farther
+            float ci = Mathf.Clamp(ClimbInScale, 1f, cs); // [BeeswaxBody hook] ...but starts no deeper than the rig's scale
             if (ct < sq)
             {
                 // squeeze: flattened through the slot, wriggling side to side, wings folded
                 float k = ct / sq, e = Mathf.SmoothStep(0f, 1f, k);
                 float wrig = Mathf.Sin(ct * Mathf.PI * 2f * 9f);
-                transform.position = door + _climbOut * Mathf.Lerp(-squeezeFrom, squeezeTo, e) + right * (wrig * 0.006f * (1f - k));
+                transform.position = door + _climbOut * Mathf.Lerp(-squeezeFrom * ci, squeezeTo * cs, e) + right * (wrig * 0.006f * cs * (1f - k));
                 transform.rotation = face;
                 _climbScale = Vector3.Lerp(squeezeScale, Vector3.Lerp(squeezeScale, Vector3.one, 0.6f), e);
                 _climbRot = Quaternion.Euler(0f, 0f, wrig * 9f);
@@ -293,7 +313,7 @@ namespace VirtualBeeSwarm
                 Vector3 from = Vector3.Lerp(squeezeScale, Vector3.one, 0.6f);
                 _climbScale = Vector3.Lerp(from, Vector3.one, k) + new Vector3(-over * 0.3f, over, -over * 0.3f);
                 _climbRot = Quaternion.identity;
-                transform.position = door + _climbOut * (squeezeTo + 0.012f * k) + Vector3.up * (0.012f * k);
+                transform.position = door + _climbOut * ((squeezeTo + 0.012f * k) * cs) + Vector3.up * (0.012f * k * cs);
                 transform.rotation = face;
                 _wingsFolded = false;
                 return true;
@@ -305,7 +325,7 @@ namespace VirtualBeeSwarm
                 float a = Mathf.Sin(u * sh * Mathf.PI * 2f * shakeHz) * shakeDegrees * (1f - u) * (1f - u);
                 _climbScale = Vector3.one;
                 _climbRot = Quaternion.Euler(0f, a * 0.25f, a);
-                transform.position = door + _climbOut * (squeezeTo + 0.012f) + Vector3.up * (0.012f + 0.01f * Mathf.Sin(u * Mathf.PI));
+                transform.position = door + _climbOut * ((squeezeTo + 0.012f) * cs) + Vector3.up * ((0.012f + 0.01f * Mathf.Sin(u * Mathf.PI)) * cs);
                 transform.rotation = face;
                 return true;
             }
@@ -355,6 +375,12 @@ namespace VirtualBeeSwarm
             RaiseOrdered("reset"); // [BeeswaxMotion hook]
         }
 
+        Vector3 FilteredGoal() // [BeeswaxBody hook]
+        {
+            Vector3 g = _targetT != null ? _targetT.position : _target;
+            return GoalFilter != null ? GoalFilter.FilterGoal(g) : g;
+        }
+
         Transform Head()
         {
             if (head != null) return head;
@@ -373,25 +399,26 @@ namespace VirtualBeeSwarm
             if (UpdateClimb(t)) { }
             else if (_attached != null)
             {
-                transform.position = _attached.position;
+                transform.position = _attached.position + _attached.rotation * AttachOffset; // [BeeswaxBody hook] AttachOffset
                 transform.rotation = _attached.rotation;
             }
-            else if (RootDriver != null && RootDriver.Drive(this, _targetT != null ? _targetT.position : _target, dt, out bool driverArrived)) // [BeeswaxMotion hook]
+            else if (RootDriver != null && RootDriver.Drive(this, FilteredGoal(), dt, out bool driverArrived)) // [BeeswaxMotion hook] [BeeswaxBody hook] FilteredGoal
             {
                 if (!Arrived && driverArrived) { Arrived = true; _flySpeedOverride = -1f; }
             }
             else
             {
-                Vector3 goal = _targetT != null ? _targetT.position : _target;
+                Vector3 goal = FilteredGoal(); // [BeeswaxBody hook]
                 Vector3 p = transform.position;
                 float dist = Vector3.Distance(p, goal);
                 float speed = (_flySpeedOverride > 0f ? _flySpeedOverride : flySpeed) * Mathf.Clamp(dist * 4f, 0.25f, 1f);
-                transform.position = Vector3.MoveTowards(p, goal, speed * dt);
+                Vector3 steer = GoalFilter != null ? GoalFilter.Steer(p, goal) : goal; // [BeeswaxBody hook] around what is in the way
+                transform.position = Vector3.MoveTowards(p, steer, speed * dt);
                 if (!Arrived && dist < 0.01f) { Arrived = true; _flySpeedOverride = -1f; }
 
                 // rotation: face the flight direction on long hops, otherwise the player
                 Quaternion want = transform.rotation;
-                if (!Arrived && dist > 0.12f) want = Quaternion.LookRotation(goal - p, Vector3.up);
+                if (!Arrived && dist > 0.12f && (steer - p).sqrMagnitude > 1e-8f) want = Quaternion.LookRotation(steer - p, Vector3.up);
                 else if (_lookAtPlayer && headT != null)
                 {
                     Vector3 to = headT.position - transform.position;

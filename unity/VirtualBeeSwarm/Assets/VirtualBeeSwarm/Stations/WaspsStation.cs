@@ -17,6 +17,9 @@ namespace VirtualBeeSwarm
         protected override GameLine Prompt => GameLines.WaspsPrompt;
         protected override GameLine Hint => RideLines.HintWasps;
 
+        /// <summary>WASPBATOFF hook (WaspBatOff/): the bat-off burst, between the wasps arriving and the door choice. Null = none.</summary>
+        public static System.Func<WaspsStation, IEnumerator> BatOff; // WASPBATOFF hook
+
         /// <summary>
         /// v2: room_wasps_arrive as the wasps let themselves in through the window, then room_wasps_intro as Beeswax ducks
         /// behind the hive and BIGGER DOOR / ENTRANCE REDUCER fly in.
@@ -24,6 +27,7 @@ namespace VirtualBeeSwarm
         protected override IEnumerator StationIntro()
         {
             yield return SayAndWait(RideLines.WaspsArrive, 0.8f, LineTime.Seconds(net, RideLines.WaspsArrive) + 1f);
+            if (BatOff != null) yield return BatOff(this); // WASPBATOFF hook
             if (beeswax != null && hive != null)
             {
                 beeswax.WhipAround();

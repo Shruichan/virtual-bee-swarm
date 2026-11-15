@@ -67,7 +67,7 @@ namespace VirtualBeeSwarm.EnvironmentArt
             main.loop = true;
             main.duration = 5f;
             main.playOnAwake = true;
-            main.maxParticles = max;
+            main.maxParticles = QuestPerf.Particles(max);
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.scalingMode = ParticleSystemScalingMode.Shape;
             var em = ps.emission;
