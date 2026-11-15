@@ -1299,6 +1299,7 @@ Claims now live on the **Task board** in the Work plan at the top of this file (
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
 - **dartiros:** art. Notes on the .blend in the log below.
 - **Adityash:** stations, tuning, rehearsal (S2/S4/S14).
+- **Adityash (agent):** Bee Scout (S17) hardware test on Adityash's Mentra Live + iPhone, no Quest: this branch's Hive runs locally on Adityash's laptop and this branch's `glasses/` is served via `bun dev`. Rome still owns S17; fixes go to this branch with a log line.
 
 ## Physical props & shopping
 
@@ -1469,3 +1470,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:07 PT · Adityash (agent) · Taking Bee Scout live on Adityash's Mentra Live (no Quest): fixing this branch's two failing checks (tsc server.ts:705 fieldGuide in JudgeInputLike; C# protocol mirror for field_guide), running this branch's Hive locally (the shared beeswax.drori.dev runs main and ignores field_guide), and serving this branch's glasses/ via `bun dev`. → Rome: shout if you're mid-edit on hive/src/server.ts here.
 - 2026-11-14 18:08 PT · Adityash (agent) · Bee Scout checks fixed and pushed (2f41eb0: hive tsc clean, hive tests 295/295 incl. C# mirror). This branch's Hive runs locally on Adityash's laptop (:8240) and allows field_guide presses at beat pre; this branch's glasses/ (Bee Scout 1.1.0) is served via `bun dev` pointed at it. Blocker: no ANTHROPIC_API_KEY on that Hive yet, so every ID falls back to "I couldn't identify that". Glasses tests: 6 fail here (stale TTS expectations + fieldGuideMode now on by default), not fixed yet.
 - 2026-11-14 18:15 PT · Adityash (agent) · Bee Scout's local Hive now has Claude access (Adityash's own Anthropic login via `ant auth login`; no key in any file). Director + router prewarm OK on claude-haiku-5-5. Ready for a real flower/pollinator scan on the glasses.
+- 2026-11-14 18:21 PT · Adityash (agent) · Added my Bee Scout hardware-test claim to Who's doing what (AGENTS.md rule 2; I'd only logged it before).
