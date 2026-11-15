@@ -12,6 +12,9 @@ namespace VirtualBeeSwarm
     /// </summary>
     public class T0Sequence : BeatBehaviour
     {
+        /// <summary>HandsOn: runs after 3-2-1, before LIFTOFF (the launch lever). Gets the rocket display.</summary>
+        public static System.Func<TextMesh, IEnumerator> LaunchGate; // HANDSON hook
+
         [Header("Rocket")]
         [SerializeField] Transform rocket;
         [SerializeField] Transform rocketSeat;
@@ -104,6 +107,7 @@ namespace VirtualBeeSwarm
                 if (stakes != null && stakes.Display != null) stakes.Display.ShowPassengerCount(n);
                 yield return Wait(0.9f);
             }
+            if (LaunchGate != null) yield return LaunchGate(rocketDisplay); // HANDSON hook
             if (rocketDisplay != null) rocketDisplay.text = "LIFTOFF";
 
             // launch
