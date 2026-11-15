@@ -116,6 +116,9 @@ namespace VirtualBeeSwarm.AR
             bool show = hit.status == ArHitStatus.Hit && (hit.point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
             fits = fits && show && hit.normal.y > 0.9f;
             bool aboveFloor = meadow && Mathf.Abs(hit.point.y - (_scene?.FloorY ?? Bloom.MeadowLayout.FloorY)) > 0.1f;
+            // dartiros (headset): the red "no space" plate only where it means something, on the floor. Aiming at a
+            // wall, a table, the sofa or the air shows nothing (it read as "invalid placement" everywhere).
+            if (meadow && (aboveFloor || hit.normal.y <= 0.9f)) show = false;
             if (aboveFloor || (fits && meadow && _scene != null && !OpenFloor(hit.point, fwd, footprint))) fits = false;
             if (!show)
             {
