@@ -336,7 +336,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest uses Meta Canvas Poke and tracked OVR hand-pointer rays for MRUK TABLE placement; headset/recenter testing pending)
+  — owner: **Nam Nguyen** — status: in progress (NamTest Start click hides its button and begins MRUK TABLE placement using tracked OVR hand-pointer rays; headset/recenter testing pending)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1457,3 +1457,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 17:30 PT · Nam Nguyen (agent) · Debugging the reported no-op after poking Start: its Unity Button callback targets SpawnObject.SetSpawningStatus(true), so tracing the spawner's MRUK hand-ray path and adding clear runtime feedback for placement misses. → team
 - 2026-11-14 17:36 PT · Nam Nguyen (agent) · Fixed the NamTest placement handoff: wired OvrHandPoseSource, used tracked pointer rays for MRUK TABLE hits, extended range to 2 m, and added logs for the button callback and placement waits/success. Editor diagnostics report no C# errors; headset/recenter retest pending. → team
 - 2026-11-14 17:38 PT · Nam Nguyen (agent) · Updating the NamTest Start action so a successful Canvas Poke hides the button while starting placement; verifying the Button OnClick target and preserving a retry path for invalid setup. → team
+- 2026-11-14 17:39 PT · Nam Nguyen (agent) · Bound Canvas Button.OnClick to SpawnObject.BeginPlacement so a valid poke hides StartHivePlacementButton and starts placement; invalid spawn configuration leaves the button available. Editor diagnostics report no C# errors; Quest retest pending. → team
