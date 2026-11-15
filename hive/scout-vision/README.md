@@ -59,3 +59,24 @@ RTSP smoke test without the glasses (never publish to the `scout` path; `scoutte
 uv run python worker.py --source rtsp://127.0.0.1:8554/scouttest --print --no-api &
 ffmpeg -re -i data/test.mp4 -c copy -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/scouttest
 ```
+
+## Run it (whole laptop side, one command)
+
+From the repo root (macOS; needs `brew install mediamtx ffmpeg uv` and bun):
+
+```bash
+ops/scout-up.sh             # MediaMTX + scout Hive + this worker + glasses dev server, health check, opens /scout and /scout/slides
+ops/scout-up.sh --no-open   # same, no browser
+ops/scout-up.sh --qr        # also open the glasses dev QR (Mentra app > Settings > Miniapp Developer Settings > Scan)
+ops/scout-down.sh           # stop only what scout-up.sh started (ops/run/*.pid)
+```
+
+It is safe to rerun: anything whose port is already listening is reported as "already running" and left alone.
+First run creates `hive/.env` (random `HIVE_TOKEN`, `PORT=8241`, `PUBLIC_BASE_URL` = this laptop's LAN ip) and
+rewrites `glasses/src/config.local.ts` (scoutMode, streamUrl, hosts) for the current ip; both are git-ignored and the
+token is never printed. Missing `refs/` are fetched from Wikimedia (minutes), or copied with
+`SCOUT_REFS_FROM=<other checkout>/hive/scout-vision`. Logs: `ops/logs/<name>.log`.
+
+Knobs: `SCOUT_NO_GLASSES=1`, `SCOUT_NO_VISION=1`, `SCOUT_PRACTICE=0` (default 1), `SCOUT_LAN_IP=`, and every port
+(`SCOUT_HIVE_PORT`, `SCOUT_VISION_PORT`, `SCOUT_RTMP_PORT`, `SCOUT_RTSP_PORT`, `SCOUT_WEBRTC_PORT`, `SCOUT_GLASSES_PORT`, ...;
+see the top of `ops/scout-up.sh`). Non-default MediaMTX ports get a generated config in `ops/run/`.
