@@ -35,6 +35,8 @@ from scout_vision.recognizer import (BACKGROUND, CLASSES, DEFAULT_BG_FLOOR, DEFA
                                      center_crop, crop_boxes, square_box)
 from scout_vision.sources import Source
 
+from detect import ScoutTracker, scores_from_boxes  # printed station-card tags (AprilTag 25h9), detect/
+
 TEST = ROOT / "data" / "test"
 CREDITS = ROOT / "data" / "web" / "credits.csv"
 
@@ -96,6 +98,7 @@ class Worker:
         self.ema: dict[str, float] | None = None
         self.ema_at = 0.0
         self.detector = load_detector(args.detector) if args.detector else None
+        self.markers = None if args.no_markers else ScoutTracker()
 
     def frame_image(self, rgb) -> Image.Image:
         return center_crop(Image.fromarray(rgb), self.args.crop)
@@ -138,7 +141,18 @@ class Worker:
                 time.sleep(spare)
 
     def recognize(self, rgb, at: float) -> tuple[list[dict], dict[str, float], list[dict]]:
-        """Multi-crop scoring (+ detector proposals as extra crops), then EMA smoothing over frames."""
+        """Station-card tags first (full-res frame, ~8 ms): a tag in view wins outright (0.99) and the classifier is
+        skipped. Otherwise multi-crop scoring (+ detector proposals as extra crops), then EMA smoothing."""
+        if self.markers is not None:
+            try:
+                mboxes = self.markers.update(rgb, at, rgb=True)
+            except Exception as e:  # noqa: BLE001 - never let the marker path stop the worker
+                print(f"[markers] {e}", file=sys.stderr, flush=True)
+                mboxes = []
+            if mboxes:
+                top, scores = scores_from_boxes(mboxes)
+                self.ema, self.ema_at = scores, at
+                return top, scores, [b.to_json() for b in mboxes]
         h, w = rgb.shape[:2]
         det = []
         if self.detector is not None:
@@ -321,6 +335,8 @@ def main() -> None:
     ap.add_argument("--crops", default=os.environ.get("SCOUT_CROPS", "center"), choices=["center", "grid7", "grid15"])
     ap.add_argument("--ema", type=float, default=float(os.environ.get("SCOUT_EMA", 0.0)), help="score smoothing, 0 = off")
     ap.add_argument("--detector", default=os.environ.get("SCOUT_DETECTOR"), help="module:function returning boxes")
+    ap.add_argument("--no-markers", action="store_true", default=os.environ.get("SCOUT_MARKERS", "1") == "0",
+                    help="disable the printed station-card tags (detect/); SCOUT_MARKERS=0 does the same")
     ap.add_argument("--loop", action="store_true", help="loop a file/folder source")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds per image (folder source)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SCOUT_VISION_PORT", 8242)))
