@@ -25,7 +25,11 @@ namespace VirtualBeeSwarm
         [SerializeField] KeyCode askKey = KeyCode.J;
         [SerializeField] bool logLines = true;
 
-        public bool AskShown => _askCard != null && _askCard.activeSelf;
+        public bool AskShown => (_askCard != null && _askCard.activeSelf) || (FullAsk != null && FullAsk.IsOpen);
+
+        /// <summary>The full ASK BEESWAX card (AskBeeswax/: chips, states, the answer on the card), when it is on: it
+        /// replaces the small card below, takes the pinch itself and the Hive plays its filler.</summary>
+        static Ask.AskBeeswax FullAsk => Ask.AskBeeswax.Instance != null && Ask.AskBeeswax.Instance.On ? Ask.AskBeeswax.Instance : null;
 
         float _beatAt = -1f;
         GameBeat _beat = GameBeat.Pre;
@@ -113,6 +117,7 @@ namespace VirtualBeeSwarm
         void HandleIntent(string name, string topic, string text)
         {
             if (name != GameIds.Intent.Ask || net == null || _beat == GameBeat.Pre || _beat == GameBeat.Hook) return;
+            if (FullAsk != null && FullAsk.IsOpen) return; // the Hive covers its own ASK BEESWAX answers
             if (Time.time - _lastFillerAt < 3f) return; // the Hive (or we) already covered this answer
             var filler = RideLines.LiveFiller;
             if (net.CurrentCaption == filler.caption) return;
@@ -149,6 +154,13 @@ namespace VirtualBeeSwarm
         // ------------------------------------------------------------ ASK BEESWAX
         void ShowAsk(bool on, string why)
         {
+            var full = FullAsk;
+            if (full != null)
+            {
+                if (on) full.Open(why);
+                else if (full.IsOpen && why.Length > 0) full.Close(why); // beat changes and resets: it closes itself
+                return;
+            }
             WhatIfBeat.AskOpen = on;
             if (!on)
             {
