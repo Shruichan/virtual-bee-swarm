@@ -206,12 +206,6 @@ const SHOW = `<!doctype html>
   .asking .beeswax img { width: 7.5rem; height: 7.5rem; }
   @keyframes blink { 50% { opacity: .35; } }
   /* the wearer's words: a little bubble rising out of their camera view */
-  #you { position: relative; margin-left: auto; max-width: 62%; padding: .6rem 1.3rem .7rem; border-radius: 1.2rem; background: var(--sage-soft);
-    box-shadow: 0 0 0 .12rem rgba(85, 41, 15, .16); font-size: 1.7rem; font-weight: 700; line-height: 1.2; transition: opacity .5s, transform .5s; }
-  #you::before { content: ""; position: absolute; top: -.75rem; right: 2.4rem; border: .8rem solid transparent; border-top: 0; border-bottom-color: var(--sage-soft); }
-  #you small { display: block; font-size: 1.1rem; font-weight: 700; color: #5d7553; }
-  #you.gone { opacity: 0; transform: translateY(.6rem); }
-  #you.fresh { animation: pop .5s cubic-bezier(.2, 1.6, .4, 1); }
   @keyframes pop { from { transform: scale(.8); } }
 
   /* Beeswax and his speech bubble */
@@ -371,7 +365,6 @@ const SHOW = `<!doctype html>
     <div class="under">
       <button id="restart" class="quiet" type="button" title="Start the walk over: clears what was found">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4 3.5v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="restartt">Restart your journey</span></button>
-      <div id="you" class="gone"><small>You said</small><span id="youq"></span></div>
     </div>
   </section>
   <aside class="bee">
@@ -550,7 +543,6 @@ const SHOW = `<!doctype html>
     clearTimeout(revealTimer); clearTimeout(outTimer);
     revealUntil = Date.now() + 4700;
     revealTimer = setTimeout(function () { rv.classList.add("out"); outTimer = setTimeout(function () { rv.classList.remove("on", "out"); }, 500); }, 4200);
-    hideYou();
     if (earn(ev.label)) flyBadge(ev.label); // first time: the card becomes a badge and flies into the case
   }
   function burst(box, n, delay) {
@@ -672,7 +664,12 @@ const SHOW = `<!doctype html>
     if (id === "scout_teacher") { showTeacher(text); return; }
     if (id.indexOf("scout_done") === 0) celebrate(); // the finale lines play under "Bee Scout badge earned!"
     if (!text) return; // a pure sound effect: nothing to show
-    if (id.indexOf("scout_ask_") === 0) { clearCaps(); showLine(ev); return; }
+    if (id.indexOf("scout_ask_") === 0) {
+      clearCaps();
+      if (pendingQ && Date.now() - pendingQ.at < 4000) showAsk(pendingQ.text, false);
+      pendingQ = null;
+      showLine(ev); return;
+    }
     if (id === "scout_intro_1") clearCaps(); // a new journey starts: drop what's left of the old one
     capQ.push(ev);
     var total = 0; capQ.forEach(function (e) { total += sayMs(String(e.caption || "")); });
@@ -705,30 +702,30 @@ const SHOW = `<!doctype html>
   function stopSpeaking() { document.body.classList.remove("speaking"); $("bxi").src = ASSETS + "beeswax-side.webp"; }
   function goIdle() { endAsk(); var b = $("bubble"); b.classList.add("idle"); b.classList.remove("thinking"); var c = $("cap"); c.className = ""; c.textContent = IDLE_LINE; curLine = null; curText = ""; }
 
-  // ------------------------------------------------------------------ the wearer said / asked
-  var youTimer = null, askTimer = null, asking = false;
-  var QSTART = /^(what|what's|whats|why|how|who|whose|where|when|which|can|could|do|does|did|is|are|was|were|will|would|should|have|has|tell me|explain)\\b/i;
-  function isQuestion(t) { return /\\?\\s*$/.test(t) || QSTART.test(t); }
+  // ------------------------------------------------------------------ the wearer asked (only "Hey Beeswax..." questions)
+  // Ordinary chatter the mic hears is never shown. A heard question shows when the Ask lane marks it
+  // (question: true) or, until that lands, when a scout_ask_* answer follows within 4 s.
+  var askTimer = null, asking = false, pendingQ = null;
+  var WAKE = /^\\s*(?:(?:hey|hi|hay|okay|ok)[\\s,]+)?bees?[\\s-]?wax\\b[\\s,.!?:;-]*/i;
+  function cleanQ(t) { t = String(t || "").replace(WAKE, "").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ""; }
   function quote(t) { return "\\u201c" + t + "\\u201d"; }
   function onHeard(ev) {
     lastActivity = Date.now();
-    var t = String(ev.text || "").trim();
+    var t = cleanQ(ev.text);
+    pendingQ = null;
     if (!t) return;
-    // a question outside an offer goes to "Ask Beeswax": question bubble above him, his answer follows
-    if (isQuestion(t) && ev.answer !== "yes" && ev.answer !== "no" && S.phase !== "offering") { clearCaps(); showAsk(t); return; }
-    $("youq").textContent = quote(t);
-    var y = $("you"); y.classList.remove("gone"); restart(y, "fresh");
-    clearTimeout(youTimer); youTimer = setTimeout(hideYou, 15000);
+    if (ev.question === true) { clearCaps(); showAsk(t, true); return; }
+    pendingQ = { text: t, at: Date.now() }; // shown only if Beeswax answers it
   }
-  function hideYou() { $("you").classList.add("gone"); }
-  function showAsk(t) {
-    hideYou();
+  function showAsk(t, thinking) {
     $("askq").textContent = quote(t);
     var a = $("ask"); a.classList.remove("gone"); restart(a, "fresh");
     asking = true; document.body.classList.add("asking");
+    clearTimeout(askTimer);
+    if (!thinking) return;
     var b = $("bubble"); b.classList.remove("idle"); b.classList.add("thinking");
     var c = $("cap"); c.className = ""; c.textContent = "Hmm, let me think"; curLine = null; curText = "";
-    clearTimeout(askTimer); askTimer = setTimeout(function () { if ($("bubble").classList.contains("thinking")) goIdle(); else endAsk(); }, 9000);
+    askTimer = setTimeout(function () { if ($("bubble").classList.contains("thinking")) goIdle(); else endAsk(); }, 12000);
   }
   function endAsk() {
     clearTimeout(askTimer);
@@ -768,7 +765,7 @@ const SHOW = `<!doctype html>
     showToday(0);
     clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
     bx.flash = null;
-    clearCaps(); hideYou(); hideTeacher(); stopSpeaking(); goIdle(); clearCase();
+    clearCaps(); pendingQ = null; hideTeacher(); stopSpeaking(); goIdle(); clearCase();
   });
 
   function onState(st) {
