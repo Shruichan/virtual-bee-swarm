@@ -364,6 +364,10 @@ Bun.serve({
     const asset = p.match(/^\/scout\/assets\/([^/]+)$/);
     if (asset) return scoutAssetResponse(asset[1]!);
     if (p === "/fake-cam.mp4" && VIDEO) return new Response(Bun.file(VIDEO), { headers: { "Content-Type": "video/mp4" } });
+    if (p === "/scout/teacher" && req.method === "POST") {
+      setTimeout(() => say("scout_teacher"), 400); // like the game: the voiced line comes back as a say event
+      return json(state);
+    }
     if (p === "/scout/reset" && req.method === "POST") {
       target = SCOUT_BACKGROUND;
       pushState({ phase: "looking", found: [], skipped: [], offer: null, started_at: Date.now() });

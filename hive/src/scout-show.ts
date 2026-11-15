@@ -576,11 +576,15 @@ const SHOW = `<!doctype html>
   function showTeacher(text) {
     lastActivity = Date.now();
     $("tcap").textContent = text || TEACHER_LINE;
-    var t = $("teacher"); t.classList.remove("on"); void t.offsetWidth; t.classList.add("on");
+    var t = $("teacher");
+    if (!t.classList.contains("on")) t.classList.add("on"); // already open (button, then its scout_teacher line): just keep it up
     clearTimeout(teacherTimer); teacherTimer = setTimeout(hideTeacher, 10000);
   }
   function hideTeacher() { clearTimeout(teacherTimer); $("teacher").classList.remove("on"); }
-  $("more").addEventListener("click", function () { showTeacher(""); });
+  $("more").addEventListener("click", function () {
+    showTeacher("");
+    fetch("/scout/teacher?" + TQ, { method: "POST" }).catch(function () {}); // Beeswax says it in the wearer's ear too
+  });
   $("teacher").addEventListener("click", hideTeacher);
 
   // ------------------------------------------------------------------ restart: POST /scout/reset, a second tap confirms
