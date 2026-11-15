@@ -346,7 +346,8 @@ namespace VirtualBeeSwarm.FlowerLife
             var centres = new List<Vector2>(24);
             var centreRim = new List<bool>(24);
             int wantCentres = Mathf.RoundToInt(26 * Mathf.Sqrt(Mathf.Max(0.01f, density)));
-            for (int tries = 0; tries < 900 && centres.Count < wantCentres && density > 0f; tries++)
+            bool meadow = VirtualBeeSwarm.Bloom.MeadowLayout.Active; // meadow: no table; Bloom/MeadowField grows the floor's grass
+            for (int tries = 0; tries < 900 && centres.Count < wantCentres && density > 0f && !meadow; tries++)
             {
                 float x = Mathf.Lerp(xMin + margin, xMax - margin, (float)rnd.NextDouble());
                 float z = Mathf.Lerp(zMin + margin, zMax - margin, (float)rnd.NextDouble());
@@ -427,8 +428,8 @@ namespace VirtualBeeSwarm.FlowerLife
             {
                 // A dense layer of grass is always present, while blooms fill in as stations are fixed.
                 // At desktop density: 600 flowers plus 1,200 grass tufts; headset default scales to 450 + 900.
-                int want = Mathf.RoundToInt(600 * density);
-                int grassWant = Mathf.RoundToInt(1200 * density);
+                int want = Mathf.RoundToInt(600 * density * (meadow ? 0.4f : 1f)); // meadow: big accent blooms over its grass
+                int grassWant = meadow ? 0 : Mathf.RoundToInt(1200 * density);
                 Vector3 tc = room != null && room.HasTable ? room.Table.center : aPos + fwd * 0.1f;
                 var placed = new List<Vector2>(want);
                 for (int tries = 0; tries < want * 30 && placed.Count < want; tries++)

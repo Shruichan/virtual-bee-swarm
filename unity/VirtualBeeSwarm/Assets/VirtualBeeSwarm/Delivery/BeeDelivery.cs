@@ -28,8 +28,12 @@ namespace VirtualBeeSwarm
     [DefaultExecutionOrder(-20)]
     public class BeeDelivery : MonoBehaviour
     {
-        public const int MaxBees = 96;
-        public const int MaxCrew = 48;
+        public const int MaxBees = 288; // meadow: crew.scale (tuning.json) makes crews up to 3x bigger
+        public const int MaxCrew = 144;
+        /// <summary>Meadow: crews x crew.scale; slots spread with the rig (the props are ~3.5x bigger on the floor).</summary>
+        static float CrewK => Bloom.MeadowLayout.Active ? Bloom.MeadowTuning.CrewScale : 1f; // only with the big rig on the floor
+        static float SlotK => Bloom.MeadowLayout.Active ? Mathf.Max(1f, Bloom.MeadowLayout.Scale * 0.6f) : 1f;
+        static int Crewed(int n) => Mathf.Clamp(Mathf.RoundToInt(n * CrewK), 1, MaxCrew);
         const int MaxJobs = 32;
         const int TrailPoints = 49;
 
@@ -169,6 +173,7 @@ namespace VirtualBeeSwarm
         Matrix4x4[] _matrices;
         Vector4[] _colors;
         MaterialPropertyBlock _mpb;
+        Bloom.BeeLod _lod; // meadow
         static readonly int ColorId = Shader.PropertyToID("_Color");
         bool _instancing, _ready;
         float _now;
@@ -231,6 +236,7 @@ namespace VirtualBeeSwarm
             if (beeMaterial == null) beeMaterial = GameMaterials.Create("VBS_DeliveryBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             beeMaterial.enableInstancing = true;
             WingClock.EnableOn(beeMaterial, beeMesh); // wings flap in the shader (Shaders/GameUnlit.shader)
+            _lod = Bloom.BeeLod.Make(beeMesh, beeMaterial); // meadow: far bees low-poly (Quest budget)
             BeeVat.Apply(ref beeMesh, ref beeMaterial, "delivery"); // swarm.vat: Daniel's animated bee (BeeVAT/), replaces the flap above
             _instancing = SystemInfo.supportsInstancing;
 
@@ -488,7 +494,7 @@ namespace VirtualBeeSwarm
             j.ringRight = windowPose.rotation * Vector3.right;
             j.ringUp = windowPose.rotation * Vector3.up;
             j.ringRadius = Mathf.Max(0.05f, radius);
-            j.crew = AllocBees(ji, Mathf.Min(ringBees, MaxCrew), windowPose.position);
+            j.crew = AllocBees(ji, Crewed(ringBees), windowPose.position); // meadow: crew.scale
             for (int k = 0; k < j.crew; k++) _bDelay[j.bees[k]] = k * 0.02f;
             _trail.positionCount = 0;
             _trail.enabled = true;
@@ -689,7 +695,7 @@ namespace VirtualBeeSwarm
                 return;
             }
 
-            int want = style == DeliveryStyle.Festoon ? MaxCrew : (crew > 0 ? Mathf.Min(crew, MaxCrew) : item.Crew);
+            int want = style == DeliveryStyle.Festoon ? Mathf.Min(MaxCrew, Mathf.Max(48, Mathf.RoundToInt(48 * CrewK / 8f) * 8)) : Crewed(crew > 0 ? crew : item.Crew); // meadow: crew.scale
             bool wasActive = t.gameObject.activeInHierarchy && (item.job >= 0 || item.delivered || item.parked);
             int ji = item.job;
             Job j;
@@ -811,7 +817,7 @@ namespace VirtualBeeSwarm
             j.prevValid = 0;
             item.delivered = false;
             item.parked = false;
-            int want = repo && item.Heavy ? 8 : item.Crew;
+            int want = Crewed(repo && item.Heavy ? 8 : item.Crew); // meadow: crew.scale
 
             if (Mode == DeliveryMode.Swirl)
             {
@@ -1383,18 +1389,20 @@ namespace VirtualBeeSwarm
             float ph = _bPhase[b];
             if (j.style == DeliveryStyle.Festoon)
             {
-                int chain = k / 8, link = k % 8;
-                float a = (chain * 60f + 30f) * Mathf.Deg2Rad;
-                float rx = Mathf.Min(0.13f, item.Radius * 0.85f), rz = rx * 0.9f;
+                int chains = Mathf.Max(6, (n + 7) / 8), chain = k / 8, link = k % 8; // meadow: more chains with crew.scale
+                float a = (chain * 360f / chains + 30f) * Mathf.Deg2Rad;
+                float rx = Mathf.Min(0.13f * SlotK, item.Radius * 0.85f), rz = rx * 0.9f;
                 Vector3 baseP = t.position + t.rotation * new Vector3(Mathf.Cos(a) * rx, item.Top, Mathf.Sin(a) * rz);
                 Vector3 inward = t.position + Vector3.up * item.Top - baseP;
                 inward.y = 0f;
                 Vector3 sway = t.right * (Mathf.Sin(now * 3f + chain + link * 0.4f) * 0.004f * link);
-                return baseP + Vector3.up * (0.022f * (link + 1)) + inward * (0.06f * link) + sway;
+                return baseP + Vector3.up * (0.022f * SlotK * (link + 1)) + inward * (0.06f * link) + sway;
             }
-            float r = Mathf.Clamp(item.Radius + 0.015f, 0.035f, 0.12f);
-            float ang = k * 6.2832f / n + now * 0.8f;
-            Vector3 crown = t.position + Vector3.up * (item.Top + 0.04f);
+            // meadow: big crews stack in rings of ~12 (the bottom ring widest), spread with the rig
+            int rings = Mathf.Max(1, (n + 11) / 12), ring = k % rings, inRing = Mathf.Max(1, (n - ring + rings - 1) / rings);
+            float r = Mathf.Clamp(item.Radius + 0.015f, 0.035f, 0.12f * SlotK) * (1f - 0.18f * ring);
+            float ang = (k / rings) * 6.2832f / inRing + ring * 0.6f + now * 0.8f;
+            Vector3 crown = t.position + Vector3.up * (item.Top + 0.04f + ring * 0.03f * SlotK);
             return crown + new Vector3(Mathf.Cos(ang) * r, 0.006f * Mathf.Sin(now * 11f + ph), Mathf.Sin(ang) * r);
         }
 
@@ -1550,7 +1558,7 @@ namespace VirtualBeeSwarm
                 }
                 Quaternion rot = Quaternion.LookRotation(fwd, Vector3.up);
                 float ph = _bPhase[b];
-                float scale = beeLength;
+                float scale = beeLength * (Bloom.MeadowLayout.Active ? 1.4f : 1f); // meadow: bees that read across the room
                 if (j.phase == Phase.Depart)
                 {
                     // shrink into the pane over the last 15% of the way
@@ -1566,8 +1574,11 @@ namespace VirtualBeeSwarm
             if (n == 0 || beeMesh == null || beeMaterial == null) return;
             if (_instancing)
             {
+                if (_lod == null || !_lod.Draw(beeMesh, beeMaterial, _matrices, _colors, n, gameObject.layer)) // meadow: near VAT / far low-poly
+                {
                 _mpb.SetVectorArray(ColorId, _colors);
                 Graphics.DrawMeshInstanced(beeMesh, 0, beeMaterial, _matrices, n, _mpb, ShadowCastingMode.Off, false, gameObject.layer);
+                }
             }
             else
             {

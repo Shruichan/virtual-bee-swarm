@@ -6,14 +6,15 @@ namespace VirtualBeeSwarm.Bloom
     /// <summary>
     /// Desktop / Linux stand-in for a room scan (RoomModel.cs stays untouched): the window wall from the RoomModel, two
     /// side walls 2.97 m either side of the table centre (the inner faces of the capture's stand-in room walls: any
-    /// further out and the vines' stems hide inside them, leaving the blossoms floating), a floor 4.5 m
+    /// further out and the vines' stems hide inside them, leaving the blossoms floating), a floor 5.95 m
     /// deep, and two pillars (0.35 m square, +-1.4 m along the window wall, 0.9 m out from it) so the autopilot and the
     /// captures exercise the scene path: floor polygon, wall vines, pillar spirals. In desktop mode it also draws the
     /// pillars (and the side walls, unless the capture room already has them) as grey boxes, no colliders.
     /// </summary>
     public sealed class BloomFakeRoom : IBloomSceneSource
     {
-        public const float SideWall = 2.97f, Depth = 4.5f, PillarSize = 0.35f, PillarAlong = 1.4f, PillarOut = 0.9f;
+        public const float SideWall = 2.97f, Depth = 5.95f, // meadow: the whole capture room floor (6 m)
+            PillarSize = 0.35f, PillarAlong = 1.4f, PillarOut = 0.9f;
 
         GameObject _boxes;
         Material _grey, _wallGrey;
@@ -82,6 +83,7 @@ namespace VirtualBeeSwarm.Bloom
                 s.Volumes.Add(new BloomBox { center = pc, rotation = rot, half = new Vector3(PillarSize * 0.5f, h * 0.5f, PillarSize * 0.5f), pillar = true });
             }
             float th = room.Table.Y - s.FloorY;
+            if (!MeadowLayout.Active) // meadow: no table, the floor under the hive rig is meadow too
             s.Volumes.Add(new BloomBox
             {
                 center = room.Table.center - up * (th * 0.5f), rotation = room.Table.rotation,
