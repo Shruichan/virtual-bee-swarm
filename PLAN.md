@@ -1299,7 +1299,7 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
-**In flight, branch sync:** Nam Nguyen (agent) — merge the latest `origin/main` into `namtest` without rewriting published history.
+**Blocked, branch sync:** Nam Nguyen (agent) — waiting for Nam to save the open NamTest scene before merging the latest `origin/main` into `namtest` without rewriting published history.
 
 **In flight, NamTest hive assets:** Nam Nguyen (agent) — update NamTest TableAnchor visuals using `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Editor/ArtSlots.cs` while preserving existing placement work and modified visual assets.
 
@@ -1641,3 +1641,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 01:08 PT · Rome (agent) · D-14 APK built from 4a51715 (Quest perf pass + passthrough fixes): ~/immerse-the-bay/dl/VirtualBeeSwarm-D-14-20261115-0105.apk, manifest PASS. → Rome: please check fps and the camera-uncovered flashing on the headset.
 - 2026-11-15 01:02 PT · Nam Nguyen (agent) · Using the game's `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Editor/ArtSlots.cs` art pass for NamTest; will preserve the locally modified portal/progress mesh assets instead of overwriting them. → team
 - 2026-11-15 01:20 PT · Nam Nguyen (agent) · Nam approved merging `origin/main` into `namtest` instead of rebasing its published commits; syncing without rewriting history. → team
+- 2026-11-15 01:29 PT · Nam Nguyen (agent) · Branch sync paused: `origin/main` advanced with Unity changes while NamTest has unsaved editor changes. Waiting for the scene to be saved before merging. → Nam
