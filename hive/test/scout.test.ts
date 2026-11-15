@@ -519,3 +519,46 @@ describe("/scout routes", () => {
     expect(trav.status).not.toBe(200);
   });
 });
+
+describe("practice mode and blocked reasons", () => {
+  test("normal mode: a found object stays silent and says why (already_found)", () => {
+    const s = ready();
+    s.look("honey_jar", 1000);
+    expect(s.events.some((e) => e.type === "found" && e.label === "honey_jar")).toBe(true);
+    s.game.utterance("yes");
+    s.idle();
+    s.events.length = 0;
+    s.look("honey_jar", 1500);
+    expect(s.events.some((e) => e.type === "found")).toBe(false);
+    expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "honey_jar", reason: "already_found" });
+    expect(s.events.filter((e) => e.type === "blocked")).toHaveLength(1); // once per look, not per frame
+  });
+
+  test("normal mode: another object seen during an offer is reported as busy", () => {
+    const s = ready();
+    s.look("honey_jar", 1000);
+    s.events.length = 0;
+    s.look("bug_spray", 500);
+    expect(s.events.find((e) => e.type === "blocked")).toMatchObject({ label: "bug_spray", reason: "busy" });
+  });
+
+  test("practice mode: the same object triggers again after the slide changes, never on the same slide", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    expect(s.game.state().practice).toBe(true);
+    s.game.slide("honey_jar", s.now());
+    s.look("honey_jar", 1000);
+    s.game.utterance("yes");
+    s.idle();
+    s.events.length = 0;
+    s.look("honey_jar", 1500); // same slide: no repeat
+    expect(s.events.some((e) => e.type === "found")).toBe(false);
+    s.game.slide(null, s.now());
+    s.game.slide("honey_jar", s.now());
+    s.look("honey_jar", 1000);
+    expect(s.events.some((e) => e.type === "found" && e.label === "honey_jar")).toBe(true);
+    s.game.utterance("yes");
+    expect(s.game.state().found).toEqual(["honey_jar"]); // a repeat doesn't count twice
+    expect(s.ids()).not.toContain("scout_progress_2");
+  });
+});

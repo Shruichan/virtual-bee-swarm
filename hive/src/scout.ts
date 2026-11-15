@@ -15,6 +15,7 @@ import {
   SCOUT_LINES,
   SCOUT_TUNING,
   type ScoutAnswer,
+  type ScoutBlockReason,
   type ScoutClass,
   type ScoutEvent,
   type ScoutFrame,
@@ -96,7 +97,10 @@ export class ScoutGame {
   private lastIdleAt = -Infinity;
   private noTurn = 0;
   private run: { label: ScoutLabel; since: number; firstAt: number; lastAt: number; score: number } | null = null;
-  private lastSlide: { label: ScoutClass | null; at: number } | null = null;
+  private lastSlide: { label: ScoutClass | null; at: number; recvAt: number } | null = null;
+  private practice = false;
+  private lastFind: { label: ScoutLabel; at: number } | null = null;
+  private blockedKey = "";
   private lastSig = "";
 
   constructor(deps: ScoutGameDeps) {
@@ -115,7 +119,14 @@ export class ScoutGame {
       offer: this.offer,
       current: this.current ? { ...this.current } : null,
       started_at: this.startedAt,
+      practice: this.practice,
     };
+  }
+
+  /** POST /scout/practice: screen-test mode, any object can trigger again once the slide changes. */
+  setPractice(on: boolean): void {
+    this.practice = on;
+    this.changed();
   }
 
   /** POST /scout/start: reset, play the intro, then look. */
@@ -140,13 +151,14 @@ export class ScoutGame {
     const best = top[0];
     this.current = best ? { label: best.label, score: best.score } : null;
     this.emit({ type: "frame", frame: f });
-    if (this.phase !== "looking") {
-      this.run = null;
-      return;
-    }
-
     const second = top[1]?.score ?? 0;
     const counts = best && isLabel(best.label) && best.score >= this.tuning.minScore && best.score - second >= this.tuning.minMargin;
+    if (this.phase !== "looking") {
+      this.run = null;
+      // Seen clearly while Beeswax was busy (intro / offer / fact): tell the dashboard, once per busy stretch.
+      if (counts && best && isLabel(best.label) && best.label !== this.offer) this.blocked(best.label, "busy", best.score, `${this.phase}:${this.busyUntil}`);
+      return;
+    }
     if (!counts || !best || !isLabel(best.label)) {
       this.run = null;
       return;
@@ -159,9 +171,19 @@ export class ScoutGame {
       this.run.score = best.score;
     }
     const lookMs = now - this.run.since;
-    if (lookMs >= this.tuning.steadyMs && this.eligible(best.label) && now >= this.busyUntil + this.tuning.gapMs) {
-      this.foundIt(best.label, best.score, lookMs, now - this.run.firstAt);
-    }
+    if (lookMs < this.tuning.steadyMs) return;
+    const reason: ScoutBlockReason | null = !this.eligible(best.label)
+      ? this.found.includes(best.label) ? "already_found" : "skipped"
+      : now < this.busyUntil + this.tuning.gapMs ? "cooldown" : null;
+    if (reason) this.blocked(best.label, reason, best.score, String(this.run.since));
+    else this.foundIt(best.label, best.score, lookMs, now - this.run.firstAt);
+  }
+
+  private blocked(label: ScoutLabel, reason: ScoutBlockReason, score: number, episode: string): void {
+    const key = `${reason}:${label}:${episode}`;
+    if (key === this.blockedKey) return;
+    this.blockedKey = key;
+    this.emit({ type: "blocked", label, reason, score, at: this.now() });
   }
 
   /** A final transcript from the glasses. Returns how it was read. */
@@ -189,7 +211,7 @@ export class ScoutGame {
   }
 
   slide(label: ScoutClass | null, at: number): void {
-    this.lastSlide = { label, at };
+    this.lastSlide = { label, at, recvAt: this.now() };
     this.emit({ type: "slide", label, at });
   }
 
@@ -216,6 +238,11 @@ export class ScoutGame {
   // ------------------------------------------------------------ internals
 
   private eligible(label: ScoutLabel): boolean {
+    if (this.practice) {
+      // Practice: anything goes, except repeating the last find before the slide has changed.
+      const last = this.lastFind;
+      return !(last && last.label === label && (!this.lastSlide || this.lastSlide.recvAt <= last.at));
+    }
     if (this.found.includes(label)) return false;
     const skippedAt = this.skipped.get(label);
     if (skippedAt === undefined) return true;
@@ -227,6 +254,7 @@ export class ScoutGame {
     const now = this.now();
     this.run = null;
     this.offer = label;
+    this.lastFind = { label, at: now };
     this.phase = "offering";
     this.emit({ type: "found", label, score, at: now, look_ms: Math.round(lookMs) });
     if (this.lastSlide && this.lastSlide.label === label) this.latency("slide_to_found", now - this.lastSlide.at);
@@ -244,13 +272,16 @@ export class ScoutGame {
     if (answer === "yes") {
       const now = this.now();
       this.skipped.delete(label);
-      this.found.push(label);
+      const repeat = this.found.includes(label); // practice mode: a second find of the same object
+      if (!repeat) this.found.push(label);
       this.phase = "telling";
       this.say(SCOUT_LINES.fact(label));
       const heardAt = typeof at === "number" && Number.isFinite(at) && Math.abs(now - at) < 30_000 ? Math.min(at, now) : now;
       this.latency("answer_to_fact", this.now() - heardAt);
       const n = this.found.length;
-      if (n >= SCOUT_LABELS.length) {
+      if (repeat) {
+        // no progress line for a repeat
+      } else if (n >= SCOUT_LABELS.length) {
         this.say(SCOUT_LINES.done);
         this.phase = "done";
         this.offer = null;
@@ -321,7 +352,7 @@ export class ScoutGame {
   }
 
   private sig(): string {
-    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt]);
+    return JSON.stringify([this.phase, this.found, [...this.skipped.keys()], this.offer, this.startedAt, this.practice]);
   }
 
   private changed(): void {
@@ -454,12 +485,18 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
       .filter((t): t is { label: ScoutClass; score: number } => !!t && isClass(t.label) && typeof t.score === "number" && Number.isFinite(t.score))
       .slice(0, 3)
       .map((t) => ({ label: t.label, score: t.score }));
+    let scores: Partial<Record<ScoutClass, number>> | undefined;
+    if (body.scores && typeof body.scores === "object") {
+      scores = {};
+      for (const [k, v] of Object.entries(body.scores as Record<string, unknown>)) if (isClass(k) && typeof v === "number" && Number.isFinite(v)) scores[k] = v;
+    }
     const now = Date.now();
     game.frame({
       at: num(body.at, now),
       frame_ms: num(body.frame_ms, 0),
       fps: num(body.fps, 0),
       top: clean,
+      ...(scores ? { scores } : {}),
       source: typeof body.source === "string" ? body.source.slice(0, 200) : "",
     });
     return c.json({ ok: true, phase: game.state().phase });
@@ -482,6 +519,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
   app.post("/scout/start", (c) => {
     game.start();
     return c.json({ ok: true, state: game.state() });
+  });
+
+  app.post("/scout/practice", async (c) => {
+    const body = await readJson(c);
+    if (typeof body?.on !== "boolean") return c.json({ error: "on (boolean) required" }, 400);
+    game.setPractice(body.on);
+    return c.json(game.state());
   });
 
   app.post("/scout/slide", async (c) => {

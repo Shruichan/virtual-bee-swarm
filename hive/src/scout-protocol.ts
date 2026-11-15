@@ -87,7 +87,15 @@ export interface ScoutState {
   offer: ScoutLabel | null; //         the object currently being offered or told
   current: { label: ScoutClass; score: number } | null; // the latest frame's best guess
   started_at: number | null;
+  /** Practice mode (screen tests): any object can trigger again once the slide changes. */
+  practice?: boolean;
 }
+
+/** Why a steadily seen object did NOT trigger "Bee fact found". */
+export type ScoutBlockReason = "already_found" | "skipped" | "busy" | "cooldown";
+
+/** POST /scout/practice (token): turn practice mode on or off. Returns ScoutState. */
+export interface ScoutPractice { on: boolean }
 
 /** Hive -> dashboard over GET /scout/events (SSE, token). GET /scout/state returns ScoutState. */
 export type ScoutEvent =
@@ -97,7 +105,9 @@ export type ScoutEvent =
   | { type: "heard"; text: string; answer: ScoutAnswer; at: number }
   | { type: "state"; state: ScoutState }
   | { type: "latency"; hop: ScoutHop; ms: number }
-  | { type: "slide"; label: ScoutClass | null; at: number };
+  | { type: "slide"; label: ScoutClass | null; at: number }
+  /** An object was seen steadily (>= steadyMs) but stayed silent, once per look. */
+  | { type: "blocked"; label: ScoutLabel; reason: ScoutBlockReason; score: number; at: number };
 
 /** slide_to_found: slide shown -> steady match. frame_to_found: first frame of the run -> found.
  *  found_to_say: found -> the hook was sent to the glasses. answer_to_fact: "yes" heard -> fact sent. */
