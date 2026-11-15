@@ -36,7 +36,7 @@ namespace VirtualBeeSwarm.FlowerLife
         public static bool AutoInstall = true;
         public static FlowerLifeDirector Instance { get; private set; }
         public const string MaterialResource = "VBS_FlowerLife";
-        public const int MaxPlants = 1000;
+        public const int MaxPlants = 3072;
 
         public enum Zone : byte { Table, Rim, Sill, Floor }
 
@@ -106,7 +106,7 @@ namespace VirtualBeeSwarm.FlowerLife
 
         // table height (m) each species is scaled to; floor plants are FloorScale times that
         static readonly float[] TableHeight = { 0.1f, 0.06f, 0.135f, 0.125f, 0.095f, 0.175f, 0.085f, 0.07f };
-        const float FloorScale = 3.6f;
+        const float FloorScale = 4f;
 
         public int Count => _n;
         public string Stats => _stats;
@@ -418,24 +418,25 @@ namespace VirtualBeeSwarm.FlowerLife
             }
             int sillPlants = _n - sillStart;
 
-            // ---- the floor ring round the table: thin and wilted at the start
+            // ---- the floor meadow: grass under a broad, station-by-station flower spread
             int floorStart = _n;
             if (FlowerLifeTuning.Floor)
             {
-                // Keep a real meadow around the player throughout the ride. At desktop density this is
-                // 480 instanced plants; the headset's 0.75 density default yields 360.
-                int want = Mathf.RoundToInt(480 * density);
+                // A dense layer of grass is always present, while blooms fill in as stations are fixed.
+                // At desktop density: 600 flowers plus 1,200 grass tufts; headset default scales to 450 + 900.
+                int want = Mathf.RoundToInt(600 * density);
+                int grassWant = Mathf.RoundToInt(1200 * density);
                 Vector3 tc = room != null && room.HasTable ? room.Table.center : aPos + fwd * 0.1f;
                 var placed = new List<Vector2>(want);
                 for (int tries = 0; tries < want * 30 && placed.Count < want; tries++)
                 {
                     float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
-                    float rad = Mathf.Lerp(0.6f, 2.4f, Mathf.Pow((float)rnd.NextDouble(), 0.8f));
+                    float rad = Mathf.Lerp(0.38f, 3.6f, Mathf.Pow((float)rnd.NextDouble(), 0.82f));
                     Vector3 w = new Vector3(tc.x + Mathf.Cos(ang) * rad, floorY, tc.z + Mathf.Sin(ang) * rad);
                     float lx = Vector3.Dot(w - aPos, right), lz = Vector3.Dot(w - aPos, fwd);
-                    if (lx > xMin - 0.1f && lx < xMax + 0.1f && lz > zMin - 0.1f && lz < zMax + 0.1f) continue; // under the table
+                    if (room != null && room.HasTable && lx > xMin - 0.1f && lx < xMax + 0.1f && lz > zMin - 0.1f && lz < zMax + 0.1f) continue; // under an actual table
                     Vector2 feet = new Vector2(w.x - _player.x, w.z - _player.z);
-                    if (feet.sqrMagnitude < 0.5f * 0.5f) continue;                                               // where the player stands
+                    if (feet.sqrMagnitude < 0.55f * 0.55f) continue;                                             // keep the player's step clear
                     if (room != null && room.HasWall && Vector3.Dot(w - room.WindowWall.point, room.WindowWall.normal) < 0.14f) continue;
                     Vector2 f2 = new Vector2(w.x, w.z);
                     bool close = false;
@@ -450,6 +451,33 @@ namespace VirtualBeeSwarm.FlowerLife
                         scale = TableHeight[sp] * FloorScale / _species[sp].height * (0.8f + 0.45f * (float)rnd.NextDouble()),
                         tier = k % 20 < 5 ? 0 : k % 20 < 13 ? 1 + k % 4 : 5, heal = rnd.Next(4),
                         baseVit = 0.1f + 0.18f * (float)rnd.NextDouble(), phase = (float)rnd.NextDouble() * 6.2832f,
+                    }, hivePos, rnd);
+                }
+
+                // Tufts fill the gaps between the blooms so the floor reads as grassland, not isolated pots.
+                // They remain a little dry at first, then brighten with the rest of the meadow.
+                var grassPlaced = new List<Vector2>(grassWant);
+                for (int tries = 0; tries < grassWant * 24 && grassPlaced.Count < grassWant; tries++)
+                {
+                    float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
+                    float rad = Mathf.Lerp(0.36f, 3.62f, Mathf.Sqrt((float)rnd.NextDouble()));
+                    Vector3 w = new Vector3(tc.x + Mathf.Cos(ang) * rad, floorY, tc.z + Mathf.Sin(ang) * rad);
+                    float lx = Vector3.Dot(w - aPos, right), lz = Vector3.Dot(w - aPos, fwd);
+                    if (room != null && room.HasTable && lx > xMin - 0.1f && lx < xMax + 0.1f && lz > zMin - 0.1f && lz < zMax + 0.1f) continue;
+                    Vector2 feet = new Vector2(w.x - _player.x, w.z - _player.z);
+                    if (feet.sqrMagnitude < 0.55f * 0.55f) continue;
+                    if (room != null && room.HasWall && Vector3.Dot(w - room.WindowWall.point, room.WindowWall.normal) < 0.14f) continue;
+                    Vector2 f2 = new Vector2(w.x, w.z);
+                    bool close = false;
+                    for (int j = 0; j < grassPlaced.Count && !close; j++) close = (grassPlaced[j] - f2).sqrMagnitude < 0.095f * 0.095f;
+                    if (close) continue;
+                    grassPlaced.Add(f2);
+                    int sp = (int)FlowerLifeMeshes.Kind.Grass;
+                    Add(new Plant
+                    {
+                        species = sp, zone = Zone.Floor, pos = w, yaw = (float)rnd.NextDouble() * 360f,
+                        scale = TableHeight[sp] * FloorScale / _species[sp].height * (0.9f + 0.28f * (float)rnd.NextDouble()),
+                        tier = 0, heal = rnd.Next(4), baseVit = 0.62f + 0.14f * (float)rnd.NextDouble(), phase = (float)rnd.NextDouble() * 6.2832f,
                     }, hivePos, rnd);
                 }
             }
