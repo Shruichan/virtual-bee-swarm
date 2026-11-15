@@ -51,6 +51,14 @@ export const PLAY_GAP_MS = 200
 const SETTLE_MAX_MS = 800
 /** No "playing" this long after play(): the host stalled; stop and retry once (hosts that report states only). */
 export const STALL_MS = 4000
+/** A line with a known length (?ms= in its URL) is over this long after its length, even if the host never says so. */
+export const DURATION_SLACK_MS = 700
+
+/** The mp3 length the Hive put in the URL (?ms=1234), or null. */
+export function urlMs(url: string): number | null {
+  const m = /[?&]ms=(\d{2,6})(?:&|#|$)/.exec(url)
+  return m ? Number(m[1]) : null
+}
 
 export interface EarOptions {
   maxQueueWaitMs?: number
@@ -79,6 +87,8 @@ export class Ear {
   private lastEndAt = 0
   private pending: Promise<unknown> | null = null
   private statesSeen = false
+  /** The last line ended by its known length, not by the host: the next play takes over the player. */
+  private hostHung = false
 
   constructor(
     private speaker: Speaker,
@@ -251,6 +261,16 @@ export class Ear {
       let endedByState!: () => void
       const ended = new Promise<"stopped">((r) => (endedByState = () => r("stopped")))
       let stallTimer: ReturnType<typeof setTimeout> | undefined
+      // The Hive puts the mp3's length in its URL (?ms=): past it (+ slack) the line is over, whatever the host says.
+      // Seen live on scout-ask-5: 3 of 25 lines played but the host never reported the end, stalling the queue.
+      const knownMs = src.kind === "url" ? urlMs(src.url) : null
+      let durationTimer: ReturnType<typeof setTimeout> | undefined
+      let byDuration!: () => void
+      const overByDuration = new Promise<"duration">((r) => (byDuration = () => r("duration")))
+      const armDuration = (from: number) => {
+        if (knownMs === null || durationTimer) return
+        durationTimer = setTimeout(byDuration, Math.max(0, from + knownMs + DURATION_SLACK_MS - Date.now()))
+      }
       // Only a host that reports states can be caught stalling (no "playing" in time); otherwise the line limit applies.
       const stalled = new Promise<"stall">((r) => {
         if (this.statesSeen) stallTimer = setTimeout(() => !sawPlaying && r("stall"), STALL_MS)
@@ -260,17 +280,23 @@ export class Ear {
           sawPlaying = true
           this.statesSeen = true
           markStarted()
+          armDuration(Date.now())
         } else if (sawPlaying && (e.state === "stopped" || e.state === "idle")) endedByState()
       })
-      let how: "result" | "stopped" | "stall"
+      let how: "result" | "stopped" | "stall" | "duration"
       try {
-        // stopOtherAudio only when starting after a pause: back to back, our own previous line is already over
-        const opts = {stopOtherAudio: attempt === 0 && firstAfterIdle}
+        // stopOtherAudio only when starting after a pause or after a host that hung: back to back, our own previous
+        // line is already over
+        const opts = {stopOtherAudio: attempt === 0 && (firstAfterIdle || this.hostHung)}
+        this.hostHung = false
         const done = src.kind === "url" ? this.speaker.play({audioUrl: src.url, ...opts}) : this.speaker.speak(src.text, opts)
         this.pending = Promise.resolve(done).catch(() => {})
-        how = await Promise.race([Promise.resolve(done).then(() => "result" as const), ended, stalled])
+        if (!this.statesSeen) armDuration(calledAt + 300) // a host without states: count from the call
+        how = await Promise.race([Promise.resolve(done).then(() => "result" as const), ended, stalled, overByDuration])
+        if (how === "duration") this.hostHung = true
       } finally {
         clearTimeout(stallTimer)
+        clearTimeout(durationTimer)
         off()
         this.lastEndAt = Date.now()
       }

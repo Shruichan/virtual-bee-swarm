@@ -396,4 +396,38 @@ describe("Ear: queued scout lines play fully and in order", () => {
     expect(calls).toBe(3)
     expect(logs.some((l) => l.includes("never started playing, retrying"))).toBe(true)
   }, 15_000)
+
+  test("a line whose player starts but never reports the end is over at its known length (?ms= in the URL)", async () => {
+    const played: {url: string; stopOther: boolean}[] = []
+    const listeners = new Set<(e: {state: string}) => void>()
+    const sp = {
+      async createStream() {
+        throw new Error("no clips")
+      },
+      async play(p: {audioUrl: string; stopOtherAudio?: boolean}) {
+        played.push({url: p.audioUrl, stopOther: !!p.stopOtherAudio})
+        listeners.forEach((l) => l({state: "playing"}))
+        if (p.audioUrl.includes("hang")) return new Promise(() => {}) // plays, then silence from the host
+        await sleep(50)
+        listeners.forEach((l) => l({state: "stopped"}))
+      },
+      async speak() {
+        return {completed: true}
+      },
+      stop() {},
+      onStateChange(h: (e: {state: string}) => void) {
+        listeners.add(h)
+        return () => listeners.delete(h)
+      },
+    } as any
+    const logs: string[] = []
+    const ear = new Ear(sp, (l: string) => logs.push(String(l)), {}, {maxQueueWaitMs: 120_000})
+    const t0 = Date.now()
+    void ear.play({line_id: null, audio_url: "u/hang.mp3?ms=300", caption: "a"}, {maxMs: 20_000})
+    void ear.play({line_id: null, audio_url: "u/next.mp3?ms=50", caption: "b"}, {maxMs: 20_000})
+    await until(() => played.length === 2, 3000, "next line")
+    expect(Date.now() - t0).toBeLessThan(2000) // ~300 ms + 700 ms slack + gap, not the 20 s limit
+    expect(played[1]!.stopOther).toBe(true) // takes the player over from the hung one
+    expect(logs.some((l) => l.includes("(duration)"))).toBe(true)
+  })
 })
