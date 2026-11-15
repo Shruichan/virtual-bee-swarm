@@ -42,12 +42,15 @@ namespace VirtualBeeSwarm.Editor
 
             string path = BuildGameScene.MainScenePath;
             bool ok = true;
-            if (File.Exists(path))
+            // stale: the game code or data is newer than the scene (someone pulled): rebuild it once, like a missing one
+            string stale = File.Exists(path) ? NewerSource(path) : null;
+            if (File.Exists(path) && stale == null)
             {
                 if (Application.isBatchMode) Debug.Log("[VBS] auto scene build: " + path + " exists, nothing to do");
             }
             else
             {
+                if (stale != null) Debug.Log("[VBS] " + path + " is older than " + stale + " (a pull?): rebuilding it");
                 SessionState.SetBool(TriedKey, true);
                 if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                 {
@@ -70,6 +73,28 @@ namespace VirtualBeeSwarm.Editor
 
             if (Application.isBatchMode && Array.IndexOf(Environment.GetCommandLineArgs(), "-executeMethod") < 0)
                 EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        /// <summary>The first game source (script, tuning json, prefab) under Assets/VirtualBeeSwarm newer than the scene, or null.
+        /// Skips Scenes/ and .asset files (the SDKs rewrite settings assets on every open).</summary>
+        static string NewerSource(string scenePath)
+        {
+            try
+            {
+                var built = File.GetLastWriteTimeUtc(scenePath).AddSeconds(5);
+                foreach (var root in new[] { "Assets/VirtualBeeSwarm" })
+                {
+                    if (!Directory.Exists(root)) continue;
+                    foreach (var f in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                    {
+                        if (f.EndsWith(".meta") || f.Replace('\\', '/').Contains("/Scenes/")) continue;
+                        if (!(f.EndsWith(".cs") || f.EndsWith(".json") || f.EndsWith(".prefab"))) continue;
+                        if (File.GetLastWriteTimeUtc(f) > built) return f;
+                    }
+                }
+            }
+            catch (Exception e) { Debug.LogWarning("[VBS] auto scene build: stale check skipped: " + e.Message); }
+            return null;
         }
     }
 }
