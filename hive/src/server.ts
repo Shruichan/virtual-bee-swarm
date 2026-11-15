@@ -1690,6 +1690,7 @@ if (import.meta.main) {
   } catch {}
   log(`hive v${PROTOCOL_VERSION} on :${hive.port}  lines=${Object.keys(deps.lines).length} scenes=${Object.keys(deps.scenes).length} tts=${deps.ttsAvailable()} stt=${stt}`);
   log(`board:   /board?token=$HIVE_TOKEN    monitor: /monitor?token=$HIVE_TOKEN`);
+  log(`scout:   /scout?token=$HIVE_TOKEN    practice=${process.env.SCOUT_PRACTICE === "1" ? "on" : "off"} (SCOUT_PRACTICE=1 starts in practice mode)`);
   // startHive warms Claude's prompt cache now, every 50 min, and on group.reset when it is older than 45 min.
 
   const shutdown = () => {

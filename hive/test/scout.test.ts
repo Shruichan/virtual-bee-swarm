@@ -548,7 +548,7 @@ describe("practice mode and blocked reasons", () => {
     expect(s.game.state().practice).toBe(true);
     s.game.slide("honey_jar", s.now());
     s.look("honey_jar", 1000);
-    s.game.utterance("yes");
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_honey_jar"]);
     s.idle();
     s.events.length = 0;
     s.look("honey_jar", 1500); // same slide: no repeat
@@ -557,8 +557,105 @@ describe("practice mode and blocked reasons", () => {
     s.game.slide("honey_jar", s.now());
     s.look("honey_jar", 1000);
     expect(s.events.some((e) => e.type === "found" && e.label === "honey_jar")).toBe(true);
-    s.game.utterance("yes");
-    expect(s.game.state().found).toEqual(["honey_jar"]); // a repeat doesn't count twice
-    expect(s.ids()).not.toContain("scout_progress_2");
+    expect(s.game.state().found).toEqual([]); // practice never touches progress
+    expect(s.ids().filter((id) => id.startsWith("scout_progress") || id === "scout_done")).toEqual([]);
+  });
+
+  test("practice mode: found -> chime + fact straight away, no hook, no offer, then looking", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.events.length = 0;
+    s.look("beehive", T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_beehive"]);
+    expect(s.game.state()).toMatchObject({ phase: "telling", offer: "beehive", found: [] });
+    expect(s.events.find((e) => e.type === "found")).toMatchObject({ label: "beehive" });
+    const hops = s.events.filter((e) => e.type === "latency").map((e: any) => e.hop);
+    expect(hops).toEqual(expect.arrayContaining(["frame_to_found", "found_to_say"]));
+    expect(s.game.utterance("yes")).toBe("other"); // nothing to answer
+    expect(s.game.button()).toBe(false);
+    s.advance(2000); // chime + fact, 1 s each
+    expect(s.game.state()).toMatchObject({ phase: "looking", offer: null, found: [] });
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_beehive"]);
+  });
+
+  test("practice mode: six objects never reach scout_done", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    for (const l of SCOUT_LABELS) {
+      s.advance(3000);
+      s.look(l, T.steadyMs + 100);
+    }
+    s.advance(3000);
+    expect(s.ids().filter((id) => id.startsWith("scout_fact_")).length).toBe(6);
+    expect(s.ids()).not.toContain("scout_done");
+    expect(s.game.state().phase).toBe("looking");
+  });
+
+  test("practice mode: 1 s gap after a line, not gapMs", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("beehive", T.steadyMs); // fires on the last frame
+    s.advance(2000); // chime + fact end now
+    s.says.length = 0;
+    s.look("bug_spray", 950); // steady already (>= steadyMs), but the 1 s gap has not passed
+    expect(s.ids()).toEqual([]);
+    s.look("bug_spray", 100);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_bug_spray"]);
+  });
+
+  test("practice mode: 8 s of looking away lets the same object fire again without a slide change", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("pebble_dish", T.steadyMs + 100);
+    s.advance(2000);
+    s.says.length = 0;
+    s.look("background", 5000, 0.9, 0.1); // away, but not long enough
+    s.look("pebble_dish", 2000);
+    expect(s.ids()).toEqual([]);
+    s.look("background", 8100, 0.9, 0.1); // away 8 s
+    s.look("pebble_dish", T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_pebble_dish"]);
+  });
+
+  test("practice mode: another class on top for 8 s also counts as away", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.look("bee_hotel", T.steadyMs + 100);
+    s.advance(2000);
+    s.look("native_flower", 8100, 0.5, 0.1); // top-1 but too weak to fire: still away from bee_hotel
+    expect(s.ids()).not.toContain("scout_fact_native_flower");
+    s.says.length = 0;
+    s.look("bee_hotel", T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime", "scout_fact_bee_hotel"]);
+  });
+
+  test("demo mode is unchanged after practice is switched off", () => {
+    const s = ready();
+    s.game.setPractice(true);
+    s.game.setPractice(false);
+    s.look("beehive", T.steadyMs + 100);
+    expect(s.ids()).toEqual(["scout_chime", "scout_hook_beehive"]);
+    expect(s.game.state().phase).toBe("offering");
+  });
+});
+
+describe("SCOUT_PRACTICE env", () => {
+  test("SCOUT_PRACTICE=1 starts the Hive in practice mode; unset = demo mode", async () => {
+    const prev = process.env.SCOUT_PRACTICE;
+    try {
+      process.env.SCOUT_PRACTICE = "1";
+      const on = makeHive({}, { prewarmOnStart: false });
+      const s1 = await (await fetch(`${on.url}/scout/state?token=${TOKEN}`)).json();
+      await on.stop();
+      expect(s1.practice).toBe(true);
+      delete process.env.SCOUT_PRACTICE;
+      const off = makeHive({}, { prewarmOnStart: false });
+      const s2 = await (await fetch(`${off.url}/scout/state?token=${TOKEN}`)).json();
+      await off.stop();
+      expect(s2.practice).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.SCOUT_PRACTICE;
+      else process.env.SCOUT_PRACTICE = prev;
+    }
   });
 });
