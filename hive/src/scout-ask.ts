@@ -62,20 +62,19 @@ const SEP = "[\\s,.!?;:\\-–—]+";
 const NAME = "b(?:ee|e)?(?:['’]?s|z)?[\\s\\-]*(?:wax|wacks|whacks|wax's)";
 /** Filler allowed before the wake phrase ("um, okay, so hey beeswax ..."). */
 const LEAD = "(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|okay|ok|so|well|and|wait)" + SEP + ")*";
-/** The wake phrase, only at the START of the utterance: hey/hi/okay/yo/a + the name (or "hey bee(s)"), or the name
- *  alone as the first word. "... the transcript of what Beeswax was saying" never wakes him. */
+/** The wake phrase: a greeting + the name, only at the START of the utterance (after fillers). The bare name never
+ *  wakes him: STT hears his own chime "Bee fact found!" as "Beeswax found!", and "... what Beeswax was saying" is chatter. */
+const GREETING = "(?:hey|hay|hi|hello|okay|ok|a|yo)";
 export const WAKE_RX = new RegExp(
-  `^[\\s,.!?;:\\-–—]*${LEAD}(?:(?:(?:hey|hay|hi|a|okay|ok|yo)${SEP})?${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
+  `^[\\s,.!?;:\\-–—]*${LEAD}(?:${GREETING}${SEP}${NAME}|(?:hey|hay)${SEP}bees?)(?=$|[\\s,.!?;:\\-–—])`,
   "i",
 );
-/** An explicit call ("hey beeswax") anywhere: Beeswax's own lines never contain one ("Hey class! I'm Beeswax"). */
-const CALL_RX = new RegExp(`\\b(?:hey|hay|hi|a|okay|ok|yo|oh)${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
-/** The name anywhere (echo check: did his own line say it?). */
-const NAME_RX = new RegExp(`\\b${NAME}\\b`, "i");
+/** An explicit call ("hey beeswax") anywhere: only his tip lines contain one ("Just say Hey Beeswax"). */
+const CALL_RX = new RegExp(`\\b${GREETING}${SEP}${NAME}\\b|\\b(?:hey|hay)${SEP}bees?\\b`, "i");
 const EDGE_RX = /^[\s,.!?;:\-–—]+|[\s,.;:\-–—]+$/g;
 const FILLER_ONLY_RX = /^(?:(?:um+|uh+|hm+|mm+|ah+|er+|oh+|huh|so|well|hey|hi|hello|okay|ok|please|there)\s*)*$/;
 
-/** Finds the wake phrase. `rest` = the utterance without it (what goes to Claude); "" when it was only the name. */
+/** Finds the wake phrase. `rest` = the utterance without it (what goes to Claude); "" when it was only the call. */
 export function parseWake(text: string): { wake: boolean; rest: string } {
   const raw = String(text ?? "");
   const m = WAKE_RX.exec(raw);
@@ -84,28 +83,28 @@ export function parseWake(text: string): { wake: boolean; rest: string } {
   return { wake: true, rest: FILLER_ONLY_RX.test(norm(rest)) ? "" : rest };
 }
 
-/** The mic heard Beeswax himself: the transcript sits inside something he said recently. `loose` (for an utterance
- *  that names him, when he just said his own name) accepts a rougher match, since STT spells his puns differently. */
-export function isEcho(text: string, captions: readonly string[], loose = false): boolean {
-  const t = norm(text);
-  const n = t ? t.split(" ").length : 0;
+/** His chime as STT writes it ("Beeswax found", "Be fact found", "Bee facts found") -> one spelling, on both sides. */
+const echoNorm = (s: string) => norm(s).replace(/\b(?:bee'?s ?wax|bees ?wax|bee ?facts?|be ?facts?|b ?facts?) found\b/g, "bee fact found");
+
+/** The mic heard Beeswax himself (from the glasses or from the Mac's speakers, whenever it played): the transcript
+ *  is inside something he said, shares a run of 4+ words with it, or most of its words (60%+) are his. An explicit
+ *  "hey beeswax" his line doesn't contain is the wearer, never an echo. Anything starting "beeswax found" is his chime. */
+export function isEcho(text: string, captions: readonly string[]): boolean {
+  const t = echoNorm(text);
+  if (/^(?:bee'?s ?wax|bees ?wax) found\b/.test(norm(text))) return true;
+  const ws = t ? t.split(" ") : [];
+  const n = ws.length;
   if (n < 2) return false;
+  const call = CALL_RX.test(text);
   for (const cap of captions) {
-    const c = norm(cap);
+    const c = echoNorm(cap);
     if (!c) continue;
+    if (call && !CALL_RX.test(cap)) continue;
     if (` ${c} `.includes(` ${t} `)) return true;
-    // He said his own name ("I'm Beeswax, your unbeelievably ..."): STT spells his puns differently, so most of the
-    // words being his is enough. Not for an explicit "hey beeswax" his line doesn't contain.
-    if (loose && NAME_RX.test(cap) && !(CALL_RX.test(text) && !CALL_RX.test(cap))) {
+    for (let i = 0; i + 4 <= n; i++) if (` ${c} `.includes(` ${ws.slice(i, i + 4).join(" ")} `)) return true;
+    if (n >= 3) {
       const words = new Set(c.split(" "));
-      const ws = t.split(" ");
-      if (ws.filter((w) => words.has(w)).length / ws.length >= 0.6) return true;
-    }
-    if (n >= 4) {
-      // STT rarely hears it word for word: most of its word pairs in order is enough
-      const have = new Set(bigrams(c));
-      const pairs = bigrams(t);
-      if (pairs.filter((p) => have.has(p)).length / pairs.length >= 0.85) return true;
+      if (ws.filter((w) => words.has(w)).length / n >= 0.6) return true;
     }
   }
   return false;
@@ -127,10 +126,13 @@ const NOT_A_QUESTION_RX =
  *  seconds after a bare "Hey Beeswax") nothing is answered. `classify` = the game's yes/no/rude reading. */
 export function routeUtterance(
   text: string,
-  o: { classify: (t: string) => ScoutAnswer; captions: readonly string[]; awaitingQuestion?: boolean },
+  o: { classify: (t: string) => ScoutAnswer; captions: readonly string[]; playing?: readonly string[]; awaitingQuestion?: boolean },
 ): AskRoute {
   const { wake, rest } = parseWake(text);
-  if (isEcho(text, o.captions, wake)) return { kind: "echo" };
+  // `captions`: everything he said in the last ~30 s (the Mac plays it later than the glasses). A bare "Hey Beeswax"
+  // is checked only against what is playing now (`playing`): his tips say "Just say Hey Beeswax", and that is exactly
+  // when a kid says it back; an echo of a tip comes with its other words ("just say...") and is caught above.
+  if (isEcho(text, wake && !rest ? (o.playing ?? o.captions) : o.captions)) return { kind: "echo" };
   if (!wake) {
     const t = norm(text);
     if (o.awaitingQuestion && t && !NOT_A_QUESTION_RX.test(t) && !FILLER_ONLY_RX.test(t)) return { kind: "ask", question: text.trim() };
@@ -651,7 +653,9 @@ export const WAKE_WINDOW_MS = 8000;
 export const WAKE_ACK_ID = "scout_wake_ack";
 export const WAKE_ACK_FALLBACK = "Yes? I'm all antennae!";
 /** Captions this recent count for the echo check. */
-const ECHO_TAIL_MS = 2000; // a line can come back as a transcript this long after it stops playing
+const ECHO_TAIL_MS = 2000;
+/** Any line he said this recently counts for the echo check, wherever and whenever it played (Mac speakers too). */
+const ECHO_RECENT_MS = 30_000; // a line can come back as a transcript this long after it stops playing
 /** From the say to the first sound in the ear, roughly (phone fetch + player start). */
 const PLAYER_START_MS = 700;
 const KEEP_ASKS = 12;
@@ -666,7 +670,7 @@ export class ScoutAsk {
   /** Until when an utterance counts as the question (after a bare "Hey Beeswax"). */
   private wakeUntil = 0;
   /** What Beeswax says or will say, and until when it can come back through the mic (echo check). */
-  private captions: { text: string; until: number }[] = [];
+  private captions: { text: string; at: number; until: number }[] = [];
   private recent: string[] = [];
   private audios = new Map<string, AskAudio>();
   private stats: AskStats[] = [];
@@ -703,7 +707,7 @@ export class ScoutAsk {
   }
 
   private noteSaid(caption: string, until: number): void {
-    this.captions.push({ text: caption, until });
+    this.captions.push({ text: caption, at: this.now(), until });
     if (this.captions.length > 20) this.captions.shift();
   }
 
@@ -713,7 +717,14 @@ export class ScoutAsk {
     for (const c of this.captions) c.until = Math.min(c.until, end);
   }
 
+  /** Everything he said in the last ECHO_RECENT_MS, or that may still be playing (the Mac plays lines later). */
   private recentCaptions(): string[] {
+    const now = this.now();
+    return this.captions.filter((c) => now <= c.until || now - c.at <= ECHO_RECENT_MS).map((c) => c.text);
+  }
+
+  /** What may be playing right now (in the glasses). */
+  private playingCaptions(): string[] {
     const now = this.now();
     return this.captions.filter((c) => now <= c.until).map((c) => c.text);
   }
@@ -724,7 +735,7 @@ export class ScoutAsk {
   }
 
   route(text: string, classify: (t: string) => ScoutAnswer): AskRoute {
-    return routeUtterance(text, { classify, captions: this.recentCaptions(), awaitingQuestion: this.awaitingQuestion });
+    return routeUtterance(text, { classify, captions: this.recentCaptions(), playing: this.playingCaptions(), awaitingQuestion: this.awaitingQuestion });
   }
 
   /** A bare "Hey Beeswax": cut Beeswax off, say the ack, and wait for the question (detections paused meanwhile). */
