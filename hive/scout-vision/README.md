@@ -1,0 +1,61 @@
+# scout-vision
+
+Live Bee Scout recognizer: glasses video (MediaMTX RTSP) -> newest frame -> DINOv2-small embedding -> nearest
+reference photos per class -> `ScoutFrame` JSON (see `hive/src/scout-protocol.ts`) -> Hive `POST /scout/frame`.
+HTTP API on :8242 for health, booth enrolment and the slides screen test.
+
+## Setup (Apple Silicon, uses torch MPS)
+
+```bash
+cd hive/scout-vision
+uv sync
+uv run python fetch_web_refs.py          # ~40 Wikimedia Commons photos per label + ~100 background, data/web/ + credits.csv
+#   hand-check data/sheets/*.jpg, list junk as "<label>/<file>" lines in data/web/junk.txt, then:
+uv run python fetch_web_refs.py --split  # 20 per label -> refs/<label>/web_*, the rest -> data/test/<label>/
+```
+
+Models download on first use (DINOv2-small ~90 MB, the default; open_clip ViT-B-32 laion2b ~600 MB for `--backbone clip`).
+
+## Run
+
+```bash
+# glasses stream via MediaMTX, posting to the scout Hive
+uv run python worker.py --hive http://127.0.0.1:8241 --token "$HIVE_TOKEN"
+# just print JSON lines
+uv run python worker.py --print
+uv run python worker.py --source webcam:0 --print
+uv run python worker.py --source data/test.mp4 --print          # file, paced in real time (--loop to repeat)
+uv run python worker.py --source data/test/honey_jar --print    # image folder, 2 s per image
+```
+
+Options: `--backbone dino|clip`, `--fps 10`, `--crop 0.8` (look only at the central 80%), `--temp`, `--topk`,
+`--port 8242`, `--no-api`. `HIVE_TOKEN` may also live in `hive/scout-vision/.env` or `hive/.env`.
+
+## API (port 8242, CORS *)
+
+```bash
+curl localhost:8242/health
+curl -X POST localhost:8242/enrol -d '{"label":"honey_jar","seconds":4}'   # look at the jar while this runs
+curl -X POST localhost:8242/enrol -d '{"label":"background","seconds":6}'  # look around the booth: table, people, walls
+curl -X POST localhost:8242/clear -d '{"label":"honey_jar"}'              # drop that label's live_* refs
+curl -X POST localhost:8242/reload                                         # re-scan refs/ after editing it by hand
+curl localhost:8242/slides.json                                           # held-out photos, served at /img/<label>/<file>
+```
+
+Booth calibration: enrol each of the six objects for 3-5 s from a couple of angles, then 6-10 s of background.
+
+## Test
+
+```bash
+uv run python eval.py --sweep                       # held-out accuracy, confusion, background FP, ms/frame, both backbones
+uv run python make_test_video.py                    # data/test.mp4 + data/test_truth.json
+uv run python worker.py --source data/test.mp4 --print --no-api > data/test_frames.jsonl
+uv run python replay_check.py data/test_frames.jsonl data/test_truth.json
+```
+
+RTSP smoke test without the glasses (never publish to the `scout` path; `scouttest` is the test path):
+
+```bash
+uv run python worker.py --source rtsp://127.0.0.1:8554/scouttest --print --no-api &
+ffmpeg -re -i data/test.mp4 -c copy -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/scouttest
+```
