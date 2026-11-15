@@ -91,7 +91,7 @@ def main() -> None:
     print(f"test set: {len(ims)} images, " + ", ".join(f"{c} {ys.count(c)}" for c in CLASSES))
     for kind in (["clip", "dino"] if a.backbone == "both" else [a.backbone]):
         bb = load_backbone(kind)
-        rec = Recognizer(bb, topk=a.topk, temp=a.temp, bg_floor=a.bg_floor)
+        rec = Recognizer(bb, topk=a.topk, temp=a.temp, bg_floor=a.bg_floor, skip_prefixes=("glasses_", "slide_", "live_"))
         # ms/frame, single images as in the live loop (after warm-up)
         for im in ims[:3]:
             rec.score([im])

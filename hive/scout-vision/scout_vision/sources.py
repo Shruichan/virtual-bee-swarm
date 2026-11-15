@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -82,6 +84,8 @@ class Source:
         try:
             if self.label.startswith("folder:"):
                 self._run_folder()
+            elif self.spec.startswith("rtsp://") and shutil.which("ffmpeg") and os.environ.get("SCOUT_CAPTURE", "ffmpeg") == "ffmpeg":
+                self._run_ffmpeg()
             elif self.spec.startswith("webcam:") or "://" in self.spec:
                 self._run_live()
             else:
@@ -116,6 +120,48 @@ class Source:
             if not self._stop:
                 print(f"[source] lost {self.spec}, reconnecting", file=sys.stderr, flush=True)
                 time.sleep(0.5)
+
+    def _run_ffmpeg(self, w: int = 1280, h: int = 720) -> None:
+        """RTSP via an ffmpeg pipe: no demuxer buffering (nobuffer, low_delay), raw RGB frames, and a stall
+        watchdog: when the glasses' stream drops, reconnect after 2 s of silence instead of OpenCV's ~30 s."""
+        cmd = ["ffmpeg", "-loglevel", "error", "-nostdin", "-rtsp_transport", "tcp", "-fflags", "nobuffer", "-flags", "low_delay",
+               "-probesize", "32768", "-analyzeduration", "0", "-timeout", "3000000", "-i", self.spec, "-an",
+               "-vf", f"scale={w}:{h}", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
+        size = w * h * 3
+        last_warn = 0.0
+        while not self._stop:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=size)
+            last_frame = [time.time()]
+
+            def watchdog(p=proc, lf=last_frame) -> None:
+                while p.poll() is None:
+                    if time.time() - lf[0] > (2.0 if self.connected else 8.0):
+                        p.kill()
+                        return
+                    time.sleep(0.25)
+
+            threading.Thread(target=watchdog, daemon=True).start()
+            got = 0
+            while not self._stop:
+                buf = proc.stdout.read(size)
+                if not buf or len(buf) < size:
+                    break
+                if not got:
+                    print(f"[source] connected {self.spec} (ffmpeg)", file=sys.stderr, flush=True)
+                    self.connected = True
+                got += 1
+                last_frame[0] = time.time()
+                self._push(np.frombuffer(buf, np.uint8).reshape(h, w, 3), is_bgr=False)
+            proc.kill()
+            proc.wait()
+            if got:
+                print(f"[source] lost {self.spec} after {got} frames, reconnecting", file=sys.stderr, flush=True)
+            elif time.time() - last_warn > 5:
+                print(f"[source] cannot open {self.spec}, retrying", file=sys.stderr, flush=True)
+                last_warn = time.time()
+            self.connected = False
+            if not self._stop:
+                time.sleep(0.3)
 
     def _run_file(self) -> None:
         while not self._stop:

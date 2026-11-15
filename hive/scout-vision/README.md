@@ -28,8 +28,15 @@ uv run python worker.py --source data/test.mp4 --print          # file, paced in
 uv run python worker.py --source data/test/honey_jar --print    # image folder, 2 s per image
 ```
 
-Options: `--backbone dino|clip`, `--fps 10`, `--crop 0.8` (look only at the central 80%), `--temp`, `--topk`,
-`--port 8242`, `--no-api`. `HIVE_TOKEN` may also live in `hive/scout-vision/.env` or `hive/.env`.
+Options: `--crops grid15|grid7|center` (default grid15: the centre square + 14 zoomed crops, the best crop wins),
+`--ema 0.3` (score smoothing, 0 = off), `--detector module:function` (boxes from the detect lane, scored as extra
+crops and sent as `boxes`), `--backbone dino|clip`, `--fps 10`, `--temp`, `--topk`, `--port 8242`, `--no-api`.
+Env: `SCOUT_CROPS`, `SCOUT_EMA`, `SCOUT_DETECTOR`, `SCOUT_CAPTURE=opencv` (RTSP via OpenCV instead of the ffmpeg pipe).
+`HIVE_TOKEN` may also live in `hive/scout-vision/.env` or `hive/.env`.
+
+Screen test calibration: `uv run python calibrate_from_session.py --slides` copies the slide photos into
+`refs/<label>/slide_*.jpg`, then `curl -X POST localhost:8242/reload`. `calibrate_from_session.py data/sessions/<s>`
+also enrols crops of recorded glasses footage (`glasses_*`), but on session s1 that made things worse (see replay).
 
 ## API (port 8242, CORS *)
 
@@ -51,6 +58,13 @@ uv run python eval.py --sweep                       # held-out accuracy, confusi
 uv run python make_test_video.py                    # data/test.mp4 + data/test_truth.json
 uv run python worker.py --source data/test.mp4 --print --no-api > data/test_frames.jsonl
 uv run python replay_check.py data/test_frames.jsonl data/test_truth.json
+```
+
+Replay a recorded glasses session (`data/sessions/<s>/glasses_<wall_ms>.mkv` + `events.jsonl` from the Hive SSE)
+through the recognizer and a copy of the game rule, before vs after, current vs proposed thresholds:
+
+```bash
+uv run python replay_eval.py data/sessions/s1      # countdown window; --all for the whole session
 ```
 
 RTSP smoke test without the glasses (never publish to the `scout` path; `scouttest` is the test path):
