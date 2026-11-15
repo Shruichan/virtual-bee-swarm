@@ -72,7 +72,7 @@ export const DEFAULTS: Config = {
   utteranceTimeoutMs: 6000,
   scoutMode: false,
   streamUrl: "",
-  stream: {width: 1280, height: 720, fps: 15, bitrate: 2_000_000},
+  stream: {width: 1280, height: 720, fps: 10, bitrate: 1_200_000},
 }
 
 export function makeConfig(local: LocalConfig): Config {

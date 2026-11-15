@@ -51,10 +51,10 @@ export class LiveStream {
 
   /**
    * Restart the stream when the laptop stops getting frames. The SDK reports no drops, so ask the Hive how
-   * old the vision worker's last frame is (`frameAge`, ms or null) every 10 s; restart if it's > 8 s old,
-   * at most once every 30 s.
+   * old the vision worker's last frame is (`frameAge`, ms or null) every 4 s; restart if it's > 4 s old,
+   * at most once every 15 s.
    */
-  watch(frameAge: () => Promise<number | null>, everyMs = 10_000, staleMs = 8_000, minGapMs = 30_000): void {
+  watch(frameAge: () => Promise<number | null>, everyMs = 4_000, staleMs = 4_000, minGapMs = 15_000): void {
     if (this.watchTimer) clearInterval(this.watchTimer)
     this.watchTimer = setInterval(async () => {
       if (this.stopped || this.state !== "live" || Date.now() - this.lastRestart < minGapMs) return
