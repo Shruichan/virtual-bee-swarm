@@ -47,6 +47,7 @@ import { beatName, createState, grievances, recordChoice, remember, rememberHear
 import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
 import { monitorHtml } from "./monitor";
+import { registerScoutRoutes } from "./scout";
 
 // ---------------------------------------------------------------- injected dependencies
 // director/tts/stt/router are other builders' modules, and lines.ts holds the data tables. They are injected so
@@ -1617,6 +1618,9 @@ export function startHive(opts: HiveOptions): Hive {
     bus.observe({ type: "log", text, source: "glasses" });
     return c.json({ ok: true });
   });
+
+  // Live Bee Scout (scout/live): /scout/* game routes, see scout.ts.
+  registerScoutRoutes(app, { bus, authed, base: () => baseUrl || `http://localhost:${server.port}`, rememberBase, stopped: () => stopped });
 
   // ------------------------------------------------------------ server
 
