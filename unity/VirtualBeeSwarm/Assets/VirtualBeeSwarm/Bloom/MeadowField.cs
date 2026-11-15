@@ -566,7 +566,7 @@ namespace VirtualBeeSwarm.Bloom
             // the ground: a low mossy disc under every tile (overlapping its neighbours), so the floor never shows through
             {
                 const int sides = 8;
-                const float rad = 0.37f;
+                const float rad = 0.5f; // 8-gon inner radius 0.46: closes the grid's corner gaps (0.29 + jitter) even under trampled grass
                 var moss = new Color(0.22f, 0.40f, 0.12f);
                 var mossWilt = new Color(0.42f, 0.44f, 0.22f);
                 int c0 = b.V(new Vector3(0f, 0.004f, 0f), Vector3.zero, moss * 1.05f, 0f, mossWilt, moss, -1f, 0f, 0f, -1f);

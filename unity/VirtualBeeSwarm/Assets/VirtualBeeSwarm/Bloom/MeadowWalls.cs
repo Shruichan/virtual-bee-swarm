@@ -142,6 +142,17 @@ namespace VirtualBeeSwarm.Bloom
             r.up = t.up;
             r.normal = -t.forward;
             r.half = new Vector2(Mathf.Abs(s.x) * 1.2f, Mathf.Abs(s.y) * 1.2f);
+            if (MeadowLayout.Active)
+            {
+                // closed (title) the pane is scaled to nothing: use the meadow window's full size and a frame's margin
+                var wt = w.transform;
+                float width = MeadowLayout.WindowWidth, height = width * 0.66f;
+                r.center = wt.position;
+                r.right = wt.right;
+                r.up = wt.up;
+                r.normal = -wt.forward;
+                r.half = new Vector2(width * 0.5f + 0.15f, height * 0.5f + 0.15f);
+            }
             ok = r.half.x > 0.01f;
             return r;
         }

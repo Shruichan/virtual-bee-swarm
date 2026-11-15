@@ -131,7 +131,7 @@ Shader "VirtualBeeSwarm/Meadow"
 
                 float s = show * thin * accent;
                 // under the player's feet it is trampled flat, not gone: the floor never shows
-                float tall = d.z * lerp(0.62, 1.0, h) * lerp(0.55, 1.0, path) * lerp(0.3, 1.0, feet) * lerp(_VbsMeadowYardFwd.z, 1.0, yard) * lerp(0.25, 1.0, stand);
+                float tall = d.z * lerp(0.62, 1.0, h) * lerp(0.55, 1.0, path) * lerp(0.45, 1.0, feet) * lerp(_VbsMeadowYardFwd.z, 1.0, yard) * lerp(0.25, 1.0, stand);
 
                 float3 local = v.vertex.xyz - v.pivot;
                 local.xz *= s;

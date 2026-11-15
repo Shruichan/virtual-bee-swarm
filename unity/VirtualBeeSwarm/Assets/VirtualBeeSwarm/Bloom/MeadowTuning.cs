@@ -24,8 +24,9 @@ namespace VirtualBeeSwarm.Bloom
     ///   meadow.distance     0.45   m from the player's eyes to the choice row at the automatic start placement
     ///   meadow.yard         0.7    plant height kept in the mown yard round the hive and its props (0..1)
     ///   meadow.roomBees     300    bees working the flowers on the floor AND the wall vines all over the room (0..600, low-poly bee)
-    ///   meadow.rocketHeight 1.7    m, the rocket's height beside the hive (0 = rig scale only)
-    ///   meadow.windowWidth  1.8    m, the meadow window (portal) on the wall / behind the hive
+    ///   meadow.rocketHeight 1.45   m, the rocket's height beside the hive (0 = rig scale only)
+    ///   meadow.rocketX      1.33   m right of the rig origin; meadow.rocketZ 1.06 m forward (beside the hive, whole in the POV)
+    ///   meadow.windowWidth  1.6    m, the meadow window (portal) on the wall / behind the hive
     ///   meadow.propSize     0.45   m, the hand props (smoker, jar, ...) grow toward this size (largest side)
     ///   meadow.propScale    2      ... by at most this much on top of the rig scale
     ///   meadow.wallStart    2.2    m the wall growth reaches while the hive is sick (thinner and paler; to the ceiling at the escape)
@@ -51,7 +52,8 @@ namespace VirtualBeeSwarm.Bloom
         public static float Distance = 0.45f;
         public static float Yard = 0.7f;
         public static int RoomBees = 300;
-        public static float RocketHeight = 1.7f, WindowWidth = 1.8f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
+        public static float RocketX = 1.33f, RocketZ = 1.06f;
+        public static float RocketHeight = 1.45f, WindowWidth = 1.6f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
         public static int SwarmCount = 500, DarkCount = 400, VatNear = 80;
         public static float CrewScale = 2.5f;
         public static string LoadedFrom = "defaults";
@@ -83,8 +85,10 @@ namespace VirtualBeeSwarm.Bloom
             Distance = 0.45f;
             Yard = 0.7f;
             RoomBees = 300;
-            RocketHeight = 1.7f;
-            WindowWidth = 1.8f;
+            RocketHeight = 1.45f;
+            RocketX = 1.33f;
+            RocketZ = 1.06f;
+            WindowWidth = 1.6f;
             PropScale = 2f;
             PropSize = 0.45f;
             WallStart = 2.2f;
@@ -158,6 +162,8 @@ namespace VirtualBeeSwarm.Bloom
             {
                 case "meadow.roomBees": return Int(v, 0, 600, ref RoomBees);
                 case "meadow.rocketHeight": return Num(v, 0f, 2.2f, ref RocketHeight);
+                case "meadow.rocketX": return Num(v, 0f, 3f, ref RocketX);
+                case "meadow.rocketZ": return Num(v, -1f, 3f, ref RocketZ);
                 case "meadow.windowWidth": return Num(v, 0.8f, 2.4f, ref WindowWidth);
                 case "meadow.propScale": return Num(v, 1f, 3f, ref PropScale);
                 case "meadow.propSize": return Num(v, 0.1f, 0.8f, ref PropSize);
@@ -210,7 +216,7 @@ namespace VirtualBeeSwarm.Bloom
             return "on=" + On + " density=" + Density.ToString("0.##", c) + " extent=" + Extent.ToString("0.#", c) + " mruk=" + Mruk +
                    " bees=" + Bees + " walls=" + Walls + " rig=" + Rig + " rigScale=" + RigScale.ToString("0.##", c) + " hiveStand=" +
                    HiveStand.ToString("0.00", c) + " choiceHeight=" + ChoiceHeight.ToString("0.00", c) + " distance=" +
-                   Distance.ToString("0.00", c) + " yard=" + Yard.ToString("0.00", c) + " roomBees=" + RoomBees + " rocket=" + RocketHeight.ToString("0.0", c) +
+                   Distance.ToString("0.00", c) + " yard=" + Yard.ToString("0.00", c) + " roomBees=" + RoomBees + " rocket=" + RocketHeight.ToString("0.0", c) + " at " + RocketX.ToString("0.00", c) + "," + RocketZ.ToString("0.00", c) +
                    " window=" + WindowWidth.ToString("0.0", c) + " props=" + PropSize.ToString("0.00", c) + "/x" + PropScale.ToString("0.0", c) + " wallStart=" + WallStart.ToString("0.0", c) +
                    " | swarm.count=" + SwarmCount + " darkswarm.count=" + DarkCount + " crew.scale=" + CrewScale.ToString("0.0", c) + " vatNear=" + VatNear + " (from " + LoadedFrom + ")";
         }
