@@ -4,7 +4,8 @@
 
 Needs the Blender that saved the file (5.3: the .blend is file version 503; 4.5 reads it with data loss).
 One FBX per item (DIR/<item>/<item>.fbx) plus DIR/manifest.json (clips, materials, sizes) that the Unity
-importer (Assets/VirtualBeeSwarm/ArtAnim/Editor/DartArtImport.cs) reads.
+importer (Assets/VirtualBeeSwarm/ArtAnim/Editor/DartArtImport.cs) reads; Dressing/Editor/DressingArtImport.cs takes
+the printed props, the wild bee nest and the small visiting bees from the same manifest.
 
 Per item, on a fresh load of the .blend:
   * only the item's hierarchy stays; it is taken off its showcase "Display - ..." empty (native size, meters)
@@ -14,7 +15,10 @@ Per item, on a fresh load of the .blend:
   * colours: each face's material colour times a soft top-front light, baked into a linear vertex colour; materials
     collapse to VC (opaque), VC_Wing (wings), VC_Glow (flame) and one per printed texture (written next to the FBX)
   * clips: a rig's NLA strips each become a take (in place, 30 fps); a prop's object actions bake into one take that
-    the Unity importer splits (open / squeeze / pull / ignition + flicker)
+    the Unity importer splits (open / squeeze / pull / ignition + flicker); a static item exports no animation
+  * the file's known slips are fixed on the way out: muted NLA tracks are unmuted, a strip whose action slot is
+    missing gets the action's object slot (the insects' actions all carry a "Beeswax Rig" slot), and a material whose
+    shader colour is the untouched default grey takes its viewport colour (Peach Blush)
   * axes: Blender -Y front, Z up -> Unity +Z front, Y up (the importer bakes the axis conversion)
 """
 import argparse
@@ -29,7 +33,8 @@ from mathutils import Matrix, Vector
 
 FPS = 30
 
-# item -> root object, kind, Unity slot, clip splits for props (name, first, last, loop)
+# item -> root object (optionally under its showcase display empty), kind (rig | prop | static), Unity slot, clip
+# splits for props (name, first, last, loop)
 ITEMS = {
     "hornet": dict(root="Hornet - Rigged Rig", kind="rig", slot="Hornet"),
     "wasp": dict(root="Wasp - Remake Rig", kind="rig", slot="Wasp"),
@@ -45,6 +50,23 @@ ITEMS = {
                          clips=[("Pull", 9, 26, False), ("PullTwice", 1, 60, False)]),
     "rocket": dict(root="HONEYMOON-1", kind="prop", slot="Rocket",
                    clips=[("Ignition", 1, 16, False), ("Flicker", 16, 55, True)]),
+    # static printed / textured props and table dressing, no clips (Unity: Dressing/Editor/DressingArtImport.cs). A
+    # printed label replaces the temp prop's geometry text in the same slot; part names stay (HoneyJar > Jar, Lid, Label)
+    "honey_jar_printed": dict(display="Display - Honey Jar | Printed", root="HoneyJar", kind="static", slot="HoneyJar"),
+    "syrup_bottle_printed": dict(display="Display - Syrup Bottle | Printed", root="SyrupBottle", kind="static",
+                                 slot="SyrupBottle"),
+    "score_card_printed": dict(display="Display - Score Card | Printed", root="ScoreCard", kind="static",
+                               slot="ScoreCard"),
+    "sign_here_printed": dict(display="Display - Sign Here | Printed", root="SignHereClipboard", kind="static",
+                              slot="SignHere"),
+    "stamp_approved_printed": dict(display="Display - StampApproved | Printed", root="StampApproved", kind="static",
+                                   slot="StampApproved"),
+    "stamp_grievance_printed": dict(display="Display - StampGrievance | Printed", root="StampGrievance",
+                                    kind="static", slot="StampGrievance"),
+    "seed_packet_textured": dict(display="Display - Seed Packet | Textured", root="SeedPacket", kind="static",
+                                 slot="SeedPacket"),
+    "wild_bee_nest": dict(display="Display - Wild Bee Nest - Proposed", root="Wild Bee Nest", kind="static",
+                          slot="WildBeeNest", decal_out=["Nest entrance"]),
 }
 
 # rig clips that loop in game; the rest are one-shots
@@ -325,16 +347,30 @@ def mat_kind(mat):
     return "vc", None
 
 
+_DEFAULT_GREY = (0.8, 0.8, 0.8)
+_warned_grey = set()
+
+
 def base_color(mat):
     if mat is None:
-        return (0.8, 0.8, 0.8)
+        return _DEFAULT_GREY
+    d = mat.diffuse_color
     if mat.node_tree:
         b = next((nd for nd in mat.node_tree.nodes if nd.type == "BSDF_PRINCIPLED"), None)
         if b is not None:
-            c = b.inputs["Base Color"].default_value
+            inp = b.inputs["Base Color"]
+            c = inp.default_value
+            # Peach Blush slip: the shader colour was never set (Blender's default grey, nothing linked) but the
+            # viewport colour carries the intended one; take that
+            untouched = not inp.is_linked and all(abs(c[i] - _DEFAULT_GREY[i]) < 1e-3 for i in range(3))
+            if untouched and max(abs(d[i] - _DEFAULT_GREY[i]) for i in range(3)) > 0.05:
+                if mat.name not in _warned_grey:
+                    _warned_grey.add(mat.name)
+                    log("material", mat.name, "has the default grey shader colour; using its viewport colour",
+                        tuple(round(x, 3) for x in d[:3]))
+                return (d[0], d[1], d[2])
             return (c[0], c[1], c[2])
-    c = mat.diffuse_color
-    return (c[0], c[1], c[2])
+    return (d[0], d[1], d[2])
 
 
 def bake_colors(objs, glow_objects=()):
@@ -461,12 +497,66 @@ def tri_count(objs):
     return n
 
 
+def find_root(cfg):
+    """The item's root: cfg["root"] by name; with cfg["display"], the display empty's child of that name (with or
+    without a .001 suffix), so a same-named object elsewhere in the file can't be taken by mistake."""
+    disp = bpy.data.objects.get(cfg["display"]) if cfg.get("display") else None
+    if disp is not None:
+        for ch in disp.children:
+            if strip_suffix(ch.name) == cfg["root"]:
+                return ch
+        if len(disp.children) == 1:
+            return disp.children[0]
+        raise SystemExit("%s has no child %s" % (cfg["display"], cfg["root"]))
+    return bpy.data.objects[cfg["root"]]
+
+
+def fix_strip_slots(root):
+    """Muted tracks, and strips whose action slot is unset, play nothing in the FBX: unmute them and give each strip
+    its action's object slot. (The insects' actions carry one slot named "Beeswax Rig"; an object slot animates any
+    object, so the name itself is harmless.)"""
+    fixed = []
+    for tr in root.animation_data.nla_tracks:
+        for s in tr.strips:
+            a = s.action
+            if a is None or not hasattr(s, "action_slot"):
+                continue
+            ob_slots = [sl for sl in a.slots if getattr(sl, "target_id_type", "OBJECT") == "OBJECT"]
+            if s.action_slot is None and ob_slots:
+                s.action_slot = ob_slots[0]
+                fixed.append(s.name)
+    if fixed:
+        log(root.name, "strips given their action's object slot:", ", ".join(fixed))
+
+
+def decal_out(ob, front=Vector((0.0, -1.0, 0.0)), lift=0.012):
+    """A flat decal (the nest's entrance) whose face points into the item and sits inside the surface it marks:
+    Blender draws both sides, so it shows there, but a game engine culls it. Turn it to face the front and lift it
+    just proud of the surface. Call after apply_transforms (mesh in world-aligned axes)."""
+    me = ob.data
+    if not me.polygons:
+        return
+    n = Vector((0.0, 0.0, 0.0))
+    for p in me.polygons:
+        n += p.normal * p.area
+    flipped = n.dot(front) < 0.0
+    if flipped:
+        for p in me.polygons:
+            p.flip()
+        n = -n
+    n.normalize()
+    for v in me.vertices:
+        v.co += n * lift
+    me.update()
+    log(ob.name, "decal turned to the front" if flipped else "decal", "and lifted %.0f mm" % (lift * 1000))
+
+
 def export_item(item, cfg, src, out_root):
     bpy.ops.wm.open_mainfile(filepath=src)
     sc = bpy.context.scene
     sc.render.fps = FPS
     sc.render.fps_base = 1.0
-    root = bpy.data.objects[cfg["root"]]
+    root = find_root(cfg)
     objs = keep_only(root)
     unparent_root(root)
     kind = cfg["kind"]
@@ -477,6 +567,7 @@ def export_item(item, cfg, src, out_root):
     clips = []
     if kind == "rig":
         ad = root.animation_data
+        fix_strip_slots(root)
         # the rest pose under the active action is what the FBX bind pose shows: use the rest pose
         for tr in ad.nla_tracks:
             tr.mute = False
@@ -490,6 +581,10 @@ def export_item(item, cfg, src, out_root):
             pb.matrix_basis = Matrix.Identity(4)
         sc.frame_set(1)
     apply_transforms(objs)
+    for name in cfg.get("decal_out", ()):
+        ob = bpy.data.objects.get(name)
+        if ob is not None and ob.type == "MESH":
+            decal_out(ob)
     if item == "hive":
         prepare_hive(objs)
     objs = [root] + list(root.children_recursive)
@@ -513,7 +608,7 @@ def export_item(item, cfg, src, out_root):
         bake_space_transform=False, use_mesh_modifiers=True, mesh_smooth_type="OFF", colors_type="LINEAR",
         prioritize_active_color=True, use_tspace=False, add_leaf_bones=False, primary_bone_axis="Y",
         secondary_bone_axis="X", armature_nodetype="NULL", use_armature_deform_only=False,
-        bake_anim=True, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=(kind == "rig"),
+        bake_anim=(kind != "static"), bake_anim_use_all_bones=True, bake_anim_use_nla_strips=(kind == "rig"),
         bake_anim_use_all_actions=False, bake_anim_force_startend_keying=True, bake_anim_step=1.0,
         bake_anim_simplify_factor=0.0, path_mode="STRIP", embed_textures=False, use_custom_props=False)
 
