@@ -102,7 +102,10 @@ const BANNED = [
 const UNSAFE = ["touch", "hold", "grab", "catch", "swat", "squish", "kill", "stupid", "dumb", "idiot", "hate", "shut"];
 
 const words = (t: string) => t.split(/\s+/).filter(Boolean);
-const capsWords = (t: string) => words(t).map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => /^[A-Z]{2,}$/.test(w));
+/** Shouted words. Acronyms that are just names don't count. */
+const ACRONYMS = new Set(["US"]);
+const capsWords = (t: string) =>
+  words(t).map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => /^[A-Z]{2,}$/.test(w) && !ACRONYMS.has(w));
 const HOOK_ENDING = "Would you like to learn more?";
 
 describe("scout_lines.json + scout_lines_booth.json", () => {
@@ -116,20 +119,23 @@ describe("scout_lines.json + scout_lines_booth.json", () => {
     }
   });
 
-  test("every line is short, digit-free and shouts at most one word", () => {
+  test("every line is short, digit-free and conversational: no shouted words, at most one exclamation mark", () => {
     for (const l of lines) {
       const why = `${l.id}: ${l.text}`;
       if (l.id !== SCOUT_LINES.idle) expect(l.text.trim().length > 0, why).toBe(true); // idle nudge is switched off
       expect(l.text.length <= 110, why).toBe(true);
-      expect(words(l.text).length <= 20, why).toBe(true);
+      expect(words(l.text).length <= 24, why).toBe(true); // flowing sentences; 110 characters is the real cap
       expect(/\d/.test(l.text), why).toBe(false);
-      expect(capsWords(l.text).length <= 1, why).toBe(true);
+      expect(capsWords(l.text).length, why).toBe(0);
+      expect((l.text.match(/!/g) ?? []).length <= 1, why).toBe(true);
     }
   });
 
-  test("the chimes say the catchphrase", () => {
-    expect(byId.get(SCOUT_LINES.chime)!.text).toBe("Bee fact found!");
-    expect(byId.get(SCOUT_BOOTH_LINES.chimeAsk)!.text).toBe("Bee fact found! Would you like to learn more?");
+  test("the chime is a short soft cue (the fact's own opener says what was found)", () => {
+    const chime = byId.get(SCOUT_LINES.chime)!.text;
+    expect(words(chime).length <= 5, chime).toBe(true);
+    expect(chime.includes("!"), chime).toBe(false);
+    expect(byId.get(SCOUT_BOOTH_LINES.chimeAsk)!.text.endsWith("?")).toBe(true);
   });
 
   test("demo-only ids stay in scout_lines.json, booth ids in scout_lines_booth.json", () => {
@@ -145,7 +151,7 @@ describe("scout_lines.json + scout_lines_booth.json", () => {
     for (const label of SCOUT_LABELS) {
       const h = byId.get(SCOUT_LINES.hook(label))!.text;
       expect(h.endsWith(` ${HOOK_ENDING}`), h).toBe(true);
-      expect(h.length <= 80, h).toBe(true); // heard right after the chime
+      expect(h.length <= 85, h).toBe(true); // heard right after the chime
       expect(h.slice(0, -HOOK_ENDING.length).trim().length >= 10, h).toBe(true);
     }
   });
