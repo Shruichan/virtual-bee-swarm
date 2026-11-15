@@ -1,0 +1,32 @@
+{
+    "name": "VirtualBeeSwarm.Bloom.Meta",
+    "rootNamespace": "VirtualBeeSwarm.Bloom.Meta",
+    "references": [
+        "VirtualBeeSwarm",
+        "Oculus.VR",
+        "meta.xr.mrutilitykit"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "VBS_META",
+        "VBS_MRUK"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.sdk.core",
+            "expression": "1.0.0",
+            "define": "VBS_META"
+        },
+        {
+            "name": "com.meta.xr.mrutilitykit",
+            "expression": "1.0.0",
+            "define": "VBS_MRUK"
+        }
+    ],
+    "noEngineReferences": false
+}
