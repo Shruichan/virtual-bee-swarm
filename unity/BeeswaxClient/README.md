@@ -23,7 +23,7 @@ The additive v2.2 update includes the `forecast_peaceful` and `forecast_ravaged`
 | *(Board)* forces an fx | | a plain `fx` (the Hive turns `fx.force` into one) | `OnFx` / `OnFxDue`, nothing new |
 | *(Board)* forces a what-if / "put it out" | | the same `orbis`, `fx` and line as the spoken one, but no `transcript`/`intent` (`whatif.force` itself never reaches the Quest) | as for voice, minus `OnIntent`: key what-if feel off `window.OnSceneChanged` / the fx |
 | *(Board)* types an unplanned what-if | | `transcript`, `intent{what_if, custom, custom_prompt}` and the line, as if the player said it (POST `/board/custom`) | as for voice |
-| Enters escape | `bus.SendBeatSet(Beat.Escape)` | `score{elapsed_s, text, grievances}` for the Board and clients | `OnScore` and `bus.LastScore` expose the Hive score. HONEYMOON's in-room card uses Unity's timer, which stops after the fourth fix |
+| Enters escape | `bus.SendBeatSet(Beat.Escape, scoreSeconds)` | `score{elapsed_s, text, grievances}` for the Board and clients | Unity reports the same frozen time shown in the room. Reconnects can reaffirm it during Escape, T-0, Map or Field. The Hive uses its own clock in Board-only rehearsals |
 
 **Unity is the only beat clock.** If the Hive is down, `BeeswaxStations` plays the same outcome locally (line, window clip, fx), so your offline timers still finish every beat with the right line and clip.
 

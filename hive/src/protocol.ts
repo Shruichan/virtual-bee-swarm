@@ -145,7 +145,13 @@ export interface Hello { type: "hello"; role: Role; client: string; version: num
 export interface Welcome { type: "welcome"; group_id: string; beat: number; mode: Mode; server_time: number; host: string }
 
 /** Quest → Hive (authoritative): Unity's beat machine entered beat n. Hive rebroadcasts to all. */
-export interface BeatSet { type: "beat.set"; n: number; name: BeatName }
+export interface BeatSet {
+  type: "beat.set";
+  n: number;
+  name: BeatName;
+  /** Quest → Hive, Escape and later: the frozen station timer, in seconds. */
+  score_seconds?: number;
+}
 /** Board/Hive → Quest: please go to beat n (or the next beat). Unity may ignore it. */
 export interface BeatRequest { type: "beat.request"; n?: number; next?: boolean }
 

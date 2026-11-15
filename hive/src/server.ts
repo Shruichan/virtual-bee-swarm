@@ -532,7 +532,7 @@ export function startHive(opts: HiveOptions): Hive {
       onPlea: (text) => plea(text),
       onGroupReset: () => groupReset(),
       onOrbisRequest: (msg, from) => orbisRequest(msg, from),
-      onBeat: (n, prev) => beatEntered(n, prev),
+      onBeat: beatEntered,
       onHornetCooked: () => {
         state.memory.hornet_done = true;
         earOnce("hornet_done", "ear_aside_hornet");
@@ -1008,8 +1008,9 @@ export function startHive(opts: HiveOptions): Hive {
   // (hook, meet) is off the clock. A Board jump past smoker starts it at whichever station beat comes first.
   const ON_CLOCK = new Set<BeatName>(["smoker", "feed", "wasps", "hornet", "heat", "whatif"]);
 
-  function beatEntered(n: number, prev: number): void {
-    if (n === prev) return; // a re-sent beat.set (Unity reconnect)
+  function beatEntered(n: number, prev: number, scoreSeconds?: number): void {
+    const needsQuestScore = scoreSeconds !== undefined && !state.score_authoritative;
+    if (n === prev && !needsQuestScore) return; // a re-sent beat.set (Unity reconnect)
     const name = BEATS[n];
     const now = Date.now();
     if (name === "hook") {
@@ -1017,18 +1018,18 @@ export function startHive(opts: HiveOptions): Hive {
       state.clock_start = null;
       state.saved_ms = null;
       state.score = null;
+      state.score_authoritative = false;
       variantTurn.clear(); // a new run starts on the base lines again (a group.reset clears it too)
       setScene("meadow", "hook");
     } else if (state.clock_start === null && name && ON_CLOCK.has(name)) {
       state.clock_start = now;
       observe(`score clock started at ${name}`);
     }
-    if (name === "escape") {
-      // v2.1: the score card. Frozen the first time the escape beat starts; re-sent if Unity comes back to escape.
-      const first = state.score === null;
-      const score = saveScore(state, now);
+    if (name === "escape" || needsQuestScore) {
+      const previous = state.score;
+      const score = saveScore(state, now, scoreSeconds);
       if (score) {
-        if (first) {
+        if (score !== previous) {
           log(`score: ${score.text} (grievances: ${score.grievances})`);
           observe(`score: ${score.text}`);
         }
@@ -1036,6 +1037,9 @@ export function startHive(opts: HiveOptions): Hive {
       } else {
         observe("no score: the clock never started (no station beat before escape)");
       }
+    }
+    if (n === prev) return; // recovering a score does not re-run this beat's cues
+    if (name === "escape") {
       setScene("full_bloom", "escape");
     } else if (name === "t0" && bus.count("quest") === 0) {
       // The Quest asks for the Moon at liftoff. In a Board-only rehearsal the beat itself is the cue.

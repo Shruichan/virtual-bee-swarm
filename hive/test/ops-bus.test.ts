@@ -221,6 +221,71 @@ describe("score (v2.1)", () => {
     expect(h).toMatchObject({ score: null, score_text: null, grievances: 0 });
   });
 
+  test("the first Quest timer replaces the Hive estimate and later reports cannot move the score", async () => {
+    hive = makeHive();
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "smoker", 3);
+    hive.state.clock_start = Date.now() - 120_000;
+    quest.send({ type: "choice.made", station: "feed", choice: "store_honey", correct: false });
+    await board.waitFor("choice.made");
+    await setBeat(quest, board, "escape", 9);
+    expect((await board.waitFor("score")).elapsed_s).toBeGreaterThan(100);
+
+    quest.send({ type: "choice.made", station: "heat", choice: "nothing", correct: false });
+    await board.waitFor("choice.made", () => board.of("choice.made").length === 2);
+    quest.send({ type: "beat.set", n: 9, name: "escape", score_seconds: 78 });
+    expect(await board.waitFor("score", (m) => m.elapsed_s === 78)).toEqual({
+      type: "score", elapsed_s: 78, text: "Hive saved in 1:18", grievances: 1,
+    });
+
+    quest.send({ type: "beat.set", n: 10, name: "t0", score_seconds: 200 });
+    await board.waitFor("beat.set", (m) => m.n === 10);
+    expect((await health()).score).toEqual({ elapsed_s: 78, text: "Hive saved in 1:18", grievances: 1 });
+
+    await setBeat(quest, board, "hook", 1);
+    quest.send({ type: "beat.set", n: 11, name: "map", score_seconds: 42 });
+    expect(await board.waitFor("score", (m) => m.elapsed_s === 42)).toMatchObject({ text: "Hive saved in 0:42" });
+  });
+
+  test.each([["escape", 9], ["t0", 10], ["map", 11], ["field", 12]] as const)(
+    "a Quest can recover the authoritative score after reconnecting at %s without a Hive clock",
+    async (name, n) => {
+      hive = makeHive();
+      const quest = await connect("quest");
+      const board = await connect("board");
+      // Simulate the Hive already seeing this beat but never seeing the station timer start.
+      await setBeat(quest, board, name, n);
+      expect(hive.state.clock_start).toBeNull();
+      quest.send({ type: "beat.set", n, name, score_seconds: 0 });
+      expect(await board.waitFor("score")).toEqual({
+        type: "score", elapsed_s: 0, text: "Hive saved in 0:00", grievances: 0,
+      });
+    },
+  );
+
+  test("a score on a station beat or an invalid finale score leaves the legacy clock in charge", async () => {
+    hive = makeHive();
+    const quest = await connect("quest");
+    const board = await connect("board");
+    quest.send({ type: "beat.set", n: 3, name: "smoker", score_seconds: 5 });
+    await board.waitFor("beat.set", (m) => m.n === 3);
+    expect((await health()).score).toBeNull();
+    hive.state.clock_start = Date.now() - 60_000;
+    quest.send({ type: "beat.set", n: 9, name: "escape", score_seconds: -1 });
+    expect((await board.waitFor("score")).elapsed_s).toBeGreaterThan(50);
+  });
+
+  test("Board-only rehearsal still measures the Hive clock", async () => {
+    hive = makeHive();
+    const board = await connect("board");
+    board.send({ type: "beat.request", n: 3 });
+    await board.waitFor("beat.set", (m) => m.n === 3);
+    hive.state.clock_start = Date.now() - 60_000;
+    board.send({ type: "beat.request", n: 9, score_seconds: 5 });
+    expect((await board.waitFor("score")).elapsed_s).toBeGreaterThan(50);
+  });
+
   test("escape with no running clock sends no score and says why", async () => {
     hive = makeHive();
     const quest = await connect("quest");

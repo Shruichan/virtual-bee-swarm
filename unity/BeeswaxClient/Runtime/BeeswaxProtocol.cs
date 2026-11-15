@@ -445,8 +445,23 @@ namespace Beeswax
         public int n;
         public string name = "";
         public BeatSet() { type = MsgType.BeatSet; }
-        public BeatSet(int n) : this() { this.n = n; name = BeeswaxProtocol.BeatName(n); }
+        // -1 denotes an absent score on ordinary beats and from older clients.
+        public int score_seconds = -1;
+        public BeatSet(int n, int? scoreSeconds = null) : this()
+        {
+            this.n = n;
+            name = BeeswaxProtocol.BeatName(n);
+            score_seconds = scoreSeconds ?? -1;
+        }
         internal override void Normalize() { base.Normalize(); name = BeeswaxProtocol.S(name); }
+        internal override string CustomJson()
+        {
+            var json = new StringBuilder("{\"type\":").Append(BeeswaxProtocol.JsonString(type))
+                .Append(",\"n\":").Append(n.ToString(CultureInfo.InvariantCulture))
+                .Append(",\"name\":").Append(BeeswaxProtocol.JsonString(name));
+            if (score_seconds >= 0) json.Append(",\"score_seconds\":").Append(score_seconds.ToString(CultureInfo.InvariantCulture));
+            return json.Append('}').ToString();
+        }
     }
 
     /// <summary>Board/Hive → Quest: please go to beat n (n = -1 if absent) or the next beat. Unity may ignore it.</summary>

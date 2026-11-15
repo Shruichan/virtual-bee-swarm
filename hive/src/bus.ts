@@ -81,7 +81,7 @@ export interface BusHooks {
   onPlea(text: string): void;
   onGroupReset?(group_id: string): void;
   /** Unity entered beat n (prev = the beat before; equal on a re-sent beat.set after a reconnect). */
-  onBeat?(n: number, prev: number): void;
+  onBeat?(n: number, prev: number, scoreSeconds?: number): void;
   onHornetCooked?(overshoot: boolean): void;
   /** A validated window request from the board or the quest (the Hive forwards it to the quest). */
   onOrbisRequest?(msg: OrbisRequest, from: Client): void;
@@ -391,12 +391,12 @@ export class Bus {
     }
   }
 
-  private setBeat(n: number, origin?: Client): void {
+  private setBeat(n: number, origin?: Client, scoreSeconds?: number): void {
     const prev = this.state.beat;
     this.state.beat = n;
     this.broadcast({ type: "beat.set", n, name: BEATS[n]! }, "all", origin);
     if (n !== prev) log(`beat -> ${n} ${BEATS[n]}${origin ? "" : " (hive applied: no Quest connected)"}`);
-    this.hooks.onBeat?.(n, prev);
+    this.hooks.onBeat?.(n, prev, scoreSeconds);
   }
 
   private route(ws: Client, m: Record<string, unknown>): void {
@@ -440,7 +440,12 @@ export class Bus {
       case "beat.set": {
         if (!questOnly()) return;
         if (!isValidBeat(m.n)) return this.send(ws, { type: "error", message: `bad beat ${String(m.n)}` });
-        return this.setBeat(m.n, ws);
+        const name = BEATS[m.n];
+        const seconds = m.score_seconds;
+        const finale = name === "escape" || name === "t0" || name === "map" || name === "field";
+        const scoreSeconds = finale && typeof seconds === "number" && seconds >= 0 &&
+          Number.isSafeInteger(Math.round(seconds * 1000)) ? seconds : undefined;
+        return this.setBeat(m.n, ws, scoreSeconds);
       }
 
       case "beat.request": {

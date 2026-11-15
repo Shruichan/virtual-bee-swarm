@@ -47,6 +47,8 @@ export interface GroupState {
   saved_ms: number | null;
   /** v2.1: the score card, frozen when the escape beat starts (null until then). */
   score: Score | null;
+  /** The Quest supplied its frozen station timer, replacing any Hive estimate. */
+  score_authoritative: boolean;
   /** v2.1: the vetted Orbis prompt of the last custom what-if (shown while scene is whatif_custom). */
   custom_prompt: string | null;
 }
@@ -84,6 +86,7 @@ export function createState(): GroupState {
     clock_start: null,
     saved_ms: null,
     score: null,
+    score_authoritative: false,
     custom_prompt: null,
   };
 }
@@ -98,6 +101,7 @@ export function reset(state: GroupState, group_id?: string): GroupState {
   state.clock_start = null;
   state.saved_ms = null;
   state.score = null;
+  state.score_authoritative = false;
   state.custom_prompt = null;
   return state;
 }
@@ -152,16 +156,21 @@ export function grievances(state: GroupState): number {
   return state.memory.wrong.length;
 }
 
-/** Stop the score clock (once per group) and freeze the score card. Null if the clock never started. */
-export function saveScore(state: GroupState, now = Date.now()): Score | null {
-  if (state.score) return state.score;
-  if (state.clock_start === null) return null;
-  state.saved_ms ??= Math.max(0, now - state.clock_start);
+/** Freeze the score card. A Quest timer can replace an estimate made from the Hive clock. */
+export function saveScore(state: GroupState, now = Date.now(), scoreSeconds?: number): Score | null {
+  if (state.score && (state.score_authoritative || scoreSeconds === undefined)) return state.score;
+  if (scoreSeconds !== undefined) {
+    state.saved_ms = Math.round(scoreSeconds * 1000);
+    state.score_authoritative = true;
+  } else if (state.clock_start !== null) {
+    state.saved_ms ??= Math.max(0, now - state.clock_start);
+  } else return null;
+  const frozenGrievances = state.score?.grievances ?? grievances(state);
   state.score = {
     type: "score",
     elapsed_s: Math.max(0, Math.round(state.saved_ms / 1000)),
     text: scoreText(state)!,
-    grievances: grievances(state),
+    grievances: frozenGrievances,
   };
   return state.score;
 }

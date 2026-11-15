@@ -125,6 +125,8 @@ namespace Beeswax
         public Welcome LastWelcome { get; private set; }
         /// <summary>Last beat this Quest reported (-1 = none yet).</summary>
         public int LastBeat { get; private set; } = -1;
+        int? _lastBeatScoreSeconds;
+        bool _scoreRequiresNewRun;
         /// <summary>Hive clock minus local clock, from welcome.server_time (ms; rough).</summary>
         public double ServerClockOffsetMs { get; private set; }
         public string LastCloseReason { get; private set; } = "";
@@ -437,16 +439,24 @@ namespace Beeswax
                     case MsgType.Welcome:
                         var w = BeeswaxProtocol.Parse<Welcome>(json);
                         LastWelcome = w;
-                        GroupId = w.group_id;
+                        bool scoreMatchesGroup = string.IsNullOrEmpty(GroupId) || GroupId == w.group_id;
+                        if (!string.IsNullOrEmpty(w.group_id))
+                        {
+                            if (!scoreMatchesGroup) InvalidateGroupScore();
+                            GroupId = w.group_id;
+                        }
                         Mode = w.mode;
                         if (w.server_time > 0) ServerClockOffsetMs = w.server_time - NowUnixMs();
                         SetState(BusState.Welcomed);
-                        // Unity owns the beat: if the Hive lost it (restart, host switch), tell it again. Skip right
-                        // after a beat.set: this welcome may answer a hello sent before it.
-                        if (LastBeat >= 0 && w.beat != LastBeat && Time.realtimeSinceStartup - _beatSentAt > 2f)
+                        // Unity owns the beat and the frozen run time. The first welcome may already have the
+                        // correct beat but lack the score, so reaffirm the score once per link for this group.
+                        bool missedBeat = w.beat != LastBeat && Time.realtimeSinceStartup - _beatSentAt > 2f;
+                        int? score = scoreMatchesGroup ? _lastBeatScoreSeconds : null;
+                        bool reaffirmScore = !_welcomedThisLink && score.HasValue;
+                        if (LastBeat >= 0 && (missedBeat || reaffirmScore))
                         {
                             Debug.Log($"[Beeswax] Hive says beat {w.beat}, we are at {LastBeat}: re-sending beat.set.");
-                            SendBeatSet(LastBeat);
+                            SendBeatMessage(LastBeat, score);
                         }
                         if (!_welcomedThisLink)
                         {
@@ -463,7 +473,7 @@ namespace Beeswax
                     case MsgType.GroupReset:
                         var g = BeeswaxProtocol.Parse<GroupReset>(json);
                         if (g.group_id.Length > 0) GroupId = g.group_id;
-                        LastScore = null;
+                        InvalidateGroupScore();
                         CancelPendingFx();
                         Raise(OnGroupReset, g);
                         break;
@@ -546,10 +556,27 @@ namespace Beeswax
 
         // ---------------------------------------------------------------- send
         /// <summary>Tell the Hive the beat machine entered beat n (Unity is the only beat clock).</summary>
-        public void SendBeatSet(int n)
+        public void SendBeatSet(int n, int? scoreSeconds = null)
         {
+            if (n == Beat.Pre) _scoreRequiresNewRun = false;
+            if (_scoreRequiresNewRun) scoreSeconds = null;
             LastBeat = n;
-            if (Send(new BeatSet(n))) _beatSentAt = Time.realtimeSinceStartup; // if offline: re-sent after the next welcome
+            _lastBeatScoreSeconds = scoreSeconds;
+            SendBeatMessage(n, scoreSeconds);
+        }
+
+        void SendBeatMessage(int n, int? scoreSeconds)
+        {
+            if (Send(new BeatSet(n, scoreSeconds))) _beatSentAt = Time.realtimeSinceStartup; // re-sent after the next welcome when needed
+        }
+
+        void InvalidateGroupScore()
+        {
+            LastScore = null;
+            _lastBeatScoreSeconds = null;
+            // A local finale may still be running after an offline group reset. Do not let its next beat
+            // publish the previous group's frozen time under the new ID. The next Pre clears the guard.
+            _scoreRequiresNewRun = LastBeat >= Beat.Smoker;
         }
 
         public void SendSwarmArrived(int socket) => SendOrQueue(new SwarmArrived { socket = socket });

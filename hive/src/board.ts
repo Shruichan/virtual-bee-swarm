@@ -192,7 +192,7 @@ const PAGE = `<!doctype html>
   var qs = new URLSearchParams(location.search);
   var token = qs.get("token") || "";
   var ws = null, backoff = 500, beat = 0, humTimer = null, humPending = null, lastWelcome = 0;
-  var want = null, scene = "meadow";
+  var want = null, scene = "meadow", groupId = null;
   var scoreCard = null, griev = 0, typedPending = null, pendingChoice = {};
   var HELLO = JSON.stringify({ type: "hello", role: "board", client: "beat-board", version: CFG.VERSION });
   function $(id) { return document.getElementById(id); }
@@ -483,9 +483,25 @@ const PAGE = `<!doctype html>
   }
   function showGriev(n) { griev = n; $("griev").textContent = String(n); }
 
+  function resetGroupDisplay() {
+    heard = []; renderHeard(); clearChoices(); scoreCard = null; showScore(null); showGriev(0); $("lastScan").textContent = "-";
+    fired = []; cur = null; renderFired();
+  }
+
+  function showGroup(id) {
+    if (!id || id === groupId) return;
+    if (groupId !== null) resetGroupDisplay();
+    groupId = id;
+    $("group").textContent = id;
+  }
+
   // ---- health poll
   function poll() {
+    var requestedGroup = groupId;
     fetch("/health").then(function (r) { return r.json(); }).then(function (h) {
+      // A reset may arrive on the socket before an older /health response.
+      if (requestedGroup !== groupId && h.group_id !== groupId) return;
+      showGroup(h.group_id);
       $("cQuest").textContent = h.clients.quest; $("cQuest").className = h.clients.quest ? "" : "off";
       $("cGlasses").textContent = h.clients.glasses;
       $("tts").textContent = h.tts ? "on" : "off"; $("tts").className = h.tts ? "" : "off";
@@ -503,12 +519,12 @@ const PAGE = `<!doctype html>
   // ---- bus
   function onMessage(m) {
     switch (m.type) {
-      case "welcome": lastWelcome = Date.now(); $("group").textContent = m.group_id; showBeat(m.beat); showMode(m.mode); break;
+      case "welcome": lastWelcome = Date.now(); showGroup(m.group_id); showBeat(m.beat); showMode(m.mode); break;
       case "beat.set": showBeat(m.n); addLog("beat " + m.n + " " + m.name); break;
       case "mode": showMode(m.mode); addLog("mode " + m.mode); break;
-      case "group.reset": $("group").textContent = m.group_id; addLog("NEW GROUP " + m.group_id, "hi");
-        heard = []; renderHeard(); clearChoices(); scoreCard = null; showScore(null); showGriev(0); $("lastScan").textContent = "-";
-        fired = []; cur = null; renderFired(); break;
+      case "group.reset":
+        if (groupId === null) resetGroupDisplay();
+        showGroup(m.group_id); addLog("NEW GROUP " + m.group_id, "hi"); break;
       case "choice.made": showChoice(m); addLog("CHOICE " + m.station + ": " + m.choice + (m.correct ? " (correct)" : " (wrong)"), "hi"); break;
       case "transcript": onTranscript(m); break;
       case "intent":

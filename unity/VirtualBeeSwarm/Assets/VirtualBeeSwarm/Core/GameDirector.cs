@@ -239,7 +239,10 @@ namespace VirtualBeeSwarm
             Debug.Log("[VBS] " + GameIds.BeatName(prev) + " -> " + GameIds.BeatName(beat) +
                       (string.IsNullOrEmpty(reason) ? "" : " (" + reason + ")") + " run " + GameMaterials.Clock(RunSeconds) +
                       " show " + GameMaterials.Clock(Time.time - _showStartedAt));
-            if (net != null) net.SendBeat(beat);
+            // Use the same whole seconds as the in-room card. Repeat the frozen time through the ending in
+            // case the first connected beat after Escape is T-0, Map or Field.
+            int? scoreSeconds = beat >= GameBeat.Escape && RunFinished ? Mathf.FloorToInt(Mathf.Max(0f, RunSeconds)) : (int?)null;
+            if (net != null) net.SendBeat(beat, scoreSeconds);
             EnterBeat(beat);
             BeatChanged?.Invoke(prev, beat);
         }
