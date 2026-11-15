@@ -239,15 +239,21 @@ const SHOW = `<!doctype html>
   #attract { display: none; }
   body.attract main { display: none; }
   body.attract .brand { opacity: 0; }
-  body.attract #attract { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 2rem; padding: 0 5rem 3rem 3rem; min-height: 0; }
+  body.attract #attract { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 2rem; padding: 0 5rem 2rem 3rem; min-height: 0; }
   .hero { width: min(100%, 52rem); aspect-ratio: 1; object-fit: contain; justify-self: center; animation: float 6s ease-in-out infinite;
     -webkit-mask-image: radial-gradient(circle at 52% 46%, #000 54%, transparent 68%); mask-image: radial-gradient(circle at 52% 46%, #000 54%, transparent 68%); }
   @keyframes float { 50% { transform: translateY(-1.2rem) rotate(1deg); } }
   .pitch h2 { margin: 0; font: 400 3.4rem/1 var(--display); color: var(--brown); text-shadow: .14rem .16rem 0 var(--butter); }
-  .pitch h2.big { font-size: 6.2rem; line-height: .98; margin-bottom: 1.6rem; }
-  .pitch p { margin: 0 0 2.4rem; max-width: 34rem; font-size: 2rem; line-height: 1.3; font-weight: 600; color: var(--ink-soft); }
+  .pitch h2.big { font-size: 4.8rem; line-height: .98; margin-bottom: 1.2rem; }
+  .pitch p { margin: 0 0 1.4rem; max-width: 34rem; font-size: 2rem; line-height: 1.3; font-weight: 600; color: var(--ink-soft); }
   .hello { display: flex; align-items: center; gap: 1rem; }
-  .hello img { width: 8.5rem; height: 8.5rem; flex: none; }
+  #go { margin-top: 1.8rem; padding: 1.1rem 2.8rem 1.2rem; border: 0; border-radius: 99rem; cursor: pointer; background: var(--honey); color: var(--brown);
+    font: 400 2.6rem/1 var(--display); box-shadow: 0 0 0 .2rem var(--brown), 0 .45rem 0 var(--brown), 0 1rem 2rem rgba(85, 41, 15, .25);
+    animation: nudge 2.6s ease-in-out infinite; }
+  #go:hover { background: #ecb54c; }
+  #go:active { transform: translateY(.3rem); box-shadow: 0 0 0 .2rem var(--brown), 0 .15rem 0 var(--brown); animation: none; }
+  @keyframes nudge { 0%, 70%, 100% { transform: none; } 80% { transform: translateY(-.35rem) rotate(-1deg); } 90% { transform: translateY(0) rotate(1deg); } }
+  .hello img { width: 7rem; height: 7rem; flex: none; }
   .hello div { position: relative; padding: 1rem 1.4rem; border-radius: 1.4rem; background: var(--paper); box-shadow: 0 0 0 .14rem var(--brown);
     font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
   .hello div::before { content: ""; position: absolute; left: -.95rem; top: 50%; margin-top: -.8rem; border: .8rem solid transparent; border-left: 0; border-right-color: var(--brown); border-right-width: .95rem; }
@@ -371,7 +377,7 @@ const SHOW = `<!doctype html>
       <video id="video" autoplay muted playsinline></video>
       <canvas id="boxes"></canvas>
       <div id="hint" aria-live="polite"></div>
-      <div id="napping"><img src="/scout/assets/beeswax-sleep.webp" alt=""><div id="naptext">The glasses camera is waking up&hellip;</div></div>
+      <div id="napping"><img src="/scout/assets/beeswax-sleep.webp" alt=""><div id="naptext">Camera connecting&hellip;</div></div>
     </div>
     <div class="under">
       <button id="restart" class="quiet" type="button" title="Start the walk over: clears what was found">
@@ -392,6 +398,7 @@ const SHOW = `<!doctype html>
     <h2 class="big">Put on the glasses and look around.</h2>
     <p>Look at something on the table. Beeswax spots it and tells you why it matters to bees.</p>
     <div class="hello"><img src="/scout/assets/beeswax-wave.webp" alt=""><div>Hi, I&rsquo;m Beeswax. I live in the glasses!</div></div>
+    <button id="go" type="button">Start your adventure</button>
   </div>
 </section>
 <div id="teacher" role="dialog" aria-modal="true" aria-labelledby="tcap">
@@ -443,15 +450,22 @@ const SHOW = `<!doctype html>
   ["beeswax-front.webp", "beeswax-side.webp"].forEach(function (f) { var i = new Image(); i.src = ASSETS + f; });
 
   var S = { phase: null, offer: null, found: [] };
-  var lastActivity = 0, lastPlayingAt = 0;
+  var lastActivity = 0, lastPlayingAt = 0, started = false, startAt = 0;
 
   // ------------------------------------------------------------------ attract vs live
-  function tickMode() {
-    var now = Date.now();
-    var live = playing || now - lastPlayingAt < 4000 || now - lastActivity < 20000;
-    document.body.classList.toggle("attract", !live);
+  // The page always opens on the landing screen. "Start your adventure" switches to the live view for good
+  // (no automatic return) and starts a fresh journey; "Restart your journey" brings the landing screen back.
+  function tickMode() { document.body.classList.toggle("attract", !started); }
+  function startAdventure() {
+    if (started || Date.now() - startAt < 1500) return;
+    started = true; startAt = Date.now(); lastActivity = Date.now();
+    resetPage();
+    fetch("/scout/reset?" + TQ, { method: "POST" }).catch(function () {}); // badges cleared, the intro plays in the glasses
+    tickMode();
+    if (!playing && !iframeMode && !fileVideo) retry(0); // reconnect the camera right away
   }
-  setInterval(tickMode, 1000);
+  function showLanding() { started = false; tickMode(); setTimeout(function () { $("go").focus(); }, 50); }
+  $("go").addEventListener("click", startAdventure);
 
   // ------------------------------------------------------------------ facts found today (this screen, this browser)
   function dayKey() { var d = new Date(); return "lbs-found-" + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
@@ -542,6 +556,7 @@ const SHOW = `<!doctype html>
   var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
   function onFound(ev) {
     lastActivity = Date.now();
+    if (!started) { if (earn(ev.label)) fillSlot(ev.label, false); return; } // landing screen: no overlays
     bx.flash = { label: ev.label, until: Date.now() + 8000 };
     bumpToday(); hideTeacher();
     var rv = $("reveal");
@@ -623,7 +638,7 @@ const SHOW = `<!doctype html>
   // ------------------------------------------------------------------ all six: "Bee Scout badge earned!"
   var celebrated = false, celebTimer = null, celebOut = null;
   function celebrate() {
-    if (celebrated) return;
+    if (celebrated || !started) return;
     var wait = revealUntil - Date.now();
     if (wait > 0) { celebTimer = setTimeout(celebrate, wait); return; }
     celebrated = true; lastActivity = Date.now(); hideTeacher();
@@ -749,6 +764,7 @@ const SHOW = `<!doctype html>
   var TEACHER_LINE = "Ask your teacher for another assignment!";
   function showTeacher(text) {
     lastActivity = Date.now();
+    if (!started) return;
     $("tcap").textContent = text || TEACHER_LINE;
     var t = $("teacher");
     if (!t.classList.contains("on")) t.classList.add("on"); // already open (button, then its scout_teacher line): just keep it up
@@ -772,12 +788,16 @@ const SHOW = `<!doctype html>
     }
     unconfirm();
     fetch("/scout/reset?" + TQ, { method: "POST" }).catch(function () {});
+    resetPage();
+    showLanding();
+  });
+  function resetPage() {
     memToday = 0; try { localStorage.setItem(dayKey(), "0"); } catch (e) {}
     showToday(0);
     clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
     bx.flash = null;
     clearCaps(); pendingQ = null; hideTeacher(); stopSpeaking(); goIdle(); clearCase();
-  });
+  }
 
   function onState(st) {
     S = st;
@@ -891,7 +911,7 @@ const SHOW = `<!doctype html>
 
   // ------------------------------------------------------------------ video: WHEP straight from MediaMTX (same as /scout)
   var video = $("video"), pc = null, retryTimer = null, lastT = -1, lastMove = 0, playing = false, netFails = 0;
-  var iframeMode = Q.get("player") === "iframe", fileVideo = Q.get("video");
+  var iframeMode = Q.get("player") === "iframe", fileVideo = Q.get("video"), whepAt = 0;
   video.muted = true; video.volume = 0;
   ["play", "volumechange", "loadedmetadata"].forEach(function (t) { video.addEventListener(t, function () { if (!video.muted) video.muted = true; }); });
   var playerUrl = WEBRTC + "/" + streamPath + "/";
@@ -899,7 +919,7 @@ const SHOW = `<!doctype html>
     playing = on;
     if (on) lastPlayingAt = Date.now();
     document.body.classList.toggle("playing", on);
-    $("naptext").textContent = "The glasses camera is waking up\\u2026";
+    $("naptext").textContent = "Camera connecting\\u2026";
     tickMode();
   }
   function stopPc() { if (pc) { pc.ontrack = pc.onconnectionstatechange = null; try { pc.close(); } catch (e) {} pc = null; } }
@@ -914,9 +934,14 @@ const SHOW = `<!doctype html>
   function startWhep() {
     retryTimer = null; stopPc();
     var p = pc = new RTCPeerConnection();
+    whepAt = Date.now();
     var ms = new MediaStream();
     p.addTransceiver("video", { direction: "recvonly" });
-    p.ontrack = function (e) { if (e.track.kind !== "video") { e.track.stop(); return; } ms.addTrack(e.track); video.srcObject = ms; video.muted = true; };
+    p.ontrack = function (e) {
+      if (e.track.kind !== "video") { e.track.stop(); return; }
+      ms.addTrack(e.track); video.srcObject = ms; video.muted = true;
+      var pl = video.play(); if (pl && pl.catch) pl.catch(function () {}); // don't rely on the autoplay attribute alone
+    };
     p.onconnectionstatechange = function () {
       if (p !== pc) return;
       var st = p.connectionState;
@@ -944,6 +969,8 @@ const SHOW = `<!doctype html>
     var t = video.currentTime, now = Date.now();
     if (t !== lastT && video.readyState >= 2) { lastT = t; lastMove = now; lastPlayingAt = now; if (!playing) setPlaying(true); }
     else if (playing && now - lastMove > 5000) { setPlaying(false); if (!fileVideo) retry(500); }
+    // WHEP answered but no frame ever arrived (stream not ready yet, a stuck session): try again
+    else if (!playing && pc && !retryTimer && !fileVideo && now - whepAt > 8000) retry(0);
   }, 1000);
   if (iframeMode) {
     video.remove();
@@ -958,6 +985,7 @@ const SHOW = `<!doctype html>
 
   addEventListener("keydown", function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!started && (e.key === "Enter" || e.key === " ")) { if (!(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); startAdventure(); } return; }
     if (e.key === "m" || e.key === "M") setMirror(!mirror);
     else if (e.key === "b" || e.key === "B") setBoxes(!showBoxes, true);
     else if (e.key === "g" || e.key === "G") toggleGlasses();
