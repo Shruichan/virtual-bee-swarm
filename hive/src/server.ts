@@ -48,6 +48,7 @@ import { speechVerdict, voiceKeywords } from "./speech";
 import { boardHtml } from "./board";
 import { monitorHtml } from "./monitor";
 import type * as AskModule from "./ask";
+import type * as WindowModule from "./window";
 
 // ---------------------------------------------------------------- injected dependencies
 // director/tts/stt/router are other builders' modules, and lines.ts holds the data tables. They are injected so
@@ -93,6 +94,8 @@ export interface HiveDeps {
   ackLines: string[];
   /** ask.ts: ASK BEESWAX (map/field questions skip the router; router answers are vetted). Absent = off. */
   ask?: typeof AskModule;
+  /** window.ts: the window reacts to questions and what-ifs (nearest clip now, Claude's live prompt next). Absent = off. */
+  window?: Pick<typeof WindowModule, "matchWindow" | "pointer" | "writePrompt" | "resetPointers">;
 }
 
 const OFFLINE_JUDGE: HiveDeps["judge"] = async () => ({
@@ -251,6 +254,13 @@ export async function loadDeps(): Promise<HiveDeps> {
     };
   } catch (err) {
     log("WARNING: src/ask.ts failed to load; ASK BEESWAX questions go through the router:", err);
+  }
+  try {
+    const win = (await importSibling("window")) as typeof WindowModule;
+    if (typeof win.matchWindow !== "function") throw new Error("no matchWindow() export");
+    deps.window = win;
+  } catch (err) {
+    log("WARNING: src/window.ts failed to load; the window does not react to questions:", err);
   }
   return deps;
 }
@@ -456,6 +466,12 @@ export interface HiveOptions {
   prewarmStaleMs?: number;
   /** Warm up as soon as the Hive starts (default true). */
   prewarmOnStart?: boolean;
+  /** A question's window moment: Claude's live prompt deadline (default 3500) and how long the moment stays before the
+   *  window goes back (default 20 s). */
+  askWindowMs?: number;
+  askWindowHoldMs?: number;
+  /** At most one window prompt per this many ms (default 4000): a noisy room can't fire a Claude call per word. */
+  askWindowGapMs?: number;
 }
 
 export interface Hive {
@@ -480,6 +496,9 @@ export function startHive(opts: HiveOptions): Hive {
   const embersDelayMs = opts.embersDelayMs ?? 2500;
   const prewarmEveryMs = Math.max(1, opts.prewarmEveryMs ?? 50 * 60_000);
   const prewarmStaleMs = opts.prewarmStaleMs ?? 45 * 60_000;
+  const askWindowMs = opts.askWindowMs ?? 3500;
+  const askWindowHoldMs = opts.askWindowHoldMs ?? 20_000;
+  const askWindowGapMs = opts.askWindowGapMs ?? 4000;
   const state = createState();
   let beatRevision = 0;
   const jobs = new Map<string, ScanJob>(); // by scan_id (current + recent, for idempotent retries)
@@ -870,6 +889,7 @@ export function startHive(opts: HiveOptions): Hive {
       stage: SCENES.indexOf(state.scene),
       scene: state.scene,
       fallback_clip: fallbackClip(state.scene),
+      ...(momentActive ? { clip_first_s: MOMENT_CLIP_FIRST_S } : {}),
     };
   }
 
@@ -932,15 +952,27 @@ export function startHive(opts: HiveOptions): Hive {
     return run;
   }
 
-  /** Morph a running stream to this scene's prompt. No stream: nothing (never opens a billed session by itself). */
-  function steerRelay(scene: Scene): void {
+  /** Morph a running stream to this scene's prompt (cut: a fresh run of it instead, for a change a morph would only
+   *  hint at). No stream: nothing (never opens a billed session by itself). */
+  function steerRelay(scene: Scene, cut = false, shouldSend?: () => boolean): void {
     if (!relayUrl || !relayRunning()) return;
     const prompt = promptFor(scene);
-    if (relayScene === scene && relayPrompt === prompt) return;
     if (!prompt) return observe(`no Orbis prompt for scene ${scene}`);
+    const stage = () => relay("/orbis/stage", cut ? { prompt, scene, reset: true } : { prompt, scene });
+    if (shouldSend) {
+      void queueRelay(async () => {
+        if (!shouldSend() || !relayRunning() || state.scene !== scene || promptFor(scene) !== prompt) return null;
+        if (relayScene === scene && relayPrompt === prompt) return null;
+        relayScene = scene;
+        relayPrompt = prompt;
+        return stage();
+      });
+      return;
+    }
+    if (relayScene === scene && relayPrompt === prompt) return;
     relayScene = scene;
     relayPrompt = prompt;
-    void queueRelay(() => relay("/orbis/stage", { prompt, scene }));
+    void queueRelay(stage);
   }
 
   /** live: start the stream on the current scene, or morph a running one. clips/off: stop (Reactor bills while connected). */
@@ -969,16 +1001,38 @@ export function startHive(opts: HiveOptions): Hive {
     });
   }
 
-  /** The one place the window changes: fx for the fire, the relay morph, and orbis{} for everyone. */
-  function setScene(next: Scene, why: string): void {
+  // A window moment: a scene shown for a question or a what-if's nearest clip. Like a what-if it never becomes the base
+  // scene, undo ends it, and any other scene change (a station, a beat, a newer question) supersedes it.
+  let momentSeq = 0;
+  let momentActive = false;
+  let momentTimer: ReturnType<typeof setTimeout> | null = null;
+  let momentCut = false; // the live stream was cut to a question's scene: leave it with a cut too
+  // The clip holds until Claude's prompt deadline has passed and the cut it triggers had time to land.
+  const MOMENT_CLIP_FIRST_S = Math.min(10, askWindowMs / 1000 + 1.5);
+  let askSeq = 0; // each question that calls Claude; a newer one (or a refusal) makes an older prompt stale
+  let lastWindowCallAt = -Infinity;
+  function endMoment(): void {
+    momentSeq++;
+    momentActive = false;
+    if (momentTimer) clearTimeout(momentTimer);
+    momentTimer = null;
+  }
+
+  /** The one place the window changes: fx for the fire, the relay morph, and orbis{} for everyone. moment: see above;
+   *  steer false: publish the scene (its clip) but leave the relay alone, because a better live prompt is on its way. */
+  function setScene(next: Scene, why: string, o: { moment?: boolean; steer?: boolean } = {}): void {
     const prev = state.scene;
+    if (o.moment) momentActive = true;
+    else endMoment();
     if (next === "whatif_custom" && prev !== "whatif_custom") customClip = fallbackClip(prev);
     state.scene = next;
-    if (!isWhatIfScene(next) && !isForecastScene(next) && next !== "fire_out") state.base_scene = next;
+    if (!o.moment && !isWhatIfScene(next) && !isForecastScene(next) && next !== "fire_out") state.base_scene = next;
     if (prev === "whatif_fire" && next !== "whatif_fire") bus.fx("embers_stop");
     if (next === "whatif_fire" && prev !== "whatif_fire") bus.fx("embers", { delay_ms: embersDelayMs });
     publishOrbis(true);
-    steerRelay(next);
+    const cutBack = momentCut && !o.moment;
+    if (!o.moment) momentCut = false;
+    if (o.steer !== false) steerRelay(next, cutBack);
     if (next !== prev) {
       log(`window: ${prev} -> ${next} (${why})`);
       observe(`window: ${prev} -> ${next} (${why})`);
@@ -1055,6 +1109,8 @@ export function startHive(opts: HiveOptions): Hive {
       setScene("moon", "t0");
     } else if (name === "map") {
       setScene("full_bloom", "map");
+    } else if (momentActive && momentTimer) {
+      setScene(state.base_scene, "ask moment ended at beat change");
     }
   }
 
@@ -1130,9 +1186,14 @@ export function startHive(opts: HiveOptions): Hive {
     lastChoice = { key: "", at: 0 };
     customClip = null;
     variantTurn.clear();
+    endMoment();
+    askSeq++;
+    const cutBack = momentCut;
+    momentCut = false;
+    deps.window?.resetPointers();
     bus.fx("embers_stop");
     publishOrbis(true); // reset() already put the window back on the meadow (and cleared the custom prompt and score)
-    steerRelay(state.scene);
+    steerRelay(state.scene, cutBack);
     // A new group is about to talk: make sure Claude's prompt cache (1 h) is still warm.
     if (lastWarm === null || Date.now() - lastWarm > prewarmStaleMs) void warmUp("group reset");
   }
@@ -1338,18 +1399,18 @@ export function startHive(opts: HiveOptions): Hive {
       else bus.say("ear", response.line_id, { audio_url: response.audio_url, caption: response.caption }, false); // board/monitor copy
     };
     // A live answer needs our TTS in the room; the miniapp can read a caption aloud in Mentra's own voice.
-    act(r, deliver, field, toRoom ? ttsAvailable() : true);
+    act(r, deliver, field, toRoom ? ttsAvailable() : true, text);
     latency(operator ? "board.total" : "voice.total", Date.now() - t0);
     return { route: r, response };
   }
 
   /** What-if, undo, ask, ack: say the line first, then change the window (the line covers the 2-4 s morph). */
-  function act(r: RouteResultLike, deliver: (reply: Reply) => void, field: boolean, canSpeakAnswer: boolean): void {
+  function act(r: RouteResultLike, deliver: (reply: Reply) => void, field: boolean, canSpeakAnswer: boolean, said = ""): void {
     switch (r.intent) {
       case "what_if": {
         const topic = r.topic!;
         state.memory.whatifs.push(topic);
-        if (topic === "custom") return customWhatIf(r.custom_prompt ?? null, deliver, field);
+        if (topic === "custom") return customWhatIf(r.custom_prompt ?? null, deliver, field, said);
         // The base line first; a repeat in the same run gets its alternates in turn ("...Again?!").
         const id = `room_whatif_${topic}`;
         deliver(hasLine(id) ? lineReply(variant(id)) : ackReply());
@@ -1361,7 +1422,7 @@ export function startHive(opts: HiveOptions): Hive {
         if (cur === "whatif_fire") {
           deliver(lineReply(variant("room_whatif_out")));
           if (!field) setScene("fire_out", "put it out");
-        } else if (isWhatIfScene(cur) || cur === "fire_out") {
+        } else if (isWhatIfScene(cur) || cur === "fire_out" || momentActive) {
           deliver(lineReply("room_whatif_back"));
           if (!field) setScene(state.base_scene, "undo");
         } else {
@@ -1400,7 +1461,7 @@ export function startHive(opts: HiveOptions): Hive {
    * clip and Beeswax says the clips line instead (it is written to stand alone: "I'm picturing it. The window isn't.").
    * No prompt (Claude refused, or the Hive's check blocked it): the refusal line, and the window stays as it is.
    */
-  function customWhatIf(raw: string | null, deliver: (reply: Reply) => void, field: boolean): void {
+  function customWhatIf(raw: string | null, deliver: (reply: Reply) => void, field: boolean, said = ""): void {
     // Checked again right here, the last step before the relay: nothing unvetted ever reaches Reactor.
     const check = raw ? checkCustomPrompt(raw) : null;
     if (!check?.ok) {
@@ -1408,15 +1469,114 @@ export function startHive(opts: HiveOptions): Hive {
       deliver(lineReply("room_whatif_refuse", "room_ack_grievance"));
       return;
     }
+    // The nearest recorded scene: its clip is what Unity shows while the live morph is on its way, or instead of it.
+    const near = field ? null : nearestScene(said);
     if (!field && relayUrl && relayRunning()) {
       deliver(lineReply(variant("room_whatif_custom"), "room_ack_allow"));
+      if (near) setScene(near.scene, `what-if nearest clip: ${near.topic}`, { moment: true, steer: false });
       state.custom_prompt = check.prompt;
       setScene("whatif_custom", "custom what-if");
       observe(`custom what-if on the live window: "${check.prompt.slice(0, 200)}"`);
       return;
     }
+    if (near) {
+      deliver(lineReply(variant("room_whatif_custom"), "room_ack_allow"));
+      setScene(near.scene, `what-if, no live stream: nearest clip (${near.topic})`, { moment: true });
+      observe(`custom what-if: no live stream, nearest clip ${near.scene} (prompt: "${check.prompt.slice(0, 120)}")`);
+      return;
+    }
     deliver(lineReply("room_whatif_custom_clips", "room_ack_tabled"));
     observe(`custom what-if: no live stream (clips), the window keeps its clip (prompt: "${check.prompt.slice(0, 120)}")`);
+  }
+
+  function nearestScene(said: string, answer = ""): WindowModule.WindowMatch | null {
+    try {
+      return deps.window?.matchWindow(said, answer) ?? null;
+    } catch (err) {
+      log("window match threw:", err);
+      return null;
+    }
+  }
+
+  /**
+   * ASK BEESWAX: the window shows what the question is about while he answers. The nearest recorded scene goes up at once
+   * (0 ms; Unity plays its clip whenever live frames are late), and with the live stream up Claude writes a scene prompt
+   * in parallel, checked like any custom what-if, that the relay morphs to (2-4 s). No prompt in askWindowMs: the relay
+   * morphs to the nearest scene's own prompt. Never waits: Beeswax's answer goes out on its own clock. The moment ends
+   * after askWindowHoldMs (back to the base scene), on undo, or with the next scene change. Returns his pointer line.
+   */
+  function askWindow(said: string, isCurrent: () => boolean): { pointer: string | null; seq: number; ask: number; moment: boolean } | null {
+    const win = deps.window;
+    if (!win || !isCurrent()) return null;
+    const near = nearestScene(said);
+    // A player's own what-if (not a question's moment) stays up for anything that doesn't name a scene.
+    const inWhatIf = !momentActive && (isWhatIfScene(state.scene) || state.scene === "fire_out");
+    const live = !!relayUrl && relayRunning() && orbisWant === "live" && (!!near || !inWhatIf);
+    if (!near && !live) return null;
+    let seq = momentSeq;
+    if (near) {
+      endMoment();
+      seq = momentSeq;
+      setScene(near.scene, `ask: ${near.topic}`, { moment: true, steer: !live });
+      armMomentEnd(seq);
+    }
+    let ask = -1;
+    const canSteer = (expectedMoment: number) =>
+      isCurrent() && orbisWant === "live" && expectedMoment === momentSeq && (ask === -1 || ask === askSeq);
+    if (live && Date.now() - lastWindowCallAt < askWindowGapMs) {
+      // Too soon after the last call: no new Claude prompt, just the nearest scene's own (or nothing to change).
+      if (near) {
+        momentCut = true;
+        steerRelay(near.scene, true, () => canSteer(seq));
+      }
+    } else if (live) {
+      lastWindowCallAt = Date.now();
+      ask = ++askSeq;
+      void win
+        .writePrompt(said, near ? promptFor(near.scene) : null, { timeoutMs: askWindowMs })
+        .then((w) => {
+          latency("ask.window", w.ms);
+          if (!canSteer(seq)) {
+            return observe(`ask window prompt in ${w.ms} ms, too late (the window moved on)`);
+          }
+          const check = w.prompt ? checkCustomPrompt(w.prompt) : null;
+          if (check?.ok) {
+            // No keyword match: the moment starts only now, so small talk (null) never touches the window.
+            if (!near) endMoment();
+            const mine = momentSeq;
+            state.custom_prompt = check.prompt;
+            setScene("whatif_custom", "ask: live prompt", { moment: true, steer: false });
+            // A cut, not a morph: a morph from the sunny meadow only hints at a new prompt. Unity holds the nearest
+            // clip during the gap (clip_first_s, then no live frame for 1 s).
+            momentCut = true;
+            steerRelay("whatif_custom", true, () => canSteer(mine));
+            observe(`ask window: live prompt in ${w.ms} ms: "${check.prompt.slice(0, 200)}"`);
+            armMomentEnd(mine);
+          } else {
+            observe(`ask window: no live prompt in ${w.ms} ms (${check ? check.reason : (w.error ?? "nothing to show")})${near ? `, cutting to ${near.scene}` : ""}`);
+            // Make the relay match the scene everyone was told about (the matched one, or whatever is up now).
+            const cut = !!near || momentCut;
+            if (near) momentCut = true;
+            steerRelay(near ? near.scene : state.scene, cut, () => canSteer(seq));
+          }
+        })
+        .catch((err) => log("ask window failed:", err));
+    }
+    let pointer: string | null = null;
+    try {
+      pointer = near ? win.pointer(near) : null;
+    } catch {
+      pointer = null;
+    }
+    return { pointer, seq, ask, moment: !!near };
+  }
+
+  function armMomentEnd(seq: number): void {
+    if (momentTimer) clearTimeout(momentTimer);
+    momentTimer = setTimeout(() => {
+      momentTimer = null;
+      if (seq === momentSeq && momentActive) setScene(state.base_scene, "ask moment over");
+    }, askWindowHoldMs);
   }
 
   let lastAck = "";
@@ -1453,8 +1613,15 @@ export function startHive(opts: HiveOptions): Hive {
     const { beat, group } = turn;
     const toRoom = (beat !== "field" || source === "quest") && (operator || bus.count("quest") > 0);
     const onLive = () => isCurrent() && toRoom && hasLine(ask.FILLER_LINE) && bus.say("room", ask.FILLER_LINE);
+    // Show the nearest clip immediately and resolve the live prompt in parallel with the answer.
+    const shown = beat !== "field" && toRoom && !ask.isEcho(group, text) ? askWindow(text, isCurrent) : null;
     const a = await ask.answer(text, { beat, group, run: state.memory }, { onLive, isCurrent });
     if (!isCurrent()) return null;
+    const answered = a.kind === "answer" || a.kind === "canned";
+    if (shown && !answered) {
+      if (shown.ask === askSeq) askSeq++; // its live prompt, if still on the way, is dropped
+      if (shown.moment && shown.seq === momentSeq && momentActive) setScene(state.base_scene, `ask: ${a.kind}, nothing to show`);
+    }
     latency("ask.route", a.ms);
     const name: IntentName = a.kind === "ack" ? "ack" : a.kind === "echo" || a.kind === "not_heard" ? "unknown" : "ask";
     const route: Routed = { intent: name, topic: null, answer: a.text || null, ms: a.ms, path: a.path === "claude" ? "claude" : "keyword", error: a.error };
@@ -1463,6 +1630,9 @@ export function startHive(opts: HiveOptions): Hive {
     const response: UtteranceResponse = { intent: name, topic: null, line_id: null, audio_url: null, caption: "" };
     if (a.kind !== "echo") {
       const reply: Reply = a.line_id ? lineReply(a.line_id, "room_ack_grievance") : a.text ? { line_id: null, text: a.text } : ackReply();
+      // He points at the window after the answer, as the live morph lands.
+      // Not on a canned answer: the pointer would change its text and lose its cached audio.
+      if (toRoom && a.kind === "answer" && !reply.line_id && reply.text && shown?.pointer && shown.seq === momentSeq) reply.text = `${reply.text} ${shown.pointer}`;
       if (toRoom) sayReply(reply, "room", operator ? undefined : isCurrent);
       else {
         Object.assign(response, earVersion(reply));

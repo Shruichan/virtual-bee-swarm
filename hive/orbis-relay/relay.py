@@ -219,6 +219,23 @@ def render_test_pattern(w: int, h: int, t: float, stage: int, label: str, frame_
     return img
 
 
+def mostly_black(frame: Any) -> bool:
+    """A Reactor (bgra, w, h) frame that is nearly all black: what a fresh run emits right after a reset. Samples ~2k pixels."""
+    if not isinstance(frame, tuple) or len(frame) != 3 or not isinstance(frame[0], (bytes, bytearray, memoryview)):
+        return False
+    bgra = memoryview(frame[0])
+    n = len(bgra) // 4
+    if n == 0:
+        return False
+    step = max(1, n // 2048)
+    total = count = 0
+    for i in range(0, n, step):
+        o = i * 4
+        total += bgra[o] + bgra[o + 1] + bgra[o + 2]
+        count += 1
+    return total / (3 * count) < 6
+
+
 def encode_jpeg(img: Image.Image, max_w: int, quality: int) -> bytes:
     if img.width > max_w:
         img = img.resize((max_w, max(2, round(img.height * max_w / img.width))), Image.Resampling.BILINEAR, reducing_gap=2.0)
@@ -711,6 +728,7 @@ class Relay:
             return
         prompt = full if reset or not morph else morph
         if reset:
+            self._waiting_since = time.monotonic()  # set before too: the black frames can come while start() runs
             await self.source.start(prompt, self.seed, passthrough)
             self._waiting_since = time.monotonic()
         else:
@@ -781,6 +799,10 @@ class Relay:
                 continue
             frame = self.source.grab()
             if frame is None:
+                continue
+            # A reset (a cut to a new prompt) starts with black frames: skip them, so clients keep the last picture and
+            # fall back to their clip instead of showing a black window.
+            if time.monotonic() - self._waiting_since < 8 and mostly_black(frame):
                 continue
             try:
                 jpeg = await asyncio.to_thread(self.source.encode, frame)

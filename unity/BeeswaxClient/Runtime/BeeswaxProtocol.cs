@@ -667,6 +667,8 @@ namespace Beeswax
         public int stage = -1;
         public string scene = "";
         public string fallback_clip = "";
+        /// <summary>v2.3: show the scene's clip this long before live frames (0 = live whenever it flows).</summary>
+        public float clip_first_s;
         public OrbisStatus() { type = MsgType.Orbis; }
         internal override void Normalize()
         {
