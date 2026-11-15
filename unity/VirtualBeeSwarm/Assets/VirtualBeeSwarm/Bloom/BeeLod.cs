@@ -40,22 +40,35 @@ namespace VirtualBeeSwarm.Bloom
             if (cam == null) return false;
             Ensure(m.Length);
             n = Mathf.Min(n, _nm.Length);
-            Vector3 eye = cam.transform.position;
+            Vector3 eye = cam.transform.position, fwd = cam.transform.forward;
+            // Per-bee view cone, the same one MeadowField.Cull uses for the floor (68 deg on the headset) plus 6 deg for
+            // a bee's size and both eyes. DrawMeshInstanced only culls the pool's room-sized bounds, so bees behind the
+            // player cost full vertex work otherwise. Bees within 30 cm of the head always draw.
+            float half;
+            if (UnityEngine.XR.XRSettings.isDeviceActive) half = 68f;
+            else half = Mathf.Atan(Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Mathf.Sqrt(1f + cam.aspect * cam.aspect)) * Mathf.Rad2Deg + 4f;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            half = Mathf.Max(half, 68f);
+#endif
+            float cos = Mathf.Cos(Mathf.Clamp(half + 6f, 30f, 89f) * Mathf.Deg2Rad), cos2 = cos * cos;
             int nearMax = Mathf.Max(0, MeadowTuning.VatNear);
             float r2 = VatRange * VatRange;
             int inRange = 0;
             for (int i = 0; i < n; i++)
             {
-                Vector3 p = m[i].GetColumn(3);
-                float d = (p - eye).sqrMagnitude;
-                _d[i] = d;
-                if (d < r2) _sel[inRange++] = d;
+                Vector3 v = (Vector3)m[i].GetColumn(3) - eye;
+                float d = v.sqrMagnitude;
+                float along = Vector3.Dot(v, fwd);
+                bool seen = d < 0.09f || (along > 0f && along * along >= cos2 * d);
+                _d[i] = seen ? d : -1f; // -1: behind or beside the view, not drawn this frame
+                if (seen && d < r2) _sel[inRange++] = d;
             }
             float cut = r2;
             if (inRange > nearMax) cut = nearMax == 0 ? -1f : Select(_sel, inRange, nearMax - 1);
             int nn = 0, nf = 0;
             for (int i = 0; i < n; i++)
             {
+                if (_d[i] < 0f) continue;
                 if (_d[i] <= cut && _d[i] < r2 && nn < nearMax) { _nm[nn] = m[i]; _nc[nn] = col[i]; nn++; }
                 else { _fm[nf] = m[i]; _fc[nf] = col[i]; nf++; }
             }
