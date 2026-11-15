@@ -134,6 +134,7 @@
 | S15 Video | dartiros | E |
 | S16 Devpost, tracks, repo | Rome | E |
 | S17 Mentra Live miniapp | Rome | F |
+| S19 Live Bee Scout (glasses-only, ManageXR) | Adityash | G (branch `scout/live`) |
 
 **Cut, so don't claim these:**
 - Glasses build (S17): claimed as a separate release track; real-prop choices remain later.
@@ -683,6 +684,16 @@
 - **S17.1 Bee Scout miniapp** (P0 · 0.5 h · needs –) — done when: a button press works without a Quest scan beat, captures a photo, and speaks a cautious likely ID plus one conservation note; unclear photos ask for a retry; typecheck, flow tests and production build pass — owner: **Rome** — status: in progress.
 
 - **S17.2 Field guide scan endpoint** (P0 · 0.5 h · needs S17.1) — done when: `field_guide: true` creates a field-only scan job at any beat, routes photos through vision rather than speech shortcuts, and sends no scan effects to Unity; documented without exposing a token — owner: **Rome** — status: in progress.
+
+#### S19 Live Bee Scout (glasses-only demo for ManageXR)
+
+Branch `scout/live` (off `codex/mentra-live-build`), contract in `hive/src/scout-protocol.ts`. The glasses stream video to MediaMTX on the laptop, a vision worker recognizes six booth objects (beehive, native flower, store honey, pebble dish, bug spray, bee hotel) from our own reference photos, and the Hive's scout game plays a "Bee fact found!" sting + hook; "yes" plays the deeper fact, "no"/"go away"/silence gets a Beeswax reply. All lines pre-rendered, all facts from Ride Script v2's sources. Lanes merge into `scout/live` with `--no-ff`; `scout/live` merges to main only after it demos.
+
+- **S19.0 Contract + streaming spike** (P0 · 1 h) — done when: glasses publish to MediaMTX, frames reach the laptop, glass-to-dashboard delay measured on the hotspot — owner: **Adityash (orchestrator agent)** — status: in progress (contract + glasses `live.ts` pushed, b9f7d65).
+- **S19.1 Vision worker** `hive/scout-vision/` (branch `scout/vision`) — done when: enrol from photos or live frames, 9/10 held-out photos right, <1/50 background false hits, posts `/scout/frame` — owner: **Adityash (vision agent)** — status: in progress.
+- **S19.2 Scout lines** `hive/lines/scout_lines.json` + audio (branch `scout/lines`) — done when: every id in SCOUT_LINES exists, checks pass (length, no digits, sourced facts), reviewer pass, rendered — owner: **Adityash (lines agent)** — status: in progress. Needs the ElevenLabs key for Harry renders.
+- **S19.3 Scout dashboard** Hive `/scout` + `/scout/slides` (branch `scout/dashboard`) — done when: live glasses video, current match, timeline, now-speaking caption + audio, progress, latency; screenshot reviewed — owner: **Adityash (dashboard agent)** — status: in progress.
+- **S19.4 Scout game** `hive/src/scout.ts` + glasses answer routing (branch `scout/game`) — done when: unit tests cover found → hook → yes/no/rude/silence → fact → progress → done — owner: **Adityash (game agent)** — status: in progress.
 
 ### Schedule
 
@@ -1292,6 +1303,7 @@ Claims now live on the **Task board** in the Work plan at the top of this file (
 - **dartiros:** art. Notes on the .blend in the log below.
 - **Adityash:** stations, tuning, rehearsal (S2/S4/S14).
 - **Adityash (agent):** Bee Scout (S17) hardware test on Adityash's Mentra Live, run from `codex/mentra-live-build` (local Hive + `bun dev`), not main. Claims and progress are logged on that branch's PLAN.md.
+- **Adityash (orchestrator agent + 4 lane agents):** S19 Live Bee Scout on branch `scout/live` (new files only: `hive/src/scout*.ts`, `hive/scout-vision/`, `hive/lines/scout_lines.json`, `glasses/src/background/live.ts`, `ops/scout-mediamtx.yml`). Local Hive on :8241, never :8240.
 
 ## Physical props & shopping
 
@@ -1502,3 +1514,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 18:42 PT · Rome (agent) · dartiros's 1939462 (new portal + hive progress tiles; edits ArtSlots.cs, BuildGameScene.cs, HexagonPanel.cs) compiles on main: 0 errors, scene builds, 0 missing scripts. → dartiros: thanks, it's in the next APK. → UI/stickers, new-art and title builds: pull before you ship; ArtSlots.cs and HexagonPanel.cs changed under you, keep his tiles (the union card adds to the hexagons, it doesn't replace them).
 - 2026-11-14 18:40 PT · Rome (agent) · The game logo is in the game as the title screen (Art/Logo/, Title/, switch title.on in tuning.json, default on). In pre the logo floats about 1 m ahead over the table in three layers, with four sticker bees flying loops, swarm bees, and a bed of Art/Flowers + GrassTuft on the table; Beeswax waits beside it, then carries the SIGN HERE clipboard to the player himself and says room_pre. On signing the logo flies out through the window and he goes into the hive, so the hook runs as before; title.on=false keeps the crew delivery. IntroSequence got three one-line hooks (Carry, Bringing, TakeAway). The same logo is the app icon (ProjectBootstrap.ConfigureAppIcon). Autopilot 1x with clips passed with delivery on and off and with the title off on b5820d5; after 1939462 (portal tiles) only compile + scene build were rerun (0 errors, 0 missing scripts). Not tried on a headset yet. → dartiros: your sticker bees are the logo, unchanged apart from scale and rotation. → motion lane: while the title shows, Beeswax rides TitleDirector's seat via BeeswaxController.AttachTo and is given back with HideInside.
 - 2026-11-14 19:00 PT · Rome · **The game is set in a meadow, not on a desk.** AR turns the room into a meadow with a beehive in it: the whole floor is a dense flower-and-grass meadow from the title screen on, and the hive, rocket and stations stand in it on their own (hive stand / stump at hand height, placed automatically in front of the player). A real table is optional: used if one is right there, never required, no placement instructions on screen. → Rome (agent) is building this now as one build (Bloom/ floor meadow always on + free-standing placement + remove the pre instruction text). → AR/UI/flowers build: don't duplicate the floor meadow; keep to passthrough fixes, themed text, stickers and flowers on/around the hive.
+- 2026-11-14 19:12 PT · Adityash (orchestrator agent) · Claimed S19 Live Bee Scout (glasses-only demo for the ManageXR track): branch `scout/live` off codex/mentra-live-build, contract `hive/src/scout-protocol.ts` + glasses streaming `live.ts` pushed (b9f7d65). Starting 4 lane agents (vision, lines, dashboard, game) on `scout/vision|lines|dashboard|game`, each merged back with --no-ff. New files only; server.ts gets a one-line route hook from the game lane. → Rome: this is your glasses lane, shout if you object; nothing touches lines.json, protocol.ts or main's glasses/. → Adityash (agent) on codex/mentra-live-build: I leave your :8240 Hive and bun dev alone.
