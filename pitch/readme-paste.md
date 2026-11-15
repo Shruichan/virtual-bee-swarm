@@ -1,14 +1,13 @@
 # README paste-in (for a human to copy into the repo README)
 
 > Agents only write in `pitch/`, so this is a draft. A human copies the part below the line into `README.md`, keeps the existing "plan lives in PLAN.md" line, fixes the TODOs, and commits.
-> It replaces the old README's "Setup: TBD" and its out-of-date AI table (scan verdicts, stings, no Scribe, no coding assistants).
 > Never paste keys, the Hive token, or `.env` contents into the README. The repo is public.
 
 ---
 
 # HONEYMOON
 
-A bee union rep gives you four minutes to fix his hive on your real table. Then he leaves for the Moon anyway.
+A bee union rep gives you four minutes to fix his hive in your room. Then he leaves for the Moon anyway.
 
 Mixed reality game for Meta Quest, made at [Immerse the Bay 2026](https://immerse-the-bay-2026.devpost.com/) (Stanford XR, Nov 13–15, 2026; theme *Take Me To The Moon*) by team TODO:final team name. Devpost: TODO link.
 
@@ -28,10 +27,10 @@ TODO: names + GitHub handles (Rome / Shruichan, dartiros / realdarter, Nam Nguye
           └── JPEG frames <── Orbis relay (Python) <── WebRTC ── Reactor (Visko Orbis world model)
 ```
 
-- **Quest app** (`unity/`). Unity 6 with OpenXR and the Meta XR SDK (v209). Passthrough puts the hive on the real table, hand tracking does the choices. TODO: which choices are physical and which are floating buttons. The bees are instanced meshes (Burst + `Graphics.RenderMeshInstanced`). TODO: real bee count and frame rate. Embers are Unity particles, so they're instant even though the window takes a few seconds to change. **Unity is the only clock:** every beat has an offline timer, and if the Hive is down, `BeeswaxStations` plays each choice's line, window clip and effect locally, so the demo always finishes.
+- **Quest app** (`unity/`). Unity 6 with OpenXR and the Meta XR SDK (v209). Passthrough puts the hive on the floor in a virtual meadow. Sign the worker bee's clipboard, poke the order tickets, and use the tools by hand. The bees are instanced meshes (Burst + `Graphics.RenderMeshInstanced`). TODO: real bee count and frame rate. Embers are Unity particles, so they're instant even though the window takes a few seconds to change. Unity freezes the score after the fourth repair. The Board uses that score when connected. Offline, Unity plays the station responses and window clips locally, and the what-if uses local inputs or timers.
 - **Hive server** (`hive/`). Bun + TypeScript + Hono. One WebSocket bus between the headset, the operator's Beat Board, a spectator page and the glasses. The Beat Board is a web page the operator uses to watch a run and nudge it (force the window to clips, play a line, jump a beat, reset for the next group). Message contract: `hive/src/protocol.ts`, mirrored in `unity/BeeswaxClient/Runtime/BeeswaxProtocol.cs`.
 - **Voice.** The Quest mic streams 16 kHz PCM16 to the Hive while the player talks. ElevenLabs Scribe does speech-to-text, with a local faster-whisper server (`hive/stt-whisper/`) as the backup when Scribe is slow or down. A keyword match runs first ("fire", "put it out"). If it misses, Claude (Haiku 5.5 by default, `ROUTER_MODEL`) turns the sentence into one intent from a fixed list (`what_if`, `undo`, `ask`, `ack`, `unknown`) plus a what-if topic. Unity only runs things from that list. TODO: confirm whether `ask` (a short Claude-written answer in Beeswax's voice, spoken live by ElevenLabs) is on for the demo.
-- **Beeswax's voice.** One ElevenLabs Voice Design voice (`hive/scripts/voice-design.ts`). Every scripted line (`hive/lines/lines.json`) is pre-rendered (`hive/scripts/prerender.ts`) and shipped inside the app, so the script never waits on the network.
+- **Beeswax's voice.** One ElevenLabs Voice Design voice (`hive/scripts/voice-design.ts`). The ride ships with prerecorded Beeswax dialogue. Line definitions live in `hive/lines/lines.json` and recordings are made with `hive/scripts/prerender.ts`.
 - **The meadow window** (`hive/orbis-relay/`). Visko's Orbis world model, served by Reactor as `reactor/visko-orbis-stable`, generates the meadow as real-time video (832×480 at about 18 fps). There's no Unity SDK, so a Python relay (`reactor-sdk` 1.14.0) takes the WebRTC stream and sends the newest frame as a JPEG over a WebSocket to the headset. Station choices and what-ifs change the prompt mid-stream, and the meadow morphs into the new scene in 2 to 4 seconds. The headset falls back to a recorded clip for the current scene if no live frame arrives for 8 seconds. TODO: true only once real Orbis clips replace the test-pattern placeholders in `hive/orbis-relay/clips/`.
 - **Sound.** Attractor Labs' SATIE, imported as mono clips and spatialized in Unity with Meta XR Audio. TODO: which sounds came from SATIE.
 - **Glasses** (`glasses/`). A Mentra Live miniapp (Bun/TS) for a second player. TODO: what it does in the final demo, or "not used in the demo".
@@ -39,7 +38,7 @@ TODO: names + GitHub handles (Rome / Shruichan, dartiros / realdarter, Nam Nguye
 
 ## Setup
 
-Requirements: Bun, uv (Python 3.12), Unity TODO:exact version with Android build support, a Meta Quest TODO:3-or-3S in developer mode.
+Requirements: Bun, uv (Python 3.12), Unity 6000.2.9f1 with Android build support, a Meta Quest TODO:3-or-3S in developer mode.
 
 Keys go in `hive/.env` (git ignores it). Variable names, no values: `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `REACTOR_API_KEY`, `HIVE_TOKEN`. TODO Rome: check this list against the real `.env` names.
 

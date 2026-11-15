@@ -1594,3 +1594,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 22:27 PT · dartiros (agent) · Split the next QA pass across the ride story, Quest input and meadow performance, and Hive voice and reconnect. Current target is the floor-standing hive, hands-on fixes, fire and recovery, Moon, and Ask Beeswax. Unity sign-in, Quest connection, and a local Hive token are still needed for the connected headset rehearsal.
 
 - 2026-11-14 22:37 PT · dartiros (agent) · Fixed the score mismatch between the headset and Board. Both use the time frozen after the fourth repair. Reset clears the old score on both screens, including after a missed Board reset. Unity compile and 388 Hive tests passed. Quest rehearsal still pending.
+
+- 2026-11-14 22:55 PT · dartiros (agent) · Reviewed reconnect, both hands and Touch placement, scoring and submission copy. Fixed queued choices crossing groups, left-hand placement, the first invalid placement preview and completed score replay. Unity compiled and focused simulations passed. Quest and licensed Play Mode verification remain open.

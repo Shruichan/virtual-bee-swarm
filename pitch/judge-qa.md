@@ -26,13 +26,13 @@ The Reactor key stays on our laptop instead of on a headset that judges pass aro
 ## The game
 
 **5. Is Beeswax a chatbot?**
-No. He's a scripted character: everything he says on his own is in our script, pre-recorded in one designed voice. The AI's job is understanding what you say so the world can change. (TODO, only if it shipped: off-script questions get one short AI-written answer.)
+Beeswax follows a prerecorded script through the ride. On a connected run, Ask Beeswax can answer a short question after the finale, and the game can use voice input to change the meadow window.
 
 **6. Can I fail? Does what I pick change anything?**
-You can't lose the hive yet. Beeswax goes to the Moon whatever you do, because that's the joke. Your picks change what the window shows and what he says, and TODO, only if true by Sunday: a wrong pick costs you time on the score, and the card counts "Grievances filed."
+You can't lose the hive yet. Beeswax goes to the Moon whatever you do, because that's the joke. Your picks change what the window shows and what he says, and the Board counts wrong picks as grievances. The headset and Board show the time to finish the four repairs.
 
 **7. Why mixed reality and not a phone?**
-Your hands are free. You lift the hive and squeeze the smoker with your own hands on your own table, and the embers drift past your head instead of across a screen you're holding.
+Your hands are free. You lift the hive from the meadow floor, pump the smoker with the lever, and see embers drift into the room around you.
 
 **8. How do I know the hive is light with no haptics?**
 You see it instead of feeling it: the hive comes up with no resistance and Beeswax says "Light, right? That's bad." TODO: only true once the build does this. Beekeepers call this hefting.
@@ -67,7 +67,7 @@ TODO: decide the team answer tonight and confirm it before anyone says it. Draft
 All of our code started here: the repo was created Friday night. That's the Unity app, the Hive server and Beat Board, the Orbis relay, the Unity client scripts, Beeswax's voice and lines, and the Orbis prompts. Before: Unity, the Meta XR SDK, the Anthropic/ElevenLabs/Reactor SDKs, and open-source pieces like NativeWebSocket and faster-whisper. TODO: list any 3D models or sounds from an asset store or library.
 
 **18. What happens if the Wi-Fi dies?**
-The demo still finishes. Unity runs the clock with an offline timer on every beat, the scripted lines are inside the app, and the window falls back to recorded clips after 8 seconds without frames. You lose voice and live Orbis. TODO: confirm we ran it with Wi-Fi off, and what triggers the fire beat offline (timer or a button).
+The scripted ride can still finish. For the what-if, release push-to-talk once to trigger the fire and again to put it out, or let the backup timers run. Prerecorded Beeswax lines and window clips play locally. Speech recognition, live answers, and live Orbis require a connection.
 
 **19. What does one run cost?**
 Orbis bills about $0.58 per connected minute, so about $2.30 for the four minutes, more with warm-up time between groups, plus a few cents of speech-to-text, Claude and voice. TODO: real numbers from the dashboards. In clips mode it costs almost nothing, which matters for a classroom.
