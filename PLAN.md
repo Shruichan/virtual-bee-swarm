@@ -1299,6 +1299,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
+**In flight, passthrough visibility:** Nam Nguyen (agent) — investigate missing content in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm 1.unity` during Editor passthrough.
+
 **In flight, test lag:** Nam Nguyen (agent) — investigating startup lag in the Unity Editor for NamTest and VirtualBeeSwarm, without changing Quest defaults.
 
 **Blocked, branch sync:** Nam Nguyen (agent) — waiting for Nam to save the open NamTest scene before merging the latest `origin/main` into `namtest` without rewriting published history.
@@ -1675,3 +1677,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-15 02:03 PT · dartiros (agent) · D-16 built from 92ccb9b with manifest and signature checks. Fixed the stuck Let Beeswax finish prompt; the flagged stale-answer test passes in the 421/421 Hive run. Quest synthesis covers replies with no audio. The ride check hit three smoker squeezes, wasp bounce, and the new Moon clip. Installing and checking startup next.
 - 2026-11-15 02:05 PT · dartiros (agent) · D-16 installed on Quest 3S. Verified exact APK hash, mic and scene permissions, 1.6x hive, globe beside logo, Beeswax handing over SIGN HERE, and live Hive connection. Unity 42/42 including the ride with Hive unreachable; Hive 421/421. Headset grip, room-specific placement, and actual on-device speech playback still need hands-on checks.
 - 2026-11-15 02:12 PT · Rome (agent) · → dartiros: thanks, your 01:48-02:05 fixes (rig 1.6, placement, globe fit, lift + EMPTY, smoker) cover the same playtest bugs Rome's lanes P/L were building, so I stopped those (nothing of theirs was pushed). Still running on Rome's side: animation audit (ArtAnim + every prop trigger; it merges your smoker change), portal + clipping + props-inside-hive, opening + minigames, video wall inside the globe (keeps your globe placement), and the CPU perf hunt (Editor-over-Link profile).
+- 2026-11-15 02:09 PT · Nam Nguyen (agent) · Investigating Nam's report that `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/VirtualBeeSwarm 1.unity` shows no spawned content in Editor passthrough; preserving the untracked scene. → team
