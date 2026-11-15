@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using VirtualBeeSwarm.Theme;
 
 namespace VirtualBeeSwarm
 {
@@ -26,7 +25,7 @@ namespace VirtualBeeSwarm
         protected override GameLine Hint => RideLines.HintFeed;
 
         bool _lifted, _triedHoney;
-        UiCard _emptyCard;
+        Transform _emptyCard;
         Vector3 _honeyHome, _syrupHome;
         Quaternion _honeyRot, _syrupRot;
 
@@ -150,17 +149,31 @@ namespace VirtualBeeSwarm
             if (hive == null || camera == null) return;
             if (_emptyCard == null)
             {
-                _emptyCard = UiCard.Create(transform, "Empty hive label", new Vector2(0.28f, 0.09f));
-                var label = UiTheme.NewText(_emptyCard.transform, "Empty", "EMPTY HIVE", 18f,
-                    UiTheme.Ink, new Vector2(0.25f, 0.06f), display: true, wrap: false);
-                if (label != null) label.transform.localPosition = new Vector3(0f, 0f, -0.003f);
+                _emptyCard = new GameObject("Empty hive label").transform;
+                _emptyCard.SetParent(transform, false);
+                var plate = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                plate.transform.SetParent(_emptyCard, false);
+                plate.transform.localScale = new Vector3(0.28f, 0.09f, 1f);
+                Destroy(plate.GetComponent<Collider>());
+                plate.GetComponent<MeshRenderer>().sharedMaterial = GameMaterials.Create(
+                    "Empty hive label", new Color(0.15f, 0.08f, 0.03f), doubleSided: true);
+                var label = new GameObject("Empty").AddComponent<TextMesh>();
+                label.transform.SetParent(_emptyCard, false);
+                label.transform.localPosition = new Vector3(0f, 0f, -0.003f);
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.GetComponent<MeshRenderer>().sharedMaterial = label.font.material;
+                label.text = "EMPTY HIVE";
+                label.anchor = TextAnchor.MiddleCenter;
+                label.fontSize = 48;
+                label.characterSize = 0.01f;
+                label.color = new Color(1f, 0.94f, 0.76f);
             }
             var eyes = camera.transform;
             var front = Vector3.ProjectOnPlane(hive.transform.position - eyes.position, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
             var pos = eyes.position + front * 0.8f + Vector3.Cross(Vector3.up, front) * 0.2f - Vector3.up * 0.23f;
-            _emptyCard.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
+            _emptyCard.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
             _emptyCard.gameObject.SetActive(true);
         }
 
