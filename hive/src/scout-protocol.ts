@@ -177,7 +177,8 @@ export type ScoutHop = "slide_to_found" | "frame_to_found" | "found_to_say" | "a
 
 /** Game timing and thresholds. The scout game owns the logic; these are the knobs. */
 export const SCOUT_TUNING = {
-  steadyMs: 900, //        the same label must lead for this long before it counts
+  steadyMs: 500, //        the same label must lead for this long before it counts
+  markerSteadyMs: 250, //  ...or this long when a `boxes` entry with via "marker" (AprilTag) backs it: a tag is certain
   minScore: 0.6, //        and score at least this
   minMargin: 0.12, //      and beat the runner-up by this much
   offerTimeoutMs: 6000, // no answer to "Want the rest?" -> scout_silence, treated as no
