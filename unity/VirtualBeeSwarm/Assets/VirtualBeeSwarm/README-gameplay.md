@@ -129,12 +129,15 @@ base plate and two-point calibration along the table's front edge. The app remem
 
 ## Art slots and required transforms
 
+The worker rig supplies the courier and colony bees. Beeswax uses his drone rig, and the queen appears at the rescue.
+The wasps raid the hive entrance. The hornet sequence is off by default.
+
 | Scene location | Art slot | Keep / wire |
 |---|---|---|
 | `TableAnchor/Hive/LiftRoot/Body, Roof, Stand` | hive model (tippable) | `HiveBody.bodyRenderers` (tinted sick), `liftRoot` (moves when lifted), `Door` pivot (its scale.x = door width), `DoorPoint`, `SwarmCenter`, `HeatGlow` renderer |
 | `.../Hexagons/Hex1-4` | hexagon panel | `HexagonPanel.hexagons` (order = smoker, feed, wasps, heat) |
 | `Beeswax/Body/*` | Beeswax (faces +Z) | `BeeswaxController.mouth` (scaled on Y), `leftWing`/`rightWing` (rotated on Z), `dustyRenderers`; AudioSource + BeeswaxRoomVoice stay on the `Beeswax` root |
-| `Swarm` (procedural bee mesh) | worker bee mesh, ~3.5 cm, +Z forward | `SwarmSystem.beeMesh` + an instanced material (vertex colors or texture) |
+| `Swarm` | worker bee rig, ~3.5 cm, +Z forward | `SwarmSystem.WorkerBeeMesh` shares the rig's baked rest pose. The same rig supplies the near animation. |
 | `HONEYMOON-1/*` | rocket | `Seat`, `Perch`, `Flame`, `CountdownDisplay` |
 | `FutureWindow/Portal/Frame*`, `Glow` | portal frame | `LivePane (Orbis)` and `FallbackPane` (same size; Orbis texture goes on the live pane), `Embers` (+Z out of the window) |
 | Station props (`Smoker`, `HoneyJar`, `SyrupBottle`, `Wasp0-3`, `DeepBowl`, `PebbleDish`, `Drinker0-4`) | real props | the references on each station component |

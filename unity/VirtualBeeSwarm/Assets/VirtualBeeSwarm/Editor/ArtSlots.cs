@@ -31,7 +31,7 @@ namespace VirtualBeeSwarm.Editor
     ///     MeshFilter/MeshRenderer/Collider is never touched, colliders are kept (renderer removed), and a primitive
     ///     some component still references keeps its renderer with no mesh (invisible, nothing breaks).
     /// The worker bee is special: every reference to Meshes/VBS_Bee.asset (SwarmSystem.beeMesh, and any other pool
-    /// wired to it) is pointed at Art/Bee/Bee_unit.asset, a copy of the art bee scaled to 1 unit long (the pools scale
+    /// wired to it) is pointed at Art/Bee/Bee_unit.asset, the worker rig's rest pose scaled to 1 unit long (the pools scale
     /// by beeLength) with linear vertex colours. One mesh, one submesh; each pool keeps its own instanced material.
     ///
     /// Slots without a placeholder in today's scene (Swatter, SprayBottle, Crowbar, Reducer, RainCloud, StampApproved,
@@ -671,76 +671,39 @@ namespace VirtualBeeSwarm.Editor
         }
 
         // ------------------------------------------------------------------------------------------------ the swarm bee
-        /// <summary>
-        /// Art/Bee/Bee_unit.asset: the art bee's mesh scaled to 1 unit long on Z (the bee pools scale by beeLength,
-        /// ~3.5 cm), pivot kept at the body center, one submesh, vertex colours converted to linear when the project
-        /// is in Linear colour space (they're exported as sRGB) so VBS_Bee (vertex colours, instanced) shows the
-        /// palette colours, wing-flap UVs kept (uv1 hinge moved/scaled with the mesh, uv2 flags). Rewritten from
-        /// Art/Bee/Bee.prefab on every call; null if there's no Bee prefab.
-        /// </summary>
+        /// <summary>Bake the animated worker's normalized rest pose for the shader-flap and distance paths.</summary>
         public static Mesh BeeUnitMesh()
         {
-            var prefab = Prefab("Bee");
-            if (prefab == null) return null;
-            var mf = prefab.GetComponentInChildren<MeshFilter>(true);
-            if (mf == null || mf.sharedMesh == null) { Debug.LogWarning("[VBS][Art] Art/Bee/Bee.prefab has no mesh"); return null; }
-            var src = mf.sharedMesh;
-            var m = prefab.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
-            var v = src.vertices;
-            var nrm = src.normals;
-            float zmin = float.MaxValue, zmax = float.MinValue;
-            for (int i = 0; i < v.Length; i++)
-            {
-                v[i] = m.MultiplyPoint3x4(v[i]);
-                zmin = Mathf.Min(zmin, v[i].z);
-                zmax = Mathf.Max(zmax, v[i].z);
-            }
-            float len = zmax - zmin;
-            if (len < 1e-5f) return null;
-            for (int i = 0; i < v.Length; i++) v[i] /= len;
-            if (nrm != null && nrm.Length == v.Length)
-                for (int i = 0; i < nrm.Length; i++) nrm[i] = m.MultiplyVector(nrm[i]).normalized;
-            var cols = src.colors;
-            bool linear = PlayerSettings.colorSpace == ColorSpace.Linear;
-            if (cols != null && cols.Length == v.Length && linear)
-                for (int i = 0; i < cols.Length; i++) { var a = cols[i].a; cols[i] = cols[i].linear; cols[i].a = a; }
-            var tris = new List<int>();
-            for (int s = 0; s < src.subMeshCount; s++) tris.AddRange(src.GetTriangles(s));
+            var source = AssetDatabase.LoadAssetAtPath<Mesh>(ArtRoot + "/BeeVAT/Resources/" + BeeVat.MeshResource + ".asset");
+            if (source == null) return null;
+            var weights = source.uv2;
+            if (weights.Length != source.vertexCount) return null;
+            var mesh = Object.Instantiate(source);
+            mesh.name = "Bee_unit";
 
-            var mesh = new Mesh { name = "Bee_unit" };
-            mesh.vertices = v;
-            if (nrm != null && nrm.Length == v.Length) mesh.normals = nrm;
-            if (cols != null && cols.Length == v.Length) mesh.colors = cols;
-            var uv = src.uv;
-            if (uv != null && uv.Length == v.Length) mesh.uv = uv;
-            // wing-flap tags (art/blender/scripts/wings.py): uv1 = hinge (x, y) in mesh space, moved and scaled like
-            // the vertices; uv2 = (wing side +-1, blur side) as is. VirtualBeeSwarm/Unlit flaps the tagged vertices.
-            var hinge = src.uv2;
-            var flag = src.uv3;
-            if (hinge != null && hinge.Length == v.Length && flag != null && flag.Length == v.Length)
+            // VAT UV1 carries the rig's wing weights. Keep the same wing vertices and tag them for GameUnlit.
+            var verts = source.vertices;
+            var hinges = new Vector2[verts.Length];
+            var flags = new Vector2[verts.Length];
+            var roots = new[] { new Vector2(float.NegativeInfinity, 0f), new Vector2(float.PositiveInfinity, 0f) };
+            for (int i = 0; i < verts.Length; i++)
             {
-                for (int i = 0; i < hinge.Length; i++)
-                    if (flag[i].x != 0f) hinge[i] = (Vector2)(m.MultiplyPoint3x4(new Vector3(hinge[i].x, hinge[i].y, 0f)) / len);
-                mesh.uv2 = hinge;
-                mesh.uv3 = flag;
+                if (weights[i].y <= 0.5f) continue;
+                var p = verts[i];
+                int side = p.x < 0f ? 0 : 1;
+                if (Mathf.Abs(p.x) < Mathf.Abs(roots[side].x)) roots[side] = new Vector2(p.x, p.y);
             }
-            mesh.subMeshCount = 1;
-            mesh.SetTriangles(tris, 0);
-            mesh.RecalculateBounds();
-
-            string path = ArtRoot + "/Bee/Bee_unit.asset";
-            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-            if (existing == null)
+            for (int i = 0; i < verts.Length; i++)
             {
-                AssetDatabase.CreateAsset(mesh, path);
-                return mesh;
+                if (weights[i].y <= 0f) continue;
+                int side = verts[i].x < 0f ? 0 : 1;
+                if (float.IsInfinity(roots[side].x)) continue;
+                hinges[i] = roots[side];
+                flags[i] = new Vector2((side == 0 ? -1f : 1f) * Mathf.Clamp01(weights[i].y), 0f);
             }
-            existing.Clear();
-            EditorUtility.CopySerialized(mesh, existing);
-            existing.name = "Bee_unit";
-            Object.DestroyImmediate(mesh);
-            EditorUtility.SetDirty(existing);
-            return existing;
+            mesh.uv2 = hinges;
+            mesh.uv3 = flags;
+            return SaveVisualMesh(mesh, ArtRoot + "/Bee/Bee_unit.asset");
         }
 
         // ------------------------------------------------------------------------------------------------ helpers

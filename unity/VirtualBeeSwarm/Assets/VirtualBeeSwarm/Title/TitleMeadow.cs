@@ -64,7 +64,8 @@ namespace VirtualBeeSwarm.Title
             _counts = new int[_kinds.Count];
             for (int i = 0; i < _kinds.Count; i++) _matrices[i] = new Matrix4x4[MaxPlants];
 
-            _beeMesh = _ownMesh = GameMeshes.CreateBeeMesh();
+            _beeMesh = BeeVat.AuthoredWorkerMesh();
+            if (_beeMesh == null) _beeMesh = _ownMesh = GameMeshes.CreateBeeMesh();
             _beeMaterial = GameMaterials.Create("VBS_TitleBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             WingClock.EnableOn(_beeMaterial, _beeMesh);
             _owned.Add(_beeMaterial);

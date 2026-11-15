@@ -35,7 +35,8 @@ namespace VirtualBeeSwarm.Juice
             _sparkMat = GameMaterials.Create("VBS_JuiceSpark (runtime)", Color.white, doubleSided: true);
             if (!BeeVat.Apply(ref _bee, ref _beeMat, "flying bee crews"))
             {
-                _bee = _fallbackBee = GameMeshes.CreateBeeMesh();
+                _bee = BeeVat.AuthoredWorkerMesh();
+                if (_bee == null) _bee = _fallbackBee = GameMeshes.CreateBeeMesh();
                 _beeMat = GameMaterials.Create("VBS_JuiceBee (runtime)", Color.white, vertexColors: true, doubleSided: true);
             }
             _mpbS = new MaterialPropertyBlock();
