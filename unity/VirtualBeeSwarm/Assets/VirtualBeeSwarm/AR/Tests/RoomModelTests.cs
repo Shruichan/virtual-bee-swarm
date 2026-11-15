@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using VirtualBeeSwarm.Bloom;
 
 namespace VirtualBeeSwarm.AR.Tests
 {
@@ -107,6 +108,79 @@ namespace VirtualBeeSwarm.AR.Tests
             rc.Enabled = false;
             Assert.IsFalse(rc.Raycast(new Ray(Vector3.up, Vector3.down), 5f, out var off));
             Assert.AreEqual(ArHitStatus.NotReady, off.status);
+        }
+
+        [Test]
+        public void FloorPoint_SnapsNoisyDepthHitToTheFloor()
+        {
+            const float floorY = 0.25f;
+            var ray = new Ray(new Vector3(0.5f, 1.5f, 0.75f), Vector3.down);
+            var hit = new ArHit
+            {
+                status = ArHitStatus.Hit,
+                point = new Vector3(0.5f, floorY + 0.12f, 0.75f),
+                normal = Vector3.up
+            };
+
+            Assert.IsTrue(InstantPlacement.TryFloorPoint(ray, true, hit, floorY, 4f, true, out var point));
+            Assert.AreEqual(new Vector3(0.5f, floorY, 0.75f), point);
+        }
+
+        [TestCase(ArHitStatus.NoHit)]
+        [TestCase(ArHitStatus.NotReady)]
+        [TestCase(ArHitStatus.NotSupported)]
+        public void FloorPoint_UsesKnownFloorWithoutDepth(ArHitStatus status)
+        {
+            const float floorY = 0.25f;
+            var ray = new Ray(new Vector3(0.5f, 1.5f, 0.75f), Vector3.down);
+            var miss = new ArHit { status = status };
+
+            Assert.IsTrue(InstantPlacement.TryFloorPoint(ray, false, miss, floorY, 4f, true, out var point));
+            Assert.AreEqual(new Vector3(0.5f, floorY, 0.75f), point);
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, false, miss, floorY, 4f, false, out _),
+                "an unknown floor cannot be guessed when depth is unavailable");
+        }
+
+        [Test]
+        public void FloorPoint_RejectsWallTableOcclusionAndInvalidAim()
+        {
+            var ray = new Ray(new Vector3(0f, 1.5f, 0f), Vector3.down);
+            var wall = new ArHit { status = ArHitStatus.Hit, point = Vector3.zero, normal = Vector3.forward };
+            var table = new ArHit { status = ArHitStatus.Hit, point = Vector3.up * 0.75f, normal = Vector3.up };
+            var occluded = new ArHit { status = ArHitStatus.Occluded };
+            var miss = new ArHit { status = ArHitStatus.NoHit };
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, true, wall, 0f, 4f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, true, table, 0f, 4f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, false, occluded, 0f, 4f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, false, miss, float.NaN, 4f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(ray, false, miss, 0f, 1f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(new Ray(ray.origin, Vector3.forward), false, miss, 0f, 4f, true, out _));
+            Assert.IsFalse(InstantPlacement.TryFloorPoint(new Ray(ray.origin, Vector3.up), false, miss, 0f, 4f, true, out _));
+        }
+
+        [Test]
+        public void ClearFloor_RejectsOnlyFootprintsCrossingScannedEdgesOrFurniture()
+        {
+            var scan = new BloomScene();
+            scan.FloorPolygon.AddRange(new[] { new Vector2(-1f, -1f), new Vector2(1f, -1f),
+                new Vector2(1f, 1f), new Vector2(-1f, 1f) });
+            var footprint = new Vector2(0.42f, 0.36f);
+            Vector3 diagonal = (Vector3.right + Vector3.forward).normalized;
+            var nearEdge = new Vector3(0.80f, 0f, 0f);
+
+            Assert.IsTrue(InstantPlacement.IsClearFloor(scan, Vector3.zero, diagonal, footprint));
+            Assert.IsTrue(scan.InFloor(nearEdge), "the center remains inside the scan");
+            Assert.IsFalse(InstantPlacement.IsClearFloor(scan, nearEdge, diagonal, footprint));
+
+            scan.Volumes.Add(new BloomBox
+            {
+                center = new Vector3(0.21f, 0.6f, 0f),
+                rotation = Quaternion.identity,
+                half = new Vector3(0.045f, 0.10f, 0.075f)
+            });
+            Assert.IsFalse(scan.InVolume(Vector3.zero, 0.04f), "the center alone has room");
+            Assert.IsFalse(InstantPlacement.IsClearFloor(scan, Vector3.zero, Vector3.forward, footprint));
+            Assert.IsTrue(InstantPlacement.IsClearFloor(scan, Vector3.left * 0.5f, Vector3.forward, footprint));
         }
 
         [Test]

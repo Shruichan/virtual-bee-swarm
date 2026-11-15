@@ -3,11 +3,9 @@ using UnityEngine;
 namespace VirtualBeeSwarm.AR
 {
     /// <summary>
-    /// Aim-and-pinch placement (PLAN.md V7): in `pre`, a translucent DELIVER HERE plate uses the pinching hand's ray,
-    /// then an idle hand, then head gaze. Meta EnvironmentRaycastManager.PlaceBox checks real surfaces using the
-    /// meadow rig's scaled footprint and clearance. Green = it fits
-    /// on a flat top (normal.y > 0.9), red = it doesn't. A pinch of the aiming hand puts the hive rig there, facing
-    /// away from the player. The old placement (grab the base plate, two-point edge, C key) stays as an override.
+    /// Manual placement before signing. In the meadow, aim at the real floor and use a pinch or controller trigger
+    /// to place the hive. The floor plane keeps placement available while room depth is unavailable.
+    /// The tabletop layout still uses the environment's box fit check.
     /// Desktop: hold L to aim with the mouse, release L to place.
     /// Switch: ar.placement = raycast (default) | manual.
     /// </summary>
@@ -29,7 +27,10 @@ namespace VirtualBeeSwarm.AR
         // steadiness: depth-sensor hits are noisy frame to frame, so the plate holds through short misses, eases to the
         // new spot and only flips green/red once a result has held (it used to blink on/off and red/green every frame)
         const float HoldMiss = 0.35f, HoldFit = 0.2f;
-        float _lastShowAt = -10f, _fitSince;
+        const float FloorHeightTolerance = 0.18f;
+        const float HiveCentreForward = 0.15f;
+        static readonly Vector2 HiveBaseSize = new Vector2(0.36f, 0.33f);
+        float _lastShowAt = -10f, _fitSince, _confirmedUntil;
         bool _rawFit;
         Bloom.BloomScene _scene;
         float _nextScanRead;
@@ -75,7 +76,8 @@ namespace VirtualBeeSwarm.AR
         }
 
         bool Active =>
-            _rig != null && _rig.Placement != null && _rig.Raycaster != null && _rig.Raycaster.IsSupported &&
+            _rig != null && _rig.Placement != null &&
+            (Bloom.MeadowLayout.Active || (_rig.Raycaster != null && _rig.Raycaster.IsSupported)) &&
             ArTuning.PlacementMode == ArTuning.Placement.Raycast && _rig.Placement.Allowed && !_rig.Placement.Holding;
 
         void Update()
@@ -85,6 +87,13 @@ namespace VirtualBeeSwarm.AR
                 Aiming = false;
                 if (_ghost != null && _ghost.activeSelf) _ghost.SetActive(false);
                 return;
+            }
+
+            if (Time.time < _confirmedUntil) return;
+            if (_confirmedUntil > 0f)
+            {
+                _confirmedUntil = 0f;
+                _ghost.SetActive(false);
             }
 
             bool desktop = _rig.DesktopMode;
@@ -100,26 +109,43 @@ namespace VirtualBeeSwarm.AR
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(_rig.HeadForward(), Vector3.up);
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
             fwd.Normalize();
-            bool meadow = Bloom.MeadowLayout.Active; // meadow: the big rig needs open FLOOR (never a table, bed or sofa)
+            bool meadow = Bloom.MeadowLayout.Active;
             float now = Time.time;
-            if (meadow && !desktop && now >= _nextScanRead)
+            bool show, fits;
+            Vector3 point;
+            Vector2 footprint;
+            if (meadow)
             {
-                _nextScanRead = now + HoldMiss;
-                _scene = Bloom.MeadowField.Instance != null ? Bloom.MeadowField.Instance.CurrentScene() : null;
+                if (now >= _nextScanRead)
+                {
+                    _nextScanRead = now + HoldMiss;
+                    _scene = Bloom.MeadowField.Instance != null ? Bloom.MeadowField.Instance.CurrentScene() : null;
+                }
+                footprint = HiveBaseSize * Bloom.MeadowLayout.Scale;
+                float floorY = Bloom.MeadowLayout.FloorY;
+                var raycaster = _rig.Raycaster;
+                ArHit hit = new ArHit { status = ArHitStatus.NotSupported };
+                bool hitEnvironment = raycaster != null && raycaster.IsSupported && raycaster.Raycast(ray, maxDistance, out hit);
+                LastStatus = hit.status;
+                var camera = Camera.main;
+                // A missing depth frame is common on Quest. Use the tracked floor plane, but do not guess
+                // if the headset's tracking origin is still settling or a real surface blocked the ray.
+                float eyeHeight = camera != null ? camera.transform.position.y - floorY : 0f;
+                bool floorKnown = desktop || _scene != null || (eyeHeight >= 0.35f && eyeHeight <= 2.6f);
+                show = TryFloorPoint(ray, hitEnvironment, hit, floorY, maxDistance, floorKnown, out point);
+                fits = show && IsClearFloor(_scene, point, fwd, footprint);
             }
-            Vector3 footprint = meadow ? boxSize * Bloom.MeadowLayout.Scale : boxSize;
-            bool fits = _rig.Raycaster.PlaceBox(ray, footprint, fwd, out var hit);
-            LastStatus = hit.status;
-            // A rejected box can still have a ray hit. Keep the red footprint visible at the actual surface.
-            if (hit.status != ArHitStatus.Hit && _rig.Raycaster.Raycast(ray, maxDistance, out var rejected))
-                hit = rejected;
-            bool show = hit.status == ArHitStatus.Hit && (hit.point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
-            fits = fits && show && hit.normal.y > 0.9f;
-            bool aboveFloor = meadow && Mathf.Abs(hit.point.y - (_scene?.FloorY ?? Bloom.MeadowLayout.FloorY)) > 0.1f;
-            // dartiros (headset): the red "no space" plate only where it means something, on the floor. Aiming at a
-            // wall, a table, the sofa or the air shows nothing (it read as "invalid placement" everywhere).
-            if (meadow && (aboveFloor || hit.normal.y <= 0.9f)) show = false;
-            if (aboveFloor || (fits && meadow && _scene != null && !OpenFloor(hit.point, fwd, footprint))) fits = false;
+            else
+            {
+                var raycaster = _rig.Raycaster;
+                fits = raycaster.PlaceBox(ray, boxSize, fwd, out var hit);
+                LastStatus = hit.status;
+                if (hit.status != ArHitStatus.Hit && raycaster.Raycast(ray, maxDistance, out var rejected)) hit = rejected;
+                point = hit.point;
+                show = hit.status == ArHitStatus.Hit && (point - ray.origin).sqrMagnitude <= maxDistance * maxDistance;
+                fits = fits && show && hit.normal.y > 0.9f;
+                footprint = new Vector2(boxSize.x, boxSize.y);
+            }
             if (!show)
             {
                 if (_ghost.activeSelf && now - _lastShowAt > HoldMiss) _ghost.SetActive(false);
@@ -131,40 +157,66 @@ namespace VirtualBeeSwarm.AR
             _ghostRenderer.transform.localScale = new Vector3(footprint.x, 0.008f, footprint.y);
 
             var rot = Quaternion.LookRotation(fwd, Vector3.up);
-            if (!wasShown || (hit.point - _ghost.transform.position).sqrMagnitude > 0.5f * 0.5f) _ghost.transform.SetPositionAndRotation(hit.point, rot);
+            if (!wasShown || (point - _ghost.transform.position).sqrMagnitude > 0.5f * 0.5f) _ghost.transform.SetPositionAndRotation(point, rot);
             else
             {
                 float k = 1f - Mathf.Exp(-Time.deltaTime * 14f);
-                _ghost.transform.SetPositionAndRotation(Vector3.Lerp(_ghost.transform.position, hit.point, k), Quaternion.Slerp(_ghost.transform.rotation, rot, k));
+                _ghost.transform.SetPositionAndRotation(Vector3.Lerp(_ghost.transform.position, point, k), Quaternion.Slerp(_ghost.transform.rotation, rot, k));
             }
             if (fits != _rawFit) { _rawFit = fits; _fitSince = now; }
-            bool shownFit = !wasShown || now - _fitSince >= HoldFit ? fits : _lastFit;
+            bool shownFit = fits && (!wasShown || _lastFit || now - _fitSince >= HoldFit);
             if (shownFit != _lastFit || _ghostText.text.Length == 0)
             {
                 _lastFit = shownFit;
                 GameMaterials.Tint(_ghostRenderer, shownFit ? fitColor : noFitColor);
             }
-            string label = shownFit ? (desktop ? "DELIVER HERE\nrelease L" : "DELIVER HERE\npinch") :
-                aboveFloor ? "AIM AT OPEN FLOOR" : "MORE SPACE NEEDED";
+            string action = desktop ? "release L" : "pinch / trigger";
+            string label = shownFit ? (meadow ? "PLACE HIVE HERE\n" : "DELIVER HERE\n") + action : "AIM AT A CLEAR SPOT";
             if (_ghostText.text != label) _ghostText.text = label;
             if (place && fits)
             {
                 Placements++;
-                if (!desktop) _rig.ConsumeCalibrationPinch(); // this pinch isn't also a two-point calibration point
-                _rig.PlaceFromRaycast(new Pose(hit.point, Quaternion.LookRotation(fwd, Vector3.up)));
-                _ghost.SetActive(false);
+                if (!desktop) _rig.ConsumeCalibrationPinch();
+                // The plate marks the hive itself. The layout anchor sits just behind its centre.
+                Vector3 anchorPoint = meadow ? point - fwd * (HiveCentreForward * Bloom.MeadowLayout.Scale) : point;
+                _rig.PlaceFromRaycast(new Pose(anchorPoint, rot));
+                _ghost.transform.SetPositionAndRotation(point, rot);
+                _ghostText.text = "HIVE PLACED";
+                GameMaterials.Tint(_ghostRenderer, fitColor);
+                _lastFit = true;
+                _confirmedUntil = now + 0.55f;
+                GameSound.Cue("touchdown_light", point);
             }
         }
 
-        bool OpenFloor(Vector3 point, Vector3 forward, Vector3 footprint)
+        public static bool TryFloorPoint(Ray ray, bool hitEnvironment, ArHit hit, float floorY,
+            float maxDistance, bool floorKnown, out Vector3 point)
         {
+            point = default;
+            if (ray.direction.y >= -0.12f || float.IsNaN(floorY) || float.IsInfinity(floorY)) return false;
+            if (hitEnvironment || hit.status == ArHitStatus.Hit)
+            {
+                if (hit.normal.y <= 0.9f || Mathf.Abs(hit.point.y - floorY) > FloorHeightTolerance ||
+                    (hit.point - ray.origin).sqrMagnitude > maxDistance * maxDistance) return false;
+                point = new Vector3(hit.point.x, floorY, hit.point.z);
+                return true;
+            }
+            if (!floorKnown || hit.status == ArHitStatus.Occluded) return false;
+            float distance = (floorY - ray.origin.y) / ray.direction.y;
+            if (distance <= 0f || distance > maxDistance) return false;
+            point = ray.GetPoint(distance);
+            return true;
+        }
+
+        public static bool IsClearFloor(Bloom.BloomScene scene, Vector3 point, Vector3 forward, Vector2 footprint)
+        {
+            if (scene == null) return true;
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            // Use the existing collision query as the first gate, then veto edges and furniture from the room scan.
-            for (int x = -2; x <= 2; x++)
-                for (int z = -2; z <= 2; z++)
+            for (int x = -1; x <= 1; x++)
+                for (int z = -1; z <= 1; z++)
                 {
-                    Vector3 sample = point + right * (x * footprint.x * 0.25f) + forward * (z * footprint.y * 0.25f);
-                    if (!_scene.InFloor(sample) || _scene.InVolume(sample, 0.04f)) return false;
+                    Vector3 sample = point + right * (x * footprint.x * 0.5f) + forward * (z * footprint.y * 0.5f);
+                    if (!scene.InFloor(sample) || scene.InVolume(sample, 0.04f)) return false;
                 }
             return true;
         }
@@ -210,7 +262,7 @@ namespace VirtualBeeSwarm.AR
                 ray = handRay;
                 haveIdleRay = true;
             }
-            if (haveIdleRay) return true;
+            if (haveIdleRay && !freePinch) return true;
             if (anyBusy && !freePinch) return false;
 
             var head = Camera.main;

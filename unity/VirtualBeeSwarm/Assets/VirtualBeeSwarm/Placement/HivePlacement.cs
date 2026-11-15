@@ -109,6 +109,10 @@ namespace VirtualBeeSwarm
 
             if (GameInput.KeyDown(placeInFrontKey)) PlaceInFrontOfCamera();
 
+            // The floor preview owns pinch/trigger placement in the meadow. Empty-space pinches must not
+            // silently become table-edge points and move the setup when the preview rejects a spot.
+            if (Bloom.MeadowLayout.Active && AR.ArRig.Instance != null &&
+                AR.ArTuning.PlacementMode == AR.ArTuning.Placement.Raycast) return;
             if (Holding || PointerBusy()) return;
             if (_points == 1 && Time.time - _pointAAt > pointTimeoutSeconds)
             {
@@ -167,7 +171,10 @@ namespace VirtualBeeSwarm
         /// <summary>Aim and pinch (v3.1 V7, AR/ArRig): the rig goes exactly to this pose, saved for the session.</summary>
         public void PlaceAt(Pose pose)
         {
-            _follow = false; // the player put it somewhere on purpose: stop following them
+            _follow = false;
+            _autoPlacePending = false;
+            _points = 0;
+            ShowMarkers(false, false);
             pose = Bloom.MeadowLayout.Grounded(pose); // meadow: no table, the rig stands on the floor
             rigAnchor.SetPositionAndRotation(pose.position, pose.rotation);
             Save();
@@ -207,8 +214,10 @@ namespace VirtualBeeSwarm
             if (Time.unscaledTime - _headTrackedSince < headsetSettleSeconds) return;
             _autoPlacePending = false;
             PlaceInFront(headsetDistance, headsetBelowEyes);
-            StartFollowing(head);
-            Debug.Log("[VBS] rig placed in front of the player; drop it on the real table (grab the plate, or pinch the edge twice)");
+            if (!Bloom.MeadowLayout.Active || AR.ArTuning.PlacementMode != AR.ArTuning.Placement.Raycast) StartFollowing(head);
+            Debug.Log(Bloom.MeadowLayout.Active
+                ? "[VBS] rig ready; aim at the floor and pinch or press the trigger to place it"
+                : "[VBS] rig placed in front of the player; grab the plate or pinch the table edge twice");
         }
 
         // ------------------------------------------------------------ follow the player until they sign (dartiros)
