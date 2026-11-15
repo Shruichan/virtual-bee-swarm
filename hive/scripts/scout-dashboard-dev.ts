@@ -121,7 +121,30 @@ setInterval(() => {
   state.current = top[0]!;
   emit({ type: "frame", frame: { at: Date.now() - jitter(110, 190), frame_ms: 38 + Math.random() * 22, fps, top, scores, boxes, source: "rtsp://127.0.0.1:8554/scout" } });
   if (MODE === "slides") slideGame(top);
+  if (++tick % 4 === 0) logDetection(top);
 }, 200);
+
+// ------------------------------------------------------------------ fake vision /debug/recent (the dashboard's detection log)
+interface DebugEntry { t: number; ocr: string[]; ocr_label: ScoutLabel | null; sift: { label: ScoutLabel; inliers: number }[]; final_label: ScoutClass; score: number; img: string }
+const OCR_WORDS: Partial<Record<ScoutLabel, string[]>> = {
+  bug_spray: ["OFF!", "DEEP", "WOODS"], honey_jar: ["PURE", "HONEY"], bee_hotel: ["BEE", "HOTEL"], native_flower: ["SUNFLOWER", "SEEDS"],
+};
+const LOOKALIKE: Partial<Record<ScoutLabel, ScoutLabel>> = { native_flower: "beehive" }; // "sunflower read as beehive"
+const debugLog: DebugEntry[] = [];
+let tick = 0;
+function logDetection(top: { label: ScoutClass; score: number }[]) {
+  const best = top[0]!;
+  const seen = (best.label === SCOUT_BACKGROUND ? target : best.label) as ScoutClass;
+  const label = seen === SCOUT_BACKGROUND ? null : (seen as ScoutLabel);
+  const words = label && Math.random() < 0.8 ? OCR_WORDS[label] ?? [] : [];
+  const other = label ? LOOKALIKE[label] ?? (CONFUSE[label] as ScoutLabel | undefined) : undefined;
+  const flip = !!label && !!other && words.length > 0 && Math.random() < 0.3; // SIFT disagrees with what the text says
+  const sift = label && other ? [{ label: flip ? other : label, inliers: 20 + Math.floor(Math.random() * 40) }, { label: flip ? label : other, inliers: 4 + Math.floor(Math.random() * 14) }] : [];
+  const final: ScoutClass = flip ? other! : best.label; // a flip is the misclassification the log is for
+  // img is relative to the vision worker's root, like the real one (/debug/img/<file>)
+  debugLog.unshift({ t: Date.now(), ocr: words, ocr_label: words.length ? label : null, sift, final_label: final, score: best.score, img: `/debug/img/${Date.now()}_${final}.svg` });
+  debugLog.length = Math.min(debugLog.length, 30);
+}
 
 // ------------------------------------------------------------------ the scripted demo loop
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms / SPEED));
@@ -399,6 +422,14 @@ Bun.serve({
       return json({ label: r.label, saved, total: refs[r.label] });
     }
     if (p === "/fake-vision/slides.json") return json(slideList(url.origin));
+    if (p === "/fake-vision/debug/recent") return json(debugLog.slice(0, 12));
+    const dimg = p.match(/^\/fake-vision\/debug\/img\/\d+_([a-z_]+)\.svg$/);
+    if (dimg) {
+      const l = dimg[1]!;
+      const c = (COLORS as Record<string, string>)[l] ?? "#3a3428";
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#2a2620"/><rect x="${90 + Math.random() * 40}" y="${30 + Math.random() * 20}" width="110" height="110" rx="14" fill="${c}"/><text x="10" y="22" font-family="Helvetica" font-size="13" fill="#bbb">${l}</text></svg>`;
+      return new Response(svg, { headers: { ...CORS, "Content-Type": "image/svg+xml" } });
+    }
     const img = p.match(/^\/fake-vision\/img\/([a-z_]+)\/(\d)\.svg$/);
     if (img && (SCOUT_LABELS as readonly string[]).includes(img[1]!)) {
       return new Response(slideSvg(img[1] as ScoutLabel, Number(img[2])), { headers: { ...CORS, "Content-Type": "image/svg+xml" } });
