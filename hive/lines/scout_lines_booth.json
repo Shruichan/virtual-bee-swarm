@@ -1,20 +1,38 @@
 [
-  {"id": "scout_booth_intro", "kind": "intro", "text": "Hi, I'm Beeswax. Walk up to something and stare at it. I'll do the rest."},
+  {"id": "scout_booth_intro", "kind": "intro", "text": "Hey, I'm Beeswax, your bee assistant. Fuzzy, grumpy, and in your ear. Walk up to something and look at it."},
   {"id": "scout_chime_ask", "kind": "chime", "text": "Bee fact found! Would you like to learn more?"},
-  {"id": "scout_silence_yes", "kind": "silence", "text": "I'll take that as a yes."},
-  {"id": "scout_booth_no", "kind": "no", "text": "Fine. The next one's better anyway."},
+  {"id": "scout_silence_yes", "kind": "silence", "text": "Nothing? I'll take that as a yes."},
+  {"id": "scout_booth_no", "kind": "no", "text": "Your call. I'll be right here. Grumbling."},
 
-  {"id": "scout_next_native_flower", "kind": "direction", "label": "native_flower", "text": "Your next adventure: the flower. Look down at it."},
-  {"id": "scout_next_honey_jar", "kind": "direction", "label": "honey_jar", "text": "Now go to your next adventure: one big step to your left."},
+  {"id": "scout_fact_native_flower", "kind": "fact", "label": "native_flower", "text": "This is a sunflower. It grew wild in North America first.", "source": "https://plants.ces.ncsu.edu/plants/helianthus-annuus/"},
+  {"id": "scout_fact_native_flower_2", "kind": "fact", "label": "native_flower", "text": "Some scientists think one in three bites you eat is thanks to pollinators like me.", "source": "https://usda.azureedge.us/node/48771"},
+  {"id": "scout_next_native_flower", "kind": "direction", "label": "native_flower", "text": "Your next adventure: the sunflower. Go find it."},
+
+  {"id": "scout_fact_honey_jar", "kind": "fact", "label": "honey_jar", "text": "This is honey. One pound can take up to two million flower visits.", "source": "https://pueblo.extension.colostate.edu/?p=4685"},
+  {"id": "scout_fact_honey_jar_2", "kind": "fact", "label": "honey_jar", "text": "Never leave store honey out for bees. It can carry a bee germ called foulbrood. Still fine on your toast.", "source": "https://www.ontario.ca/page/american-foulbrood"},
+  {"id": "scout_next_honey_jar", "kind": "direction", "label": "honey_jar", "text": "Now go to your next adventure. One big step to your left."},
+
+  {"id": "scout_fact_bug_spray", "kind": "fact", "label": "bug_spray", "text": "This is bug spray. Bees carry it home to the babies.", "source": "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning"},
+  {"id": "scout_fact_bug_spray_2", "kind": "fact", "label": "bug_spray", "text": "One study: US farmland got about forty-eight times more toxic for insects to eat in twenty-two years.", "source": "https://doi.org/10.1371/journal.pone.0220029"},
   {"id": "scout_next_bug_spray", "kind": "direction", "label": "bug_spray", "text": "Next adventure: one more step to your left. Brace yourself."},
-  {"id": "scout_next_bee_hotel", "kind": "direction", "label": "bee_hotel", "text": "Last one for now: one big step to your left."},
-  {"id": "scout_next_pebble_dish", "kind": "direction", "label": "pebble_dish", "text": "Bonus round: one step to your left. Look for the water."},
-  {"id": "scout_next_beehive", "kind": "direction", "label": "beehive", "text": "One more to your left. Headquarters."},
-  {"id": "scout_booth_done", "kind": "done", "text": "You found them all. Bee Scout badge earned. Go tell a human."},
 
-  {"id": "scout_dir_left", "kind": "direction", "text": "A bit to your left."},
-  {"id": "scout_dir_right", "kind": "direction", "text": "A bit to your right."},
-  {"id": "scout_dir_closer", "kind": "direction", "text": "Come closer. I don't bite. I can't, actually."},
+  {"id": "scout_fact_bee_hotel", "kind": "fact", "label": "bee_hotel", "text": "This is a bee hotel, a safe home for wild bees like mason bees.", "source": "https://xerces.org/pollinator-conservation/nesting"},
+  {"id": "scout_fact_bee_hotel_2", "kind": "fact", "label": "bee_hotel", "text": "Nearly one in four kinds of wild bees scientists checked is in danger. Bee hotels help them hang on.", "source": "https://biologicaldiversity.org/news/press_releases/2017/bees-03-01-2017.php"},
+  {"id": "scout_next_bee_hotel", "kind": "direction", "label": "bee_hotel", "text": "Ugh. Get away from that can. Your next adventure is one step to your left."},
+
+  {"id": "scout_fact_pebble_dish", "kind": "fact", "label": "pebble_dish", "text": "This is a bee water dish. Bees can't swim, so pebbles are their landing pads.", "source": "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx"},
+  {"id": "scout_fact_pebble_dish_2", "kind": "fact", "label": "pebble_dish", "text": "On a hot day, bees haul home about eighty percent of their weight in water to cool the hive.", "source": "https://www.sciencenews.org/article/douse-hot-hives-honeybee-colonies-launch-water-squadrons"},
+  {"id": "scout_next_pebble_dish", "kind": "direction", "label": "pebble_dish", "text": "Thirsty? Your next adventure is one step to your left."},
+
+  {"id": "scout_fact_beehive", "kind": "fact", "label": "beehive", "text": "This is a beehive. Last year, US beekeepers lost about four in ten of their hives.", "source": "https://wire.auburn.edu/content/agriculture/2026/06/honeybeecolony0626.php"},
+  {"id": "scout_fact_beehive_2", "kind": "fact", "label": "beehive", "text": "The year before, more than half: the worst on record. Tiny mites spreading bee viruses are a big reason.", "source": "https://wire.auburn.edu/content/agriculture/2025/06/2506-beekeepers-survey.php https://www.ars.usda.gov/news-events/news/research-news/2025/usda-researchers-find-viruses-from-miticide-resistant-parasitic-mites-are-cause-of-recent-honey-bee-colony-collapses/"},
+  {"id": "scout_next_beehive", "kind": "direction", "label": "beehive", "text": "Last adventure. One step to your left. It's the big one."},
+
+  {"id": "scout_booth_done", "kind": "done", "text": "You found them all! Bee scout badge earned. Now go tell a human. Bees can't text."},
+
+  {"id": "scout_dir_left", "kind": "direction", "text": "A little to your left."},
+  {"id": "scout_dir_right", "kind": "direction", "text": "A little to your right."},
+  {"id": "scout_dir_closer", "kind": "direction", "text": "Closer. Bees are small. So are my eyes."},
   {"id": "scout_dir_up", "kind": "direction", "text": "Lift your chin a little so I can see it."},
-  {"id": "scout_dir_lost", "kind": "direction", "text": "Left. Your other left."}
+  {"id": "scout_dir_lost", "kind": "direction", "text": "Hey! Where'd you go? I'm a bee, not a bloodhound. Find the next picture."}
 ]
