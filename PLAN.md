@@ -339,7 +339,7 @@
   - headset off and back on, plus a recenter, have been tested
   - a re-place procedure that takes 10 s or less is written up in `pitch/demo-runbook.md`
 
-  — owner: **Nam Nguyen** — status: in progress (NamTest has GameScene's hand-anchor MRUK spawning path and full AR building-block setup, with Hive as the target; game/minigame, event-handler, and Afference API/haptics are excluded; Quest retest pending)
+  — owner: **Nam Nguyen** — status: in progress (Nam reports spawning works; two-point calibration, headset off/on, recenter, and the re-place runbook still need verification)
 
 - **S3.4 Headset off and on, focus loss** (P1 · 1 h · needs S1.18) — done when: taking the headset off mid-run pauses it and frees up the mic; putting it back on carries on from the same beat; and if hand tracking drops out, no beat gets stuck — owner: *suggested Rome-agents (lane A)* — status: open
 
@@ -1297,7 +1297,6 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
 
 **In flight, Sat 2:45 PM** (pull often; tell Rome on Discord before you touch these areas):
-- **Nam Nguyen (agent):** S3.3 spawn placement: preserve the assigned object's rotation and enable it when placed.
 - **Rome (agents):** Daniel's rigged art in Unity (Beeswax rig + 21 clips, animated hornet/wasps/hive lid/smoker/spray/rocket, his worker bee baked into every swarm, music bed) + footage fixes -> D-7 APK, then commit. Then merge Nam's PR #1 on top, then the **Unity 6000.3.28f1 LTS** upgrade (trial passed: no code changes, Input System 1.20.1, URP 17.3, Meta SDK stays 209).
 - **Rome (agents):** ride script v2 (intro + flow, 5 min of fact-checked bee facts + puns, Ask Beeswax AI moment); forecast window (peaceful Paris, then a laser-eyed bee topples the Eiffel Tower on the stakes line); SATIE sound; Orbis video wall for the load-in screen.
 - **Nam:** S1.10 Voice SDK websocket fix (merged as PR #1). Next: headset test of the latest APK.
@@ -1531,3 +1530,9 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 19:58 PT · Adityash (orchestrator agent) · S19: merged the fast practice loop (9e9b6d3): in practice mode every recognized slide plays chime + fact straight away, 1 s gap, no repeat on the same slide; SCOUT_PRACTICE=1 keeps it on across restarts. Live Hive restarted with it. Ops agent building ops/scout-up.sh / scout-down.sh (one-command launcher) on scout/ops.
 - 2026-11-14 19:54 PT · Adityash (agent) · **New Beeswax voice picked:** "Beeswax (cute sassy)", ElevenLabs voice_id `QDutJflVBVtxM2TBSenF` on Adityash's account (works with eleven_flash_v2_5). Adityash is handing the switch/re-render to another agent; using it needs Adityash's ElevenLabs key (not the team's), which the team key can't access. Sample MP3 shared with the team. → Rome: heads up, this replaces Harry once re-rendered.
 - 2026-11-14 20:05 PT · Adityash (orchestrator agent) · S19: merged scout/ops (scout/live): `ops/scout-up.sh` brings up MediaMTX + scout Hive (practice on) + vision worker + glasses dev server, writes the git-ignored token/config for the current LAN IP, health-checks, opens dashboard + slides (`--qr` for the glasses QR); `ops/scout-down.sh` stops only what it started. Tested cold on spare ports (37 s, all checks pass) and against the live session (skips running services).
+- 2026-11-14 19:11 PT · Nam Nguyen (agent) · Updated `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` to leave rotation unchanged and position before enabling; Quest verification remains pending. Editor diagnostics also report the existing obsolete `LabelFilter.FromEnum` call. → team
+- 2026-11-14 19:16 PT · Nam Nguyen (agent) · Investigating reported inactive object on spawn in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` and NamTest scene wiring. → team
+- 2026-11-14 19:16 PT · Nam Nguyen (agent) · `SpawnObject.cs` now waits for an MRUK room instead of throwing, reports inactive parents, and uses the current label-filter API; Unity compilation succeeded. Saved NamTest assigns the Hive child, not its parent, so assign the Hive root if the root is disabled; headset retest pending. → Nam
+- 2026-11-14 19:25 PT · Nam Nguyen (agent) · Nam reports spawning works; preparing the S3.3 spawn changes for commit. Full S3.3 calibration, recenter, headset off/on, and runbook checks remain. → team
+- 2026-11-14 19:25 PT · Nam Nguyen (agent) · Committed and pushed spawn script `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs` as `b298eee`. NamTest scene changes remain local because they include additional edits beyond spawning. → team
+- 2026-11-14 19:25 PT · Nam Nguyen (agent) · With Nam's approval, committed and pushed the complete `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/Scenes/NamTest.unity` scene as `1f07129`, including its other scene edits. → team

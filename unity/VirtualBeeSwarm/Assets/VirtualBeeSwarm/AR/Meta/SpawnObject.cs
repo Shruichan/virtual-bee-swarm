@@ -13,11 +13,11 @@ public class SpawnObject : MonoBehaviour
     [Header("Spawning")]
     [SerializeField] private bool isSpawning = false;
     [SerializeField] GameObject[] gameObjectsToSpawn;
-    [SerializeField] private Transform targetLookPosition;
     [SerializeField] private MRUKAnchor.SceneLabels labelFilter;
 
     private int _nextSpawnIndex = 0;
     private int _totalNumSpawns;
+    private bool _warnedRoomUnavailable;
     
 
     public void SetSpawningStatus(bool status)
@@ -29,20 +29,31 @@ public class SpawnObject : MonoBehaviour
     void Update()
     {
         if(!isSpawning) return;
-        if (leftHandRayStart != null) TryHandSpawn(leftHandRayStart);
+
+        MRUKRoom room = MRUK.Instance != null ? MRUK.Instance.GetCurrentRoom() : null;
+        if (room == null)
+        {
+            if (!_warnedRoomUnavailable)
+            {
+                Debug.LogWarning("SpawnObject: waiting for an MRUK current room before placing an object.", this);
+                _warnedRoomUnavailable = true;
+            }
+            return;
+        }
+        _warnedRoomUnavailable = false;
+
+        if (leftHandRayStart != null) TryHandSpawn(leftHandRayStart, room);
         if(!isSpawning) return;
-        if (rightHandRayStart != null) TryHandSpawn(rightHandRayStart);
+        if (rightHandRayStart != null) TryHandSpawn(rightHandRayStart, room);
     }
 
-    void TryHandSpawn(Transform handRayStart)
+    void TryHandSpawn(Transform handRayStart, MRUKRoom room)
     {
-        if (handRayStart == null) return;
         Ray ray = new Ray(handRayStart.position, handRayStart.forward);
-        MRUKRoom room = MRUK.Instance.GetCurrentRoom();
         bool hasHit = room.Raycast(
             ray,
             rayLength,
-            LabelFilter.FromEnum(labelFilter),
+            new LabelFilter(labelFilter),
             out RaycastHit hit,
             out MRUKAnchor anchor
         );
@@ -55,15 +66,15 @@ public class SpawnObject : MonoBehaviour
         float angle = Vector3.Angle(hitNormal, Vector3.up);
         if (angle > maxHorizontalAngle) return;
         
-        // Facing camera (upright)
-        Vector3 direction = targetLookPosition.position - hitPoint;
-        direction.y = 0;
-        Quaternion rotation = Quaternion.LookRotation(direction);
-
         GameObject gameObjectToSpawn = gameObjectsToSpawn[_nextSpawnIndex];
-        gameObjectToSpawn.SetActive(true);
         gameObjectToSpawn.transform.position = hitPoint;
-        gameObjectToSpawn.transform.rotation = rotation;
+        gameObjectToSpawn.SetActive(true);
+        if (!gameObjectToSpawn.activeInHierarchy)
+        {
+            Debug.LogError("SpawnObject: the placed object has an inactive parent. Assign the object you want to enable, or enable its parent.", gameObjectToSpawn);
+            isSpawning = false;
+            return;
+        }
 
         if (_nextSpawnIndex != 0)
         {
