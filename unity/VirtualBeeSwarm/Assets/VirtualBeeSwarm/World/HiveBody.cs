@@ -45,10 +45,13 @@ namespace VirtualBeeSwarm
 
         /// <summary>Raised once per lift when it passes liftThreshold (height in m).</summary>
         public event Action<float> Lifted;
+        public event Action Rocked;
+        public event Action RockReleasedEarly;
 
         public bool LiftEnabled { get; set; }
         public bool Grabbable => LiftEnabled && isActiveAndEnabled;
         public bool Held { get; private set; }
+        public bool RockCompleted { get; private set; }
         public float LiftHeight { get; private set; }
         public int ShakeCount { get; private set; }
         internal bool LiftReported => _liftReported;
@@ -87,6 +90,8 @@ namespace VirtualBeeSwarm
         Vector3 _restPos;
         Quaternion _restRot;
         Vector3 _grabStart;
+        Vector3 _rockOrigin, _rockSample, _rockAxis;
+        float _rockSampleAt, _rockPeakAt, _keyLiftStart;
         Vector3 _shakeSample, _shakeDirection;
         float _shakeSampleAt, _shakeDirectionAt, _nextShakeAt, _shakeUntil;
         const float ShakeDuration = 0.33f;
@@ -135,6 +140,7 @@ namespace VirtualBeeSwarm
             LiftEnabled = false;
             Held = false;
             _keyLift = false;
+            RockCompleted = false;
             LiftHeight = 0f;
             ShakeCount = 0;
             _shakeUntil = _nextShakeAt = 0f;
@@ -156,6 +162,10 @@ namespace VirtualBeeSwarm
             _shakeSample = grabPoint;
             _shakeSampleAt = Time.time;
             _shakeDirection = Vector3.zero;
+            RockCompleted = false;
+            _rockOrigin = _rockSample = grabPoint;
+            _rockSampleAt = Time.time;
+            _rockAxis = Vector3.zero;
         }
 
         public void UpdateGrab(Vector3 handPoint)
@@ -163,13 +173,55 @@ namespace VirtualBeeSwarm
             if (!Held) return;
             TrackShake(handPoint, Time.time);
             Vector3 d = handPoint - _grabStart;
-            ApplyLift(d.y, Vector3.Dot(d, transform.right));
+            ApplyLift(d.y, Vector3.Dot(d, transform.right), Vector3.Dot(d, transform.forward));
+            TrackRock(handPoint, Time.time);
         }
 
         public void EndGrab()
         {
+            bool incomplete = Held && LiftEnabled && !RockCompleted;
             Held = false;
             _shakeUntil = 0f;
+            if (incomplete) RockReleasedEarly?.Invoke();
+        }
+
+        void TrackRock(Vector3 handPoint, float now)
+        {
+            if (!LiftEnabled || RockCompleted) return;
+            float dt = now - _rockSampleAt;
+            if (dt <= 0f) return;
+            float maxStep = Mathf.Max(0.075f, dt * 2.5f);
+            bool unreliable = dt > 0.2f || (handPoint - _rockSample).sqrMagnitude > maxStep * maxStep;
+            _rockSample = handPoint;
+            _rockSampleAt = now;
+            if (unreliable)
+            {
+                _rockOrigin = handPoint;
+                _rockAxis = Vector3.zero;
+                return;
+            }
+
+            if (LiftHeight < Mathf.Max(liftThreshold, 0.05f))
+            {
+                _rockOrigin = handPoint;
+                _rockAxis = Vector3.zero;
+                return;
+            }
+            const float stroke = 0.035f;
+            Vector3 offset = Vector3.ProjectOnPlane(handPoint - _rockOrigin, Vector3.up);
+            if (now - _rockPeakAt > 2.25f) _rockAxis = Vector3.zero;
+            if (_rockAxis == Vector3.zero)
+            {
+                if (offset.sqrMagnitude < stroke * stroke) return;
+                _rockAxis = offset.normalized;
+                _rockPeakAt = now;
+            }
+            else if (now - _rockPeakAt >= 0.14f && Vector3.Dot(offset, _rockAxis) <= -stroke)
+            {
+                RockCompleted = true;
+                if (now >= _nextShakeAt) ShakeFeedback(now);
+                Rocked?.Invoke();
+            }
         }
 
         void TrackShake(Vector3 handPoint, float now)
@@ -187,22 +239,28 @@ namespace VirtualBeeSwarm
             _shakeDirection = direction;
             _shakeDirectionAt = now;
             if (!reversed || now < _nextShakeAt) return;
+            ShakeFeedback(now);
+        }
+
+        void ShakeFeedback(float now)
+        {
             _nextShakeAt = now + 0.6f;
             _shakeUntil = now + ShakeDuration;
             ShakeCount++;
             GameSound.Cue("hive_shake", SwarmCenter);
         }
 
-        void ApplyLift(float up, float side)
+        void ApplyLift(float up, float side, float depth)
         {
             float h = Mathf.Clamp(up * liftExaggeration, 0f, maxLift);
-            float tilt = Mathf.Clamp(-side * 160f, -maxTiltDegrees, maxTiltDegrees) * Mathf.Clamp01(h / 0.05f);
+            Vector2 tilt = Vector2.ClampMagnitude(new Vector2(depth, -side) * 160f, maxTiltDegrees)
+                           * Mathf.Clamp01(h / 0.05f);
             LiftHeight = h;
             liftRoot.localPosition = _restPos + Vector3.up * h;
             float energy = Mathf.Clamp01((_shakeUntil - Time.time) / ShakeDuration);
             float wobble = energy * (StakesFlags.Comfort ? 2f : 5f);
             liftRoot.localRotation = _restRot * Quaternion.Euler(
-                Mathf.Sin(Time.time * 48f) * wobble, 0f, tilt + Mathf.Cos(Time.time * 42f) * wobble);
+                tilt.x + Mathf.Sin(Time.time * 48f) * wobble, 0f, tilt.y + Mathf.Cos(Time.time * 42f) * wobble);
             if (!_liftReported && h >= liftThreshold)
             {
                 _liftReported = true;
@@ -213,16 +271,23 @@ namespace VirtualBeeSwarm
         void Update()
         {
             // desktop lift key
-            if (LiftEnabled && GameInput.KeyHeld(liftKey))
+            if (LiftEnabled && GameInput.KeyHeld(liftKey) && (_keyLift || !Held))
             {
-                if (!_keyLift) { _keyLift = true; _liftReported = false; }
-                Held = true;
-                ApplyLift(Mathf.Min(LiftHeight / liftExaggeration + Time.deltaTime * 0.08f, 0.1f), Mathf.Sin(Time.time * 3f) * 0.03f);
+                if (!_keyLift)
+                {
+                    _keyLift = true;
+                    _keyLiftStart = Time.time;
+                    BeginGrab(transform.position);
+                }
+                float elapsed = Time.time - _keyLiftStart;
+                float up = Mathf.Min(elapsed * 0.08f, 0.1f);
+                float side = Mathf.Sin(Mathf.Max(0f, elapsed - 0.25f) * 5f) * 0.055f;
+                UpdateGrab(transform.position + Vector3.up * up + transform.right * side);
             }
             else if (_keyLift)
             {
                 _keyLift = false;
-                Held = false;
+                EndGrab();
             }
 
             // settle back down when released

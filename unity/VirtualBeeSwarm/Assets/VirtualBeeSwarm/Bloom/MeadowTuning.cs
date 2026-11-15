@@ -24,8 +24,8 @@ namespace VirtualBeeSwarm.Bloom
     ///   meadow.distance     0.45   m from the player's eyes to the choice row at the automatic start placement
     ///   meadow.yard         0.7    plant height kept in the mown yard round the hive and its props (0..1)
     ///   meadow.roomBees     300    bees working the flowers on the floor AND the wall vines all over the room (0..600, low-poly bee)
-    ///   meadow.rocketHeight 1.45   m, the rocket's height beside the hive (0 = rig scale only)
-    ///   meadow.rocketX      1.33   m right of the rig origin; meadow.rocketZ 1.06 m forward (beside the hive, whole in the POV)
+    ///   meadow.rocketHeight 0.22   m, the rocket's resting height (0 = rig scale only)
+    ///   meadow.rocketX      0.42   m right of the rig origin; meadow.rocketZ 0.10 m forward
     ///   meadow.windowWidth  1.9    m, the free-floating meadow portal behind the hive
     ///   meadow.propSize     0.45   m, the hand props (smoker, jar, ...) grow toward this size (largest side)
     ///   meadow.propScale    2      ... by at most this much on top of the rig scale
@@ -53,8 +53,10 @@ namespace VirtualBeeSwarm.Bloom
         public static float Distance = 0.45f;
         public static float Yard = 0.7f;
         public static int RoomBees = 300;
-        public static float RocketX = 1.33f, RocketZ = 1.06f;
-        public static float RocketHeight = 1.45f, WindowWidth = 1.9f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
+        public const float DefaultRocketHeight = 0.22f;
+        const float DefaultRocketX = 0.42f, DefaultRocketZ = 0.10f;
+        public static float RocketX = DefaultRocketX, RocketZ = DefaultRocketZ;
+        public static float RocketHeight = DefaultRocketHeight, WindowWidth = 1.9f, PropScale = 2f, PropSize = 0.45f, WallStart = 2.2f;
         public static int SwarmCount = 500, DarkCount = 400, VatNear = 80;
         public static float CrewScale = 2.5f;
         public static string LoadedFrom = "defaults";
@@ -86,9 +88,9 @@ namespace VirtualBeeSwarm.Bloom
             Distance = 0.45f;
             Yard = 0.7f;
             RoomBees = 300;
-            RocketHeight = 1.45f;
-            RocketX = 1.33f;
-            RocketZ = 1.06f;
+            RocketHeight = DefaultRocketHeight;
+            RocketX = DefaultRocketX;
+            RocketZ = DefaultRocketZ;
             WindowWidth = 1.9f;
             PropScale = 2f;
             PropSize = 0.45f;

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
@@ -39,6 +40,17 @@ namespace VirtualBeeSwarm
         bool _panelGripHeld, _grabHeldByGrip;
         readonly Collider[] _overlap = new Collider[8];
         readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
+        static int _pickupDrawFrame = -1;
+        Component _pickupTarget;
+        MeshFilter[] _pickupMeshes;
+        Material _pickupMaterial;
+        MaterialPropertyBlock _pickupColors;
+        float _nextPickupSearch;
+
+        void OnDestroy()
+        {
+            if (_pickupMaterial != null) Destroy(_pickupMaterial);
+        }
 
         public void Configure(Source s, LineRenderer line)
         {
@@ -150,6 +162,71 @@ namespace VirtualBeeSwarm
                 Feedback(0.30f, 0.055f);
             }
             else if (down && lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+        }
+
+        void LateUpdate()
+        {
+            // The same objective is visible to both pointers, with only one overlay per frame.
+            if (_pickupDrawFrame == Time.frameCount) return;
+            _pickupDrawFrame = Time.frameCount;
+            var director = GameDirector.Instance;
+            if (director == null || director.Beat < GameBeat.Smoker || director.Beat > GameBeat.Heat)
+            {
+                _pickupTarget = null;
+                _pickupMeshes = null;
+                _nextPickupSearch = 0f;
+                return;
+            }
+
+            if (!PickupReady(_pickupTarget) && Time.unscaledTime >= _nextPickupSearch)
+            {
+                _nextPickupSearch = Time.unscaledTime + 0.2f;
+                Component next = null;
+                foreach (var prop in FindObjectsByType<CarryProp>(FindObjectsSortMode.None))
+                {
+                    if (!PickupReady(prop)) continue;
+                    next = prop;
+                    break;
+                }
+                if (next == null && director.Beat == GameBeat.Feed)
+                {
+                    var hive = FindAnyObjectByType<HiveBody>();
+                    if (PickupReady(hive)) next = hive;
+                }
+                if (next != _pickupTarget)
+                {
+                    _pickupTarget = next;
+                    _pickupMeshes = next != null ? next.GetComponentsInChildren<MeshFilter>(true) : null;
+                }
+            }
+
+            // Runs after input so a successful grab removes the flash that very frame.
+            if (!PickupReady(_pickupTarget) || _pickupMeshes == null) return;
+            if (_pickupMaterial == null)
+            {
+                _pickupMaterial = GameMaterials.Create("VBS Objective Flash", Color.white, GameMaterials.Blend.Additive);
+                _pickupColors = new MaterialPropertyBlock();
+            }
+            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4.5f);
+            var white = new Color(1f, 1f, 1f, 0.14f + 0.86f * pulse * pulse * pulse);
+            _pickupColors.SetColor(GameMaterials.ColorId, white);
+            _pickupColors.SetColor(GameMaterials.BaseColorId, white);
+            foreach (var filter in _pickupMeshes)
+            {
+                if (filter == null || !filter.gameObject.activeInHierarchy || !filter.TryGetComponent<MeshRenderer>(out var renderer) ||
+                    !renderer.enabled || renderer.forceRenderingOff || filter.sharedMesh == null) continue;
+                Mesh mesh = filter.sharedMesh;
+                for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                    Graphics.DrawMesh(mesh, renderer.localToWorldMatrix, _pickupMaterial,
+                        renderer.gameObject.layer, null, submesh, _pickupColors, ShadowCastingMode.Off, false);
+            }
+        }
+
+        static bool PickupReady(Component target)
+        {
+            if (target == null || !target.gameObject.activeInHierarchy) return false;
+            return target is CarryProp prop && prop.Grabbable && !prop.Held ||
+                   target is HiveBody hive && hive.Grabbable && !hive.Held;
         }
 
         void UpdateCurrentGrab(Vector3 point)

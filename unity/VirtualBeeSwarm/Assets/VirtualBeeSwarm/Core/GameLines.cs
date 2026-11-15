@@ -172,8 +172,8 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomPalShowMe = new GameLine("room_pal_show_me", "Motion carried. Eyes on the window."); // room | - | pals, show_me, window
 
         // ------------------------------------------------------------ local only: the game plays these, lines.json doesn't have them
-        // (no clip: caption only). Add them to hive/lines/lines.json + render them, and they come from there.
-        public static readonly GameLine RoomFeedLiftHint = new GameLine("room_feed_lift_hint", "Grab it and lift. Union rules allow it.");
+        public static readonly GameLine RoomFeedLiftHint = new GameLine("room_feed_lift_hint", "Grab the hive and rock it back and forth. Feel how heavy it is.");
+        public static readonly GameLine RoomFeedRockRetry = new GameLine("room_feed_rock_retry", "Hold on. Pick it back up and give it a rock. We still need to feel how heavy it is.");
 
         // ------------------------------------------------------------ the names the beats use (BeeswaxVoiceTools.Aliases)
         public static readonly GameLine PreStart = RoomPre; // pre: place the hive, START
@@ -183,7 +183,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine Meet = RoomMeet2;
         public static readonly GameLine SmokerPrompt = RoomSmokerIntro; // = stations.json smoker.intro_line
         public static readonly GameLine FeedPrompt = RoomFeedIntro; // = stations.json feed.intro_line
-        public static readonly GameLine FeedLiftHint = RoomFeedLiftHint; // the player hasn't lifted the hive yet
+        public static readonly GameLine FeedLiftHint = RoomFeedLiftHint; // the player is checking the hive's weight
         public static readonly GameLine FeedTooLight = RoomFeedTip; // after the lift
         public static readonly GameLine FeedChoose = RoomFeedPrompt;
         public static readonly GameLine WaspsPrompt = RoomWaspsIntro; // = stations.json wasps.intro_line
@@ -248,7 +248,7 @@ namespace VirtualBeeSwarm
             RoomPalDance, RoomPalShowMe,
         };
 
-        static readonly GameLine[] LocalLines = { RoomFeedLiftHint };
+        static readonly GameLine[] LocalLines = { RoomFeedLiftHint, RoomFeedRockRetry };
 
         /// <summary>Every line: lines.json order, then the local-only ones. Allocates.</summary>
         public static GameLine[] All()
@@ -259,15 +259,16 @@ namespace VirtualBeeSwarm
             return all;
         }
 
-        /// <summary>The ids that have (or should have) a clip in Resources/BeeswaxLines: every lines.json line, in file order. Allocates.</summary>
+        /// <summary>The prerecorded line ids, in file order followed by local gameplay prompts.</summary>
         public static string[] ClipIds()
         {
-            var ids = new string[FileLines.Length];
-            for (int i = 0; i < ids.Length; i++) ids[i] = FileLines[i].id;
+            var ids = new string[FileLines.Length + LocalLines.Length];
+            for (int i = 0; i < FileLines.Length; i++) ids[i] = FileLines[i].id;
+            for (int i = 0; i < LocalLines.Length; i++) ids[FileLines.Length + i] = LocalLines[i].id;
             return ids;
         }
 
-        /// <summary>A line the game plays that lines.json doesn't have (caption only).</summary>
+        /// <summary>A line owned by the game rather than the Hive line catalog.</summary>
         public static bool IsLocalOnly(string id)
         {
             for (int i = 0; i < LocalLines.Length; i++)

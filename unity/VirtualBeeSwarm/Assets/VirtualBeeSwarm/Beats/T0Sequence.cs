@@ -51,8 +51,8 @@ namespace VirtualBeeSwarm
         Transform _facingSeat;
         HiveBody _hive;
 
-        const float BoardScale = 0.85f;
-        const float FlightScale = 1.25f;
+        const float BoardScale = 2.35f;
+        const float FlightScale = 3.4f;
 
         public bool MoonAwardVisible { get; private set; }
 
@@ -74,9 +74,33 @@ namespace VirtualBeeSwarm
 
         void Start()
         {
+            PrepareRocketHome();
             // Optional passthrough dimmer (VirtualBeeSwarm.Meta/OvrPassthroughDimmer or your own).
             var all = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             for (int i = 0; i < all.Length && _dimmer == null; i++) _dimmer = all[i] as IPassthroughDimmer;
+        }
+
+        void PrepareRocketHome()
+        {
+            if (rocket == null) return;
+            var body = rocket.GetComponent<DeliveryItem>();
+            if (body == null) body = rocket.gameObject.AddComponent<DeliveryItem>();
+            body.Measure();
+            if (!Bloom.MeadowLayout.Active)
+            {
+                float height = body.localBounds.size.y * Mathf.Abs(rocket.lossyScale.y);
+                rocket.localScale *= Bloom.MeadowTuning.DefaultRocketHeight / Mathf.Max(0.01f, height);
+                var location = rocket.localPosition;
+                location.z -= 0.12f;
+                rocket.localPosition = location;
+                body.restScale = rocket.localScale;
+            }
+            Vector3 home = rocket.position;
+            HiveClearance.Push(rocket, ref home, rocket.rotation, body);
+            rocket.position = home;
+            body.RecordHome();
+            _rocketHomePos = rocket.localPosition;
+            _rocketHomeRot = rocket.localRotation;
         }
 
         void OnEnable() { if (net != null) net.HiveWelcomed += RestoreLaunchScene; }
@@ -109,8 +133,13 @@ namespace VirtualBeeSwarm
             {
                 if (rocket != null)
                 {
-                    _launchPose = new Pose(rocket.localPosition, rocket.localRotation);
-                    _launchScale = rocket.localScale;
+                    var item = rocket.GetComponent<DeliveryItem>();
+                    bool home = item != null && item.hasHome && item.homeParent == rocket.parent;
+                    _launchPose = home ? new Pose(item.homeLocalPos, item.homeLocalRot)
+                        : new Pose(rocket.localPosition, rocket.localRotation);
+                    _launchScale = home ? item.restScale : rocket.localScale;
+                    rocket.SetLocalPositionAndRotation(_launchPose.position, _launchPose.rotation);
+                    rocket.localScale = _launchScale;
                 }
                 _hasLaunchPose = true;
             }
@@ -124,11 +153,21 @@ namespace VirtualBeeSwarm
             Vector3 flyAway = Vector3.forward;
             if (rocket != null)
             {
-                rocket.position = RevealPosition(out flyAway);
-                rocket.localScale = _launchScale * 0.22f;
+                Vector3 boardPosition = RevealPosition(out flyAway);
                 rocket.gameObject.SetActive(true);
                 RevealBurst(flyAway);
-                yield return ScaleTo(rocket, _launchScale * BoardScale, 0.8f);
+                yield return Wait(0.25f);
+                Vector3 startPosition = rocket.position;
+                float growAt = Time.time;
+                while (Time.time - growAt < 0.8f)
+                {
+                    float k = Mathf.Clamp01((Time.time - growAt) / 0.8f);
+                    rocket.position = Vector3.Lerp(startPosition, boardPosition, Mathf.SmoothStep(0f, 1f, k));
+                    rocket.localScale = _launchScale * Mathf.Lerp(1f, BoardScale, k * k);
+                    yield return null;
+                }
+                rocket.position = boardPosition;
+                rocket.localScale = _launchScale * BoardScale;
             }
             // V16: to his perch on the rocket first, then the line
             var perch = Perch();
@@ -405,7 +444,7 @@ namespace VirtualBeeSwarm
                 dustPuff.transform.position = origin;
                 dustPuff.Emit(24);
             }
-            Debug.Log("[VBS][T0] rocket revealed above hive at " + rocket.position.ToString("F2"));
+            Debug.Log("[VBS][T0] small rocket revealed beside hive at " + rocket.position.ToString("F2"));
         }
 
         Transform Perch()
@@ -472,7 +511,7 @@ namespace VirtualBeeSwarm
         {
             Transform anchor = rocket.parent;
             var body = rocket.GetComponent<DeliveryItem>();
-            if (Bloom.MeadowLayout.Active && _hasLaunchPose)
+            if (_hasLaunchPose)
             {
                 // Use the launch pad in the current room layout and lean away from the hive.
                 Vector3 position = anchor != null ? anchor.TransformPoint(_launchPose.position) : _launchPose.position;

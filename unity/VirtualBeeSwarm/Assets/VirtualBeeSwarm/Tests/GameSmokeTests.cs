@@ -157,14 +157,21 @@ namespace VirtualBeeSwarm.Tests
 
             yield return PlayStation<SmokerStation>(director, forceOffline ? GameIds.Choice.SprayWater : GameIds.Choice.Swat, GameIds.Choice.Smoker);
             yield return WaitForBeat(director, GameBeat.Feed, 30f);
-            // the feed station waits for a lift (or gives up after 20 s): lift through the hive's grab API
             var hive = UnityEngine.Object.FindAnyObjectByType<HiveBody>();
-            yield return WaitUntil(() => hive.LiftEnabled, 20f, "hive lift enabled");
-            hive.BeginGrab(hive.transform.position);
-            hive.UpdateGrab(hive.transform.position + Vector3.up * 0.05f);
-            hive.EndGrab();
+            var feed = UnityEngine.Object.FindAnyObjectByType<FeedStation>();
+            Assert.IsNotNull(hive, "hive");
+            Assert.IsNotNull(feed, "feed station");
+            yield return RockHive(hive, feed);
             yield return PlayStation<FeedStation>(director, GameIds.Choice.StoreHoney, GameIds.Choice.SugarSyrup);
             yield return WaitForBeat(director, GameBeat.Wasps, 30f);
+            var wasps = UnityEngine.Object.FindAnyObjectByType<WaspsStation>();
+            Assert.IsNotNull(wasps, "wasps station");
+            yield return WaitUntil(() => wasps.WarningVisible || wasps.WaspsArrived, 10f, "wasp warning");
+            Assert.IsTrue(wasps.WarningVisible, "a visible warning comes before the wasps");
+            Assert.IsFalse(wasps.WaspsArrived, "the wasps stay out during the warning");
+            yield return WaitUntil(() => !wasps.WarningVisible || wasps.WaspsArrived, 10f, "wasp warning to clear");
+            Assert.IsFalse(wasps.WarningVisible, "the warning clears before the wasps arrive");
+            yield return WaitUntil(() => wasps.WaspsArrived, 10f, "wasps after their warning");
             yield return PlayStation<WaspsStation>(director, GameIds.Choice.BiggerDoor, GameIds.Choice.SmallerDoor);
 
             // hornet (forced on): fist times out by itself; add heat until it's cooked
@@ -221,12 +228,34 @@ namespace VirtualBeeSwarm.Tests
             Assert.IsNotNull(launch, "launch sequence");
             var rocket = new SerializedObject(launch).FindProperty("rocket").objectReferenceValue as Transform;
             Assert.IsNotNull(rocket, "rocket");
+            Assert.IsTrue(rocket.gameObject.activeInHierarchy, "the rocket is visible at the launch pad");
             var launchPosition = rocket.position;
             var launchRotation = rocket.rotation;
+            var restingScale = rocket.localScale;
+            var rocketItem = rocket.GetComponent<DeliveryItem>();
+            Assert.IsNotNull(rocketItem, "the rocket has measured bounds and a launch pad");
+            Assert.IsTrue(rocketItem.hasHome, "the original launch pad is recorded");
+            Assert.That(rocketItem.localBounds.size.y * Mathf.Abs(rocket.lossyScale.y), Is.InRange(0.16f, 0.28f),
+                "the upright rocket is about 22 cm tall beside the hive");
+            Vector3 padOffset = Vector3.ProjectOnPlane(launchPosition - hive.transform.position, Vector3.up);
+            Vector3 padRight = Vector3.ProjectOnPlane(rocket.parent != null ? rocket.parent.right : Vector3.right, Vector3.up).normalized;
+            Assert.That(Mathf.Abs(Vector3.Dot(padOffset, padRight)), Is.GreaterThan(0.14f),
+                "the rocket starts to one side of the hive");
+            Assert.That(padOffset.magnitude, Is.LessThan(0.9f), "the rocket starts next to the hive");
+            Assert.That(Mathf.Abs(launchPosition.y - hive.transform.position.y), Is.LessThan(0.22f),
+                "the small rocket starts near the hive's ground level");
+            var revealPosition = launchPosition;
+            Assert.IsFalse(HiveClearance.Push(rocket, ref revealPosition, launchRotation, rocketItem),
+                "the revealed rocket is clear of the hive");
+
             yield return WaitUntil(() => net.CurrentScene == GameIds.Scene.Moon, 15f, "Moon after liftoff");
+            Assert.That(rocket.localScale.magnitude / restingScale.magnitude, Is.GreaterThan(3f),
+                "the rocket briefly grows to flight size for liftoff");
             yield return WaitUntil(() => launch.MoonAwardVisible || director.Beat != GameBeat.T0, 80f, "Moon award after the crash");
             Assert.AreEqual(GameBeat.T0, director.Beat, "the Moon award is shown before the map");
             Assert.IsTrue(launch.MoonAwardVisible, "the rocket scene reveals the Moon award");
+            Assert.That(Vector3.Distance(rocket.localScale, restingScale), Is.LessThan(0.001f),
+                "the crashed rocket is back to its small resting size");
             yield return WaitForBeat(director, GameBeat.Map, 90f);
             Assert.IsTrue(moonLineStarted, "Beeswax explains the award during the rocket scene");
             var map = UnityEngine.Object.FindAnyObjectByType<LevelMap>();
@@ -241,15 +270,11 @@ namespace VirtualBeeSwarm.Tests
 
             Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.GreaterThan(10f), "crash tilt stays through the contract");
             if (Bloom.MeadowLayout.Active)
-            {
-                Assert.That(Vector3.ProjectOnPlane(rocket.position - launchPosition, Vector3.up).magnitude,
+                Assert.That(Vector3.ProjectOnPlane(rocket.position - rocketItem.HomePosition, Vector3.up).magnitude,
                     Is.LessThan(0.01f), "the rocket crashes back on the default meadow launch pad");
-
-                var rocketItem = rocket.GetComponent<DeliveryItem>() ?? rocket.gameObject.AddComponent<DeliveryItem>();
-                var crashPosition = rocket.position;
-                Assert.IsFalse(HiveClearance.Push(rocket, ref crashPosition, rocket.rotation, rocketItem),
-                    "the crashed rocket remains clear of the hive");
-            }
+            var crashPosition = rocket.position;
+            Assert.IsFalse(HiveClearance.Push(rocket, ref crashPosition, rocket.rotation, rocketItem),
+                "the crashed rocket remains clear of the hive");
 
             // Rehearsal controls can revisit a station without changing the score or finishing an abandoned flight.
             bool checkFlight = beeswax.RootDriver is BeeswaxMotion && beeswax.Visible;
@@ -369,6 +394,59 @@ namespace VirtualBeeSwarm.Tests
 
         static IEnumerator WaitForBeat(GameDirector director, GameBeat beat, float realSeconds) =>
             WaitUntil(() => director.Beat == beat, realSeconds, "beat " + beat + " (at " + director.Beat + ")");
+
+        static IEnumerator RockHive(HiveBody hive, FeedStation feed)
+        {
+            yield return WaitUntil(() => hive.LiftEnabled, 20f, "hive rock enabled");
+            int earlyReleases = 0;
+            int completedRocks = 0;
+            void OnEarlyRelease() => earlyReleases++;
+            void OnRocked() => completedRocks++;
+            hive.RockReleasedEarly += OnEarlyRelease;
+            hive.Rocked += OnRocked;
+            float previousTimeScale = Time.timeScale;
+            try
+            {
+                Time.timeScale = 1f; // keep synthetic hand samples within the tracking tolerance
+                Vector3 origin = hive.transform.position;
+                hive.BeginGrab(origin);
+                yield return new WaitForSeconds(0.05f);
+                hive.UpdateGrab(origin + Vector3.up * 0.025f);
+                hive.EndGrab();
+                Assert.AreEqual(1, earlyReleases, "letting go early sends the retry event");
+                Assert.IsFalse(hive.RockCompleted, "a single lift does not count as rocking");
+                Assert.AreEqual(0, completedRocks, "an early release cannot advance the feed station");
+                yield return WaitUntil(() => feed.WarningVisible, 5f, "early release warning");
+                Assert.IsTrue(hive.LiftEnabled, "the player can retry the rock");
+
+                origin = hive.transform.position;
+                Vector3 raised = origin + Vector3.up * 0.09f;
+                Vector3 side = hive.transform.right * 0.05f;
+                hive.BeginGrab(origin);
+                yield return new WaitForSeconds(0.06f);
+                hive.UpdateGrab(Vector3.Lerp(origin, raised, 0.5f));
+                yield return new WaitForSeconds(0.06f);
+                hive.UpdateGrab(raised);
+                yield return new WaitForSeconds(0.06f);
+                hive.UpdateGrab(raised + side);
+                yield return new WaitForSeconds(0.08f);
+                hive.UpdateGrab(raised + side);
+                yield return new WaitForSeconds(0.08f);
+                hive.UpdateGrab(raised);
+                yield return new WaitForSeconds(0.06f);
+                hive.UpdateGrab(raised - side);
+                Assert.IsTrue(hive.RockCompleted, "lifting and rocking in opposing directions counts before release");
+                Assert.AreEqual(1, completedRocks, "the successful rock sends one event");
+                hive.EndGrab();
+                Assert.AreEqual(1, earlyReleases, "releasing a successful rock does not send a retry");
+            }
+            finally
+            {
+                Time.timeScale = previousTimeScale;
+                hive.RockReleasedEarly -= OnEarlyRelease;
+                hive.Rocked -= OnRocked;
+            }
+        }
 
         static IEnumerator WaitUntil(Func<bool> cond, float realSeconds, string what)
         {
