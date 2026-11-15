@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 
 from scout_vision.backbones import load_backbone
-from scout_vision.recognizer import BACKGROUND, CLASSES, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, ROOT, Recognizer
+from scout_vision.recognizer import BACKGROUND, CLASSES, DEFAULT_BG_FLOOR, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, ROOT, Recognizer
 
 TEST = ROOT / "data" / "test"
 MIN_SCORE, MIN_MARGIN = 0.6, 0.12  # SCOUT_TUNING in hive/src/scout-protocol.ts
@@ -80,8 +80,9 @@ def report(name: str, classes: list[str], probs: np.ndarray, ys: list[str], min_
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backbone", default="both", choices=["both", "clip", "dino"])
-    ap.add_argument("--temp", type=float, default=DEFAULT_TEMP)
+    ap.add_argument("--temp", type=float, default=DEFAULT_TEMP, help="default: per backbone (recognizer.CALIBRATION)")
     ap.add_argument("--topk", type=int, default=DEFAULT_TOPK)
+    ap.add_argument("--bg-floor", type=float, default=DEFAULT_BG_FLOOR)
     ap.add_argument("--sweep", action="store_true")
     ap.add_argument("--min-score", type=float, default=MIN_SCORE)
     ap.add_argument("--min-margin", type=float, default=MIN_MARGIN)
@@ -90,7 +91,7 @@ def main() -> None:
     print(f"test set: {len(ims)} images, " + ", ".join(f"{c} {ys.count(c)}" for c in CLASSES))
     for kind in (["clip", "dino"] if a.backbone == "both" else [a.backbone]):
         bb = load_backbone(kind)
-        rec = Recognizer(bb, topk=a.topk, temp=a.temp)
+        rec = Recognizer(bb, topk=a.topk, temp=a.temp, bg_floor=a.bg_floor)
         # ms/frame, single images as in the live loop (after warm-up)
         for im in ims[:3]:
             rec.score([im])
@@ -101,14 +102,20 @@ def main() -> None:
             t.append((time.perf_counter() - t0) * 1000)
         embs = np.concatenate([rec.embed(ims[i:i + 32]) for i in range(0, len(ims), 32)])
         classes, sims = rec.class_sims(embs)
-        report(f"{bb.name} on {getattr(bb, 'device', '?')}, top-{a.topk}, T={a.temp}", classes, rec.calibrate(sims, a.temp), ys,
+        report(f"{bb.name} on {getattr(bb, 'device', '?')}, top-{a.topk}, T={rec.temp}, bg floor {rec.bg_floor}", classes, rec.calibrate(sims), ys,
                a.min_score, a.min_margin, True)
         print(f"  ms/frame (single image, incl. preprocessing): median {np.median(t):.1f}, p95 {np.percentile(t, 95):.1f}")
         if a.sweep:
-            print("  temperature sweep: T -> mean trigger rate / background FP / wrong-label triggers")
-            for T in (0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04):
-                r = report("", classes, rec.calibrate(sims, T), ys, a.min_score, a.min_margin, False)
-                print(f"    T={T:<7} trigger {r['mean_trig']:.3f}  bg FP {r['bg_fp'][0]}/{r['bg_fp'][1]}  wrong {r['wrong_trigger']}  top-1 {r['mean_acc']:.3f}")
+            print("  sweep: T, bg floor -> mean trigger rate / background FP / wrong-label triggers / top-1 (best 12 by trigger - 3*FP rate)")
+            rows = []
+            for floor in [0.0, *np.arange(0.1, 0.86, 0.025)]:
+                classes, sims = rec.class_sims(embs, bg_floor=float(floor))
+                for T in (0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.08):
+                    r = report("", classes, rec.calibrate(sims, T), ys, a.min_score, a.min_margin, False)
+                    fp = r["bg_fp"][0] / max(1, r["bg_fp"][1])
+                    rows.append((r["mean_trig"] - 3 * fp - 0.02 * r["wrong_trigger"], T, floor, r))
+            for _, T, floor, r in sorted(rows, key=lambda x: -x[0])[:12]:
+                print(f"    T={T:<7} floor={floor:.3f}  trigger {r['mean_trig']:.3f}  bg FP {r['bg_fp'][0]}/{r['bg_fp'][1]}  wrong {r['wrong_trigger']}  top-1 {r['mean_acc']:.3f}")
 
 
 if __name__ == "__main__":

@@ -35,8 +35,8 @@ QUERIES: dict[str, list[str]] = {
     "beehive": ["Category:Langstroth hives", "Langstroth hive", "beehive box apiary", "bee hive boxes", "Langstroth beehive white", "wooden beehive"],
     "native_flower": ["Eschscholzia californica flower", "California poppy", "Salvia flower purple", "Salvia clevelandii", "Salvia leucantha"],
     "honey_jar": ["Category:Honey jars", "jar of honey", "honey jar", "honey glass jar", "honey bottle supermarket"],
-    "pebble_dish": ["Category:Bird baths", "bee water dish pebbles", "butterfly puddling station", "saucer of water with stones", "bird bath stones", "bee watering station", "bird bath pebbles", "dish of water with pebbles", "shallow dish stones water", "pebbles in water bowl"],
-    "bug_spray": ["Category:Insect repellents", "Category:Raid (insecticide)", "Category:Spray cans", "mosquito repellent spray bottle", "aerosol can", "insecticide spray can", "bug spray", "insect repellent spray", "aerosol insecticide", "Raid insecticide"],
+    "pebble_dish": ["Category:Bird baths", "Category:Bird bath", "bee water dish pebbles", "butterfly puddling station", "saucer of water with stones", "bird bath stones", "bee watering station", "bird bath pebbles", "dish of water with pebbles", "shallow dish stones water", "pebbles in water bowl"],
+    "bug_spray": ["Category:Insect repellents", "Category:Raid (insecticide)", "Category:Spray cans", "Category:Spray bottles", "mosquito repellent spray bottle", "aerosol can", "insecticide spray can", "bug spray", "insect repellent spray", "aerosol insecticide", "Raid insecticide"],
     "bee_hotel": ["Category:Insect hotels", "insect hotel", "bee hotel", "Insektenhotel", "wild bee nesting aid", "solitary bee house"],
     "background": [
         "office desk laptop", "laptop on table", "conference attendees", "classroom interior", "office hallway",
@@ -95,8 +95,8 @@ def fetch(per: int, bg_total: int) -> None:
             if have >= want:
                 break
             got_q = 0
-            for page in search(session, q, per_query * 2):
-                if have >= want or got_q >= per_query:
+            for page in search(session, q, 200 if q.startswith("Category:") else per_query * 2):
+                if have >= want or (got_q >= per_query and not q.startswith("Category:")):
                     break
                 title = page.get("title", "")
                 if title in seen_titles:
@@ -169,7 +169,7 @@ def split(n_enrol: int, bg_enrol: int, seed: int = 7) -> None:
     for label in QUERIES:
         files = sorted(p for p in (WEB / label).glob("*.jpg") if f"{label}/{p.name}" not in junk)
         rng.shuffle(files)
-        k = bg_enrol if label == "background" else n_enrol
+        k = bg_enrol if label == "background" else min(n_enrol, round(len(files) * 0.65))
         enrol, test = files[:k], files[k:]
         (REFS / label).mkdir(parents=True, exist_ok=True)
         (TEST / label).mkdir(parents=True, exist_ok=True)

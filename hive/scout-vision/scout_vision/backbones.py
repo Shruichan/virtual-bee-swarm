@@ -17,6 +17,7 @@ def pick_device() -> str:
 
 class Backbone:
     name: str
+    kind: str
 
     def embed(self, images: list[Image.Image]) -> np.ndarray:  # (N, D) float32, unit rows
         raise NotImplementedError
@@ -27,6 +28,7 @@ class ClipBackbone(Backbone):
         import open_clip
 
         self.name = f"clip-{arch}-{pretrained}"
+        self.kind = "clip"
         self.device = device
         model, _, preprocess = open_clip.create_model_and_transforms(arch, pretrained=pretrained)
         self.model = model.eval().to(device)
@@ -45,6 +47,7 @@ class DinoBackbone(Backbone):
         from transformers import AutoImageProcessor, AutoModel
 
         self.name = model_id.split("/")[-1]
+        self.kind = "dino"
         self.device = device
         self.processor = AutoImageProcessor.from_pretrained(model_id)
         self.model = AutoModel.from_pretrained(model_id).eval().to(device)

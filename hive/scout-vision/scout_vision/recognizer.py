@@ -27,7 +27,12 @@ REFS = ROOT / "refs"
 CACHE = ROOT / "cache"
 
 DEFAULT_TOPK = 3
-DEFAULT_TEMP = 0.02
+# Per-backbone calibration, tuned with eval.py --sweep (similarity scales differ: DINOv2 own-class median ~0.56,
+# best other class ~0.15; CLIP 0.68 vs 0.43). bg_floor: background's similarity is at least this, so a frame
+# unlike every reference falls to background instead of to the least-unlike object.
+CALIBRATION = {"dino": {"temp": 0.04, "bg_floor": 0.2}, "clip": {"temp": 0.03, "bg_floor": 0.0}}
+DEFAULT_TEMP = None  # None = CALIBRATION for the backbone
+DEFAULT_BG_FLOOR = None
 
 
 def center_crop(im: Image.Image, frac: float) -> Image.Image:
@@ -41,11 +46,14 @@ def center_crop(im: Image.Image, frac: float) -> Image.Image:
 
 
 class Recognizer:
-    def __init__(self, backbone: Backbone, refs_dir: Path = REFS, topk: int = DEFAULT_TOPK, temp: float = DEFAULT_TEMP) -> None:
+    def __init__(self, backbone: Backbone, refs_dir: Path = REFS, topk: int = DEFAULT_TOPK, temp: float | None = DEFAULT_TEMP,
+                 bg_floor: float | None = DEFAULT_BG_FLOOR) -> None:
+        cal = CALIBRATION.get(backbone.kind, {"temp": 0.03, "bg_floor": 0.0})
         self.backbone = backbone
+        self.bg_floor = cal["bg_floor"] if bg_floor is None else bg_floor
         self.refs_dir = refs_dir
         self.topk = topk
-        self.temp = temp
+        self.temp = cal["temp"] if temp is None else temp
         self.lock = threading.Lock()  # one model, shared by the worker loop and /enrol
         self.refs: dict[str, np.ndarray] = {}
         self.reload()
@@ -103,14 +111,21 @@ class Recognizer:
         with self.lock:
             return self.backbone.embed(images)
 
-    def class_sims(self, embs: np.ndarray) -> tuple[list[str], np.ndarray]:
-        """(classes, sims[N, C]): mean of the top-k cosine similarities per class."""
+    def class_sims(self, embs: np.ndarray, bg_floor: float | None = None) -> tuple[list[str], np.ndarray]:
+        """(classes, sims[N, C]): mean of the top-k cosine similarities per class (background floored)."""
         classes = [c for c in CLASSES if c in self.refs]
         sims = np.zeros((len(embs), len(classes)), np.float32)
         for j, c in enumerate(classes):
             s = embs @ self.refs[c].T  # (N, R)
             k = min(self.topk, s.shape[1])
             sims[:, j] = np.sort(s, axis=1)[:, -k:].mean(axis=1)
+        floor = self.bg_floor if bg_floor is None else bg_floor
+        if BACKGROUND in classes:
+            j = classes.index(BACKGROUND)
+            sims[:, j] = np.maximum(sims[:, j], floor)
+        else:  # no background refs yet: the floor alone stands in for it
+            classes = [*classes, BACKGROUND]
+            sims = np.concatenate([sims, np.full((len(embs), 1), floor, np.float32)], axis=1)
         return classes, sims
 
     def calibrate(self, sims: np.ndarray, temp: float | None = None) -> np.ndarray:
@@ -120,12 +135,14 @@ class Recognizer:
         p = np.exp(z)
         return p / p.sum(axis=1, keepdims=True)
 
-    def score(self, images: list[Image.Image]) -> list[list[dict]]:
-        """Per image: top 3 [{label, score}], best first."""
+    def score(self, images: list[Image.Image]) -> list[tuple[list[dict], dict[str, float]]]:
+        """Per image: (top 3 [{label, score}] best first, {class: score} for all seven classes)."""
         classes, sims = self.class_sims(self.embed(images))
         probs = self.calibrate(sims)
         out = []
         for row in probs:
             order = np.argsort(-row)[:3]
-            out.append([{"label": classes[i], "score": round(float(row[i]), 4)} for i in order])
+            top = [{"label": classes[i], "score": round(float(row[i]), 4)} for i in order]
+            scores = {c: round(float(row[classes.index(c)]), 4) if c in classes else 0.0 for c in CLASSES}
+            out.append((top, scores))
         return out

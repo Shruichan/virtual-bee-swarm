@@ -30,7 +30,7 @@ import requests
 from PIL import Image
 
 from scout_vision.backbones import load_backbone
-from scout_vision.recognizer import CLASSES, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, REFS, ROOT, Recognizer, center_crop
+from scout_vision.recognizer import CLASSES, DEFAULT_BG_FLOOR, DEFAULT_TEMP, DEFAULT_TOPK, LABELS, REFS, ROOT, Recognizer, center_crop
 from scout_vision.sources import Source
 
 TEST = ROOT / "data" / "test"
@@ -77,14 +77,15 @@ class HivePoster:
             except Exception as e:  # noqa: BLE001 - the Hive may be down or the route missing: keep going
                 self.errors += 1
                 if time.time() - self.last_err > 5:
-                    print(f"[hive] POST {self.url} failed ({self.errors} so far): {e}", file=sys.stderr, flush=True)
+                    msg = re.sub(r"token=[^&\s)'\"]*", "token=***", str(e))[:200]  # never log the token
+                    print(f"[hive] POST {self.url} failed ({self.errors} so far): {msg}", file=sys.stderr, flush=True)
                     self.last_err = time.time()
 
 
 class Worker:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
-        self.rec = Recognizer(load_backbone(args.backbone), topk=args.topk, temp=args.temp)
+        self.rec = Recognizer(load_backbone(args.backbone), topk=args.topk, temp=args.temp, bg_floor=args.bg_floor)
         self.source = Source(args.source, loop=args.loop, hold_s=args.hold)
         self.poster = HivePoster(args.hive, args.token) if args.hive else None
         self.times: deque[float] = deque(maxlen=20)
@@ -112,12 +113,12 @@ class Worker:
             idle_since = time.time()
             seq = f.seq
             t0 = time.perf_counter()
-            top = self.rec.score([self.frame_image(f.rgb)])[0]
+            top, scores = self.rec.score([self.frame_image(f.rgb)])[0]
             frame_ms = (time.perf_counter() - t0) * 1000
             self.times.append(time.time())
             if len(self.times) >= 2:
                 self.fps = (len(self.times) - 1) / max(1e-6, self.times[-1] - self.times[0])
-            out = {"at": int(f.at), "frame_ms": round(frame_ms, 1), "fps": round(self.fps, 2), "top": top, "source": self.source.label}
+            out = {"at": int(f.at), "frame_ms": round(frame_ms, 1), "fps": round(self.fps, 2), "top": top, "scores": scores, "source": self.source.label}
             if f.pos_ms is not None:
                 out["pos_ms"] = round(f.pos_ms, 1)  # extra, file sources only (replay_check.py)
             self.last = out
@@ -247,7 +248,7 @@ def main() -> None:
     load_dotenv()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", default=os.environ.get("SCOUT_SOURCE", "rtsp://127.0.0.1:8554/scout"))
-    ap.add_argument("--backbone", default=os.environ.get("SCOUT_BACKBONE", "clip"), choices=["clip", "dino"])
+    ap.add_argument("--backbone", default=os.environ.get("SCOUT_BACKBONE", "dino"), choices=["clip", "dino"])
     ap.add_argument("--print", action="store_true", help="JSON lines to stdout")
     ap.add_argument("--hive", default=os.environ.get("SCOUT_HIVE_URL"), help="e.g. http://127.0.0.1:8241")
     ap.add_argument("--token", default=os.environ.get("HIVE_TOKEN", ""))
@@ -255,6 +256,7 @@ def main() -> None:
     ap.add_argument("--crop", type=float, default=float(os.environ.get("SCOUT_CROP", 1.0)), help="central fraction of the frame to look at")
     ap.add_argument("--temp", type=float, default=DEFAULT_TEMP)
     ap.add_argument("--topk", type=int, default=DEFAULT_TOPK)
+    ap.add_argument("--bg-floor", type=float, default=DEFAULT_BG_FLOOR)
     ap.add_argument("--loop", action="store_true", help="loop a file/folder source")
     ap.add_argument("--hold", type=float, default=2.0, help="seconds per image (folder source)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SCOUT_VISION_PORT", 8242)))

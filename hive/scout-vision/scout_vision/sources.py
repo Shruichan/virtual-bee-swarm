@@ -15,8 +15,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import cv2
-import numpy as np
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")  # no per-retry "can't capture by name" warnings
+os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")  # quiet libav (404s while the glasses are not streaming)
+
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 @dataclass
