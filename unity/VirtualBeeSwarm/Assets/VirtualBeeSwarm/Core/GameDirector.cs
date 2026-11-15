@@ -25,7 +25,7 @@ namespace VirtualBeeSwarm
         [Header("Clock")]
         [Tooltip("Max seconds per beat (index = beat number). 0 = no limit. Then the beat's OnBeatTimeout runs and the " +
                  "director advances at most timeoutGraceSeconds later.")]
-        [SerializeField] float[] beatCapSeconds = { 0f, 25f, 48f, 65f, 85f, 65f, 40f, 65f, 60f, 25f, 45f, 0f, 0f };
+        [SerializeField] float[] beatCapSeconds = { 0f, 25f, 48f, 65f, 85f, 65f, 40f, 65f, 60f, 25f, 55f, 0f, 0f }; // T-0 45 -> 55 s: the Moon award after the crash
         // smoker / wasps / heat 55 / 50 / 50 -> 65: with the hands-on steps (order, fly-in, set up, crew assist at 12-15 s)
         // one wrong pick plus a slow hand step reached the cap, and "Overruled" played while the player was mid-step.
         // ride script v2 (typical run, then the cap): hook 8 s (25), meet 32 s (48: six lines, one of them the forecast),
