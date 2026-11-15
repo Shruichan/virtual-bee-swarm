@@ -1,0 +1,78 @@
+# Matte, deliberately simple colors for Unity's OBJ importer.
+newmtl honey
+Kd 0.970 0.620 0.120
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl honey_light
+Kd 1.000 0.810 0.310
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl charcoal
+Kd 0.160 0.120 0.130
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl wing
+Kd 0.700 0.880 0.920
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl white
+Kd 1.000 0.970 0.870
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl wood
+Kd 0.390 0.190 0.100
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl wood_light
+Kd 0.650 0.340 0.160
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl bark
+Kd 0.220 0.120 0.090
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl flame_red
+Kd 0.930 0.190 0.070
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl flame_orange
+Kd 1.000 0.430 0.070
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl flame_gold
+Kd 1.000 0.770 0.190
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl stone
+Kd 0.370 0.430 0.440
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
+
+newmtl stone_light
+Kd 0.600 0.640 0.600
+Ka 0.15 0.15 0.15
+Ks 0.08 0.08 0.08
+Ns 12
