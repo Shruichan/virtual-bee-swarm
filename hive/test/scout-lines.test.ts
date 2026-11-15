@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import raw from "../lines/scout_lines.json";
+import demoRaw from "../lines/scout_lines.json";
+import boothRaw from "../lines/scout_lines_booth.json";
 import { PLACEHOLDER, SCOUT_AUDIO_DIR, SCOUT_MANIFEST_FILE, VOICE_NAMES, lineHash, readManifest } from "../scripts/scout-render";
-import { SCOUT_LABELS, SCOUT_LINES, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
+import { SCOUT_BOOTH_LINES, SCOUT_LABELS, SCOUT_LINES, type ScoutLabel, type ScoutLine } from "../src/scout-protocol";
 
-const lines = raw as ScoutLine[];
+const demo = demoRaw as ScoutLine[];
+const booth = boothRaw as ScoutLine[];
+/** What the game loads: both files (booth facts double as demo mode's facts). */
+const lines = [...demo, ...booth];
 const byId = new Map(lines.map((l) => [l.id, l]));
 
 /** Every id SCOUT_LINES implies, with the kind (and label) it must have. */
@@ -22,10 +26,28 @@ const expected: { id: string; kind: ScoutLine["kind"]; label?: ScoutLabel }[] = 
   { id: SCOUT_LINES.idle, kind: "idle" },
   ...[1, 2, 3, 4, 5].map((n) => ({ id: SCOUT_LINES.progress(n), kind: "progress" as const })),
   { id: SCOUT_LINES.done, kind: "done" },
+  // booth mode (scout_lines_booth.json); each fact has a second part, played right after it
+  { id: SCOUT_BOOTH_LINES.intro, kind: "intro" },
+  { id: SCOUT_BOOTH_LINES.chimeAsk, kind: "chime" },
+  { id: SCOUT_BOOTH_LINES.silenceYes, kind: "silence" },
+  { id: SCOUT_BOOTH_LINES.no, kind: "no" },
+  { id: SCOUT_BOOTH_LINES.done, kind: "done" },
+  ...Object.values(SCOUT_BOOTH_LINES.dir).map((id) => ({ id, kind: "direction" as const })),
+  ...SCOUT_LABELS.flatMap((label) => [
+    { id: `${SCOUT_LINES.fact(label)}_2`, kind: "fact" as const, label },
+    { id: SCOUT_BOOTH_LINES.next(label), kind: "direction" as const, label },
+  ]),
 ];
 
-/** Ride Script v2 SOURCES: the only URLs a fact may cite. */
+/** Ride Script v2 SOURCES plus scout_script_v3.json sources (branch scout/content): the only URLs a fact may cite. */
 const SOURCE_ALLOWLIST = new Set([
+  "https://plants.ces.ncsu.edu/plants/helianthus-annuus/",
+  "https://usda.azureedge.us/node/48771",
+  "https://pueblo.extension.colostate.edu/?p=4685",
+  "https://doi.org/10.1371/journal.pone.0220029",
+  "https://biologicaldiversity.org/news/press_releases/2017/bees-03-01-2017.php",
+  "https://www.sciencenews.org/article/douse-hot-hives-honeybee-colonies-launch-water-squadrons",
+  "https://www.fws.gov/press-release/2017-01/race-against-extinction-rusty-patched-bumble-bee-listed-endangered",
   "https://www.usgs.gov/faqs/how-many-species-native-bees-are-united-states",
   "https://canr.udel.edu/maarec/honey-bee-biology/the-colony-and-its-organization/",
   "https://ucanr.edu/node/154475",
@@ -72,8 +94,8 @@ const words = (t: string) => t.split(/\s+/).filter(Boolean);
 const capsWords = (t: string) => words(t).map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => /^[A-Z]{2,}$/.test(w));
 const HOOK_ENDING = "Would you like to learn more?";
 
-describe("scout_lines.json", () => {
-  test("has exactly the ids SCOUT_LINES implies, once each, with the right kind and label", () => {
+describe("scout_lines.json + scout_lines_booth.json", () => {
+  test("has exactly the ids SCOUT_LINES and SCOUT_BOOTH_LINES imply, once each across both files, right kind and label", () => {
     const ids = lines.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual(expected.map((e) => e.id).sort());
@@ -94,8 +116,18 @@ describe("scout_lines.json", () => {
     }
   });
 
-  test("the chime says the catchphrase", () => {
+  test("the chimes say the catchphrase", () => {
     expect(byId.get(SCOUT_LINES.chime)!.text).toBe("Bee fact found!");
+    expect(byId.get(SCOUT_BOOTH_LINES.chimeAsk)!.text).toBe("Bee fact found! Would you like to learn more?");
+  });
+
+  test("demo-only ids stay in scout_lines.json, booth ids in scout_lines_booth.json", () => {
+    const boothIds = new Set(booth.map((l) => l.id));
+    for (const label of SCOUT_LABELS) {
+      expect(boothIds.has(SCOUT_LINES.fact(label))).toBe(true);
+      expect(boothIds.has(SCOUT_LINES.hook(label))).toBe(false);
+    }
+    expect(booth.find((l) => l.id === SCOUT_BOOTH_LINES.dir.up)!.text).toBe("Lift your chin a little so I can see it.");
   });
 
   test("hooks are short, name something first, and end with the same offer", () => {
@@ -112,16 +144,23 @@ describe("scout_lines.json", () => {
     expect(new Set(first).size).toBe(first.length);
   });
 
-  test("every fact cites a Ride Script v2 source; nothing else carries one", () => {
+  test("every fact cites vetted sources (space-separated when a line makes two claims); nothing else carries one", () => {
     for (const l of lines) {
-      if (l.kind === "fact") expect(SOURCE_ALLOWLIST.has(l.source ?? ""), `${l.id}: ${l.source}`).toBe(true);
-      else expect(l.source, l.id).toBeUndefined();
+      if (l.kind !== "fact") {
+        expect(l.source, l.id).toBeUndefined();
+        continue;
+      }
+      const urls = (l.source ?? "").split(" ").filter(Boolean);
+      expect(urls.length > 0, l.id).toBe(true);
+      for (const u of urls) expect(SOURCE_ALLOWLIST.has(u), `${l.id}: ${u}`).toBe(true);
     }
   });
 
   test("no banned or unsafe words, and the ride's sign-off pun at most once", () => {
     for (const l of lines) {
-      for (const w of [...BANNED, ...UNSAFE]) expect(new RegExp(`\\b${w}`, "i").test(l.text), `${l.id} has "${w}"`).toBe(false);
+      // "next adventure" is the user's own wording for the booth handoffs
+      const banned = l.kind === "direction" ? BANNED.filter((w) => w !== "adventure") : BANNED;
+      for (const w of [...banned, ...UNSAFE]) expect(new RegExp(`\\b${w}`, "i").test(l.text), `${l.id} has "${w}"`).toBe(false);
     }
     const beeswax = lines.filter((l) => /mind your own beeswax/i.test(l.text));
     expect(beeswax.length <= 1).toBe(true);
