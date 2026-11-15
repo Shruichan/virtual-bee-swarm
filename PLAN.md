@@ -690,7 +690,7 @@
 - **S18.1 Bonus prop meshes** (P2 · 0.5 h · needs –) — create small, Unity-importable bee and campfire meshes under `art/generated-props/`, without touching dartiros's claimed Unity art slots — owner: **Rome** — status: done.
 - **S18.2 Bee sticker sheets** (P2 · 0.5 h · needs reference image) — create a small set of printable, transparent-background sticker sheets matching the Penguinbook bee reference — owner: **Rome** — status: done (reference received; two transparent sheets created).
 
-- **S18.3 Meadow environment mesh pack** (P2 · 0.5 h · needs –) — add Unity-importable flower, grass, and vine meshes under `art/generated-environment/`, without changing claimed Unity art slots — owner: **Rome** — status: in progress.
+- **S18.3 Meadow environment mesh pack** (P2 · 0.5 h · needs –) — add Unity-importable flower, grass, and vine meshes under `art/generated-environment/`, without changing claimed Unity art slots — owner: **Rome** — status: done.
 
 ### Schedule
 
@@ -1463,3 +1463,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:55 PT · Rome (agent) · S18 done: added `art/generated-props/` low-poly bee and Ember Buddy OBJ/MTL meshes plus preview, and two transparent six-sticker PNG sheets in `art/stickers/` using the supplied Penguinbook bee. No files in dartiros's claimed Unity art slots were changed. → team
 
 - 2026-11-14 17:05 PT · Rome (agent) · Started S18.3: adding standalone low-poly flower, grass, and flowering-vine models for optional AR meadow dressing under `art/generated-environment/`. → team
+
+- 2026-11-14 17:35 PT · Rome (agent) · S18.3 done: added `meadow_flowers`, `soft_grass_tuft`, and `flowering_vine` OBJ/MTL models with a rendered pack preview and import notes; kept all new assets outside the claimed Unity art slots. → team
