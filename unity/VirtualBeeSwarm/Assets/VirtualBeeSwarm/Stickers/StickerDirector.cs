@@ -306,7 +306,7 @@ namespace VirtualBeeSwarm.Theme
 
         void RefreshCardPose()
         {
-            if (!_card.Visible) return;
+            if (!_card.Visible || _card.PositionOverridden) return;
             bool floorMode = Bloom.MeadowLayout.Active || _anchor == null;
             bool moved = _anchor != null && ((_anchor.position - _cardAnchorPosition).sqrMagnitude > 0.04f * 0.04f ||
                                            Quaternion.Angle(_anchor.rotation, _cardAnchorRotation) > 5f);

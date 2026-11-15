@@ -34,8 +34,10 @@ namespace VirtualBeeSwarm.Theme
         string _clockText;
         float _shownAt = -1f, _bumpAt = -10f, _celebrateAt = -1f;
         bool _visible;
+        PanelGrip _grip;
 
         public bool Visible => _visible;
+        public bool PositionOverridden => _grip != null && (_grip.Held || _grip.ManuallyPlaced);
         public int State(int station) => station >= 0 && station < 4 ? _slots[station].state : 0;
         public int Ticks(int station) => station >= 0 && station < 4 ? _slots[station].shownTicks : 0;
 
@@ -54,6 +56,7 @@ namespace VirtualBeeSwarm.Theme
             _body = new GameObject("Body").transform;
             _body.SetParent(transform, false);
             UiCard.Create(_body, "Card", new Vector2(Width, Height), UiCard.Look.Paper);
+            _grip = PanelGrip.Add(transform, _body, new Vector3(0f, Height * 0.5f + 0.008f, 0f));
             // the easel leg: a dark slab behind, so it reads as a thing standing on the table
             var leg = StickerArt.Shape(_body, false, UiTheme.DarkBrown, new Vector2(0.05f, Height * 0.8f), "Leg");
             leg.localPosition = new Vector3(0f, -Height * 0.08f, 0.03f);
@@ -114,6 +117,7 @@ namespace VirtualBeeSwarm.Theme
 
         public void ResetCard()
         {
+            _grip?.ResetPlacement();
             for (int i = 0; i < 4; i++)
             {
                 _slots[i].state = 0;
