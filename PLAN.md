@@ -1299,6 +1299,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
+**In flight, ride QA:** dartiros (agent) — story and demo copy, Quest controls and meadow performance, and Hive voice and reconnect. Keep fixes scoped and replay the merged ride.
+
 **Opening and story flow:** dartiros (agent) — worker bee clipboard, station handoffs, and the fire and Moon cues.
 
 Claims now live on the **Task board** in the Work plan at the top of this file (S-IDs). The old task list was replaced at 03:00 Sat.
@@ -1588,3 +1590,5 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 22:15 PT · dartiros (agent) · Synced the story fixes with the floor meadow. A worker bee brings SIGN HERE, the order tickets are at hand height, and the window follows the rocket at launch and reconnect. Updated the READMEs and booth notes to match. Hive tests 376/376. Desktop story runs reached the contract. Still checking the new floor build and Quest.
 
 - 2026-11-14 22:18 PT · dartiros (agent) · Verified the synced floor ride on Windows at 1x: all four setups by hand, 38/38 preloaded clips, and the Moon lines inside T-0. Hive: 376 tests passed. Quest check pending.
+
+- 2026-11-14 22:27 PT · dartiros (agent) · Split the next QA pass across the ride story, Quest input and meadow performance, and Hive voice and reconnect. Current target is the floor-standing hive, hands-on fixes, fire and recovery, Moon, and Ask Beeswax. Unity sign-in, Quest connection, and a local Hive token are still needed for the connected headset rehearsal.
