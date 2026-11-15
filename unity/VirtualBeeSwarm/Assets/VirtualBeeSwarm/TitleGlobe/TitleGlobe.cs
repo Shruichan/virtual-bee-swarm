@@ -83,6 +83,7 @@ namespace VirtualBeeSwarm.Title
 
         // where it is
         Vector3 _pos, _from, _centre, _placeEye;
+        float _meshScale = 2f; // localScale per metre of radius
         float _radius = 0.21f, _fromRadius, _shownAt, _stateAt, _hover, _hoverGoal, _swap;
         bool _placed, _inside;
 
@@ -218,7 +219,10 @@ namespace VirtualBeeSwarm.Title
 
             var sphere = new GameObject("GlobeSphere");
             sphere.transform.SetParent(transform, false);
-            sphere.AddComponent<MeshFilter>().sharedMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            var sphereMesh = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            sphere.AddComponent<MeshFilter>().sharedMesh = sphereMesh;
+            // the built-in sphere here is radius 1 (bounds 2 m), not 0.5: scale by its real size, or the ball shows twice as big
+            _meshScale = 1f / Mathf.Max(0.01f, sphereMesh != null ? sphereMesh.bounds.extents.x : 0.5f);
             var mr = sphere.AddComponent<MeshRenderer>();
             mr.sharedMaterial = _mat;
             mr.shadowCastingMode = ShadowCastingMode.Off;
@@ -440,7 +444,7 @@ namespace VirtualBeeSwarm.Title
             _col.enabled = false;
             _hoverGoal = 0f;
             _from = _sphere.position;
-            _fromRadius = _sphere.localScale.x * 0.5f;
+            _fromRadius = _sphere.localScale.x / _meshScale;
             _stateAt = Time.time;
             if (StakesFlags.Comfort || head == null)
             {
@@ -504,7 +508,7 @@ namespace VirtualBeeSwarm.Title
             float r = _radius * pop;
             SetLook(Mathf.Clamp01((t - _shownAt) / fadeInSeconds), false, 0f);
             _sphere.position = c;
-            _sphere.localScale = Vector3.one * (r * 2f);
+            _sphere.localScale = Vector3.one * (r * _meshScale);
             _col.center = transform.InverseTransformPoint(c);
             _col.radius = r;
             _hover = Mathf.MoveTowards(_hover, _hoverGoal, Time.deltaTime * 5f);
@@ -584,7 +588,7 @@ namespace VirtualBeeSwarm.Title
                     _centre = Vector3.Lerp(_from, eye, e);
                     float r = Mathf.Lerp(_fromRadius, insideRadius * 0.75f, e * e);
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     bool inside = head != null && Vector3.Distance(head.position, _centre) < r * 0.97f;
                     SetLook(Mathf.Lerp(1f, insideAlpha, e), inside, 0f, e); // soft rim while it grows: no hard edge across the ceiling
                     if (_mat != null) _mat.SetFloat(GlowId, 0.3f * (1f - e));
@@ -605,7 +609,7 @@ namespace VirtualBeeSwarm.Title
                     k = Mathf.Clamp01((t - _stateAt) / InsideSeconds);
                     float r = Mathf.Lerp(insideRadius * 0.75f, insideRadius, k);
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     if (_wallOn)
                     {
                         // the globe's footage gives way to the wall lighting up round the player
@@ -637,7 +641,7 @@ namespace VirtualBeeSwarm.Title
                     k = Mathf.Clamp01((t - _stateAt) / burstSeconds);
                     float r = Mathf.Lerp(insideRadius, insideRadius * 1.5f, 1f - (1f - k) * (1f - k));
                     _sphere.position = _centre;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     if (_wallOn) _wall.Tick(Time.deltaTime, insideAlpha, 1f, 1f - (1f - k) * (1f - k), 1f + 5f * k); // the rows race and fold in
                     else SetLook(insideAlpha * (1f - 0.3f * k), head == null || Vector3.Distance(head.position, _centre) < r * 0.97f, k);
                     if (k >= 1f) Done();
@@ -648,7 +652,7 @@ namespace VirtualBeeSwarm.Title
                     k = Mathf.Clamp01((t - _stateAt) / comfortSeconds);
                     float r = _fromRadius * (1f + 0.15f * k);
                     _sphere.position = _from;
-                    _sphere.localScale = Vector3.one * (r * 2f);
+                    _sphere.localScale = Vector3.one * (r * _meshScale);
                     SetLook(1f - 0.4f * k, false, k);
                     TickStand(_from, _fromRadius, t, 1f - k);
                     TickBees(head, _from, _fromRadius, t, k);
