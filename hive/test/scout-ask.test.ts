@@ -601,6 +601,7 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     const app = new Hono();
     let stopped = false;
     registerScoutRoutes(app, { bus: { broadcast: (m: Record<string, unknown>) => void sent.push(m) } as never, authed: () => true, base: () => "http://hive", stopped: () => stopped });
+    await app.request("/scout/reset", { method: "POST" }); // start the journey (silent while waiting)
     await app.request("/scout/force", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: "honey_jar" }) });
     const chime = sent.find((m) => m.tts_id === "scout_chime")!;
     expect(String(chime.audio_url)).toMatch(/^http:\/\/hive\/scout\/audio\/scout_chime\.mp3\?ms=\d+$/);
@@ -612,10 +613,23 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     const app = new Hono();
     let stopped = false;
     registerScoutRoutes(app, { bus: { broadcast: () => {} } as never, authed: () => true, base: () => "h", stopped: () => stopped });
+    await app.request("/scout/reset", { method: "POST" }); // started, so only the missing key keeps Ask off
     const r = await (await app.request("/scout/utterance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "hey beeswax why do bees sting" }) })).json();
     expect(r.routed).toBeUndefined();
     stopped = true;
   });
+});
+
+test("ScoutAsk is silent while the game waits for Start (no answer, no wake ack)", async () => {
+  const says: AskSay[] = [];
+  const calls: string[] = [];
+  const game = { ...fakeGame(calls), isStarted: () => false };
+  const a = new ScoutAsk({ game, base: () => "h", say: (s) => says.push(s), llm: fakeLlm(["Hi."]), tts: fakeTts() });
+  const st = await a.ask("why");
+  a.wake();
+  expect(st.error).toBe("not started");
+  expect(says).toEqual([]);
+  expect(calls).toEqual([]); // never interrupts or begins an answer
 });
 
 test("AskAudio readers each start at byte 0", async () => {
