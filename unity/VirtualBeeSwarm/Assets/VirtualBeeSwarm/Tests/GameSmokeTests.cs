@@ -230,6 +230,12 @@ namespace VirtualBeeSwarm.Tests
             Assert.IsTrue(escape.EndCardShown, "contract card shown");
 
             Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.GreaterThan(10f), "crash tilt stays through the contract");
+            if (Bloom.MeadowLayout.Active && rocket.TryGetComponent<DeliveryItem>(out var rocketItem))
+            {
+                var crashPosition = rocket.position;
+                Assert.IsFalse(HiveClearance.Push(rocket, ref crashPosition, rocket.rotation, rocketItem),
+                    "the crashed rocket remains clear of the hive");
+            }
             director.GoTo(GameBeat.T0, "test replay");
             Assert.That(Vector3.Distance(launchPosition, rocket.position), Is.LessThan(0.01f), "T-0 replay returns the rocket to the pad");
             Assert.That(Quaternion.Angle(launchRotation, rocket.rotation), Is.LessThan(0.5f), "T-0 replay clears the crash tilt");

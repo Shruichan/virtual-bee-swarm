@@ -395,11 +395,22 @@ namespace VirtualBeeSwarm
 
         Pose GetCrashPose()
         {
-            if (crashSpot != null)
-                return new Pose(crashSpot.position, crashSpot.rotation * Quaternion.Euler(0f, 0f, 28f));
             var parent = rocket.parent;
-            return new Pose(parent != null ? parent.TransformPoint(_rocketHomePos) : _rocketHomePos,
-                (parent != null ? parent.rotation * _rocketHomeRot : _rocketHomeRot) * Quaternion.Euler(0f, 0f, 28f));
+            var item = rocket.GetComponent<DeliveryItem>();
+            Vector3 position = crashSpot != null ? crashSpot.position
+                : parent != null ? parent.TransformPoint(_rocketHomePos) : _rocketHomePos;
+            Quaternion rotation = crashSpot != null ? crashSpot.rotation
+                : parent != null ? parent.rotation * _rocketHomeRot : _rocketHomeRot;
+
+            // The meadow sizes and places the rocket beside the hive. Use that landing space at its full size.
+            if (Bloom.MeadowLayout.Active)
+            {
+                position = item != null && item.hasHome ? item.HomePosition
+                    : parent != null ? parent.TransformPoint(_launchPose.position) : _launchPose.position;
+            }
+            rotation *= Quaternion.Euler(0f, 0f, 28f);
+            HiveClearance.Push(rocket, ref position, rotation, item);
+            return new Pose(position, rotation);
         }
 
         void PutRocketDown()
