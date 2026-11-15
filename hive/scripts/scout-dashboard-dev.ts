@@ -14,9 +14,15 @@
 //          shows and a small copy of the game's rules decides found / blocked (busy, cooldown, already found,
 //          declined); honey_jar is declined once, --weak LABEL (default bug_spray) is never seen clearly.
 //        --practice starts with practice mode on (also POST /scout/practice {on}).
+//        --mode quiet = no script: nothing happens until POST /dev/target {label|null} (what the fake glasses look at)
+//          or POST /dev/emit <ScoutEvent> (sent as is). For screenshots of /scout/show.
+//        --video FILE serves FILE at /fake-cam.mp4 (H.264) so the pages can play it with &video=/fake-cam.mp4.
+//
+// Judge screen: http://localhost:8244/scout/show?token=dev&video=/fake-cam.mp4  (bun scripts/scout-dashboard-dev.ts --port 8244 --video ...)
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { scoutDashboardHtml, scoutSlidesHtml } from "../src/scout-dashboard";
+import { scoutAssetResponse, scoutShowHtml } from "../src/scout-show";
 import {
   SCOUT_BACKGROUND,
   SCOUT_LABELS,
@@ -46,7 +52,8 @@ function args(argv: string[]): Record<string, string> {
 const opt = args(process.argv.slice(2));
 const PORT = Number(opt.port ?? 8243);
 const SPEED = Math.max(0.1, Number(opt.speed ?? 1));
-const MODE = opt.mode === "slides" ? "slides" : "demo";
+const MODE = opt.mode === "slides" ? "slides" : opt.mode === "quiet" ? "quiet" : "demo";
+const VIDEO = opt.video ? resolve(opt.video) : null;
 const WEAK = new Set(String(opt.weak ?? "bug_spray").split(","));
 const HIVE = resolve(import.meta.dir, "..");
 const AUDIO_DIR = resolve(opt["audio-dir"] ?? join(HIVE, "lines", "scout_audio"));
@@ -330,6 +337,21 @@ Bun.serve({
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (p === "/") return Response.redirect(`/scout?token=dev&stream=scouttest&vision=${encodeURIComponent(url.origin + "/fake-vision")}`, 302);
     if (p === "/scout") return new Response(scoutDashboardHtml(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    if (p === "/scout/show") return new Response(scoutShowHtml(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    const asset = p.match(/^\/scout\/assets\/([^/]+)$/);
+    if (asset) return scoutAssetResponse(asset[1]!);
+    if (p === "/fake-cam.mp4" && VIDEO) return new Response(Bun.file(VIDEO), { headers: { "Content-Type": "video/mp4" } });
+    if (p === "/dev/target" && req.method === "POST") {
+      const b = (await req.json()) as { label?: ScoutClass | null };
+      target = b.label ?? SCOUT_BACKGROUND;
+      return json({ ok: true, target });
+    }
+    if (p === "/dev/emit" && req.method === "POST") {
+      const ev = (await req.json()) as ScoutEvent;
+      if (ev.type === "state") Object.assign(state, ev.state);
+      emit(ev);
+      return json({ ok: true });
+    }
     if (p === "/scout/slides") return new Response(scoutSlidesHtml(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
     if (p === "/scout/state") return json(state);
     if (p === "/scout/events") {
@@ -387,5 +409,6 @@ Bun.serve({
 
 console.log(`scout dashboard dev harness on http://localhost:${PORT}/  (mode ${MODE}, speed x${SPEED}, audio from ${AUDIO_DIR}${existsSync(AUDIO_DIR) ? "" : " [missing: audio will 404]"})`);
 console.log(`  dashboard: http://localhost:${PORT}/scout?token=dev&stream=scouttest&vision=http://localhost:${PORT}/fake-vision`);
+console.log(`  judge:     http://localhost:${PORT}/scout/show?token=dev${VIDEO ? "&video=/fake-cam.mp4" : ""}`);
 console.log(`  slides:    http://localhost:${PORT}/scout/slides?token=dev&vision=http://localhost:${PORT}/fake-vision`);
 if (MODE === "demo") demo();
