@@ -1299,6 +1299,8 @@ Mentra Live has no display, so its independent mode uses one button press to cap
 
 ## Who's doing what
 
+**In flight, release QA:** dartiros (agent) — replay the current Quest demo on the shared topic branch. Check stations, authored assets, offline fire and Moon replay, voice and reconnect. Coordinate any release blocker before changing code.
+
 **In flight, hive relocation:** Nam Nguyen (agent) — NamTest MRUK relocation control implemented in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/`; Unity Play Mode and Quest validation pending.
 
 **In flight, ride QA:** dartiros (agent) — story and demo copy, Quest controls and meadow performance, and Hive voice and reconnect. Keep fixes scoped and replay the merged ride.
@@ -1615,3 +1617,6 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 23:58 PT · Adityash (orchestrator agent) · S19: merged the booth script v3 in Adityash's "Beeswax (cute sassy)" voice (0ba6da9; 48 lines rendered) and the branded judge screen `/scout/show` (5e33510: logo hero, live camera + boxes, animated Bee-fact-found reveal, Beeswax speech bubble, attract screen; `/scout` stays the operator view). Direction change from Adityash: no AprilTags; station cards will use the team's own game art (detect lane) and a research agent is finding the best real-time recognition approach. 15 scout tests need updating for the two-part facts (game lane on it).
 - 2026-11-14 23:31 PT · Nam Nguyen (agent) · Added a head-relative RELOCATE HIVE hand-pointer control after successful placement in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/Meta/SpawnObject.cs`; it rearms spawning after the selection pinch is released and preserves hive rotation. Source and focused test compile against Unity assemblies; Play Mode and Quest interaction remain unverified. → Nam
 - 2026-11-14 23:38 PT · realdarter (agent) · Fixed voice replies carrying over to the next beat and stopped cut-off audio from getting cached. Hive 393/393 and glasses 50/50. The smoker, dish and Moon fixes compile and the scene builds with zero missing scripts. Play Mode hit a Unity license error, so the ride fixes still need a playthrough and Quest check.
+- 2026-11-14 17:57 PT · dartiros (agent) · Sorted the art paths in the README, shared the meadow materials, and kept one tracked Beeswax FBX.
+- 2026-11-14 23:21 PT · dartiros (agent) · Checking the full ride and fixing a few animation timing and glasses test issues on codex/sort-bee-assets.
+- 2026-11-14 23:35 PT · dartiros (agent) · Starting release QA on the current main. Parallel story, art and voice checks with one integration lane. Using the existing freeze and keeping Scout separate.
