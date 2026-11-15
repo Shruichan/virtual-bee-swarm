@@ -1,0 +1,122 @@
+{
+  "station_order": ["native_flower", "honey_jar", "bug_spray", "bee_hotel", "pebble_dish", "beehive"],
+  "judge_mode_stations": ["native_flower", "honey_jar", "bug_spray", "bee_hotel"],
+  "pitch_hook": "US beekeepers lost 56% of their hives in 2024-25, the most their national survey has ever recorded. Over half of the native bee species scientists checked are declining. Maya is seven and wants to help, but she won't read a pamphlet. So we put a bee in her ear.",
+  "objects": [
+    {
+      "label": "native_flower",
+      "name": "Common sunflower (Helianthus annuus, native to North America)",
+      "buy_or_print": "Print card: one big sunflower head, front-on, filling the frame, on a plain sky or dark background. Optional real prop: a grocery sunflower bouquet (Trader Joe's, Safeway) on the table next to the card.",
+      "camera_notes": "Yellow petal ring around a dark brown disk: a bold, symmetric, high-contrast circle that reads from across a room. Only yellow-and-round card at the booth.",
+      "dataset_class": "Open Images 'Sunflower'; ImageNet 'daisy' (closest); COCO 'potted plant' / 'vase' if a real bouquet is used",
+      "theme": "Pollination: some scientists estimate one in three bites of food exists because of animal pollinators"
+    },
+    {
+      "label": "honey_jar",
+      "name": "Store honey (honey bear squeeze bottle)",
+      "buy_or_print": "Print card: a backlit amber honey bear bottle (or a glass jar with a honey dipper) on white. Optional real prop: any grocery honey bear in front of the card.",
+      "camera_notes": "Glowing amber bear silhouette with a cap: a warm orange-gold blob with a unique outline. Sits two stations from the sunflower, so the two yellows rarely share a frame.",
+      "dataset_class": "COCO 'bottle' (bear shape also resembles 'teddy bear'); ImageNet 'water bottle'",
+      "theme": "Honey takes up to two million flower visits per pound; never leave store honey out for bees (foulbrood)"
+    },
+    {
+      "label": "bug_spray",
+      "name": "Bug spray can (aerosol insecticide)",
+      "buy_or_print": "Print card: a generic aerosol can (no brand logo) with a red X or a mist cloud, on a plain background. Avoid yellow cans. Kid-safe: no real insecticide at the booth.",
+      "camera_notes": "Tall narrow metal cylinder with a cap and spray nozzle: a vertical silhouette nothing else has. A big red X adds a strong color cue.",
+      "dataset_class": "COCO 'bottle'; ImageNet 'pop bottle' (closest cylinder)",
+      "theme": "Pesticides: the twist station. Oral insecticide toxicity loading on US farmland rose about 48-fold from 1992 to 2014, mostly from neonicotinoids"
+    },
+    {
+      "label": "bee_hotel",
+      "name": "Bee hotel (wood house with tube nests for mason and leafcutter bees)",
+      "buy_or_print": "Print card: close photo of a wooden bee hotel face, rows of bamboo tubes and drilled holes, ideally with a little roof. Optional real prop: a store bee house.",
+      "camera_notes": "A grid of many small dark round holes in pale wood: a dense, high-contrast texture unlike any other card. Fill the card with the hole pattern.",
+      "dataset_class": "No COCO class; ImageNet 'honeycomb' (closest texture), sometimes 'birdhouse'",
+      "theme": "Native bees: over half of assessed species declining, nearly one in four imperiled"
+    },
+    {
+      "label": "pebble_dish",
+      "name": "Bee water dish (shallow bowl of pebbles and water)",
+      "buy_or_print": "Print card: top-down photo of a bright blue or white shallow bowl filled with grey pebbles, water glinting between them. Optional real prop: bowl + vase pebbles from a grocery floral aisle or dollar store.",
+      "camera_notes": "A round bowl seen from above, full of speckled pebbles: circle-in-circle with busy grey texture. Blue bowl color is unique at the booth.",
+      "dataset_class": "COCO 'bowl'; ImageNet 'mixing bowl' / 'soup bowl'",
+      "theme": "Bees need water and can't swim; water bees carry about eighty percent of their weight in water to cool the hive"
+    },
+    {
+      "label": "beehive",
+      "name": "Honey bee hive (white stacked Langstroth boxes)",
+      "buy_or_print": "Print card: a white stacked Langstroth hive (two or three boxes and a lid) in green grass, hive filling most of the card.",
+      "camera_notes": "Tall stack of plain white rectangles with a dark entrance slot at the bottom, on green: blocky white-on-green, unlike every other card.",
+      "dataset_class": "ImageNet 'apiary, bee house'; no COCO class",
+      "theme": "Honey bee colony losses: about four in ten last year, more than half the year before; Varroa mites spreading viruses are a leading cause"
+    }
+  ],
+  "lines": [
+    {"id": "scout_welcome_1", "kind": "intro", "text": "Hey, I'm Beeswax, your bee assistant. Fuzzy, grumpy, and living in your ear now."},
+    {"id": "scout_welcome_2", "kind": "intro", "text": "We're out in nature. Let's see what it has for bees. Walk up to something and look down at it."},
+
+    {"id": "scout_chime_ask", "kind": "chime", "text": "Bee fact found! Would you like to learn more?"},
+
+    {"id": "scout_fact_native_flower_1", "kind": "fact", "label": "native_flower", "text": "This is a sunflower. It grew wild in North America first.", "source": "https://plants.ces.ncsu.edu/plants/helianthus-annuus/"},
+    {"id": "scout_fact_native_flower_2", "kind": "fact", "label": "native_flower", "text": "Some scientists think one in three bites you eat is thanks to pollinators like me.", "source": "https://usda.azureedge.us/node/48771"},
+    {"id": "scout_next_native_flower", "kind": "next", "label": "native_flower", "text": "Now go to your next adventure. One big step to your left."},
+
+    {"id": "scout_fact_honey_jar_1", "kind": "fact", "label": "honey_jar", "text": "This is honey. One pound can take up to two million flower visits.", "source": "https://pueblo.extension.colostate.edu/?p=4685"},
+    {"id": "scout_fact_honey_jar_2", "kind": "fact", "label": "honey_jar", "text": "Never leave store honey out for bees. It can carry a bee germ. Fine on your toast.", "source": "https://www.ontario.ca/page/american-foulbrood"},
+    {"id": "scout_next_honey_jar", "kind": "next", "label": "honey_jar", "text": "Next adventure: one more step to your left. Brace yourself."},
+
+    {"id": "scout_fact_bug_spray_1", "kind": "fact", "label": "bug_spray", "text": "This is bug spray. Bees carry it home to the babies.", "source": "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning"},
+    {"id": "scout_fact_bug_spray_2", "kind": "fact", "label": "bug_spray", "text": "One study: US farmland got about forty-eight times more toxic for insects to eat in twenty-two years.", "source": "https://doi.org/10.1371/journal.pone.0220029"},
+    {"id": "scout_next_bug_spray", "kind": "next", "label": "bug_spray", "text": "Ugh. Get away from that can. Your next adventure is one step to your left."},
+
+    {"id": "scout_fact_bee_hotel_1", "kind": "fact", "label": "bee_hotel", "text": "This is a bee hotel, a home for wild bees.", "source": "https://xerces.org/pollinator-conservation/nesting"},
+    {"id": "scout_fact_bee_hotel_2", "kind": "fact", "label": "bee_hotel", "text": "Of the kinds scientists checked, over half are shrinking. Nearly one in four is in danger.", "source": "https://biologicaldiversity.org/news/press_releases/2017/bees-03-01-2017.php"},
+    {"id": "scout_next_bee_hotel", "kind": "next", "label": "bee_hotel", "text": "Thirsty? Your next adventure is one step to your left."},
+
+    {"id": "scout_fact_pebble_dish_1", "kind": "fact", "label": "pebble_dish", "text": "This is a bee water dish. Bees can't swim. Pebbles are our landing pads.", "source": "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx"},
+    {"id": "scout_fact_pebble_dish_2", "kind": "fact", "label": "pebble_dish", "text": "Hot day? Water bees haul home about eighty percent of their weight in water.", "source": "https://www.sciencenews.org/article/douse-hot-hives-honeybee-colonies-launch-water-squadrons"},
+    {"id": "scout_next_pebble_dish", "kind": "next", "label": "pebble_dish", "text": "Last adventure. One step to your left. It's the big one."},
+
+    {"id": "scout_fact_beehive_1", "kind": "fact", "label": "beehive", "text": "This is a beehive. Last year, US beekeepers lost about four in ten hives.", "source": "https://wire.auburn.edu/content/agriculture/2026/06/honeybeecolony0626.php"},
+    {"id": "scout_fact_beehive_2", "kind": "fact", "label": "beehive", "text": "The year before? More than half. Mites spreading bee germs are a big reason.", "source": "https://www.ars.usda.gov/news-events/news/research-news/2025/usda-researchers-find-viruses-from-miticide-resistant-parasitic-mites-are-cause-of-recent-honey-bee-colony-collapses/"},
+
+    {"id": "scout_dir_left", "kind": "dir", "text": "A little to your left."},
+    {"id": "scout_dir_right", "kind": "dir", "text": "A little to your right."},
+    {"id": "scout_dir_closer", "kind": "dir", "text": "Closer. Bees are small. So are my eyes."},
+    {"id": "scout_dir_down", "kind": "dir", "text": "Look down a little. Like you're reading the label."},
+    {"id": "scout_dir_lost", "kind": "dir", "text": "Hey! Where'd you go? I'm a bee, not a bloodhound. Find the next picture."},
+    {"id": "scout_dir_other_left", "kind": "dir", "text": "Left. Your other left."},
+
+    {"id": "scout_decline_1", "kind": "no", "text": "Fine. Saving it for later."},
+    {"id": "scout_decline_2", "kind": "no", "text": "Your call. I'll be right here. Grumbling."},
+    {"id": "scout_shoo", "kind": "rude", "text": "Buzzing off! I'll be quiet. Mostly. Look at something when you miss me."},
+    {"id": "scout_quiet_yes", "kind": "silence", "text": "Nothing? I'll take that as a yes."},
+    {"id": "scout_quiet_no", "kind": "silence", "text": "Nothing? I'll save it for later."},
+    {"id": "scout_nudge_idle", "kind": "idle", "text": "Slow day. Walk up to a picture and look down at it. I'll do the rest."},
+
+    {"id": "scout_finale_judge", "kind": "done", "text": "You found them all! Bee scout badge earned. Now go tell a human. Bees can't text."},
+    {"id": "scout_finale_1", "kind": "done", "text": "Six for six! You're an official bee scout. I'm not crying. It's pollen."},
+    {"id": "scout_finale_2", "kind": "done", "text": "Your jobs this week: plant one flower, put out a pebble dish, and ask grown-ups to skip the bug spray."},
+    {"id": "scout_finale_3", "kind": "done", "text": "Bonus job: leave a patch of bare dirt. Most wild bees nest underground. Now go tell a friend."}
+  ],
+  "sources": [
+    {"claim": "Common sunflower is native to the western US and parts of Mexico; the center disk has more than 50 flowers; Helianthus supports specialist bees", "url": "https://plants.ces.ncsu.edu/plants/helianthus-annuus/"},
+    {"claim": "USDA: 'Some scientists estimate that one out of every three bites of food we eat exists because of animal pollinators'; three-fourths of flowering plants and about 35% of food crops depend on animal pollinators", "url": "https://usda.azureedge.us/node/48771"},
+    {"claim": "Colorado State University Extension: 'it can require up to 2 million flower visits to produce 1 pound of honey'", "url": "https://pueblo.extension.colostate.edu/?p=4685"},
+    {"claim": "Never feed honey from outside sources to bees; American foulbrood spores survive for decades; affects bee larvae only", "url": "https://www.ontario.ca/page/american-foulbrood"},
+    {"claim": "Foulbrood is harmless to people and the honey remains safe food", "url": "https://ages.at/en/human/disease/pathogens-from-a-to-z/american-foulbrood"},
+    {"claim": "Pesticide residue on flowers is carried home in pollen and nectar to the brood", "url": "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning"},
+    {"claim": "DiBartolomeis et al. 2019 (PLOS ONE): 48-fold increase in acute insecticide toxicity loading for oral exposure (4-fold for contact) on US agricultural land, 1992 to 2014; neonicotinoids are 61 to nearly 99% of 2014 loading; honey bee toxicity used as a proxy for insects; a screening metric, not a direct measure of harm", "url": "https://doi.org/10.1371/journal.pone.0220029"},
+    {"claim": "Xerces: 70% of native bees nest in the ground, 30% in cavities such as leafcutter and mason bees; keep insect hotels clean, they can spread disease and mites", "url": "https://xerces.org/pollinator-conservation/nesting"},
+    {"claim": "Center for Biological Diversity 2017: of 1,437 North American and Hawaiian native bee species with sufficient data, more than half (749) are declining and 347 (nearly one in four) are imperiled", "url": "https://biologicaldiversity.org/news/press_releases/2017/bees-03-01-2017.php"},
+    {"claim": "USGS: over 20,000 known bee species worldwide; 4,000 native to the United States", "url": "https://www.usgs.gov/faqs/how-many-species-native-bees-are-united-states"},
+    {"claim": "Bees can't swim and need gravel or a landing spot to drink; they spread water and fan to cool the hive", "url": "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx"},
+    {"claim": "Water-collecting bees 'return carrying some 80 percent of their weight in water' when cooling an overheated hive (Ostwald, Smith and Seeley 2016)", "url": "https://www.sciencenews.org/article/douse-hot-hives-honeybee-colonies-launch-water-squadrons"},
+    {"claim": "US managed honey bee colonies: 39.9% annual loss April 2025 to April 2026 (winter 30.3%); 55.6% in 2024-25 and 55.1% in 2023-24; pressures named are parasites and poor forage", "url": "https://wire.auburn.edu/content/agriculture/2026/06/honeybeecolony0626.php"},
+    {"claim": "2024-25: US beekeepers lost an estimated 55.6% of managed colonies, the highest the national survey has recorded (pitch hook)", "url": "https://wire.auburn.edu/content/agriculture/2025/06/2506-beekeepers-survey.php"},
+    {"claim": "USDA ARS: viruses spread by miticide-resistant Varroa mites are the likely end-stage cause of the 2025 commercial colony collapses; nutritional stress and agrochemicals may also have played roles", "url": "https://www.ars.usda.gov/news-events/news/research-news/2025/usda-researchers-find-viruses-from-miticide-resistant-parasitic-mites-are-cause-of-recent-honey-bee-colony-collapses/"},
+    {"claim": "USFWS: rusty patched bumble bee abundance plummeted 87% since the late 1990s; advice: plant native flowers blooming spring through fall, limit or avoid pesticides (backup stat, not in a line)", "url": "https://www.fws.gov/press-release/2017-01/race-against-extinction-rusty-patched-bumble-bee-listed-endangered"},
+    {"claim": "Plant native flowers that bloom spring to fall; small spaces count; avoid pesticides (finale actions)", "url": "https://xerces.org/bring-back-the-pollinators"}
+  ]
+}
