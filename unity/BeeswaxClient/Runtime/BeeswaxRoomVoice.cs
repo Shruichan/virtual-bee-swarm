@@ -34,6 +34,10 @@ namespace Beeswax
         [SerializeField] bool playVerdictLines = true;
         [Tooltip("On Awake: 3D (spatialBlend 1), spatialized if a spatializer plugin is set, no doppler.")]
         [SerializeField] bool configureSpatialSource = true;
+        [Tooltip("Headset playtest: Beeswax was too quiet 1.5-3 m away (default 1 m log rolloff halves him per doubling). " +
+                 "Part of the voice is direct (not distance-attenuated) and the 3D part stays at full volume out to here.")]
+        [Range(0f, 1f)] [SerializeField] float voiceSpatialBlend = 0.75f;
+        [SerializeField] float fullVolumeDistance = 2.5f;
 
         [Header("Live lines")]
         [SerializeField] float prebufferSeconds = 0.2f;
@@ -116,8 +120,12 @@ namespace Beeswax
             {
                 source.playOnAwake = false;
                 source.loop = false;
-                source.spatialBlend = 1f;
+                source.spatialBlend = voiceSpatialBlend;
                 source.dopplerLevel = 0f;
+                source.volume = 1f;
+                source.rolloffMode = AudioRolloffMode.Logarithmic;
+                source.minDistance = Mathf.Max(source.minDistance, fullVolumeDistance);
+                source.maxDistance = Mathf.Max(source.maxDistance, fullVolumeDistance * 8f);
                 if (!string.IsNullOrEmpty(AudioSettings.GetSpatializerPluginName())) source.spatialize = true;
                 if (Application.platform == RuntimePlatform.Android)
                 {

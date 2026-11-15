@@ -127,6 +127,8 @@ export function keywordRoute(text: string, beat: BeatName): RouterOutput | null 
   const words = normalize(text);
   const out = (intent: IntentName, topic: WhatIfTopic | null = null): RouterOutput => ({ intent, topic, answer: null });
   if (!words || FILLER_RX.test(words)) return out("unknown");
+  // "Hey Beeswax" on its own (the meet line tells players to say it): answer and invite the question, not a canned ack
+  if (isGreeting(words)) return { intent: "ask", topic: null, answer: GREETING_REPLY };
   if (UNDO_RX.test(words) && !/\b(?:don'?t|do not|never|not)\b/.test(words)) return out("undo");
   // What-if beat only (elsewhere "stop it!" is about the bees): short stop phrases, and STT's "what a fire starts".
   if (beat === "whatif") {
@@ -148,6 +150,15 @@ export function keywordRoute(text: string, beat: BeatName): RouterOutput | null 
   }
   if (ACK_RX.test(words)) return out("ack");
   return null;
+}
+
+/** Beeswax's reply to a bare greeting ("hey Beeswax", "hi", "Beeswax?"): in character, and it asks for the question. */
+export const GREETING_REPLY = "Union rep, on the clock. What's your question?";
+const GREETING_RX =
+  /^(?:(?:hey|hi|hello|hiya|howdy|yo|oi|good (?:morning|afternoon|evening))(?: there)? ?)?(?:(?:mister |mr )?(?:beeswax|bees wax|bee'?s wax|bee wax))?$/; // not a bare "bee": too easy to hear in noise
+/** A greeting and/or his name, and nothing else (normalized text). "hey beeswax why bananas" is a question, not this. */
+export function isGreeting(words: string): boolean {
+  return words.length > 0 && GREETING_RX.test(words);
 }
 
 /** "what if ...", "what happens if ...", "show me ...": the phrasings that make an off-list topic a custom what-if. */

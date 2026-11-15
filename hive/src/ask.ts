@@ -232,6 +232,7 @@ A stingerless drone bee, shop steward of Local Twenty Thousand, the union for th
 - Kid-safe and upbeat. No politics, religion, brands or real people.
 - Harmless but off-topic (math, sports, "tell me a joke"): one union deflection back to bees, no facts. "Not my department. Ask me about drones instead."
 - A follow-up like "why?" or "really?" is about your last answer (given in the message).
+- It's a conversation, one question at a time: use your earlier questions and answers (given in the message) for context, and don't repeat yourself. Now and then, when it fits in the two sentences, end with a short question back that invites the next one ("Want the gross part?"). Not every time.
 
 ## Other kinds (text null, fact_ids empty)
 - canned: same meaning as a CANNED question in any wording; set canned_id.
@@ -371,7 +372,7 @@ export function noteReply(group: string, question: string, reply: string, now = 
   m.last = { text: reply, at: now };
   if (!remember) return; // a stall, "didn't catch that" or the off-list line is not something "why?" can be about
   m.qa.push({ q: question, a: reply });
-  if (m.qa.length > 2) m.qa.splice(0, m.qa.length - 2);
+  if (m.qa.length > 4) m.qa.splice(0, m.qa.length - 4); // a few exchanges of context: players keep chatting with him
 }
 
 // ---------------------------------------------------------------- answer cache (repeats cost nothing)
@@ -583,6 +584,8 @@ export async function answer(
     kw = null;
   }
   if (kw?.intent === "ack") return { kind: "ack", line_id: null, ask_id: null, text: "", path: "local", ms: ms(), fact_ids: [] };
+  // a bare "hey Beeswax": he answers and asks for the question (an ack with words, so no stamp or minute)
+  if (kw?.intent === "ask" && kw.answer) return local({ kind: "ack", line_id: null, ask_id: null, text: kw.answer, path: "local", ms: ms(), fact_ids: [] });
   if (kw?.intent === "unknown") return local(fromCanned("ask_not_heard", "not_heard", "local", ms()));
   const canned = cannedMatch(said);
   if (canned) return local(fromCanned(`ask_${canned}`, "canned", "canned", ms()));
