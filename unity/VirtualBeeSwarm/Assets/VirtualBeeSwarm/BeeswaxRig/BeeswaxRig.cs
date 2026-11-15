@@ -80,12 +80,21 @@ namespace VirtualBeeSwarm
             { "room_hook_1", new Cue(null, "Angry", holdFace: true) },        // the threat: "angry swarms ravage the Earth"
             { "room_meet_window", new Cue("Curious Tilt") },
             { "room_meet_stat", new Cue(null, "Sad", holdFace: true) },
+            // ride script v2
+            { "room_meet_role", new Cue("Yes Nod") },
+            { "room_forecast", new Cue("Curious Tilt") },                    // turns to the window on "Job perk"
+            { "room_meet_2", new Cue(null, "Angry", holdFace: true) },        // "Four problems. Four minutes."
+            { "room_hint_*", new Cue("Curious Tilt") },                       // "Off the record?"
+            { "room_lift_light", new Cue("Startle") },                        // tumbles off the lifted hive
+            { "room_feed_tip", new Cue(null, "Sad") },                        // then droops
+            { "room_whatif_putout", new Cue("Startle") },
+            { "room_end_contract", new Cue("Wag") },
             // prompts, hints and questions
             { "room_smoker_intro", new Cue("Curious Tilt") },
             { "room_feed_intro", new Cue("Curious Tilt") },
             { "room_feed_lift_hint", new Cue("Curious Tilt") },
             { "room_feed_prompt", new Cue("Curious Tilt") },
-            { "room_wasps_intro", new Cue("Curious Tilt") },
+            { "room_wasps_intro", new Cue("Startle") },                       // v2: ducks behind the hive
             { "room_heat_intro", new Cue("Curious Tilt") },
             { "room_whatif_prompt", new Cue("Curious Tilt") },
             { "room_whatif_nothing", new Cue("Curious Tilt") },
@@ -119,7 +128,7 @@ namespace VirtualBeeSwarm
         };
 
         /// <summary>Lines that blush (on their own layer, so it stacks with a gesture).</summary>
-        static readonly HashSet<string> BlushLines = new HashSet<string> { "room_whatif_out_3", "room_t0_4", "room_meet_1" }; // t0_4: "Nobody saw that."
+        static readonly HashSet<string> BlushLines = new HashSet<string> { "room_whatif_out_3", "room_t0_4", "room_meet_1", "room_heat_mom", "room_escape_credit" }; // t0_4: "Nobody saw that."
 
         // ------------------------------------------------------------------ inspector
         [SerializeField] Animator animator;
