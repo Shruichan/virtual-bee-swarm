@@ -676,34 +676,8 @@ namespace VirtualBeeSwarm.Editor
         {
             var source = AssetDatabase.LoadAssetAtPath<Mesh>(ArtRoot + "/BeeVAT/Resources/" + BeeVat.MeshResource + ".asset");
             if (source == null) return null;
-            var weights = source.uv2;
-            if (weights.Length != source.vertexCount) return null;
-            var mesh = Object.Instantiate(source);
-            mesh.name = "Bee_unit";
-
-            // VAT UV1 carries the rig's wing weights. Keep the same wing vertices and tag them for GameUnlit.
-            var verts = source.vertices;
-            var hinges = new Vector2[verts.Length];
-            var flags = new Vector2[verts.Length];
-            var roots = new[] { new Vector2(float.NegativeInfinity, 0f), new Vector2(float.PositiveInfinity, 0f) };
-            for (int i = 0; i < verts.Length; i++)
-            {
-                if (weights[i].y <= 0.5f) continue;
-                var p = verts[i];
-                int side = p.x < 0f ? 0 : 1;
-                if (Mathf.Abs(p.x) < Mathf.Abs(roots[side].x)) roots[side] = new Vector2(p.x, p.y);
-            }
-            for (int i = 0; i < verts.Length; i++)
-            {
-                if (weights[i].y <= 0f) continue;
-                int side = verts[i].x < 0f ? 0 : 1;
-                if (float.IsInfinity(roots[side].x)) continue;
-                hinges[i] = roots[side];
-                flags[i] = new Vector2((side == 0 ? -1f : 1f) * Mathf.Clamp01(weights[i].y), 0f);
-            }
-            mesh.uv2 = hinges;
-            mesh.uv3 = flags;
-            return SaveVisualMesh(mesh, ArtRoot + "/Bee/Bee_unit.asset");
+            var mesh = BeeVat.CreateWorkerRestMesh(source);
+            return mesh != null ? SaveVisualMesh(mesh, ArtRoot + "/Bee/Bee_unit.asset") : null;
         }
 
         // ------------------------------------------------------------------------------------------------ helpers

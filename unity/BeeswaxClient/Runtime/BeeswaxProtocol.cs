@@ -731,6 +731,7 @@ namespace Beeswax
         public string source = Role.Quest;
         public string mode = ListenMode.Ptt;
         public bool wake_phrase;
+        public bool ask_dialogue;
         public ListenStart() { type = MsgType.ListenStart; }
         internal override void Normalize() { base.Normalize(); source = BeeswaxProtocol.S(source); mode = BeeswaxProtocol.S(mode); }
     }
@@ -754,8 +755,9 @@ namespace Beeswax
         public string source = "";
         public double ms;
         public string stt = "";
+        public string wake_status = "";
         public Transcript() { type = MsgType.Transcript; }
-        internal override void Normalize() { base.Normalize(); text = BeeswaxProtocol.S(text); source = BeeswaxProtocol.S(source); stt = BeeswaxProtocol.S(stt); }
+        internal override void Normalize() { base.Normalize(); text = BeeswaxProtocol.S(text); source = BeeswaxProtocol.S(source); stt = BeeswaxProtocol.S(stt); wake_status = BeeswaxProtocol.S(wake_status); }
     }
 
     /// <summary>

@@ -112,6 +112,7 @@ namespace VirtualBeeSwarm
         {
             if (!isActiveAndEnabled || _anim == null || trigger != Trigger.ParticleBurst) return;
             _repeatsLeft = 0;
+            _lastFire = Time.time;
             _anim.Rewind(clip);
             Play(clip, "manual action");
         }

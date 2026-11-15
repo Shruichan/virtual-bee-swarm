@@ -24,7 +24,8 @@ namespace VirtualBeeSwarm.BatOff
         public static WaspBatOff Instance { get; private set; }
 
         const int Max = 14;
-        const float WaspLength = 0.055f, WaspRadius = 0.022f, HandRadius = 0.06f, ControllerRadius = 0.075f;
+        const float WaspLength = 0.09f, WaspRadius = 0.028f, HandRadius = 0.06f, ControllerRadius = 0.075f;
+        const float SwatterLength = 0.28f, SwingSpeed = 1.25f;
         const float HitStopSeconds = 0.05f, TumbleSeconds = 1.8f, DazedSeconds = 0.75f, LeaveSeconds = 2.4f;
         const float HeadKeepOut = 0.36f, HeadSafe = 0.5f, MaxBatSpeed = 4.5f, FaceSize = 0.65f;
         const KeyCode BatKey = KeyCode.V;
@@ -34,7 +35,7 @@ namespace VirtualBeeSwarm.BatOff
         struct Wasp
         {
             public S state;
-            public float at, spawnAt, dur, lastHit, phase;
+            public float at, spawnAt, dur, lastHit, phase, verticalSpeed;
             public Vector3 from, ctrl, to, launch, last;
             public bool face, small, autoBat, counted, reached;
         }
@@ -45,7 +46,9 @@ namespace VirtualBeeSwarm.BatOff
         readonly Rigidbody[] _rb = new Rigidbody[Max];
         readonly SphereCollider[] _col = new SphereCollider[Max];
         readonly Vector3[] _handTip = new Vector3[2], _handBack = new Vector3[2], _handVel = new Vector3[2], _handPrev = new Vector3[2];
-        readonly bool[] _handOk = new bool[2], _handCtl = new bool[2];
+        readonly bool[] _handOk = new bool[2], _handCtl = new bool[2], _swinging = new bool[2];
+        readonly Transform[] _swatters = new Transform[2];
+        readonly Vector3[] _swatterHead = new Vector3[2];
 
         GameObject _floor;
         JuiceParticles _fx;
@@ -150,6 +153,7 @@ namespace VirtualBeeSwarm.BatOff
 
             _fx = gameObject.AddComponent<JuiceParticles>();
             _card = GuardDutyCard.Create(transform);
+            BuildSwatters();
         }
 
         // ------------------------------------------------------------ the burst (runs inside WaspsStation.StationIntro)
@@ -323,6 +327,14 @@ namespace VirtualBeeSwarm.BatOff
                         anyLive = anyTumbling = true;
                         Vector3 p = _rb[i].position;
                         if ((p - headPos).sqrMagnitude < HeadSafe * HeadSafe) _rb[i].linearVelocity = OffHead(p, _rb[i].linearVelocity, headPos);
+                        float vertical = _rb[i].linearVelocity.y;
+                        if (w.verticalSpeed < -0.65f && vertical > 0.2f && p.y < _floorY + Radius(i) + 0.08f)
+                        {
+                            Vector3 floor = new Vector3(p.x, _floorY + 0.01f, p.z);
+                            _fx.Burst(floor, 5, Puff, 0.5f, 0.24f, 0.022f, gravity: 0.35f, upBias: 0.5f);
+                            GameSound.Cue("wasp_bounce", floor);
+                        }
+                        w.verticalSpeed = vertical;
                         if (now - w.at >= TumbleSeconds || p.y < _floorY - 0.4f) Daze(i, now);
                         else if (Mathf.Repeat(now + w.phase, 0.16f) < dt) _fx.Burst(p, 1, Star, 0.25f, 0.45f, 0.011f * _scale, gravity: -0.4f, upBias: 1f);
                         break;
@@ -443,7 +455,8 @@ namespace VirtualBeeSwarm.BatOff
             w.dur = Mathf.Max(w.dur, 1.6f);
         }
 
-        float Size(int i) => _scale * (_w[i].small ? FaceSize : 1f);
+        float Size(int i) => Mathf.Max(2.4f, _scale) * (_w[i].small ? FaceSize : 1f);
+        float Radius(int i) => WaspRadius * Size(i);
 
         /// <summary>Strips the part of a velocity that heads into the player's face while the wasp is near it.</summary>
         static Vector3 OffHead(Vector3 p, Vector3 v, Vector3 head)
@@ -493,7 +506,7 @@ namespace VirtualBeeSwarm.BatOff
             Vector3 outward = -door.forward;
             outward.y = 0f;
             outward = outward.sqrMagnitude > 1e-4f ? outward.normalized : Vector3.back;
-            _t[i].position += outward * (WaspRadius * _scale + 0.04f); // clear of the hive's colliders: no physics pop
+            _t[i].position += outward * (Radius(i) + 0.04f); // clear of the hive's colliders: no physics pop
             Launch(i, outward * 1.3f + Vector3.up * 1.4f);
         }
 
@@ -557,6 +570,7 @@ namespace VirtualBeeSwarm.BatOff
             rb.angularVelocity = Random.onUnitSphere * Random.Range(14f, 24f);
             w.state = S.Tumble;
             w.at = Time.time;
+            w.verticalSpeed = v.y;
             _floor.SetActive(true);
         }
 
@@ -568,7 +582,7 @@ namespace VirtualBeeSwarm.BatOff
             rb.interpolation = RigidbodyInterpolation.None;
             _col[i].enabled = false;
             Vector3 p = _t[i].position;
-            p.y = Mathf.Max(p.y, _floorY + WaspRadius * _scale);
+            p.y = Mathf.Max(p.y, _floorY + Radius(i));
             w.from = p;
             w.state = S.Dazed;
             w.at = now;
@@ -632,7 +646,12 @@ namespace VirtualBeeSwarm.BatOff
             for (int h = 0; h < 2; h++)
             {
                 var hand = (GameHand)h;
-                if (!GameHands.TryGetIndexTip(hand, out var tip)) { _handOk[h] = false; continue; }
+                if (!GameHands.TryGetIndexTip(hand, out var tip))
+                {
+                    _handOk[h] = _swinging[h] = false;
+                    if (_swatters[h] != null) _swatters[h].gameObject.SetActive(false);
+                    continue;
+                }
                 var src = GameHands.For(hand);
                 _handCtl[h] = src is IControllerPoseSource c && c.IsController(hand);
                 Vector3 back;
@@ -654,7 +673,64 @@ namespace VirtualBeeSwarm.BatOff
                 _handTip[h] = tip;
                 _handBack[h] = back;
                 _handOk[h] = true;
+                PoseSwatter(h, tip, back);
             }
+        }
+
+        void BuildSwatters()
+        {
+            var filters = FindObjectsByType<MeshFilter>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var filter in filters)
+            {
+                if (filter.name != "Swatter (art)" || filter.sharedMesh == null || !filter.TryGetComponent<MeshRenderer>(out var art)) continue;
+                float scale = SwatterLength / Mathf.Max(0.001f, filter.sharedMesh.bounds.size.y);
+                for (int h = 0; h < _swatters.Length; h++)
+                {
+                    var go = new GameObject(h == 0 ? "Left fly swatter" : "Right fly swatter") { layer = 2 };
+                    go.transform.SetParent(transform, false);
+                    go.transform.localScale = Vector3.one * scale;
+                    BatOffArt.Renderer(go, filter.sharedMesh, art.sharedMaterial);
+                    _swatters[h] = go.transform;
+                    go.SetActive(false);
+                }
+                break;
+            }
+        }
+
+        void PoseSwatter(int h, Vector3 tip, Vector3 back)
+        {
+            Transform swatter = _swatters[h];
+            if (swatter == null) return;
+            if (_burstDone)
+            {
+                swatter.gameObject.SetActive(false);
+                _swinging[h] = false;
+                return;
+            }
+            Vector3 aim = GameHands.TryGetPointerRay((GameHand)h, out var ray) ? ray.direction.normalized : (tip - back).normalized;
+            if (aim.sqrMagnitude < 0.5f)
+            {
+                var head = Head();
+                aim = head != null ? (tip - head.position).normalized : transform.forward;
+            }
+            if (aim.sqrMagnitude < 0.5f) return;
+            Vector3 up = Mathf.Abs(Vector3.Dot(aim, Vector3.up)) > 0.98f ? transform.forward : Vector3.up;
+            Vector3 grip = Vector3.Lerp(back, tip, 0.4f);
+            swatter.SetPositionAndRotation(grip, Quaternion.LookRotation(aim, up) * Quaternion.Euler(90f, 0f, 0f));
+            _swatterHead[h] = grip + aim * (SwatterLength * 0.85f);
+            if (!swatter.gameObject.activeSelf)
+            {
+                _fx.Burst(grip, 9, Puff, 0.45f, 0.38f, 0.022f, gravity: -0.15f, upBias: 0.35f);
+                GameSound.Cue("swatter_swoosh", grip);
+                swatter.gameObject.SetActive(true);
+            }
+            float speed = _handVel[h].sqrMagnitude;
+            if (!_swinging[h] && speed > SwingSpeed * SwingSpeed)
+            {
+                GameSound.Cue("swatter_swoosh", _swatterHead[h]);
+                _swinging[h] = true;
+            }
+            else if (speed < 0.65f * 0.65f) _swinging[h] = false;
         }
 
         void TouchHands(int i, Vector3 headPos)
@@ -663,11 +739,12 @@ namespace VirtualBeeSwarm.BatOff
             for (int h = 0; h < 2; h++)
             {
                 if (!_handOk[h]) continue;
-                Vector3 a = _handBack[h], b = _handTip[h], ab = b - a;
+                bool hasSwatter = _swatters[h] != null && _swatters[h].gameObject.activeSelf;
+                Vector3 a = _handBack[h], b = hasSwatter ? _swatterHead[h] : _handTip[h], ab = b - a;
                 float k = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector3.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
                 Vector3 closest = a + ab * k;
                 Vector3 d = p - closest;
-                float r = (_handCtl[h] ? ControllerRadius : HandRadius) + WaspRadius * _scale;
+                float r = (_handCtl[h] ? ControllerRadius : HandRadius) + Radius(i);
                 if (d.sqrMagnitude > r * r) continue;
                 Vector3 away = d.sqrMagnitude > 1e-6f ? d.normalized : (_handVel[h].sqrMagnitude > 1e-4f ? _handVel[h].normalized : Vector3.up);
                 Hit(i, _handVel[h], away, h, headPos);
@@ -706,6 +783,8 @@ namespace VirtualBeeSwarm.BatOff
             _running = false;
             for (int i = 0; i < Max; i++) { _w[i].state = S.Gone; Park(i); }
             _floor.SetActive(false);
+            foreach (var swatter in _swatters)
+                if (swatter != null) swatter.gameObject.SetActive(false);
             _card.Show(false);
             _cardHideAt = -1f;
         }

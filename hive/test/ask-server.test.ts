@@ -43,7 +43,6 @@ function mockAsk(respond: () => unknown): { n: number } {
 }
 
 const unmocked = { beta: { messages: { create: () => Promise.reject(new Error("unmocked Anthropic call in a test")) } } } as unknown as AskClient;
-const idx = (c: TestClient, pred: (m: any) => boolean) => c.msgs.findIndex(pred);
 
 beforeEach(() => {
   setAskClient(unmocked);
@@ -61,6 +60,47 @@ afterEach(async () => {
 });
 
 describe("ASK BEESWAX in the Hive", () => {
+
+  test("a bare wake opens three Quest follow-ups with remembered context and no paid greeting", async () => {
+    const context: string[] = [];
+    const calls = mockAsk(() => answerReply("She lays the eggs. Everybody's mum around here.", ["queen"]));
+    hive = makeHive({
+      ask: {
+        ...askModule,
+        async answer(text, ctx, hooks) {
+          context.push(askModule.askUserText(text, ctx));
+          return askModule.answer(text, ctx, hooks);
+        },
+      },
+    }) as H;
+    const quest = await connect("quest");
+    const board = await connect("board");
+    await setBeat(quest, board, "map", 11);
+
+    const sayDialogue = async (text: string, wake: boolean, status: string) => {
+      quest.send({ type: "listen.start", source: "quest", mode: "ptt", wake_phrase: wake, ask_dialogue: true });
+      quest.sendMic(new TextEncoder().encode(text.length % 2 ? text + " " : text));
+      quest.send({ type: "listen.end", source: "quest" });
+      await quest.waitFor("transcript", (m) => m.text === text && m.wake_status === status);
+      if (status === "question") await quest.waitFor("intent", (m) => m.text === text && m.name === "ask");
+    };
+    await sayDialogue("Hey Beeswax?", true, "opened");
+    expect(context).toEqual([]);
+    expect(calls.n).toBe(0);
+    expect(quest.of("say")).toEqual([]);
+    await sayDialogue("why bananas?", false, "question");
+    await sayDialogue("can drones sting?", false, "question");
+    await sayDialogue("do bees help after wildfires?", false, "question");
+    await sayDialogue("please give me another answer", false, "rejected");
+    expect(context).toHaveLength(3);
+    expect(context[1]).toContain("Q: why bananas?");
+    expect(context[2]).toContain("Q: can drones sting?");
+    expect(calls.n).toBe(0);
+    await sayDialogue("Hey Beeswax!", true, "opened");
+    await setBeat(quest, board, "field", 12);
+    await sayDialogue("without waking the new beat", false, "rejected");
+    expect(context).toHaveLength(3);
+  });
 
   test("Quest Ask rejects background words and the bare name before routing or speech", async () => {
     const askCalls: string[] = [];
@@ -296,7 +336,7 @@ describe("ASK BEESWAX in the Hive", () => {
     expect(ear.caption).toBe(cannedText("ask_drone_sting"));
   });
 
-  test("map beat: filler say before the answer's tts.start; the router is skipped; latency hops logged", async () => {
+  test("map beat: talks straight away with no filler, skips the router and logs latency", async () => {
     const calls = mockAsk(() => answerReply("She lays all the eggs. She's everybody's mom.", ["queen"]));
     hive = makeHive({ ask: askModule, ttsAvailable: () => true }) as H;
     const quest = await connect("quest");
@@ -305,20 +345,18 @@ describe("ASK BEESWAX in the Hive", () => {
     quest.say("what does the queen do?");
     const answer = await quest.waitFor("say", (m) => m.tts_id);
     expect(answer).toMatchObject({ channel: "room", line_id: null, caption: "She lays all the eggs. She's everybody's mom." });
-    const start = await quest.waitFor("tts.start", (m) => m.tts_id === answer.tts_id);
-    const filler = idx(quest, (m) => m.type === "say" && m.line_id === "room_live_filler");
-    expect(filler).toBeGreaterThanOrEqual(0);
-    expect(filler).toBeLessThan(idx(quest, (m) => m === start));
+    await quest.waitFor("tts.start", (m) => m.tts_id === answer.tts_id);
+    expect(quest.of("say").some((m) => m.line_id === "room_live_filler")).toBe(false);
     expect((await quest.waitFor("intent")).name).toBe("ask");
     expect(hive.deps.routeCalls).toHaveLength(0);
     expect(calls.n).toBe(1);
     await board.waitFor("latency", (m) => m.hop === "ask.route");
     await board.waitFor("latency", (m) => m.hop === "ask.total");
 
-    // second live question in the same group: no filler again
+    // A follow-up also goes straight to its answer.
     quest.say("what is your favorite flower?");
     await quest.waitFor("say", (m) => m.tts_id && m.tts_id !== answer.tts_id);
-    expect(quest.msgs.filter((m) => m.type === "say" && m.line_id === "room_live_filler")).toHaveLength(1);
+    expect(quest.of("say").some((m) => m.line_id === "room_live_filler")).toBe(false);
   });
 
   test("map beat: a card question is canned (no Claude, no filler); a what-if still goes to the router", async () => {
