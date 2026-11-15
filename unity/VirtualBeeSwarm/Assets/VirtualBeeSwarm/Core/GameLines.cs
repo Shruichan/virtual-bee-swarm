@@ -4,7 +4,7 @@
 // (BeeswaxVoiceTools.Aliases), then Virtual Bee Swarm > Voice > Regenerate GameLines, or in batch
 // -executeMethod VirtualBeeSwarm.Editor.BeeswaxVoiceTools.Generate (VBS_LINES_DIR = the hive/lines folder if the
 // project isn't at unity/<Project> in the repo). ...BeeswaxVoiceTools.Check runs the two-way id check.
-// lines.json sha256 88d8d27e2c0481e1f604e97cad131273ee9224528351044e1c5ab52a6456b8ca
+// lines.json sha256 192d36cad07727db2c4ba8c165b6eacf906d1a31f494308fb0194e2278451aa9
 // stations.json sha256 132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a
 //
 // Online, the Hive answers choice.made / intents with its own `say`, and a local station line only plays if no room line
@@ -44,7 +44,7 @@ namespace VirtualBeeSwarm
 
     public static class GameLines
     {
-        public const string LinesSha256 = "88d8d27e2c0481e1f604e97cad131273ee9224528351044e1c5ab52a6456b8ca";
+        public const string LinesSha256 = "192d36cad07727db2c4ba8c165b6eacf906d1a31f494308fb0194e2278451aa9";
         public const string StationsSha256 = "132ddd97220cf67df2734ec395675012e296e5fb9eee855519f8e886c924de3a";
 
         // ------------------------------------------------------------ every line in lines.json, in file order (channel | beat | tags)
@@ -161,7 +161,7 @@ namespace VirtualBeeSwarm
         public static readonly GameLine RoomPalBoopFile = new GameLine("room_pal_boop_file", "Was that a boop? That's harassment. I'm filing."); // room | - | pals, boop
         public static readonly GameLine RoomPalBoopBlush = new GameLine("room_pal_boop_blush", "Okay. One boop. Off the record."); // room | - | pals, boop
         public static readonly GameLine RoomPalWave = new GameLine("room_pal_wave", "Hi! Waving's free. Dues aren't."); // room | - | pals, wave
-        public static readonly GameLine RoomPalHighfive = new GameLine("room_pal_highfive", "Up top! I'd high-six you, but you're a leg short."); // room | - | pals, highfive
+        public static readonly GameLine RoomPalHighfive = new GameLine("room_pal_highfive", "Up top! I'd go high-six, but you're a finger short."); // room | - | pals, highfive
         public static readonly GameLine RoomPalPalm = new GameLine("room_pal_palm", "Bee-hold. Foragers away from home rarely sting. Too busy. Real ones? Look, don't touch."); // room | - | pals, palm, fact:foragers
         public static readonly GameLine RoomPalHoneyOffer = new GameLine("room_pal_honey_offer", "Bonus shift. Pinch that frame's top bar and pull it out."); // room | - | pals, honey
         public static readonly GameLine RoomPalHoneyCaps = new GameLine("room_pal_honey_caps", "See the wax lids? Bees cap honey once it's ripe. Scrape them off."); // room | - | pals, honey, fact:honey_caps

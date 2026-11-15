@@ -6,15 +6,16 @@ namespace VirtualBeeSwarm.Pals
 {
     /// <summary>
     /// The desktop path for Pals: a ghost right hand (PalHands) acts out each move so the real detectors run.
-    /// Off the headset only. Keys: F5 boop, F6 wave, F7 high-five, F8 palm up (again: close it). Env VBS_PALS_DEMO=1 plays
-    /// boop, boop, wave, high-five, palm bees once in pre after SIGN HERE is handed over (captures: set
+    /// Off the headset only. Keys: F5 boop, F6 wave, F7 high-five, F8 palm up (again: close it), F10 waggle dance. Env
+    /// VBS_PALS_DEMO=1 plays boop, boop, wave, high-five, palm bees, the dance once in pre after SIGN HERE is handed over (captures: set
     /// VBS_AUTOPILOT_PRE_IDLE so the autopilot waits ~20 s before signing). The autopilot itself never uses any of it.
     /// </summary>
     public class PalDemo : MonoBehaviour
     {
         Coroutine _act;
-        bool _palmHeld, _demoDone;
+        bool _palmHeld, _demoDone, _honeyDone;
         BeeswaxController _bw;
+        bool _honeyKey;
 
         /// <summary>Extra moves later items add (the honey frame): run after the built-in ones in the scripted demo.</summary>
         public static event Func<PalDemo, IEnumerator> DemoExtras;
@@ -28,6 +29,10 @@ namespace VirtualBeeSwarm.Pals
             if (GameInput.KeyDown(KeyCode.F6)) Run(Wave());
             if (GameInput.KeyDown(KeyCode.F7)) Run(HighFive());
             if (GameInput.KeyDown(KeyCode.F8)) Run(_palmHeld ? PalmClose() : PalmOpen());
+            if (GameInput.KeyDown(KeyCode.F10) && PalBeeswax.Instance != null) PalBeeswax.Instance.AskDance();
+            var hf = HoneyFrame.Instance;
+            if (hf != null && hf.Ready && !_honeyDone && (Environment.GetEnvironmentVariable("VBS_HONEY_DEMO") == "1" || _honeyKey)) { _honeyDone = true; _honeyKey = false; Run(Honey()); }
+            if (GameInput.KeyDown(KeyCode.F9)) { _honeyKey = true; _honeyDone = false; }
             if (!_demoDone && Environment.GetEnvironmentVariable("VBS_PALS_DEMO") == "1")
             {
                 var intro = FindAnyObjectByType<IntroSequence>();
@@ -55,6 +60,9 @@ namespace VirtualBeeSwarm.Pals
             yield return PalmOpen();
             yield return Wait(5.5f);
             yield return PalmClose();
+            yield return Wait(1.0f);
+            if (PalBeeswax.Instance != null) PalBeeswax.Instance.AskDance();
+            yield return Wait(7.2f);
             if (DemoExtras != null)
                 foreach (Func<PalDemo, IEnumerator> f in DemoExtras.GetInvocationList()) yield return f(this);
             Debug.Log("[VBS][Pals] demo done");
@@ -174,11 +182,38 @@ namespace VirtualBeeSwarm.Pals
             hands.GhostDown();
         }
 
+        /// <summary>The honey frame with the ghost: pinch the top bar, hold it (Beeswax scrapes), then over the jar.</summary>
+        public IEnumerator Honey()
+        {
+            var hf = HoneyFrame.Instance;
+            var hands = PalHands.Instance;
+            if (hf == null || hands == null) yield break;
+            Debug.Log("[VBS][Pals] demo: honey frame");
+            Frame(out _, out var fwd, out _);
+            Vector3 n = Vector3.ProjectOnPlane(Vector3.down, fwd).normalized;
+            Vector3 bar = hf.TopBar;
+            yield return Move(Rest(), bar - fwd * 0.06f, fwd, n, 0.5f, tipAt: true);
+            yield return Move(bar - fwd * 0.06f, bar, fwd, n, 0.25f, tipAt: true, pinch: true);
+            yield return Wait(0.1f, () => Tip(bar, fwd, n));
+            Vector3 grab = hf.Position - bar;
+            float t0 = Time.time;
+            while (Time.time - t0 < 12f && hf.Scraped < 0.7f && hf.Held) { Tip(bar, fwd, n); yield return null; }
+            Vector3 over = hf.JarTop + Vector3.up * (0.12f + 0.095f) - grab;
+            yield return Move(bar, over, fwd, n, 0.8f, tipAt: true, pinch: true);
+            t0 = Time.time;
+            while (Time.time - t0 < 5f && hf.Fill < 1f) { Tip(over, fwd, n); yield return null; }
+            yield return Move(over, Rest(), fwd, n, 0.5f, tipAt: true);
+            hands.GhostDown();
+        }
+
+        void Tip(Vector3 tip, Vector3 fingers, Vector3 normal) =>
+            PalHands.Instance.Ghost(tip - PalHands.GhostTip(Vector3.zero, normal, fingers), normal, fingers, false, true);
+
         // ------------------------------------------------------------------ helpers
         Vector3 Centre() => _bw.BodyTransform != null ? _bw.BodyTransform.position : _bw.transform.position;
 
         /// <summary>Move the ghost from a to b (its palm centre, or its index tip when tipAt).</summary>
-        public IEnumerator Move(Vector3 a, Vector3 b, Vector3 fingers, Vector3 normal, float seconds, bool tipAt = false, bool fist = false)
+        public IEnumerator Move(Vector3 a, Vector3 b, Vector3 fingers, Vector3 normal, float seconds, bool tipAt = false, bool fist = false, bool pinch = false)
         {
             var hands = PalHands.Instance;
             float t0 = Time.time;
@@ -189,7 +224,7 @@ namespace VirtualBeeSwarm.Pals
                 Vector3 p = Vector3.Lerp(a, b, e);
                 Vector3 n = normal.normalized, f = Vector3.ProjectOnPlane(fingers, n).normalized;
                 if (tipAt) p -= PalHands.GhostTip(Vector3.zero, n, f);
-                hands.Ghost(p, n, f, fist);
+                hands.Ghost(p, n, f, fist, pinch);
                 if (k >= 1f) yield break;
                 yield return null;
             }

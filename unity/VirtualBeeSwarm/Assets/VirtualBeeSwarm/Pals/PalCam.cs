@@ -21,13 +21,21 @@ namespace VirtualBeeSwarm.Pals
             Vector3 b = _bw.BodyTransform != null ? _bw.BodyTransform.position : _bw.transform.position;
             var hands = PalHands.Instance;
             Vector3 focus = b;
-            if (hands != null && hands.GhostUp) focus = Vector3.Lerp(b, hands.Hands[1].centre, 0.5f);
+            float spread = 0f;
+            var honey = HoneyFrame.Instance;
+            if (honey != null && honey.Active) { focus = Vector3.Lerp(honey.Position, honey.JarTop, 0.4f); spread = 0.35f; }
+            else if (hands != null && hands.GhostUp)
+            {
+                var g = hands.Hands[1];
+                if (g.normal.y > 0.7f) { focus = g.centre; spread = 0.12f; } // palm up: the bees on it
+                else { focus = Vector3.Lerp(b, g.centre, 0.5f); spread = Mathf.Min(0.5f, Vector3.Distance(b, g.centre) * 0.5f); }
+            }
             Vector3 eye = head.position;
             Vector3 to = focus - eye;
             to.y = 0f;
             Vector3 fwd = to.sqrMagnitude > 1e-4f ? to.normalized : Vector3.forward;
             Vector3 right = Vector3.Cross(Vector3.up, fwd);
-            float span = Mathf.Max(0.35f, Vector3.Distance(b, focus) * 2f + PalBeeswax.Radius() * 2.5f);
+            float span = spread > 0f ? Mathf.Max(0.25f, spread * 2f) : Mathf.Clamp(PalBeeswax.Radius() * 3f, 0.35f, 1.2f);
             Vector3 pos = focus - fwd * (span * 1.6f) + right * (span * 0.45f) + Vector3.up * (span * 0.25f);
             _look = _init ? Vector3.Lerp(_look, focus, 1f - Mathf.Exp(-Time.deltaTime * 6f)) : focus;
             _init = true;

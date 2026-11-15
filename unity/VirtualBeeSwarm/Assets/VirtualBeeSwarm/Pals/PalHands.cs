@@ -13,7 +13,7 @@ namespace VirtualBeeSwarm.Pals
     /// <summary>One hand this frame, as the pal interactions see it.</summary>
     public struct PalHand
     {
-        public bool tracked, palm, open, fist, ghost;
+        public bool tracked, palm, open, fist, pinch, ghost;
         public Vector3 centre, normal, fingers, tip, vel;
     }
 
@@ -32,7 +32,7 @@ namespace VirtualBeeSwarm.Pals
         // the ghost (right hand slot while it is up)
         public bool GhostUp { get; private set; }
         Vector3 _gCentre, _gNormal = Vector3.up, _gFingers = Vector3.forward;
-        bool _gFist;
+        bool _gFist, _gPinch;
         Transform _ghost, _gPalm;
         readonly Transform[] _gFinger = new Transform[5];
         Material _gMat;
@@ -49,6 +49,7 @@ namespace VirtualBeeSwarm.Pals
             go.AddComponent<PalHands>();
             go.AddComponent<PalBeeswax>();
             go.AddComponent<PalBees>();
+            go.AddComponent<HoneyFrame>();
             go.AddComponent<PalDemo>();
         }
 
@@ -61,9 +62,10 @@ namespace VirtualBeeSwarm.Pals
         }
 
         /// <summary>Pose the ghost hand (world). normal = out of the palm, fingers = where they point.</summary>
-        public void Ghost(Vector3 centre, Vector3 normal, Vector3 fingers, bool fist = false)
+        public void Ghost(Vector3 centre, Vector3 normal, Vector3 fingers, bool fist = false, bool pinch = false)
         {
             GhostUp = true;
+            _gPinch = pinch;
             _gCentre = centre;
             _gNormal = normal.sqrMagnitude > 1e-6f ? normal.normalized : Vector3.up;
             _gFingers = Vector3.ProjectOnPlane(fingers, _gNormal);
@@ -92,7 +94,8 @@ namespace VirtualBeeSwarm.Pals
                     ph.normal = _gNormal;
                     ph.fingers = _gFingers;
                     ph.fist = _gFist;
-                    ph.open = !_gFist;
+                    ph.pinch = _gPinch;
+                    ph.open = !_gFist && !_gPinch;
                     ph.tip = GhostTip(_gCentre, _gNormal, _gFingers);
                 }
                 else if (GameHands.TryGetIndexTip(hand, out var tip))
@@ -100,6 +103,7 @@ namespace VirtualBeeSwarm.Pals
                     ph.tracked = true;
                     ph.tip = tip;
                     ph.fist = GameHands.IsFist(hand);
+                    ph.pinch = GameHands.IsPinching(hand);
                     ph.centre = tip;
                     if (GameHands.For(hand) is IHandPalmSource ps && ps.TryGetPalm(hand, out var c, out var n, out var f, out bool open))
                     {

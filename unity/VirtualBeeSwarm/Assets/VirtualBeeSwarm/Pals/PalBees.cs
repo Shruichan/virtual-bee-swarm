@@ -108,7 +108,7 @@ namespace VirtualBeeSwarm.Pals
                 float age = t - _at - b.delay;
                 Vector3 onPalm = _centre + frame * (b.local * s) + _normal * 0.004f;
                 Quaternion face = frame * Quaternion.Euler(0f, b.heading, 0f);
-                float sc = 0.017f;
+                float sc = 0.02f;
                 if (_state == State.Coming || (_state == State.Landed && age < 1.1f))
                 {
                     if (age < 0f) continue;

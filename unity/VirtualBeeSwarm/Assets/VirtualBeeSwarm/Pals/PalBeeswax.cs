@@ -10,6 +10,10 @@ namespace VirtualBeeSwarm.Pals
     ///   wave       a raised hand waved side to side (3 turns): he waves back with his front leg.
     ///   high-five  a raised open palm held still, facing away from you: he flies over, slaps it (sparkle burst, squash),
     ///              then goes back to where the script had him.
+    ///   dance      when room_pal_dance starts (the Hive says it for "do a dance"; F10 off the headset) he does a real waggle
+    ///              dance in the air in front of you: three figure-eights, each waggle run on the same slant (the
+    ///              direction to food, measured from the sun) with gold sparks marking the run, the return loops
+    ///              alternating left and right.
     /// Never blocks the ride: nothing here waits on a beat; the high-five only starts when he's free (out, not talking, not
     /// riding anything) and drops out the moment the script orders him somewhere; lines only when he isn't talking, never
     /// in the hook/meet/escape/T-0. In-place moves are added on top of BeeswaxMotion's body offsets. Logs "[VBS][Pals] ...".
@@ -26,6 +30,7 @@ namespace VirtualBeeSwarm.Pals
         JuiceParticles _fx;
         IntroSequence _intro;
         Transform _legR, _legL;
+        bool _triedR, _triedL;
 
         // additive body layer
         Vector3 _offset, _offVel, _wroteOffset, _baseOffset;
@@ -55,6 +60,12 @@ namespace VirtualBeeSwarm.Pals
 
         float _nextLine;
 
+        // dance
+        const float DanceRound = 2.3f, DanceRounds = 3f, DanceRun = 0.45f, DanceSlant = 35f;
+        float _danceFrom = -1f, _nextSpark;
+        Vector3 _danceRight;
+        public int Dances { get; private set; }
+
         public static bool On { get; set; } = true;
         public int Boops => _boops;
         public int HighFives { get; private set; }
@@ -70,6 +81,7 @@ namespace VirtualBeeSwarm.Pals
             _director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
             _fx = FindAnyObjectByType<JuiceParticles>();
             if (_bw != null) _bw.Ordered += OnOrdered;
+            if (_net != null) _net.VoiceLineStarted += OnLine;
             Debug.Log("[VBS][Pals] on: boop, wave, high-five" + (_bw == null ? " (no Beeswax: off)" : "") + ", radius " + Radius().ToString("0.00") + " m");
         }
 
@@ -77,6 +89,70 @@ namespace VirtualBeeSwarm.Pals
         {
             if (Instance == this) Instance = null;
             if (_bw != null) _bw.Ordered -= OnOrdered;
+            if (_net != null) _net.VoiceLineStarted -= OnLine;
+        }
+
+        void OnLine(GameNet.VoiceLineInfo info)
+        {
+            if (info.id == PalLines.Dance.id) Dance("line " + info.id);
+        }
+
+        /// <summary>Say the dance line (the dance starts with it); no voice layer: just dance.</summary>
+        public void AskDance()
+        {
+            if (_net != null) _net.Say(PalLines.Dance);
+            else Dance("key");
+        }
+
+        /// <summary>The waggle dance (~7 s), in place on top of whatever the script has him doing.</summary>
+        public void Dance(string why)
+        {
+            if (_bw == null || _bw.Inside || _bw.Climbing || !Allowed(false)) return;
+            Transform head = Head();
+            Vector3 to = head != null ? _bw.transform.position - head.position : _bw.transform.forward;
+            _danceRight = Vector3.Cross(Vector3.up, Flat(to));
+            _danceFrom = Time.time;
+            Dances++;
+            Rig("Celebrate", "waggle dance");
+            Log("waggle dance (" + why + ")");
+        }
+
+        /// <summary>The dance's offset now (world), and the waggle roll; false when not dancing.</summary>
+        bool DanceOffset(float t, out Vector3 off, out float roll)
+        {
+            off = Vector3.zero;
+            roll = 0f;
+            if (_danceFrom < 0f) return false;
+            float s = t - _danceFrom;
+            if (s >= DanceRound * DanceRounds) { _danceFrom = -1f; return false; }
+            float r = PalBeeswax.Radius();
+            float half = 0.1f + r * 0.5f;
+            Vector3 d = Quaternion.AngleAxis(DanceSlant, Vector3.Cross(_danceRight, Vector3.up)) * Vector3.up; // the run's slant from "up" (the sun)
+            Vector3 perp = Vector3.Cross(d, Vector3.Cross(_danceRight, Vector3.up)).normalized;
+            int round = (int)(s / DanceRound);
+            float u = (s - round * DanceRound) / DanceRound;
+            if (u < DanceRun)
+            {
+                float k = u / DanceRun;
+                float wag = Mathf.Sin(s * Mathf.PI * 2f * 13f);
+                off = d * Mathf.Lerp(-half, half, k) + perp * (wag * 0.012f);
+                roll = wag * 22f;
+                if (t >= _nextSpark && _fx != null)
+                {
+                    _nextSpark = t + 0.05f;
+                    _fx.Burst(Centre(), 1, new Color(1f, 0.8f, 0.2f), 0.01f, 2.2f, 0.018f, 0f);
+                }
+            }
+            else
+            {
+                float a = (u - DanceRun) / (1f - DanceRun) * Mathf.PI; // the return loop, alternating sides
+                float side = (round % 2 == 0) ? 1f : -1f;
+                off = d * (half * Mathf.Cos(a)) + perp * (side * half * Mathf.Sin(a));
+            }
+            float env = Mathf.Clamp01(s / 0.3f) * Mathf.Clamp01((DanceRound * DanceRounds - s) / 0.3f);
+            off *= env;
+            roll *= env;
+            return true;
         }
 
         void OnOrdered(string what)
@@ -118,20 +194,20 @@ namespace VirtualBeeSwarm.Pals
             float t = Time.time;
             if (_waveBackUntil > t)
             {
-                if (_legR == null) _legR = FindBone(_bw.transform, "Leg_Front_Upper.R");
+                if (_legR == null && !_triedR) { _triedR = true; _legR = Bone("Leg_Front_Upper.R"); }
                 float u = (t - _waveBackFrom) / (_waveBackUntil - _waveBackFrom);
                 float env = Mathf.Clamp01(u / 0.15f) * Mathf.Clamp01((1f - u) / 0.15f);
                 float a = env * (110f + 28f * Mathf.Sin((t - _waveBackFrom) * Mathf.PI * 2f * 2.2f));
-                if (_legR != null) _legR.rotation = Quaternion.AngleAxis(a, _bw.transform.forward) * _legR.rotation;
+                if (_legR != null) _legR.rotation = Quaternion.AngleAxis(a * OutSign(_legR), _bw.transform.forward) * _legR.rotation; // swung outward
             }
             if (_five == Five.Slap || (_five == Five.Back && t - _slapAt < 0.35f))
             {
-                if (_legL == null) _legL = FindBone(_bw.transform, "Leg_Front_Upper.L");
+                if (_legL == null && !_triedL) { _triedL = true; _legL = Bone("Leg_Front_Upper.L"); }
                 float k = Mathf.Clamp01((t - _slapAt + 0.25f) / 0.25f);
                 float a = Mathf.Sin(k * Mathf.PI) * 120f;
-                if (_legL != null) _legL.rotation = Quaternion.AngleAxis(-a, _bw.transform.forward) * _legL.rotation;
-                if (_legR == null) _legR = FindBone(_bw.transform, "Leg_Front_Upper.R");
-                if (_legR != null) _legR.rotation = Quaternion.AngleAxis(a, _bw.transform.forward) * _legR.rotation;
+                if (_legL != null) _legL.rotation = Quaternion.AngleAxis(a * OutSign(_legL), _bw.transform.forward) * _legL.rotation;
+                if (_legR == null && !_triedR) { _triedR = true; _legR = Bone("Leg_Front_Upper.R"); }
+                if (_legR != null) _legR.rotation = Quaternion.AngleAxis(a * OutSign(_legR), _bw.transform.forward) * _legR.rotation;
             }
         }
 
@@ -195,27 +271,27 @@ namespace VirtualBeeSwarm.Pals
             Vector3 eye = head.position, fwd = Flat(head.forward), right = Vector3.Cross(Vector3.up, fwd);
             Vector3 rel = hand.centre - eye;
             bool raised = rel.y > -0.28f && Vector3.Dot(rel, fwd) > 0.12f && (!hand.palm || hand.open);
-            if (!raised) { _waveTurns[h] = 0; return; }
+            if (!raised) { _waveTurns[h] = 0; _waveDir[h] = 0; _waveStart[h] = -1f; return; }
             float x = Vector3.Dot(rel, right);
-            if (_waveTurns[h] == 0 && _waveDir[h] == 0) { _waveExt[h] = x; _waveDir[h] = 0; _waveStart[h] = Time.time; }
-            int dir = x > _waveExt[h] + 0.005f ? 1 : x < _waveExt[h] - 0.005f ? -1 : 0;
-            if (_waveDir[h] == 0 && Mathf.Abs(x - _waveExt[h]) > 0.03f) { _waveDir[h] = x > _waveExt[h] ? 1 : -1; _waveExt[h] = x; _waveStart[h] = Time.time; }
-            else if (_waveDir[h] != 0)
+            if (_waveStart[h] < 0f) { _waveExt[h] = x; _waveDir[h] = 0; _waveStart[h] = Time.time; }
+            if (_waveDir[h] == 0)
             {
-                if (dir == _waveDir[h]) _waveExt[h] = x; // still going: track the extreme
-                else if (Mathf.Abs(x - _waveExt[h]) > 0.035f)
-                {
-                    _waveTurns[h]++;
-                    _waveDir[h] = -_waveDir[h];
-                    _waveExt[h] = x;
-                }
+                if (Mathf.Abs(x - _waveExt[h]) > 0.03f) { _waveDir[h] = x > _waveExt[h] ? 1 : -1; _waveExt[h] = x; }
             }
-            if (Time.time - _waveStart[h] > 2.2f) { _waveTurns[h] = 0; _waveDir[h] = 0; }
+            else if ((x - _waveExt[h]) * _waveDir[h] > 0f) _waveExt[h] = x;             // still going: the new extreme
+            else if ((_waveExt[h] - x) * _waveDir[h] > 0.035f)                          // turned back
+            {
+                _waveTurns[h]++;
+                _waveDir[h] = -_waveDir[h];
+                _waveExt[h] = x;
+            }
+            if (Time.time - _waveStart[h] > 2.2f) { _waveTurns[h] = 0; _waveDir[h] = 0; _waveStart[h] = -1f; }
             _waveX[h] = x;
             if (_waveTurns[h] >= 3 && Time.time >= _nextWave)
             {
                 _waveTurns[h] = 0;
                 _waveDir[h] = 0;
+                _waveStart[h] = -1f;
                 _nextWave = Time.time + 3f;
                 _fiveHeld = 0f; // a wave is not a high-five
                 if (_bw.Inside || _bw.Climbing) return;
@@ -343,13 +419,20 @@ namespace VirtualBeeSwarm.Pals
                 if (s > 0.9f) _wiggleFrom = -1f;
                 else tilt *= Quaternion.Euler(0f, 0f, 14f * Mathf.Sin(s * Mathf.PI * 2f * 7f) * (1f - s / 0.9f));
             }
+            if (_waveBackUntil > t)
+            {
+                float u = (t - _waveBackFrom) / Mathf.Max(0.01f, _waveBackUntil - _waveBackFrom);
+                tilt *= Quaternion.Euler(0f, 0f, 9f * Mathf.Sin((t - _waveBackFrom) * Mathf.PI * 2f * 2.2f) * Mathf.Sin(u * Mathf.PI));
+            }
+            Vector3 dance = Vector3.zero;
+            if (DanceOffset(t, out var dOff, out float dRoll)) { dance = dOff; tilt *= Quaternion.Euler(0f, 0f, dRoll); }
             if (_squashFrom >= 0f)
             {
                 float s = t - _squashFrom;
                 if (s > 0.35f) _squashFrom = -1f;
                 else { float a = Mathf.Sin(s / 0.35f * Mathf.PI) * 0.16f * (1f - s / 0.35f); squash = new Vector3(1f + a, 1f - a, 1f + a); }
             }
-            bool idle = _offset.sqrMagnitude < 1e-8f && _offVel.sqrMagnitude < 1e-6f && tilt == Quaternion.identity && squash == Vector3.one;
+            bool idle = _offset.sqrMagnitude < 1e-8f && _offVel.sqrMagnitude < 1e-6f && tilt == Quaternion.identity && squash == Vector3.one && dance == Vector3.zero;
             // what the motion module wrote this frame (or, if it didn't, what was there before my last write)
             bool fresh = !_wrote || _bw.BodyOffset != _wroteOffset || _bw.BodyTilt != _wroteTilt || _bw.BodySquash != _wroteSquash;
             if (fresh) { _baseOffset = _bw.BodyOffset; _baseTilt = _bw.BodyTilt; _baseSquash = _bw.BodySquash; }
@@ -360,7 +443,7 @@ namespace VirtualBeeSwarm.Pals
                 _wrote = false;
                 return;
             }
-            _bw.BodyOffset = _baseOffset + _bw.transform.InverseTransformVector(_offset);
+            _bw.BodyOffset = _baseOffset + _bw.transform.InverseTransformVector(_offset + dance);
             _bw.BodyTilt = _baseTilt * tilt;
             _bw.BodySquash = Vector3.Scale(_baseSquash, squash);
             _wroteOffset = _bw.BodyOffset;
@@ -404,9 +487,32 @@ namespace VirtualBeeSwarm.Pals
             return v.sqrMagnitude > 1e-6f ? v.normalized : Vector3.forward;
         }
 
+        /// <summary>+1 or -1: the turn about his facing axis that swings a hanging leg out to its own side and up.</summary>
+        float OutSign(Transform bone)
+        {
+            Vector3 f = _bw.transform.forward;
+            Vector3 o = Vector3.ProjectOnPlane(bone.position - Centre(), f);
+            return Vector3.Dot(Quaternion.AngleAxis(30f, f) * Vector3.down, o) >= 0f ? 1f : -1f;
+        }
+
+        /// <summary>A bone of the rigged model (under BeeswaxRig, the active copy), logged once.</summary>
+        Transform Bone(string name)
+        {
+            var b = FindBone(_rig != null ? _rig.transform : _bw.transform, name) ?? FindBone(_bw.transform, name);
+            Log("bone " + name + (b != null ? ": " + Path(b) : ": not found (leg moves off)"));
+            return b;
+        }
+
+        static string Path(Transform t)
+        {
+            string p = t.name;
+            for (var x = t.parent; x != null && p.Length < 200; x = x.parent) p = x.name + "/" + p;
+            return p;
+        }
+
         static Transform FindBone(Transform root, string name)
         {
-            if (root.name == name) return root;
+            if (root.name == name && root.gameObject.activeInHierarchy) return root;
             for (int i = 0; i < root.childCount; i++)
             {
                 var f = FindBone(root.GetChild(i), name);
