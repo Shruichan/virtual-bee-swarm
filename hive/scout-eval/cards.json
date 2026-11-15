@@ -1,0 +1,97 @@
+{
+ "_note": "Card context for the Ask Beeswax eval. facts = booth fact lines (scout/live hive/lines/scout_lines_booth.json); vettedFacts = research claims (scout/content hive/lines/scout_script_v3.json sources).",
+ "cards": [
+  {
+   "label": "native_flower",
+   "name": "sunflower",
+   "facts": [
+    "This is a sunflower. It grew wild in North America first.",
+    "Some scientists think one in three bites you eat is thanks to pollinators like me."
+   ],
+   "sources": [
+    "https://plants.ces.ncsu.edu/plants/helianthus-annuus/",
+    "https://usda.azureedge.us/node/48771"
+   ]
+  },
+  {
+   "label": "honey_jar",
+   "name": "honey jar",
+   "facts": [
+    "This is honey. One pound can take up to two million flower visits.",
+    "Never leave store honey out for bees. It can carry a bee germ called foulbrood. Still fine on your toast."
+   ],
+   "sources": [
+    "https://pueblo.extension.colostate.edu/?p=4685",
+    "https://www.ontario.ca/page/american-foulbrood"
+   ]
+  },
+  {
+   "label": "bug_spray",
+   "name": "bug spray can",
+   "facts": [
+    "This is bug spray. Bees carry it home to the babies.",
+    "One study: US farmland got about forty-eight times more toxic for insects to eat in twenty-two years."
+   ],
+   "sources": [
+    "https://pnwhandbooks.org/insect/bee-protection/reduce-bee-poisoning",
+    "https://doi.org/10.1371/journal.pone.0220029"
+   ]
+  },
+  {
+   "label": "bee_hotel",
+   "name": "bee hotel",
+   "facts": [
+    "This is a bee hotel, a safe home for wild bees like mason bees.",
+    "Nearly one in four kinds of wild bees scientists checked is in danger. Bee hotels help them hang on."
+   ],
+   "sources": [
+    "https://xerces.org/pollinator-conservation/nesting",
+    "https://biologicaldiversity.org/news/press_releases/2017/bees-03-01-2017.php"
+   ]
+  },
+  {
+   "label": "pebble_dish",
+   "name": "bee water dish",
+   "facts": [
+    "This is a bee water dish. Bees can't swim, so pebbles are their landing pads.",
+    "On a hot day, bees haul home about eighty percent of their weight in water to cool the hive."
+   ],
+   "sources": [
+    "https://uaex.uada.edu/media-resources/news/2022/june/06-15-2022-ark-bee-hydration.aspx",
+    "https://www.sciencenews.org/article/douse-hot-hives-honeybee-colonies-launch-water-squadrons"
+   ]
+  },
+  {
+   "label": "beehive",
+   "name": "beehive",
+   "facts": [
+    "This is a beehive. Last year, US beekeepers lost about four in ten of their hives.",
+    "The year before, more than half: the worst on record. Tiny mites spreading bee viruses are a big reason."
+   ],
+   "sources": [
+    "https://wire.auburn.edu/content/agriculture/2026/06/honeybeecolony0626.php",
+    "https://wire.auburn.edu/content/agriculture/2025/06/2506-beekeepers-survey.php",
+    "https://www.ars.usda.gov/news-events/news/research-news/2025/usda-researchers-find-viruses-from-miticide-resistant-parasitic-mites-are-cause-of-recent-honey-bee-colony-collapses/"
+   ]
+  }
+ ],
+ "vettedFacts": [
+  "Common sunflower is native to the western US and parts of Mexico; the center disk has more than 50 flowers; Helianthus supports specialist bees",
+  "USDA: 'Some scientists estimate that one out of every three bites of food we eat exists because of animal pollinators'; three-fourths of flowering plants and about 35% of food crops depend on animal pollinators",
+  "Colorado State University Extension: 'it can require up to 2 million flower visits to produce 1 pound of honey'",
+  "Never feed honey from outside sources to bees; American foulbrood spores survive for decades; affects bee larvae only",
+  "Foulbrood is harmless to people and the honey remains safe food",
+  "Pesticide residue on flowers is carried home in pollen and nectar to the brood",
+  "DiBartolomeis et al. 2019 (PLOS ONE): 48-fold increase in acute insecticide toxicity loading for oral exposure (4-fold for contact) on US agricultural land, 1992 to 2014; neonicotinoids are 61 to nearly 99% of 2014 loading; honey bee toxicity used as a proxy for insects; a screening metric, not a direct measure of harm",
+  "Xerces: 70% of native bees nest in the ground, 30% in cavities such as leafcutter and mason bees; keep insect hotels clean, they can spread disease and mites",
+  "Center for Biological Diversity 2017: of 1,437 North American and Hawaiian native bee species with sufficient data, more than half (749) are declining and 347 (nearly one in four) are imperiled",
+  "USGS: over 20,000 known bee species worldwide; 4,000 native to the United States",
+  "Bees can't swim and need gravel or a landing spot to drink; they spread water and fan to cool the hive",
+  "Water-collecting bees 'return carrying some 80 percent of their weight in water' when cooling an overheated hive (Ostwald, Smith and Seeley 2016)",
+  "US managed honey bee colonies: 39.9% annual loss April 2025 to April 2026 (winter 30.3%); 55.6% in 2024-25 and 55.1% in 2023-24; pressures named are parasites and poor forage",
+  "2024-25: US beekeepers lost an estimated 55.6% of managed colonies, the highest the national survey has recorded (pitch hook)",
+  "USDA ARS: viruses spread by miticide-resistant Varroa mites are the likely end-stage cause of the 2025 commercial colony collapses; nutritional stress and agrochemicals may also have played roles",
+  "USFWS: rusty patched bumble bee abundance plummeted 87% since the late 1990s; advice: plant native flowers blooming spring through fall, limit or avoid pesticides (backup stat, not in a line)",
+  "Plant native flowers that bloom spring to fall; small spaces count; avoid pesticides (finale actions)"
+ ]
+}
