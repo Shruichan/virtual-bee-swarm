@@ -9,8 +9,6 @@ namespace VirtualBeeSwarm.AR
     public class SpawnObject : MonoBehaviour
     {
         [Header("Raycasting")]
-        [SerializeField] private Transform rightHandRayStart;
-        [SerializeField] private Transform leftHandRayStart;
         [SerializeField] private float rayLength = 1f;
         [SerializeField, Range(0f, 90f)] private float maxHorizontalAngle = 20f;
         [Tooltip("Footprint and clearance passed to the environment raycaster; match this to the prefab.")]
@@ -50,18 +48,17 @@ namespace VirtualBeeSwarm.AR
             if (raycaster == null || !raycaster.Enabled || arRig.Placement == null ||
                 !arRig.Placement.Allowed || !arRig.Room.HasTable) return;
 
-            if (TryHandSpawn(leftHandRayStart, raycaster)) return;
-            TryHandSpawn(rightHandRayStart, raycaster);
+            if (TryHandSpawn(GameHand.Left, raycaster)) return;
+            TryHandSpawn(GameHand.Right, raycaster);
         }
 
-        bool TryHandSpawn(Transform handRayStart, IEnvRaycaster raycaster)
+        bool TryHandSpawn(GameHand hand, IEnvRaycaster raycaster)
         {
-            if (handRayStart == null) return false;
+            if (!GameHands.TryGetPointerRay(hand, out Ray ray)) return false;
 
-            Ray ray = new Ray(handRayStart.position, handRayStart.forward);
             Vector3 direction = targetLookPosition != null
-                ? targetLookPosition.position - handRayStart.position
-                : (Camera.main != null ? Camera.main.transform.position - handRayStart.position : -ray.direction);
+                ? targetLookPosition.position - ray.origin
+                : (Camera.main != null ? Camera.main.transform.position - ray.origin : -ray.direction);
             direction = Vector3.ProjectOnPlane(direction, Vector3.up);
             if (direction.sqrMagnitude < 1e-6f)
             {
