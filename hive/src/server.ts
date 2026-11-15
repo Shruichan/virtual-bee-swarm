@@ -475,7 +475,7 @@ export function startHive(opts: HiveOptions): Hive {
   const directorTimeoutMs = opts.directorTimeoutMs ?? 6000;
   const photoTimeoutMs = opts.photoTimeoutMs ?? 8000;
   const scanStaleMs = opts.scanStaleMs ?? 25_000;
-  const sttTimeoutMs = opts.sttTimeoutMs ?? 6000;
+  const sttTimeoutMs = opts.sttTimeoutMs ?? 4000; // worst case (STT + guard + route + guard) stays near the Quest's 10 s reply wait
   const routeTimeoutMs = opts.routeTimeoutMs ?? 3500;
   const listenMaxBytes = Math.max(2, (opts.listenMaxBytes ?? 15 * 16000 * 2) & ~1);
   const listenWatchdogMs = opts.listenWatchdogMs ?? 20_000;
@@ -1798,7 +1798,7 @@ if (import.meta.main) {
     publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
     directorTimeoutMs: Number(process.env.DIRECTOR_TIMEOUT_MS) || 6000,
     scanStaleMs: Number(process.env.SCAN_STALE_MS) || 25_000,
-    sttTimeoutMs: Number(process.env.STT_TIMEOUT_MS) || 6000,
+    sttTimeoutMs: Number(process.env.STT_TIMEOUT_MS) || 4000,
     routeTimeoutMs: Number(process.env.ROUTE_TIMEOUT_MS) || 3500,
     orbisRelayUrl: process.env.ORBIS_RELAY_URL || null,
     host: process.env.HIVE_HOST || undefined,

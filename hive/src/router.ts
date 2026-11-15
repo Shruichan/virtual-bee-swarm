@@ -86,6 +86,7 @@ const UNDO_RX = rx([
   "reverse (?:it|that)",
   "stop the (?:fire|fires|flames)",
 ]);
+const WHATIF_STOP_RX = rx(["stop it", "make it stop", "turn (?:it|that|the fire) off", "kill (?:it|the fire)"]);
 // Anything negated or mixed goes to Claude: "what if it doesn't rain", "what if the rain puts out the fire".
 const NEGATION_RX = /\b(?:no|not|never|without|nothing)\b|n't\b/;
 const EXTINGUISH_RX = rx(["water", "dous(?:e|ing)", "hoses?", "extinguishers?", "firefighters?", "sprinklers?"]);
@@ -127,6 +128,14 @@ export function keywordRoute(text: string, beat: BeatName): RouterOutput | null 
   const out = (intent: IntentName, topic: WhatIfTopic | null = null): RouterOutput => ({ intent, topic, answer: null });
   if (!words || FILLER_RX.test(words)) return out("unknown");
   if (UNDO_RX.test(words) && !/\b(?:don'?t|do not|never|not)\b/.test(words)) return out("undo");
+  // What-if beat only (elsewhere "stop it!" is about the bees): short stop phrases, and STT's "what a fire starts".
+  if (beat === "whatif") {
+    if (WHATIF_STOP_RX.test(words) && !/\b(?:don'?t|do not|never|not)\b/.test(words)) return out("undo");
+    if (/^what (?:a|of) /.test(words)) {
+      const topic = clearTopic(words);
+      if (topic) return out("what_if", topic);
+    }
+  }
   if (WHATIF_RX.test(words)) {
     const topic = clearTopic(words);
     return topic ? out("what_if", topic) : null;

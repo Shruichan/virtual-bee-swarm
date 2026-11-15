@@ -67,6 +67,13 @@ describe("keyword fast path", () => {
     // [transcript, beat, expected "intent/topic" or null = needs Claude]
     ["What if a fire starts?", "whatif", "what_if/fire"],
     ["what if a fire starts", "heat", "what_if/fire"],
+    // STT garbles and short stop phrases, what-if beat only
+    ["What a fire starts?", "whatif", "what_if/fire"],
+    ["Make it stop!", "whatif", "undo"],
+    ["Stop it", "whatif", "undo"],
+    ["turn the fire off", "whatif", "undo"],
+    ["stop it", "smoker", null],
+    ["don't stop it", "whatif", null],
     ["What if a fire breaks out?", "whatif", "what_if/fire"],
     ["What happens if the meadow burns?", "map", "what_if/fire"],
     ["what would happen if it rains", "whatif", "what_if/rain"],
