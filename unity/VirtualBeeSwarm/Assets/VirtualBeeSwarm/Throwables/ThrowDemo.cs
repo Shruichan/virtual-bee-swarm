@@ -204,7 +204,7 @@ namespace VirtualBeeSwarm.Throw
         {
             Vector3 eye = Head(out var fwd, out var right, out var up);
             Vector3 rest = eye + fwd * 0.3f + right * 0.16f - up * 0.42f;
-            Vector3 p = t.position + up * 0.05f;
+            Vector3 p = Throwables.PropBounds(t, out var pb) ? pb.center : t.position + up * 0.05f; // through the middle of the prop
             Vector3 a = p + right * 0.28f, b = p - right * 0.14f;
             yield return Move(0.5f, k => Ghost(Vector3.Lerp(rest, a, Smooth(k)), -right, fwd));
             yield return Move(0.12f, k => Ghost(Vector3.Lerp(a, b, k), -right, fwd)); // a slap, ~3.5 m/s
