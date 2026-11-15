@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SCOUT_BACKGROUND, SCOUT_LABELS, SCOUT_PORTS, SCOUT_STREAM_PATH, type ScoutLabel } from "./scout-protocol";
+import { SCOUT_BACKGROUND, SCOUT_BOOTH_ORDER, SCOUT_LABELS, SCOUT_PORTS, SCOUT_STREAM_PATH, type ScoutLabel } from "./scout-protocol";
 
 /** What the crowd reads: the names printed on the station cards (scout-vision/detect/cards.json). */
 const SHOW_NAMES: Record<ScoutLabel, string> = {
@@ -37,6 +37,7 @@ const CARD_FILE = (l: ScoutLabel) => `card-${l.replace(/_/g, "-")}.webp`;
 
 const CONFIG = JSON.stringify({
   LABELS: SCOUT_LABELS,
+  SLOTS: SCOUT_BOOTH_ORDER, // badge case order = the walking order
   NAMES: SHOW_NAMES,
   TAGS: SHOW_TAGS,
   CARDS: Object.fromEntries(SCOUT_LABELS.map((l) => [l, CARD_FILE(l)])),
@@ -129,6 +130,36 @@ const SHOW = `<!doctype html>
   #today.zero { visibility: hidden; }
   #today.bump svg { animation: spinpop .9s cubic-bezier(.2, 1.6, .4, 1); }
   @keyframes spinpop { from { transform: rotate(-120deg) scale(.4); } }
+  /* the badge case: six slots, faint silhouettes until earned */
+  #case { flex: 1; display: flex; justify-content: center; min-width: 0; transition: opacity .5s; }
+  body.attract #case { opacity: 0; }
+  #case ol { display: flex; gap: .75rem; margin: 0; padding: .5rem .9rem; list-style: none; border-radius: 99rem;
+    background: rgba(255, 253, 248, .5); box-shadow: inset 0 0 0 .12rem rgba(85, 41, 15, .12); }
+  .slot { position: relative; width: 4.9rem; height: 4.9rem; border-radius: 50%; border: .18rem dashed rgba(85, 41, 15, .3); }
+  .slot > img { position: absolute; inset: .3rem; width: calc(100% - .6rem); height: calc(100% - .6rem); border-radius: 50%; object-fit: cover;
+    filter: grayscale(1) contrast(.7); opacity: .2; }
+  .slot.got { border-color: transparent; }
+  .slot.got > img { display: none; }
+  .slot .medal { position: absolute; left: -.18rem; top: -.18rem; --s: 4.9rem; }
+  .slot .medal.pop .disc { animation: medalpop .6s cubic-bezier(.2, 1.8, .4, 1); }
+  @keyframes medalpop { 0% { transform: scale(1.5); } 100% { transform: none; } }
+  /* a badge: gold rim, white ring, the card photo, a shine and two ribbon tails */
+  .medal { position: relative; width: var(--s); height: var(--s); flex: none; }
+  .medal .rib { position: absolute; left: 27%; width: 46%; top: 60%; height: 50%; background: linear-gradient(90deg, #c4632a 0 50%, #9c4718 50%);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 75% 82%, 50% 100%, 25% 82%, 0 100%); }
+  .medal .disc { position: absolute; inset: 0; border-radius: 50%; padding: 9%;
+    background: conic-gradient(from 210deg, #fbe3a1, #e3a83c 25%, #b97a1e 45%, #f5cf74 65%, #e3a83c 85%, #fbe3a1);
+    box-shadow: 0 0 0 calc(var(--s) * .028) var(--brown), 0 calc(var(--s) * .06) calc(var(--s) * .12) rgba(85, 41, 15, .28); }
+  .medal img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 calc(var(--s) * .035) var(--paper); }
+  .medal .disc::after { content: ""; position: absolute; inset: 9%; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(140deg, rgba(255, 255, 255, .6) 0 18%, rgba(255, 255, 255, 0) 38%); }
+  .medal.fly { position: fixed; z-index: 30; transform-origin: 0 0; transition: transform .9s cubic-bezier(.55, -0.25, .3, 1); }
+  .medal.fly .disc { animation: medalin .55s cubic-bezier(.2, 1.6, .4, 1); }
+  .medal.fly .disc::after { animation: shine 1s ease-out .3s; }
+  .medal.fly .rib { animation: ribin .5s ease-out .25s backwards; }
+  @keyframes medalin { from { transform: scale(.7) rotate(-20deg); } }
+  @keyframes shine { from { transform: rotate(-120deg); opacity: 0; } 50% { opacity: 1; } }
+  @keyframes ribin { from { transform: translateY(-40%); opacity: 0; } }
   #sound { display: flex; align-items: center; gap: .5rem; padding: .55rem 1.2rem .55rem .9rem; border-radius: 99rem; border: 0; cursor: pointer;
     background: transparent; box-shadow: inset 0 0 0 .12rem rgba(85, 41, 15, .25); font-size: 1.15rem; font-weight: 700; color: var(--ink-soft); }
   #sound svg { width: 1.6rem; height: 1.6rem; }
@@ -254,6 +285,28 @@ const SHOW = `<!doctype html>
   #teacher.on .lesson:nth-child(2) { animation-delay: .08s; } #teacher.on .lesson:nth-child(3) { animation-delay: .16s; }
   #teacher.on .lesson:nth-child(4) { animation-delay: .24s; } #teacher.on .lesson:nth-child(5) { animation-delay: .32s; }
 
+  /* ---------------------------------------------------------------- all six: the finale */
+  #celebrate { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; pointer-events: none; overflow: hidden; visibility: hidden; }
+  #celebrate .wash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(255, 249, 235, .97), rgba(212, 208, 201, .95) 75%); opacity: 0; transition: opacity .4s; }
+  #celebrate .rays { position: absolute; width: 150vmax; height: 150vmax; left: 50%; top: 52%; margin: -75vmax 0 0 -75vmax;
+    background: repeating-conic-gradient(rgba(245, 220, 166, .7) 0 7deg, transparent 7deg 20deg);
+    -webkit-mask-image: radial-gradient(circle, #000 10%, transparent 50%); mask-image: radial-gradient(circle, #000 10%, transparent 50%); opacity: 0; transition: opacity .5s; }
+  #celebrate.on { visibility: visible; }
+  #celebrate.on .wash, #celebrate.on .rays { opacity: 1; }
+  #celebrate.on .rays { animation: spin 22s linear infinite; }
+  #celebrate.out .cb { animation: away .5s ease-in forwards; } #celebrate.out .wash, #celebrate.out .rays { opacity: 0; }
+  .cb { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .cblogo { width: 12rem; height: 12rem; border-radius: 50%; object-fit: cover; border: .6rem solid var(--paper); box-shadow: 0 0 0 .2rem var(--brown), 0 1rem 2rem rgba(85, 41, 15, .25);
+    transform: scale(0); }
+  #celebrate h2 { margin: 1.4rem 0 2rem; font: 400 6.2rem/1 var(--display); color: var(--brown); text-shadow: .22rem .26rem 0 var(--honey); opacity: 0; transform: scale(.4) rotate(-5deg); }
+  #cbrow { display: flex; gap: 2rem; }
+  #cbrow .medal { --s: 9.5rem; opacity: 0; transform: translateY(2rem) scale(.6); }
+  #celebrate p { margin: 3.4rem 0 0; font-size: 2.2rem; font-weight: 700; color: var(--ink-soft); opacity: 0; }
+  #celebrate.on .cblogo { animation: cardin .7s cubic-bezier(.2, 1.5, .4, 1) .1s forwards; }
+  #celebrate.on h2 { animation: stamp .6s cubic-bezier(.2, 1.7, .4, 1) .35s forwards; }
+  #celebrate.on #cbrow .medal { animation: up .5s cubic-bezier(.2, 1.6, .4, 1) forwards; }
+  #celebrate.on p { animation: up .5s ease-out 1.6s forwards; }
+
   /* ---------------------------------------------------------------- the found moment */
   #reveal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none; overflow: hidden; visibility: hidden; }
   #reveal .wash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 52%, rgba(255, 249, 235, .94), rgba(212, 208, 201, .9) 70%);
@@ -298,6 +351,7 @@ const SHOW = `<!doctype html>
 <body class="attract">
 <header>
   <div class="brand"><img class="badge" src="/scout/assets/logo.webp" alt=""><h1>Live Bee Scout</h1></div>
+  <div id="case" aria-label="Badges earned"><ol id="slots"></ol></div>
   <div class="tools">
     <div id="today" title="Bee facts found on this screen today">${DAISY_ICON}<span><b id="todayn">0</b> <span id="todayt">bee facts found today</span></span></div>
     <button id="sound" type="button" aria-pressed="false" title="Play Beeswax's voice on this screen (M)">
@@ -345,6 +399,15 @@ const SHOW = `<!doctype html>
       ${LESSONS}
     </ul>
     <p class="tfoot">Bees are lesson one. A teacher can assign any topic, and Beeswax helps you explore it.</p>
+  </div>
+</div>
+<div id="celebrate" aria-live="polite">
+  <div class="wash"></div><div class="rays"></div>
+  <div class="cb">
+    <img class="cblogo" src="/scout/assets/logo.webp" alt="">
+    <h2>Bee Scout badge earned!</h2>
+    <div id="cbrow"></div>
+    <p>You found all six. Beeswax is proud of you.</p>
   </div>
 </div>
 <div id="reveal" aria-live="polite">
@@ -468,21 +531,96 @@ const SHOW = `<!doctype html>
     $("rvimg").src = ASSETS + (CFG.CARDS[ev.label] || "logo.webp");
     $("rvname").textContent = name(ev.label);
     $("rvtag").textContent = CFG.TAGS[ev.label] || "";
-    rv.querySelectorAll(".petal").forEach(function (p) { p.remove(); });
-    if (!REDUCED) for (var i = 0; i < 34; i++) {
-      var p = el("i", "petal" + (i % 5 === 4 ? " dot" : ""));
-      p.style.setProperty("--a", (i * (360 / 34) + Math.random() * 8) + "deg");
-      p.style.setProperty("--d", "-" + (24 + Math.random() * 26) + "rem");
-      p.style.setProperty("--spin", (Math.random() * 120 - 60) + "deg");
-      p.style.animationDelay = (0.18 + Math.random() * 0.2) + "s";
-      rv.appendChild(p);
-    }
+    burst(rv, 34, 0.18);
+    cancelFly();
     rv.classList.remove("out", "on"); void rv.offsetWidth; rv.classList.add("on");
     clearTimeout(revealTimer); clearTimeout(outTimer);
+    revealUntil = Date.now() + 4700;
     revealTimer = setTimeout(function () { rv.classList.add("out"); outTimer = setTimeout(function () { rv.classList.remove("on", "out"); }, 500); }, 4200);
     setPin(ev.label);
     hideYou();
+    if (earn(ev.label)) flyBadge(ev.label); // first time: the card becomes a badge and flies into the case
   }
+  function burst(box, n, delay) {
+    box.querySelectorAll(".petal").forEach(function (p) { p.remove(); });
+    if (REDUCED) return;
+    for (var i = 0; i < n; i++) {
+      var p = el("i", "petal" + (i % 5 === 4 ? " dot" : ""));
+      p.style.setProperty("--a", (i * (360 / n) + Math.random() * 8) + "deg");
+      p.style.setProperty("--d", "-" + (24 + Math.random() * 26) + "rem");
+      p.style.setProperty("--spin", (Math.random() * 120 - 60) + "deg");
+      p.style.animationDelay = (delay + Math.random() * 0.2) + "s";
+      box.appendChild(p);
+    }
+  }
+
+  // ------------------------------------------------------------------ badges: state.found + found events, one per card
+  var earned = [], journey = null, revealUntil = 0;
+  function medal(label, size) {
+    var m = el("div", "medal"); m.style.setProperty("--s", size + "px"); m.title = name(label);
+    m.appendChild(el("i", "rib"));
+    var d = el("span", "disc"), im = el("img"); im.src = ASSETS + (CFG.CARDS[label] || "logo.webp"); im.alt = name(label);
+    d.appendChild(im); m.appendChild(d);
+    return m;
+  }
+  CFG.SLOTS.forEach(function (l) {
+    var li = el("li", "slot"); li.id = "slot_" + l; li.title = name(l);
+    var im = el("img"); im.src = ASSETS + CFG.CARDS[l]; im.alt = ""; li.appendChild(im);
+    $("slots").appendChild(li);
+  });
+  function earn(label) { if (!label || earned.indexOf(label) >= 0) return false; earned.push(label); return true; }
+  function fillSlot(label, pop) {
+    var li = $("slot_" + label);
+    if (!li || li.classList.contains("got")) return;
+    li.classList.add("got");
+    var m = medal(label, li.offsetWidth || 64); m.style.removeProperty("--s");
+    if (pop) m.classList.add("pop");
+    li.appendChild(m);
+  }
+  var flyTimers = [], flyEl = null;
+  function cancelFly() {
+    flyTimers.forEach(clearTimeout); flyTimers = [];
+    if (flyEl) { flyEl.remove(); flyEl = null; }
+    earned.forEach(function (l) { fillSlot(l, false); }); // a badge cut short by the next find still lands
+    $("reveal").querySelector(".rvcard").style.visibility = "";
+  }
+  function flyBadge(label) {
+    var card = $("reveal").querySelector(".rvcard");
+    flyTimers.push(setTimeout(function () { // the card turns into a badge...
+      var r = card.getBoundingClientRect(), w = card.offsetWidth, x = r.left + r.width / 2 - w / 2, y = r.top + r.height / 2 - w / 2;
+      var m = flyEl = medal(label, w); m.classList.add("fly"); m.style.left = x + "px"; m.style.top = y + "px";
+      document.body.appendChild(m); card.style.visibility = "hidden";
+      flyTimers.push(setTimeout(function () { // ...and flies into its slot
+        var slot = $("slot_" + label), sr = slot.getBoundingClientRect();
+        m.style.transform = "translate(" + (sr.left - x) + "px, " + (sr.top - y) + "px) scale(" + (sr.width / w) + ")";
+        flyTimers.push(setTimeout(function () {
+          m.remove(); flyEl = null; card.style.visibility = ""; fillSlot(label, true);
+          if (earned.length >= CFG.SLOTS.length) flyTimers.push(setTimeout(celebrate, 400));
+        }, 950));
+      }, 1150));
+    }, 2200));
+  }
+  function clearCase() {
+    cancelFly(); earned = []; celebrated = false; hideCelebrate();
+    CFG.SLOTS.forEach(function (l) { var li = $("slot_" + l); li.classList.remove("got"); var m = li.querySelector(".medal"); if (m) m.remove(); });
+  }
+
+  // ------------------------------------------------------------------ all six: "Bee Scout badge earned!"
+  var celebrated = false, celebTimer = null, celebOut = null;
+  function celebrate() {
+    if (celebrated) return;
+    var wait = revealUntil - Date.now();
+    if (wait > 0) { celebTimer = setTimeout(celebrate, wait); return; }
+    celebrated = true; lastActivity = Date.now(); hideTeacher();
+    var row = $("cbrow"); row.textContent = "";
+    var list = earned.length ? earned : CFG.SLOTS;
+    list.forEach(function (l, i) { var m = medal(l, 0); m.style.removeProperty("--s"); m.style.animationDelay = (0.8 + i * 0.12) + "s"; row.appendChild(m); });
+    var c = $("celebrate"); burst(c, 44, 0.5);
+    c.classList.remove("out", "on"); void c.offsetWidth; c.classList.add("on");
+    clearTimeout(celebTimer); clearTimeout(celebOut);
+    celebTimer = setTimeout(function () { c.classList.add("out"); celebOut = setTimeout(hideCelebrate, 500); }, 8000);
+  }
+  function hideCelebrate() { clearTimeout(celebTimer); clearTimeout(celebOut); $("celebrate").classList.remove("on", "out"); }
   function setPin(label) {
     pinLabel = label;
     $("pinimg").src = ASSETS + (CFG.CARDS[label] || "logo.webp");
@@ -515,6 +653,7 @@ const SHOW = `<!doctype html>
     lastActivity = Date.now();
     var id = String(ev.line_id || ""), text = String(ev.caption || "").trim();
     if (id === "scout_teacher") { showTeacher(text); if (mirror) enqueue(ev); return; }
+    if (id.indexOf("scout_done") === 0) celebrate(); // the finale lines play under "Bee Scout badge earned!"
     if (!text) return; // a pure sound effect
     var b = $("bubble"), c = $("cap"), isAsk = id.indexOf("scout_ask_") === 0;
     var update = isAsk && id === curLine; // an "Ask Beeswax" answer growing as it streams in
@@ -602,11 +741,16 @@ const SHOW = `<!doctype html>
     showToday(0);
     clearTimeout(revealTimer); clearTimeout(outTimer); $("reveal").classList.remove("on", "out");
     clearTimeout(pinTimer); clearPin(); bx.flash = null;
-    hideYou(); hideTeacher(); stopSpeaking(); goIdle();
+    hideYou(); hideTeacher(); stopSpeaking(); goIdle(); clearCase();
   });
 
   function onState(st) {
     S = st;
+    var found = Array.isArray(st.found) ? st.found : [];
+    // a new journey (reset, start, mode switch): the case empties
+    if ((journey !== null && st.started_at && st.started_at !== journey) || (st.phase === "intro" && !found.length)) clearCase();
+    if (st.started_at) journey = st.started_at;
+    found.forEach(function (l) { if (earn(l)) fillSlot(l, false); });
     if (pinLabel && S.phase === "looking" && S.offer !== pinLabel) { clearTimeout(pinTimer); pinTimer = setTimeout(clearPin, 6000); }
   }
 
