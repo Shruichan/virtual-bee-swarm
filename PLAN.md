@@ -22,7 +22,7 @@
 | Team name | "Virtual Bee Swarm" or "Angry Virtual Bee Swarm"? **Finalize by Sat 9:00 AM** |
 | Hardware | **One Meta Quest (3 or 3S: which one?)**, **Mentra Live** glasses (camera + mics + speakers, **no display**), and Rome's **iPhone** as the glasses' phone |
 | Tracks | Pick 2. Leading candidates: **ManageXR** ("bring AI to the physical world with smart glasses") and **Visko** (living worlds), with **Social Good** as the fallback. The official 2026 text is on the login-gated live dashboard, so someone copy it here |
-| Concept | **v3 = best of both:** Adityash's hive escape (4 stations + live Orbis future window + voice what-ifs) + HONEYMOON (Beeswax the union-rep drone, Moon stakes and ending, hornet hum). Glasses get fitted in after the Quest game works |
+| Concept | **v3 = best of both:** Adityash's hive escape (4 stations + live Orbis future window + voice what-ifs) + HONEYMOON (Beeswax the union-rep drone, Moon stakes and ending, hornet hum). Mentra Live adds an audio-only Bee Scout field guide for plant and pollinator IDs |
 
 ## ⏰ Do these tonight (everyone)
 
@@ -680,7 +680,9 @@
 
 #### S17 Mentra Live miniapp
 
-- **S17.1 Validate the separate Mentra Live build** (P0 · 0.5 h · needs –) — done when: the glasses package passes typecheck, flow tests and production build; the local release path and current Mentra distribution limits are documented; and no Hive token or release artifact is committed — owner: **Rome** — status: in progress.
+- **S17.1 Bee Scout miniapp** (P0 · 0.5 h · needs –) — done when: a button press works without a Quest scan beat, captures a photo, and speaks a cautious likely ID plus one conservation note; unclear photos ask for a retry; typecheck, flow tests and production build pass — owner: **Rome** — status: in progress.
+
+- **S17.2 Field guide scan endpoint** (P0 · 0.5 h · needs S17.1) — done when: `field_guide: true` creates a field-only scan job at any beat, routes photos through vision rather than speech shortcuts, and sends no scan effects to Unity; documented without exposing a token — owner: **Rome** — status: in progress.
 
 ### Schedule
 
@@ -1259,11 +1261,8 @@ A glowing portal next to the hive shows a **live Orbis stream of the meadow's fu
 - Bees need shallow water with landing spots (they drown in deep water), and they cool the hive by spreading water and fanning their wings → **Station 4**.
 - Optional opener stat: US beekeepers lost more than half their managed colonies in one recent year (Auburn-led survey, 2024–25). Hedge every number.
 
-### Glasses (Mentra Live): adapt later
-The glasses are a second priority: we build the Quest game first and fit the glasses in after. Options that already work with the backend:
-- **A second mic** for the what-if questions (glasses transcription → same voice pipeline).
-- **Beeswax in your ear** for asides and hints.
-- **Real props:** a second player looks at a REAL prop on the table (honey jar vs. syrup bottle, pebble dish vs. bowl) and that makes the station choice. This is the strongest pitch for the ManageXR track ("AI in the physical world with smart glasses").
+### Glasses (Mentra Live): Bee Scout field guide
+Mentra Live has no display, so its independent mode uses one button press to capture a plant or pollinator and speaks a likely ID plus one bee-friendly observation or action. It says when a photo is too unclear for a confident ID and avoids claiming species, native status, or safety without evidence. The same miniapp can still play ear asides and send the scout's plea during the Quest demo; field guide scans do not trigger Quest effects.
 
 ### Sponsors
 - **Visko Orbis (via Reactor):** the future window, steered live by choices and voice. **Go/no-go Sat 11 AM** for live; recorded clips per window state are the floor either way.
@@ -1311,7 +1310,7 @@ Optional (only if we do physical choices or the glasses real-prop mode): a jar o
 
 - **Hosts:** `beeswax.drori.dev` (pop-os, always on: use it tonight) and `beeswax-venue.drori.dev` (Rome's laptop at the venue: **primary on demo day**). Clients try venue first, then pop-os.
 - **Dev server is LIVE (Sat 12:30 AM):** `https://beeswax.drori.dev/health` · Beat Board `https://beeswax.drori.dev/board?token=TOKEN` · spectator `…/monitor?token=TOKEN` · bus `wss://beeswax.drori.dev/bus?role=quest&token=TOKEN` · Orbis frames `wss://beeswax.drori.dev/orbis/frames?token=TOKEN` (fake test pattern until the Reactor key is in). **Get TOKEN from Rome privately**: never commit it. Unity setup: `unity/BeeswaxClient/README.md`. Running the Hive locally: `cd hive && bun install && bun run start` (tests: `bun --no-env-file test`, so a local `.env` with real keys never gets used by tests).
-- **Mentra Live:** no display. The old `@mentra/sdk` / AppServer / ngrok is **retired**: ignore tutorials and AI suggestions that use them. Use a **miniapp** (`@mentra/miniapp`, Bun/TS, beta) that runs on the phone, with `session.transcription`, `camera.takePhoto()` → signed URL (~30 min), `speaker.speak/play/createStream`, buttons/touch, `led`, `fetch`/WebSocket. iPhone means Mentra App 3.3, so `@mentra/miniapp@3.3.0`. Dev: laptop + iPhone on the same network (iPhone hotspot), `bun dev` → scan the QR in the Mentra App. Demo: `mentra-miniapp release`. Docs index: https://docs.mentraglass.com/llms.txt
+- **Mentra Live:** no display. Bee Scout uses a local Mentra miniapp (`@mentra/miniapp@3.3.0`) with button, camera, mic, LED and speaker APIs; the independent `field_guide` scan does not require a Quest beat. The current SDK is beta and supports local dev/release installs; Mentra's current docs recommend the Bluetooth SDK for new Mentra Live development and do not support Miniapp Store distribution yet. Docs: https://docs.mentraglass.com/llms.txt
 - **Orbis = Reactor** (`reactor/visko-orbis-stable`): ~$0.58/min while connected, WebRTC, 832×480 @ 18 fps, first frame ~3–4 s, prompt changes morph in 2–4 s, 5 concurrent sessions per account, clips expire in 24 h. No Unity SDK, so a Python `reactor-sdk==1.14.0` relay sends JPEGs to Unity. Tune prompts in the sandbox: https://www.reactor.inc/sandbox?model=visko-orbis-stable. Keep prompts non-violent (moderation ends the session).
 - **Quest (U1/U2):** Unity 6 (6000.0.66f2+), Unity OpenXR + Meta XR feature group, `com.meta.xr.sdk.core` / `com.meta.xr.mrutilitykit` / `com.meta.xr.sdk.interaction.ovr` **209.0.0** via Building Blocks + Project Setup Tool. Floor/stage origin (a system recenter must not move the mat). Declare boundaryless. Bees with Burst + `Graphics.RenderMeshInstanced`. Meta XR Audio (`com.meta.xr.sdk.audio` 209.0.0) as the spatializer. **Avoid** Voice SDK, VFX Graph, colocation. Pre-grant mic permission. Check scrcpy casting of passthrough early.
 - **Voice:** one ElevenLabs Voice-Designed Beeswax voice for everything. Scripted lines are pre-rendered and shipped inside the Unity build and the miniapp. Live lines (off-list roasts) are streamed.
@@ -1380,8 +1379,8 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 | `GET /board`, `GET /monitor` | token | Beat Board, spectator page |
 | `GET /lines.json`, `GET /stations.json` | token | Line catalog, station table |
 | `POST /board/custom {text}` | token | v2.1: the operator types a what-if (or anything). Routed exactly like speech, in any beat → `{ok, intent, topic, path, ms, custom_prompt?, blocked?, answer?}` |
-| `POST /glasses/press {pressed_at, button?, press_type?}` | token | → `{allowed, scan_id, line_id}` (`ear_not_now` outside scan beats or while a scan runs) |
-| `POST /glasses/scan {scan_id, photo_url?, heard?, pressed_at}` | token | → `{item, verdict, line_id, audio_url, caption, path, ms}`; 409 + `ear_not_now` when not allowed |
+| `POST /glasses/press {pressed_at, button?, press_type?, field_guide?}` | token | → `{allowed, scan_id, line_id}`; `field_guide: true` starts an independent field scan at any beat |
+| `POST /glasses/scan {scan_id, photo_url?, heard?, pressed_at, field_guide?}` | token | → `{item, verdict, line_id, audio_url, caption, path, ms}`; field guide always requires a usable photo for identification |
 | `POST /glasses/utterance {text, at}` | token | The glasses' own transcription, same pipeline as Quest voice → `{intent, topic, line_id, audio_url, caption}` |
 | `POST /glasses/plea {text}`, `POST /glasses/latency {hop, ms}`, `POST /glasses/event {…}` | token | Plea → Quest clipboard; hop timing; free-form log |
 | `GET /audio/<id>.mp3` | open (random id) | Live ear lines |
@@ -1450,3 +1449,4 @@ Source of truth: `hive/src/protocol.ts`, **v2.1** (additive: `PROTOCOL_VERSION` 
 - 2026-11-14 16:16 PT · Rome (agent) · Claiming S17.1: validate and package the Mentra Live miniapp as an isolated glasses build in `glasses/`, check its end-to-end flow/build path, and document the current local install limits. → team
 - 2026-11-14 15:53 PT · Nam Nguyen (agent) · Reviewing S3.3 against the generic `SpawnObject` work in `unity/VirtualBeeSwarm/Assets/VirtualBeeSwarm/AR/SpawnObject.cs`; the plan's P0 path is two-point table calibration (controller tip, grab-and-drop fallback), while aim-and-pinch is V7 SHOULD. → team
 - 2026-11-14 15:53 PT · Nam Nguyen (agent) · Updated optional `SpawnObject` to require the calibrated pre-beat table, fit the plan's placement box, snap near-table hits to table height, and parent spawned props to `TableAnchor`; `HivePlacement` remains the S3.3 calibration path. Editor diagnostics are clean; Quest/recenter checks remain. → team
+- 2026-11-14 16:18 PT · Rome (agent) · Pivoting S17 to Bee Scout: the glasses now scan plants and pollinators anytime, speak a cautious likely ID plus one conservation action, and avoid Quest effects; adding the independent `field_guide` scan path. → team
