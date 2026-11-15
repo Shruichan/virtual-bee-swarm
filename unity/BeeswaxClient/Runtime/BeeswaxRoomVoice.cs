@@ -62,6 +62,7 @@ namespace Beeswax
         public bool IsSpeaking => _current != null;
         public bool IsSpeakingDeviceFallback => _current?.deviceSpeech == true;
         public Func<string, bool> CanSpeakAskCaption { get; set; }
+        public Func<string, string> PreloadedAnswerId { get; set; }
         /// <summary>Smoothed loudness of what Beeswax is saying now, 0..1.</summary>
         public float Amplitude { get; private set; }
         public string CurrentCaption => _current?.caption ?? "";
@@ -185,11 +186,12 @@ namespace Beeswax
 
         // ---------------------------------------------------------------- public API
         /// <summary>Queue a pre-rendered line. Returns false if no clip was found (its caption still shows).</summary>
-        public bool Play(string lineId, string caption = null)
+        public bool Play(string lineId, string caption = null, bool allowDeviceSpeech = false)
         {
             var clip = FindClip(lineId);
             if (clip == null) Debug.LogWarning($"[Beeswax] no clip for line '{lineId}'; showing the caption only.");
-            Enqueue(new Line { lineId = lineId ?? "", clip = clip, caption = caption ?? CaptionFor(lineId) });
+            Enqueue(new Line { lineId = lineId ?? "", clip = clip, caption = caption ?? CaptionFor(lineId),
+                allowDeviceSpeech = allowDeviceSpeech });
             return clip != null;
         }
 
@@ -222,6 +224,11 @@ namespace Beeswax
         }
 
         public bool HasClip(string lineId) => FindClip(lineId) != null;
+
+        public void WarmEnvelope(AudioClip clip)
+        {
+            if (clip != null && clip.loadState == AudioDataLoadState.Loaded) EnvelopeOf(clip);
+        }
 
         /// <summary>
         /// Skip the next say/verdict for lineId from the bus if it arrives within `seconds`. For lines you played
@@ -363,6 +370,16 @@ namespace Beeswax
         {
             line.started = true;
             line.startedAt = now;
+            if (line.clip == null && line.allowDeviceSpeech)
+            {
+                string answerId = PreloadedAnswerId?.Invoke(line.caption);
+                if (!string.IsNullOrEmpty(answerId) && _clipCache.TryGetValue(answerId, out var answerClip) &&
+                    answerClip != null && answerClip.loadState == AudioDataLoadState.Loaded)
+                {
+                    line.lineId = answerId;
+                    line.clip = answerClip;
+                }
+            }
             if (line.clip != null)
             {
                 line.envelope = EnvelopeOf(line.clip);

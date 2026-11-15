@@ -69,17 +69,24 @@ namespace VirtualBeeSwarm
         void OnDisable() { if (net != null) net.SceneChanged -= SetScene; }
 
         GameDirector _director;
+        AR.ArRig _rig;
+        bool _faceViewer;
 
         void Start()
         {
             _director = GameDirector.Instance != null ? GameDirector.Instance : FindAnyObjectByType<GameDirector>();
             if (_director != null) _director.BeatChanged += HandleBeat;
+            _rig = AR.ArRig.Instance != null ? AR.ArRig.Instance : FindAnyObjectByType<AR.ArRig>();
+            if (_rig != null) _rig.RoomChanged += HandleRoomChanged;
         }
 
         void OnDestroy()
         {
             if (_director != null) _director.BeatChanged -= HandleBeat;
+            if (_rig != null) _rig.RoomChanged -= HandleRoomChanged;
         }
+
+        void HandleRoomChanged(AR.RoomModel _) => _faceViewer = true;
 
         // A Board jump (beat.request) or a skip past `meet` must not leave the window shut for the rest of the show.
         void HandleBeat(GameBeat prev, GameBeat beat)
@@ -88,7 +95,11 @@ namespace VirtualBeeSwarm
         }
 
         // ------------------------------------------------------------ API
-        public void Open() => _openTarget = 1f;
+        public void Open()
+        {
+            if (!IsOpen) _faceViewer = true;
+            _openTarget = 1f;
+        }
         public void Close() => _openTarget = 0f;
         public void Grow()
         {
@@ -200,6 +211,18 @@ namespace VirtualBeeSwarm
                 if (_toFlicker) glowNow = Color.Lerp(glowNow, new Color(1f, 0.3f, 0.05f, glowNow.a), 0.7f);
             }
             if (_fx != null) _fx.Tick(_open, glowNow);
+        }
+
+        void LateUpdate()
+        {
+            if (!_faceViewer || !IsOpen || !Bloom.MeadowLayout.Active) return;
+            var camera = Camera.main;
+            if (camera == null) return;
+            _faceViewer = false;
+            Vector3 away = Vector3.ProjectOnPlane(transform.position - camera.transform.position, Vector3.up);
+            if (away.sqrMagnitude < 0.04f) return;
+            // The picture faces local -Z. Sample the standing spot only when opening or placing the window.
+            transform.rotation = Quaternion.LookRotation(away, Vector3.up);
         }
 
         void ApplyOpen(float open)

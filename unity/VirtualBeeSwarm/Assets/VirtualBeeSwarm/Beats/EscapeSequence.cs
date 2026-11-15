@@ -352,7 +352,7 @@ namespace VirtualBeeSwarm
             if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
             forward.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, forward);
-            Vector3 position = head.position + forward * 0.85f - right * 0.26f - Vector3.up * 0.4f;
+            Vector3 position = head.position + forward * 0.67f - right * 0.17f - Vector3.up * 0.27f;
             return new Pose(position, Quaternion.LookRotation(position - head.position, Vector3.up));
         }
 

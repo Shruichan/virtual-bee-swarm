@@ -46,6 +46,7 @@ namespace VirtualBeeSwarm.Ask
         TextMesh _status, _minutes, _answer;
         AskChip[] _chips;
         GameObject[] _chipLabels;
+        bool _showChip;
         readonly Transform[] _hex = new Transform[3];
         readonly Renderer[] _hexR = new Renderer[3];
         bool _flownIn;
@@ -102,14 +103,9 @@ namespace VirtualBeeSwarm.Ask
                 _hexR[i] = r;
             }
 
-            _chips = new AskChip[AskLines.Chips.Length];
+            _chips = new AskChip[1];
             _chipLabels = new GameObject[_chips.Length];
-            for (int i = 0; i < _chips.Length; i++)
-            {
-                float x = (i % 2 == 0 ? -1f : 1f) * 0.118f;
-                float y = top - 0.179f - (i / 2) * 0.064f;
-                _chips[i] = Chip(i, new Vector3(x, y, -0.006f), AskLines.ChipLabels[i]);
-            }
+            _chips[0] = Chip(0, new Vector3(0f, top - 0.215f, -0.006f), AskLines.ChipLabels[0]);
             _answer = Text("Answer", new Vector3(0f, top - 0.218f, -0.004f), "", 0.0030f, FontStyle.Bold);
             _answer.gameObject.SetActive(false);
             _minutes = Text("Minutes", new Vector3(0f, -top + 0.022f, -0.004f), AskFlow.MinutesText(0), 0.0022f, FontStyle.Bold);
@@ -118,9 +114,10 @@ namespace VirtualBeeSwarm.Ask
 
         // ------------------------------------------------------------ show / hide
         /// <summary>Fly the card in with a bee crew (BeeDelivery, any mode; off = it just appears) and park it at `pose`.</summary>
-        public void Show(Pose pose)
+        public void Show(Pose pose, bool showChip = true)
         {
             Build();
+            _showChip = showChip;
             _grip.ResetPlacement();
             _grip.Ready = true;
             ShowChips();
@@ -188,7 +185,7 @@ namespace VirtualBeeSwarm.Ask
         public void ShowChips()
         {
             if (_answer != null) _answer.gameObject.SetActive(false);
-            SetChipsActive(true);
+            SetChipsActive(_showChip);
             AnswerShown = false;
         }
 
@@ -318,15 +315,13 @@ namespace VirtualBeeSwarm.Ask
         }
 
         /// <summary>
-        /// Where the card parks: at the player's right hand, 1 m away and 30 degrees right of the window (so the hive,
-        /// the level map over it and the window stay clear), a little below eye height, facing them. No window: the same
-        /// spot measured from where the head looks.
+        /// Park in reach below the player's gaze, clear of the hive and window.
         /// </summary>
         public static Pose PoseFor(Transform head, Transform window)
         {
             Vector3 h = head != null ? head.position : new Vector3(0f, 1.5f, 0f);
             Vector3 fwd = head != null ? head.forward : Vector3.forward;
-            if (window != null)
+            if (head == null && window != null)
             {
                 Vector3 toWin = window.position - h;
                 toWin.y = 0f;
@@ -336,9 +331,7 @@ namespace VirtualBeeSwarm.Ask
             if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward;
             fwd.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, fwd);
-            const float deg = 30f * Mathf.Deg2Rad;
-            Vector3 pos = h + (fwd * Mathf.Cos(deg) + right * Mathf.Sin(deg)) * 1.0f;
-            pos.y = Mathf.Clamp(h.y - 0.20f, 0.85f, 1.65f);
+            Vector3 pos = h + fwd * 0.72f + right * 0.16f - Vector3.up * 0.25f;
             Vector3 look = pos - h;
             look.y = 0f;
             if (look.sqrMagnitude < 1e-4f) look = fwd;

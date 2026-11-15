@@ -1,11 +1,12 @@
 using System.Collections;
 using UnityEngine;
+using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
 {
     /// <summary>
-    /// Station 2: "Is there enough food in there?" The player lifts/tips the hive (pinch-grab it, ray-grab it, or hold
-    /// G in the editor); it comes up way too easily -> "We're starving." Then store honey (wrong: the colony gets
+    /// Station 2: "Is there enough food in there?" The player lifts and rocks the hive by hand or controller
+    /// (hold G in the editor). It feels too light. "We're starving." Then store honey (wrong: the colony gets
     /// sick, the honey mistake) or sugar syrup (right). Keys 1-2.
     /// requireMistakeFirst = syrup is locked until honey was tried (for filming the honey mistake).
     /// </summary>
@@ -16,15 +17,18 @@ namespace VirtualBeeSwarm
         [Tooltip("Where a jar goes to pour (above the hive).")]
         [SerializeField] Transform pourPoint;
         [SerializeField] bool requireMistakeFirst;
-        [Tooltip("v2: room_feed_lift_hint when there's no lift this long after room_feed_intro.")]
+        [Tooltip("Repeat the weight-check instruction after this many seconds of inactivity.")]
         [SerializeField] float liftHintSeconds = 8f;
-        [Tooltip("v2: no lift this long after room_feed_intro: skip the lift (no room_lift_light), straight to room_feed_tip.")]
+        [Tooltip("If no one completes the weight check, Beeswax explains the empty hive and continues the demo.")]
         [SerializeField] float liftGiveUpSeconds = 18f;
 
         protected override GameLine Prompt => GameLines.FeedPrompt;
         protected override GameLine Hint => RideLines.HintFeed;
 
-        bool _lifted, _triedHoney;
+        bool _rocked, _triedHoney;
+        float _retryUntil = -1f;
+        HandsOnPrompt _weightPrompt;
+        public bool WarningVisible => _weightPrompt != null && _weightPrompt.Visible && Time.time < _retryUntil;
         Transform _emptyCard;
         Vector3 _honeyHome, _syrupHome;
         Quaternion _honeyRot, _syrupRot;
@@ -40,57 +44,91 @@ namespace VirtualBeeSwarm
         protected override void OnEnable()
         {
             base.OnEnable();
-            if (hive != null) hive.Lifted += HandleLifted;
+            if (hive != null)
+            {
+                hive.Rocked += HandleRocked;
+                hive.RockReleasedEarly += HandleEarlyRelease;
+            }
         }
 
         protected override void OnDisable()
         {
             base.OnDisable();
-            if (hive != null) hive.Lifted -= HandleLifted;
+            if (hive != null)
+            {
+                hive.Rocked -= HandleRocked;
+                hive.RockReleasedEarly -= HandleEarlyRelease;
+            }
         }
 
-        void HandleLifted(float height)
+        void HandleRocked()
         {
-            if (IsActive) _lifted = true;
+            if (!IsActive) return;
+            _rocked = true;
+            _weightPrompt?.Hide();
+        }
+
+        void HandleEarlyRelease()
+        {
+            if (!IsActive || _rocked || Time.time < _retryUntil) return;
+            _retryUntil = Time.time + 3f;
+            ShowWeightPrompt("! PICK UP AND ROCK", HandsOnKit.Bad);
+            GameSound.Cue("stamp_grievance", hive.transform);
+            if (net != null)
+            {
+                net.StopVoice();
+                net.Say(GameLines.RoomFeedRockRetry);
+            }
+        }
+
+        void ShowWeightPrompt(string text, Color color)
+        {
+            if (hive == null) return;
+            if (_weightPrompt == null) _weightPrompt = HandsOnPrompt.Build(transform, "Hive weight check");
+            var head = HandsOnKit.Head;
+            Vector3 right = head != null ? head.right : Vector3.right;
+            _weightPrompt.Show(text, hive.SwarmCenter, Vector3.up * 0.23f + right * 0.17f, color: color);
         }
 
         protected override void OnStationEnter()
         {
-            _lifted = false;
+            _rocked = false;
+            _retryUntil = -1f;
             if (swarm != null) swarm.SetMode(SwarmMode.Calm);
         }
 
-        /// <summary>
-        /// v2: room_feed_intro ("Problem two. Speaking of honey...") as Beeswax flies to the hive roof; no lift 8 s ->
-        /// room_feed_lift_hint; the lift -> room_lift_light ("Light, right? That's bad.") -> room_feed_tip ("We're
-        /// starving."); no lift 18 s -> skip it, room_feed_tip. Then the syrup zips in and the jar's crew strains as
-        /// room_feed_prompt plays, and room_crew_heavy over the jar's struggle.
-        /// </summary>
+        /// <summary>Let the player feel the weight, then explain the empty hive before the feeding choices arrive.</summary>
         protected override IEnumerator StationIntro()
         {
             if (beeswax != null && hive != null) beeswax.FlyTo(hive.transform.position + Vector3.up * 0.32f); // raps the roof
             if (hive != null) hive.LiftEnabled = true;
+            ShowWeightPrompt("PICK UP THE HIVE", HandsOnKit.Honey);
             yield return SayAndWait(Prompt, 0.8f, 5.5f);
+            if (!_rocked && Time.time >= _retryUntil && net != null) net.Say(GameLines.FeedLiftHint);
             float start = Time.time;
             bool hinted = false;
-            while (!_lifted && Time.time - start < liftGiveUpSeconds)
+            while (!_rocked && hive != null && Time.time - start < liftGiveUpSeconds + 5f)
             {
-                if (!hinted && Time.time - start > liftHintSeconds && (net == null || !net.IsSpeaking))
+                bool warning = Time.time < _retryUntil;
+                if (Time.time - start >= liftGiveUpSeconds && !warning && !hive.Held) break;
+                if (warning && hive.Held) ShowWeightPrompt("! ROCK IT BACK AND FORTH", HandsOnKit.Bad);
+                if (!warning)
+                    ShowWeightPrompt(hive.Held ? "ROCK IT BACK AND FORTH" : "PICK UP THE HIVE", HandsOnKit.Honey);
+                if (!hinted && !warning && Time.time - start > liftHintSeconds && (net == null || !net.IsSpeaking))
                 {
                     hinted = true;
-                    RidePacing.NoteStall("feed: no lift " + liftHintSeconds.ToString("0") + " s after the intro");
                     if (net != null) net.Say(GameLines.FeedLiftHint);
                 }
                 yield return null;
             }
-            if (hive != null) hive.LiftEnabled = false; // set it down before choosing and pouring
+            EndWeightCheck();
             if (beeswax != null) { beeswax.WhipAround(); beeswax.GoPresent(); } // he tumbles off the roof
-            if (_lifted)
+            if (_rocked)
             {
                 ShowEmptyHive();
                 yield return SayLine(RideLines.LiftLight, 1f);
             }
-            else Debug.Log("[VBS][Stations] feed: no lift after " + liftGiveUpSeconds.ToString("0") + " s, skipping it");
+            else Debug.Log("[VBS][Stations] feed: weight check assisted");
             yield return SayAndWait(GameLines.FeedTooLight, 1f, 3f, unlessHive: false);
             HideEmptyHive();
             yield return SayLine(GameLines.RoomFeedRocketFuel);
@@ -118,7 +156,7 @@ namespace VirtualBeeSwarm
 
         protected override IEnumerator ShowOutcome(string choice, bool correct)
         {
-            if (hive != null) hive.LiftEnabled = false;
+            EndWeightCheck();
             bool honey = choice == GameIds.Choice.StoreHoney;
             if (honey) _triedHoney = true;
             Transform prop = honey ? honeyJar : syrupBottle;
@@ -164,16 +202,16 @@ namespace VirtualBeeSwarm
                 label.GetComponent<MeshRenderer>().sharedMaterial = label.font.material;
                 label.text = "EMPTY HIVE";
                 label.anchor = TextAnchor.MiddleCenter;
+                label.alignment = TextAlignment.Center;
                 label.fontSize = 48;
                 label.characterSize = 0.01f;
                 label.color = new Color(1f, 0.94f, 0.76f);
             }
             var eyes = camera.transform;
-            var front = Vector3.ProjectOnPlane(hive.transform.position - eyes.position, Vector3.up).normalized;
-            if (front.sqrMagnitude < 0.5f) front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
+            Vector3 front = Vector3.ProjectOnPlane(eyes.forward, Vector3.up).normalized;
             if (front.sqrMagnitude < 0.5f) front = Vector3.forward;
-            var pos = eyes.position + front * 0.8f + Vector3.Cross(Vector3.up, front) * 0.2f - Vector3.up * 0.23f;
-            _emptyCard.SetPositionAndRotation(pos, Quaternion.LookRotation(pos - eyes.position, Vector3.up));
+            Vector3 position = eyes.position + front * 0.65f - Vector3.up * 0.17f;
+            _emptyCard.SetPositionAndRotation(position, Quaternion.LookRotation(position - eyes.position, Vector3.up));
             _emptyCard.gameObject.SetActive(true);
         }
 
@@ -182,12 +220,18 @@ namespace VirtualBeeSwarm
             if (_emptyCard != null) _emptyCard.gameObject.SetActive(false);
         }
 
+        void EndWeightCheck()
+        {
+            _weightPrompt?.Hide();
+            if (hive != null) hive.LiftEnabled = false;
+        }
+
         protected override void OnStationExit()
         {
+            EndWeightCheck();
             HideEmptyHive();
             if (hive != null)
             {
-                hive.LiftEnabled = false;
                 if (Solved) hive.SetSick(false);
             }
             RestoreProps();
@@ -196,11 +240,11 @@ namespace VirtualBeeSwarm
         protected override void OnStationReset()
         {
             HideEmptyHive();
-            _lifted = false;
+            EndWeightCheck();
+            _rocked = false;
             _triedHoney = false;
             if (hive != null)
             {
-                hive.LiftEnabled = false;
                 hive.SetSick(false);
             }
             RestoreProps();

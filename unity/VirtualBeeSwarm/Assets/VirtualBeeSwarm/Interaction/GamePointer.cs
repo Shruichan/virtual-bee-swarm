@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.XR;
+using UnityEngine.Rendering;
 using VirtualBeeSwarm.HandsOn;
 
 namespace VirtualBeeSwarm
@@ -37,9 +37,22 @@ namespace VirtualBeeSwarm
         IGameGrabTarget _lastGrabTarget;
         float _grabDistance;
         bool _directGrab;
-        bool _panelGripHeld;
+        bool _panelGripHeld, _grabHeldByGrip;
+        IHandPoseSource _poseSource;
+        bool _poseIsController, _waitForNeutral;
         readonly Collider[] _overlap = new Collider[8];
         readonly RaycastHit[] _hitsBehindLever = new RaycastHit[16];
+        static int _pickupDrawFrame = -1;
+        Component _pickupTarget;
+        MeshFilter[] _pickupMeshes;
+        Material _pickupMaterial;
+        MaterialPropertyBlock _pickupColors;
+        float _nextPickupSearch;
+
+        void OnDestroy()
+        {
+            if (_pickupMaterial != null) Destroy(_pickupMaterial);
+        }
 
         public void Configure(Source s, LineRenderer line)
         {
@@ -52,23 +65,42 @@ namespace VirtualBeeSwarm
             SetHover(null);
             if (_grab != null) { _grab.EndGrab(); _grab = null; }
             _panelGripHeld = false;
+            _poseSource = null;
+            _poseIsController = _waitForNeutral = false;
             if (rayLine != null) rayLine.enabled = false;
         }
 
         void Update()
         {
+            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
+            var pose = source == Source.Mouse ? null : GameHands.For(hand);
+            bool controller = pose is IControllerPoseSource input && input.IsController(hand);
             HasRay = TryGetRay(out Ray ray);
             bool down = PressDown(), held = PressHeld();
-            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
-            bool controller = source != Source.Mouse && GameHands.For(hand) is IControllerPoseSource input && input.IsController(hand);
             bool gripHeld = controller ? GameHands.IsFist(hand) : held;
+            if (!ReferenceEquals(_poseSource, pose) || _poseIsController != controller)
+            {
+                if (_grab != null) { _grab.EndGrab(); _grab = null; }
+                SetHover(null);
+                _lastCol = null;
+                _poseSource = pose;
+                _poseIsController = controller;
+                _panelGripHeld = false;
+                _waitForNeutral = held || gripHeld;
+            }
+            if (_waitForNeutral)
+            {
+                _waitForNeutral = held || gripHeld;
+                down = false;
+                gripHeld = false;
+            }
             bool gripDown = controller ? gripHeld && !_panelGripHeld : down;
             _panelGripHeld = gripHeld;
 
             // ---- holding something
             if (_grab != null)
             {
-                bool stillHeld = _grab is PanelGrip panel ? gripHeld && panel.Held && panel.Ready : held && _grab.Grabbable;
+                bool stillHeld = _grab is PanelGrip panel ? (_grabHeldByGrip ? gripHeld : held) && panel.Held && panel.Ready : held && _grab.Grabbable;
                 if (!stillHeld)
                 {
                     _grab.EndGrab();
@@ -95,10 +127,11 @@ namespace VirtualBeeSwarm
                 {
                     var g = _overlap[i].GetComponentInParent<IGameGrabTarget>();
                     if (g == null || !g.Grabbable) continue;
-                    if (g is PanelGrip)
+                    if (g is PanelGrip nearPanel)
                     {
-                        // The nearby tab must be touched deliberately, rather than winning an overlapping chip's poke.
-                        if (!gripDown || (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.018f * 0.018f) continue;
+                        // Pinch the visible strip, or use the controller grip on the panel face.
+                        if (!(nearPanel.IsHandle(_overlap[i]) || controller && gripDown) ||
+                            (_overlap[i].ClosestPoint(handPoint) - handPoint).sqrMagnitude > 0.045f * 0.045f) continue;
                     }
                     else if (!down) continue;
                     if (g is HoneyLever lever && !lever.Live)
@@ -107,7 +140,7 @@ namespace VirtualBeeSwarm
                         lockedLeverPoint = handPoint;
                         continue;
                     }
-                    BeginDirectGrab(g, handPoint);
+                    BeginDirectGrab(g, handPoint, controller && gripDown && g is PanelGrip);
                     return;
                 }
             }
@@ -125,6 +158,7 @@ namespace VirtualBeeSwarm
                     hit = behind;
                     if (hit.collider != _lastCol) CacheHit(hit.collider);
                 }
+                if (PreferPanelRayHit(ray, ref hit, controller && gripHeld)) CacheHit(hit.collider);
                 target = _lastTarget != null && _lastTarget.Interactable ? _lastTarget : null;
                 grabTarget = _lastGrabTarget != null && _lastGrabTarget.Grabbable ? _lastGrabTarget : null;
                 hitDistance = hit.distance;
@@ -135,40 +169,138 @@ namespace VirtualBeeSwarm
             DrawRay(HasRay, ray, target != null || grabTarget != null ? hitDistance : idleRayLength);
 
             if (!down && !gripDown) return;
-            if (grabTarget is PanelGrip ? gripDown : grabTarget != null && down)
+            if (grabTarget is PanelGrip ? gripDown || down : grabTarget != null && down)
             {
                 SetHover(null);
                 _grab = grabTarget;
                 _directGrab = false;
                 _grabDistance = hitDistance;
+                _grabHeldByGrip = controller && gripDown && grabTarget is PanelGrip;
                 grabTarget.BeginGrab(ray.GetPoint(hitDistance));
+                Feedback(0.20f, 0.05f);
             }
-            else if (down && target != null) target.Click();
+            else if (down && target != null)
+            {
+                target.Click();
+                Feedback(0.30f, 0.055f);
+            }
             else if (down && lockedLever != null) BeginDirectGrab(lockedLever, lockedLeverPoint);
+        }
+
+        bool PreferPanelRayHit(Ray ray, ref RaycastHit hit, bool grip)
+        {
+            var panel = hit.collider.GetComponentInParent<PanelGrip>();
+            var target = hit.collider.GetComponentInParent<IGameTarget>();
+            bool findPanel = grip && target != null;
+            bool findChip = !grip && panel != null && !panel.IsHandle(hit.collider);
+            if (!findPanel && !findChip) return false;
+            float limit = hit.distance + 0.05f;
+            bool changed = false;
+            int count = Physics.RaycastNonAlloc(ray, _hitsBehindLever, limit, layers, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = _hitsBehindLever[i];
+                if (candidate.distance >= limit) continue;
+                bool eligible = findPanel ? candidate.collider.GetComponentInParent<PanelGrip>()?.Grabbable == true :
+                    candidate.collider.GetComponentInParent<IGameTarget>()?.Interactable == true;
+                if (!eligible) continue;
+                hit = candidate;
+                limit = hit.distance;
+                changed = true;
+            }
+            return changed;
+        }
+
+        void LateUpdate()
+        {
+            // The same objective is visible to both pointers, with only one overlay per frame.
+            if (_pickupDrawFrame == Time.frameCount) return;
+            _pickupDrawFrame = Time.frameCount;
+            var director = GameDirector.Instance;
+            if (director == null || director.Beat < GameBeat.Smoker || director.Beat > GameBeat.Heat)
+            {
+                _pickupTarget = null;
+                _pickupMeshes = null;
+                _nextPickupSearch = 0f;
+                return;
+            }
+
+            if (!PickupReady(_pickupTarget) && Time.unscaledTime >= _nextPickupSearch)
+            {
+                _nextPickupSearch = Time.unscaledTime + 0.2f;
+                Component next = null;
+                foreach (var prop in FindObjectsByType<CarryProp>(FindObjectsSortMode.None))
+                {
+                    if (!PickupReady(prop)) continue;
+                    next = prop;
+                    break;
+                }
+                if (next == null && director.Beat == GameBeat.Feed)
+                {
+                    var hive = FindAnyObjectByType<HiveBody>();
+                    if (PickupReady(hive)) next = hive;
+                }
+                if (next != _pickupTarget)
+                {
+                    _pickupTarget = next;
+                    _pickupMeshes = next != null ? next.GetComponentsInChildren<MeshFilter>(true) : null;
+                }
+            }
+
+            // Runs after input so a successful grab removes the flash that very frame.
+            if (!PickupReady(_pickupTarget) || _pickupMeshes == null) return;
+            if (_pickupMaterial == null)
+            {
+                _pickupMaterial = GameMaterials.Create("VBS Objective Flash", Color.white, GameMaterials.Blend.Additive);
+                _pickupColors = new MaterialPropertyBlock();
+            }
+            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4.5f);
+            var white = new Color(1f, 1f, 1f, 0.14f + 0.86f * pulse * pulse * pulse);
+            _pickupColors.SetColor(GameMaterials.ColorId, white);
+            _pickupColors.SetColor(GameMaterials.BaseColorId, white);
+            foreach (var filter in _pickupMeshes)
+            {
+                if (filter == null || !filter.gameObject.activeInHierarchy || !filter.TryGetComponent<MeshRenderer>(out var renderer) ||
+                    !renderer.enabled || renderer.forceRenderingOff || filter.sharedMesh == null) continue;
+                Mesh mesh = filter.sharedMesh;
+                for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                    Graphics.DrawMesh(mesh, renderer.localToWorldMatrix, _pickupMaterial,
+                        renderer.gameObject.layer, null, submesh, _pickupColors, ShadowCastingMode.Off, false);
+            }
+        }
+
+        static bool PickupReady(Component target)
+        {
+            if (target == null || !target.gameObject.activeInHierarchy) return false;
+            return target is CarryProp prop && prop.Grabbable && !prop.Held ||
+                   target is HiveBody hive && hive.Grabbable && !hive.Held;
         }
 
         void UpdateCurrentGrab(Vector3 point)
         {
             var hive = source != Source.Mouse ? _grab as HiveBody : null;
             bool waitingForLift = hive != null && !hive.LiftReported;
+            int priorShakes = hive != null ? hive.ShakeCount : 0;
             _grab.UpdateGrab(point);
-            if (!waitingForLift || !hive.LiftReported) return;
-
-            var hand = source == Source.LeftHand ? GameHand.Left : GameHand.Right;
-            if (!(GameHands.For(hand) is IControllerPoseSource input) || !input.IsController(hand)) return;
-
-            var device = InputDevices.GetDeviceAtXRNode(hand == GameHand.Left ? XRNode.LeftHand : XRNode.RightHand);
-            if (device.isValid && (device.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
-                device.TryGetHapticCapabilities(out var haptics) && haptics.supportsImpulse && haptics.numChannels > 0)
-                device.SendHapticImpulse(0, 0.25f, 0.09f);
+            if (hive == null) return;
+            if (hive.ShakeCount != priorShakes) Feedback(0.34f, 0.10f);
+            else if (waitingForLift && hive.LiftReported) Feedback(0.25f, 0.09f);
         }
 
-        void BeginDirectGrab(IGameGrabTarget target, Vector3 point)
+        void Feedback(float strength, float seconds)
+        {
+            if (source != Source.Mouse)
+                GameHaptics.Pulse(source == Source.LeftHand ? GameHand.Left : GameHand.Right, strength, seconds);
+        }
+
+        void BeginDirectGrab(IGameGrabTarget target, Vector3 point, bool byGrip = false)
         {
             SetHover(null);
             _grab = target;
             _directGrab = true;
+            _grabHeldByGrip = byGrip;
             target.BeginGrab(point);
+            Feedback(0.20f, 0.05f);
         }
 
         void CacheHit(Collider hit)

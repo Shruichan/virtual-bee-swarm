@@ -132,6 +132,8 @@ namespace Beeswax
         int _failures;
         string _socketHost = "";
         bool _wantConnected, _forceFallback, _sourceChosen, _clipFailed, _wantKnown;
+        string _previewScene = "";
+        float _previewUntil;
         string _playingClipKey = "", _fallbackClipScene = "", _pendingScene = "", _clipScene = "";
         float _pendingUntil, _resyncAt = -1f;
         readonly HashSet<string> _failedFiles = new HashSet<string>();
@@ -250,6 +252,23 @@ namespace Beeswax
             if (BeeswaxProtocol.IsScene(scene)) ApplyScene(scene);
         }
 
+        /// <summary>Play a bundled clip briefly while leaving the Hive's scene and live mode alone.</summary>
+        public bool PreviewClip(string scene, float seconds)
+        {
+            if (!HasOwnClip(scene) || Want == OrbisWant.Off) return false;
+            _previewScene = scene;
+            _previewUntil = Time.realtimeSinceStartup + Mathf.Max(0.1f, seconds);
+            ChooseSource(force: true);
+            return true;
+        }
+
+        public void ClearClipPreview()
+        {
+            if (_previewScene.Length == 0) return;
+            _previewScene = "";
+            ChooseSource(force: true);
+        }
+
         /// <summary>Operator/debug: show clips even when live frames arrive.</summary>
         public void ForceFallback(bool on)
         {
@@ -265,6 +284,7 @@ namespace Beeswax
             _socket.Tick();
 
             float now = Time.realtimeSinceStartup;
+            if (_previewScene.Length > 0 && now >= _previewUntil) ClearClipPreview();
             if (_resyncAt >= 0f && now >= _resyncAt) Resync();
             if (_clipFailed)
             {
@@ -490,7 +510,7 @@ namespace Beeswax
             float stale = staleSeconds;
             if (now - _sceneChangedAt < sceneChangeWatchSeconds) stale = Mathf.Min(stale, sceneChangeStaleSeconds);
             if (now - _cutAt < sceneChangeWatchSeconds) stale = Mathf.Min(stale, cutStaleSeconds);
-            bool live = !off && !_forceFallback && Want != "clips" && stateAllowsLive && SecondsSinceFrame < stale &&
+            bool live = !off && !_forceFallback && _previewScene.Length == 0 && Want != "clips" && stateAllowsLive && SecondsSinceFrame < stale &&
                         (Time.realtimeSinceStartup >= _clipFirstUntil || !HasClipToShow());
             if (!force && _sourceChosen && live == IsLive) return;
             _sourceChosen = true;
@@ -542,14 +562,15 @@ namespace Beeswax
         {
             clip = null;
             file = null;
-            string scene = ClipScene;
+            bool previewing = _previewScene.Length > 0;
+            string scene = previewing ? _previewScene : ClipScene;
             if (scene.Length > 0)
             {
                 var entry = sceneClips.Find(c => c != null && c.clip != null && c.scene == scene);
                 if (entry != null) clip = entry.clip;
             }
             // The Hive's fallback_clip names the clip for the scene it reported; use it if that is still our scene.
-            bool hiveClipIsOurs = FallbackClip.Length > 0 && (_fallbackClipScene.Length == 0 || _fallbackClipScene == scene);
+            bool hiveClipIsOurs = !previewing && FallbackClip.Length > 0 && (_fallbackClipScene.Length == 0 || _fallbackClipScene == scene);
             if (clip == null && hiveClipIsOurs)
             {
                 string name = Path.GetFileNameWithoutExtension(FallbackClip);
