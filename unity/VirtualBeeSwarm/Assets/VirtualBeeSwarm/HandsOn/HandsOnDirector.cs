@@ -131,23 +131,32 @@ namespace VirtualBeeSwarm.HandsOn
 
         void Build()
         {
-            // On the table's front corner. Left by default: the right side is Beeswax's presenter spot and the rocket.
-            float x = HandsOnTuning.LeverLeft ? -0.46f : 0.56f;
+            bool leverLeft = HandsOnTuning.LeverLeft;
+            float x = leverLeft ? -0.46f : 0.56f;
             var leverPosition = new Vector3(x, 0f, -0.02f);
-            var orderPosition = new Vector3(-0.04f, 0f, -0.04f);
-            if (Bloom.MeadowLayout.Active)
+            var boardPosition = new Vector3(-0.04f, 0f, -0.04f);
+            float controlScale = 1f;
+            if (Bloom.MeadowLayout.Active && Bloom.MeadowLayout.Anchor == _table)
             {
+                // Match the meadow's player-facing choice row and keep these controls at hand size.
                 float scale = Bloom.MeadowLayout.Scale;
-                orderPosition.y = Bloom.MeadowTuning.ChoiceHeight / scale - OrderBoard.TicketRise;
-                orderPosition.z = -0.21f;
-                leverPosition.x /= scale;
-                leverPosition.z = orderPosition.z - 0.12f / scale;
+                float height = Bloom.MeadowTuning.ChoiceHeight;
+                controlScale = 1f / scale;
+                leverPosition = new Vector3(leverLeft ? -0.43f : 0.43f, height - 0.23f, -0.19f * scale) / scale;
+                boardPosition = new Vector3(-0.04f, height - OrderBoard.TicketRise, -0.21f * scale) / scale;
             }
-            _lever = HoneyLever.Build(_table, leverPosition, HandsOnTuning.LeverLeft);
+            _lever = HoneyLever.Build(_table, leverPosition, leverLeft);
+            _lever.transform.localScale = Vector3.one * controlScale;
             _lever.Pulled += HandlePulled;
             _lever.Refused += HandleRefused;
-            _board = OrderBoard.Build(_table, orderPosition);
+            _board = OrderBoard.Build(_table, boardPosition);
+            _board.transform.localScale = Vector3.one * controlScale;
             _board.Ordered += Order;
+            if (leverPosition.y > 0f)
+            {
+                AddControlStake(_lever.transform);
+                AddControlStake(_board.transform);
+            }
             _socket = SetupSocket.Build(_table);
             _prompt = HandsOnPrompt.Build(_table, "[VBS] HandsOnPrompt");
             _leverNote = HandsOnPrompt.Build(_table, "[VBS] LeverNote", 0.002f);
@@ -168,6 +177,13 @@ namespace VirtualBeeSwarm.HandsOn
             _stream.gameObject.SetActive(false);
             _water = HandsOnKit.Glow(PrimitiveType.Cylinder, "Water", fx, Vector3.zero, Vector3.one, new Color(0.25f, 0.6f, 1f, 0.8f));
             _water.gameObject.SetActive(false);
+        }
+
+        void AddControlStake(Transform control)
+        {
+            float height = _table.TransformVector(Vector3.up * control.localPosition.y).y;
+            HandsOnKit.Prim(PrimitiveType.Cube, "MeadowStake", control,
+                Vector3.down * (height * 0.5f), new Vector3(0.04f, height, 0.04f), HandsOnKit.Wood);
         }
 
         bool FullFor(StationBase st)

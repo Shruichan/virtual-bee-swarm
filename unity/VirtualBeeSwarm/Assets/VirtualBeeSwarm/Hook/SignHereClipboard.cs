@@ -24,7 +24,7 @@ namespace VirtualBeeSwarm
 
         bool _armed;
         float _lastAt = -10f;
-        int _pokes;
+        readonly PokeContacts _contacts = new();
 
         static readonly string[] PartNames = { "Board", "Paper", "Line" };
         static readonly Color[] PartColors = { new Color(0.62f, 0.43f, 0.24f), new Color(0.97f, 0.96f, 0.92f), new Color(0.15f, 0.15f, 0.15f) };
@@ -45,7 +45,7 @@ namespace VirtualBeeSwarm
         void OnDisable()
         {
             Hovered = false;
-            _pokes = 0;
+            _contacts.Clear();
         }
 
         /// <summary>Accept a signature (only while it is parked in front of the player).</summary>
@@ -68,15 +68,10 @@ namespace VirtualBeeSwarm
 
         void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            if (++_pokes == 1) Sign("poke");
+            if (isActiveAndEnabled && _contacts.Enter(other)) Sign("poke");
         }
 
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokes = Mathf.Max(0, _pokes - 1);
-        }
+        void OnTriggerExit(Collider other) => _contacts.Exit(other);
 
         /// <summary>
         /// The placeholder: a board, a paper sheet, the words and a trigger collider over the whole board. Named

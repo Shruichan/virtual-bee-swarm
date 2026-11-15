@@ -382,7 +382,7 @@ namespace VirtualBeeSwarm
             _correctPending = false;
             _timeoutSolving = false;
             if (hexagons != null) hexagons.Light((int)station);
-            if (director != null) director.NotifyStationSolved();
+            if (director != null) director.NotifyStationSolved(station);
             ShowButtons(false);
             OnSolved();
         }

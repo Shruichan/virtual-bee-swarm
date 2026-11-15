@@ -327,7 +327,7 @@ namespace VirtualBeeSwarm.Ask
         void Presses(float now)
         {
             bool pinch = GameHands.PinchHeld(GameHand.Left) || GameHands.PinchHeld(GameHand.Right);
-            bool key = !_net.Online && GameInput.KeyHeld(talkKey); // online, T belongs to WhatIfBeat's push-to-talk
+            bool key = !_net.Online && (GameInput.KeyHeld(talkKey) || GameHands.AnyTalkHeld()); // online, WhatIfBeat handles keys and controllers
             bool held = pinch || key;
             if (held && !_pinchPrev && !_keyPrev)
             {

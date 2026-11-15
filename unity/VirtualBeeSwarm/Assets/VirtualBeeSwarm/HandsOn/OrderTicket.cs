@@ -23,7 +23,7 @@ namespace VirtualBeeSwarm.HandsOn
         State _state;
         string _number = "";
         bool _hover;
-        int _pokes;
+        readonly PokeContacts _contacts = new();
         float _wiggleUntil = -1f, _popAt = -1f;
         Quaternion _rest = Quaternion.identity;
 
@@ -47,7 +47,7 @@ namespace VirtualBeeSwarm.HandsOn
             Choice = choice;
             _number = "No. " + number;
             _hover = false;
-            _pokes = 0;
+            _contacts.Clear();
             _popAt = -1f;
             _rest = transform.localRotation;
             // two short lines read better than one long one on a 9 cm card
@@ -70,20 +70,14 @@ namespace VirtualBeeSwarm.HandsOn
         public void SetHover(bool hovered) { _hover = hovered && Interactable; }
         public void Click() { if (Interactable) Poked?.Invoke(this); }
 
-        void OnDisable() { _pokes = 0; _hover = false; }
+        void OnDisable() { _contacts.Clear(); _hover = false; }
 
         void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokes++;
-            if (_pokes == 1) Click();
+            if (isActiveAndEnabled && _contacts.Enter(other)) Click();
         }
 
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokes = Mathf.Max(0, _pokes - 1);
-        }
+        void OnTriggerExit(Collider other) => _contacts.Exit(other);
 
         void Update()
         {

@@ -65,13 +65,13 @@ namespace VirtualBeeSwarm
         public bool RunFinished => _runEndedAt >= 0f;
         public float TimeLimitSeconds => timeLimitSeconds;
         public HornetMode Hornet { get => hornetMode; set => hornetMode = value; }
-        public int SolvedStations => _solvedStationBeats.Count;
+        public int SolvedStations => _solvedStations.Count;
         public bool PlayedHornet { get; private set; }
         /// <summary>Seconds since the run started (the signature / START), -1 in pre. The ride script's clock.</summary>
         public float ShowSeconds => Beat == GameBeat.Pre || _showStartedAt < 0f ? -1f : Time.time - _showStartedAt;
 
         float _beatStartedAt, _runStartedAt = -1f, _runEndedAt = -1f, _showStartedAt = -1f; // show = since START (for timing logs)
-        readonly HashSet<GameBeat> _solvedStationBeats = new HashSet<GameBeat>();
+        readonly HashSet<GameStation> _solvedStations = new HashSet<GameStation>();
         float _advanceAt = -1f;
         GameBeat _advanceFrom;
         bool _timedOut;
@@ -269,10 +269,9 @@ namespace VirtualBeeSwarm
             }
         }
 
-        public void NotifyStationSolved()
+        public void NotifyStationSolved(GameStation station)
         {
-            if (Beat < GameBeat.Smoker || Beat > GameBeat.Heat || Beat == GameBeat.Hornet) return;
-            _solvedStationBeats.Add(Beat);
+            _solvedStations.Add(station);
             // Replay and jumps can change station order. Stop timing once all four different stations are solved.
             if (SolvedStations == GameIds.Stations.Length && _runStartedAt >= 0f && _runEndedAt < 0f)
             {
@@ -294,7 +293,7 @@ namespace VirtualBeeSwarm
             _forceAdvanceAt = -1f;
             _runStartedAt = -1f;
             _runEndedAt = -1f;
-            _solvedStationBeats.Clear();
+            _solvedStations.Clear();
             PlayedHornet = false;
             if (net != null)
             {

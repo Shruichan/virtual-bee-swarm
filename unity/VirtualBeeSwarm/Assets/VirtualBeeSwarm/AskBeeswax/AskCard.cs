@@ -343,7 +343,7 @@ namespace VirtualBeeSwarm.Ask
         AskCard _card;
         bool _hovered;
         float _lastPressAt = -10f;
-        int _pokes;
+        readonly PokeContacts _contacts = new();
 
         public bool Hovered => _hovered;
         public bool Interactable => isActiveAndEnabled;
@@ -373,20 +373,15 @@ namespace VirtualBeeSwarm.Ask
 
         void OnDisable()
         {
-            _pokes = 0;
+            _contacts.Clear();
             if (_hovered) SetHover(false);
         }
 
         void OnTriggerEnter(Collider other)
         {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            if (++_pokes == 1) Click();
+            if (isActiveAndEnabled && _contacts.Enter(other)) Click();
         }
 
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokes = Mathf.Max(0, _pokes - 1);
-        }
+        void OnTriggerExit(Collider other) => _contacts.Exit(other);
     }
 }

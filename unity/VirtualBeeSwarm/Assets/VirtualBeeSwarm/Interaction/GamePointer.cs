@@ -65,7 +65,10 @@ namespace VirtualBeeSwarm
                     _grab.EndGrab();
                     _grab = null;
                 }
-                else if (_directGrab && TryGetHandPoint(out var hp)) _grab.UpdateGrab(hp);
+                else if (_directGrab)
+                {
+                    if (TryGetHandPoint(out var hp)) _grab.UpdateGrab(hp);
+                }
                 else if (HasRay) _grab.UpdateGrab(ray.GetPoint(_grabDistance));
                 DrawRay(HasRay, ray, _grabDistance);
                 return;

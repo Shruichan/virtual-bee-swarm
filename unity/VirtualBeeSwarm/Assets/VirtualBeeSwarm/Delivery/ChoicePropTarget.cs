@@ -14,7 +14,7 @@ namespace VirtualBeeSwarm
         [SerializeField] ChoiceButton button;
         [SerializeField] StationDelivery owner;
         [SerializeField] int index = -1;
-        int _pokesInside;
+        readonly PokeContacts _contacts = new();
 
         public ChoiceButton Button => button;
         public void Bind(ChoiceButton b) => button = b;
@@ -24,19 +24,13 @@ namespace VirtualBeeSwarm
         public void SetHover(bool hovered) { if (button != null) button.SetHover(hovered); }
         public void Click() { if (Interactable) button.Press(); }
 
-        void OnDisable() => _pokesInside = 0;
+        void OnDisable() => _contacts.Clear();
 
         void OnTriggerEnter(Collider other)
         {
-            if (!enabled || other.GetComponent<GameFingertip>() == null) return;
-            _pokesInside++;
-            if (_pokesInside == 1 && Interactable) button.Press();
+            if (isActiveAndEnabled && _contacts.Enter(other)) Click();
         }
 
-        void OnTriggerExit(Collider other)
-        {
-            if (other.GetComponent<GameFingertip>() == null) return;
-            _pokesInside = Mathf.Max(0, _pokesInside - 1);
-        }
+        void OnTriggerExit(Collider other) => _contacts.Exit(other);
     }
 }

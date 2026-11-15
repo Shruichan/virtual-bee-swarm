@@ -52,6 +52,34 @@ namespace VirtualBeeSwarm.Tests
         [Timeout(300000)]
         public IEnumerator FullRun_ForcedOffline() => FullRun(forceOffline: true);
 
+        [Test]
+        public void ReplayingASolvedStationDoesNotCountItTwice()
+        {
+            var gameObject = new GameObject("Station progress test");
+            try
+            {
+                var director = gameObject.AddComponent<GameDirector>();
+                director.NotifyStationSolved(GameStation.Smoker);
+                director.NotifyStationSolved(GameStation.Feed);
+                director.NotifyStationSolved(GameStation.Smoker);
+                Assert.AreEqual(2, director.SolvedStations);
+
+                director.NotifyStationSolved(GameStation.Wasps);
+                director.NotifyStationSolved(GameStation.Heat);
+                director.NotifyStationSolved(GameStation.Feed);
+                Assert.AreEqual(4, director.SolvedStations);
+
+                director.ResetToPre();
+                Assert.AreEqual(0, director.SolvedStations);
+                director.NotifyStationSolved(GameStation.Smoker);
+                Assert.AreEqual(1, director.SolvedStations);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+            }
+        }
+
         IEnumerator FullRun(bool forceOffline)
         {
             string path = BuildGameScene.BuildScene("OfflineTest.unity", offline: true);
