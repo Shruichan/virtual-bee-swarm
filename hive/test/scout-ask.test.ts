@@ -6,6 +6,7 @@ import {
   WAKE_WINDOW_MS,
   parseWake,
   ASK_FALLBACK,
+  ASK_VOICE_SETTINGS,
   AskAudio,
   answerText,
   askContextFor,
@@ -107,6 +108,9 @@ describe("routing (wake word only)", () => {
       expect([said, kind(said, caps)]).toEqual([said, "echo"]);
     }
     expect(isEcho("Beeswax found something", [])).toBe(true); // his chime, even with no caption on file
+    // a short answer to his ack shares words with his lines by chance: not an echo
+    const fact = ["Never leave store honey out for bees. It can carry a bee germ called foulbrood. Still fine on your toast."];
+    expect(routeUtterance("the honey jar", { classify: classifyAnswer, captions: fact, awaitingQuestion: true })).toEqual({ kind: "ask", question: "the honey jar" });
     // the wearer's own calls are not echoes, even when they share words with what he just said
     expect(kind("Hey Beeswax, what is a bee water dish?", caps)).toBe("ask");
     expect(kind("Hey Beeswax, why can't bees swim?", caps)).toBe("ask");
@@ -694,6 +698,28 @@ test("ScoutAsk is silent while the game waits for Start (no answer, no wake ack)
   expect(st.error).toBe("not started");
   expect(says).toEqual([]);
   expect(calls).toEqual([]); // never interrupts or begins an answer
+});
+
+test("live answers use the scout lines' calm voice settings (scripts/scout-render.ts)", async () => {
+  const { VOICE_SETTINGS } = await import("../scripts/scout-render");
+  expect({ ...ASK_VOICE_SETTINGS }).toEqual(VOICE_SETTINGS as never);
+});
+
+test("gainMp3 turns a live mp3 stream down chunk by chunk (and passes it through at 0 dB)", async () => {
+  const { gainMp3 } = await import("../src/scout-ask");
+  const bytes = new Uint8Array(await Bun.file(new URL("../lines/scout_audio/scout_chime.mp3", import.meta.url)).arrayBuffer());
+  async function* chunks() {
+    for (let i = 0; i < bytes.length; i += 4000) yield bytes.slice(i, i + 4000);
+  }
+  const same: Uint8Array[] = [];
+  for await (const c of gainMp3(chunks(), 0)) same.push(c);
+  expect(same.reduce((n, c) => n + c.length, 0)).toBe(bytes.length);
+  if (!Bun.which("ffmpeg")) return;
+  const out: Uint8Array[] = [];
+  for await (const c of gainMp3(chunks(), -4.5)) out.push(c);
+  const total = out.reduce((n, c) => n + c.length, 0);
+  expect(total).toBeGreaterThan(bytes.length * 0.8); // same length of 64 kbit/s audio
+  expect(total).toBeLessThan(bytes.length * 1.2);
 });
 
 test("AskAudio readers each start at byte 0", async () => {

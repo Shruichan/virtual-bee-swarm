@@ -110,7 +110,13 @@ export async function* ttsPcm(text: string): AsyncGenerator<Uint8Array> {
 /** Whole-file render (used by ttsMp3 and the pre-render script). Throws on failure or timeout. */
 export async function ttsBytes(
   text: string,
-  opts: { format?: ConvertFormat; model?: string; voiceId?: string; timeoutMs?: number } = {},
+  opts: {
+    format?: ConvertFormat;
+    model?: string;
+    voiceId?: string;
+    timeoutMs?: number;
+    voiceSettings?: { stability?: number; similarityBoost?: number; style?: number; useSpeakerBoost?: boolean };
+  } = {},
 ): Promise<Uint8Array> {
   const t = clean(text);
   if (!t) throw new Error("TTS: empty text");
@@ -120,7 +126,7 @@ export async function ttsBytes(
   try {
     const request = client.textToSpeech.convert(
       opts.voiceId ?? voiceId,
-      { text: t, modelId: opts.model ?? TTS_MODEL, outputFormat: opts.format ?? "mp3_44100_64" },
+      { text: t, modelId: opts.model ?? TTS_MODEL, outputFormat: opts.format ?? "mp3_44100_64", ...(opts.voiceSettings ? { voiceSettings: opts.voiceSettings } : {}) },
       { abortSignal: ac.signal, maxRetries: 1, timeoutInSeconds: (opts.timeoutMs ?? ttsLimits.totalMs) / 1000 },
     );
     const stream = await withTimeout(request, opts.timeoutMs ?? ttsLimits.totalMs, "TTS response");
