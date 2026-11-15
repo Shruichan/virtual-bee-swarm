@@ -3,7 +3,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import {
-  ANY_Q_WINDOW_MS,
+  WAKE_WINDOW_MS,
+  parseWake,
   ASK_FALLBACK,
   AskAudio,
   answerText,
@@ -34,59 +35,70 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- routing
 
-describe("routing", () => {
-  const route = (text: string, captions: string[] = [], expectQuestion = false) =>
-    routeUtterance(text, { answer: classifyAnswer(text), captions, expectQuestion });
+describe("routing (wake word only)", () => {
+  const kind = (text: string, captions: string[] = [], awaitingQuestion = false) => routeUtterance(text, { classify: classifyAnswer, captions, awaitingQuestion }).kind;
 
-  test("questions and requests for more go to Ask Beeswax", () => {
-    for (const q of [
-      "why do bees need pebbles",
-      "Why though",
-      "how much honey does a bee make",
-      "um beeswax what is foulbrood",
-      "tell me more about the bee hotel",
-      "can you tell me more about honey",
-      "is bug spray bad for bees",
-      "what happens if a bee drinks deep water",
-      "so the pebbles are for what",
-      "honey?  really?",
-    ]) {
-      expect([q, route(q)]).toEqual([q, "ask"]);
+  test("wake-word variants: detected anywhere, stripped before Claude", () => {
+    const table: [string, string][] = [
+      ["Hey Beeswax, why do bees need pebbles?", "why do bees need pebbles?"],
+      ["hey bees wax what is foulbrood", "what is foulbrood"],
+      ["Hey, bee's wax. How much honey?", "How much honey?"],
+      ["Hay beeswax, tell me about honey", "tell me about honey"],
+      ["A beeswax, why is it sticky", "why is it sticky"],
+      ["hey beezwax how many flowers", "how many flowers"],
+      ["Hey bees, can I touch it", "can I touch it"],
+      ["Okay Beeswax, what's that", "what's that"],
+      ["Hey Bs wax what is a bee hotel", "what is a bee hotel"],
+      ["Hey, Bees Whacks! Why the pebbles?", "Why the pebbles?"],
+      ["Beeswax, why", "why"],
+      ["why is honey sticky, hey beeswax?", "why is honey sticky"],
+      ["um so hey beeswax the honey jar", "um so the honey jar"],
+    ];
+    for (const [said, question] of table) {
+      expect([said, parseWake(said)]).toEqual([said, { wake: true, rest: question }]);
+      expect([said, routeUtterance(said, { classify: classifyAnswer, captions: [] })]).toEqual([said, { kind: "ask", question }]);
     }
   });
 
-  test("short yes / no / rude answers stay with the game", () => {
-    for (const a of ["yes", "yeah sure", "yes please", "no thanks", "nope", "not now", "shut up", "tell me", "okay go on"]) {
-      expect([a, route(a)]).toEqual([a, "game"]);
+  test("only the name (or the name and fillers) is a wake: ack, then wait for the question", () => {
+    for (const said of ["Hey Beeswax", "hey beeswax?", "Hay bees wax.", "okay beeswax um", "Hey Bee's Wax!", "Beeswax?", "hey bees"]) {
+      expect([said, kind(said)]).toEqual([said, "wake"]);
     }
   });
 
-  test("statements and noise are not questions", () => {
-    for (const s of ["I like this one", "cool", "um", "", "wow that's a big jar", "this is a sunflower"]) {
-      expect([s, route(s)]).toEqual([s, "game"]);
-      expect(looksLikeQuestion(s)).toBe(false);
+  test("without the wake word nothing is answered, even clear questions", () => {
+    for (const said of ["why do bees need pebbles", "so by the way, where's the judge view?", "Version that you're showing me currently?", "Like this?", "Hey, can you tell me a little bit more?", "Hey B, hello?", "the bees are cute", "yes", "no thanks"]) {
+      expect([said, kind(said)]).toEqual([said, "game"]);
     }
   });
 
-  test("Beeswax's own voice heard back is an echo, even a question he asked", () => {
+  test("after a bare wake, the next utterance is the question (not thanks / never mind / fillers)", () => {
+    expect(routeUtterance("the honey jar", { classify: classifyAnswer, captions: [], awaitingQuestion: true })).toEqual({ kind: "ask", question: "the honey jar" });
+    for (const s of ["never mind", "thanks", "um", "okay"]) expect([s, kind(s, [], true)]).toEqual([s, "game"]);
+  });
+
+  test("'Hey Beeswax, yes' is still the game's yes", () => {
+    expect(routeUtterance("Hey Beeswax, yes please", { classify: classifyAnswer, captions: [] })).toEqual({ kind: "game", text: "yes please" });
+  });
+
+  test("Beeswax's own voice is an echo, including him saying his own name (with STT spelling his puns differently)", () => {
+    const intro = "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant.";
+    expect(kind("Hey class, I'm Beeswax, your unbelievably charming and handsome bee assistant.", [intro])).toBe("echo");
+    expect(kind("I'm Beeswax", [intro])).toBe("echo");
+    expect(kind("I'm Beeswax your unbelievably", [intro])).toBe("echo");
+    expect(kind("Hey Beeswax", [intro])).toBe("wake"); // a real call while his intro plays is not an echo
     const caps = ["Bee fact found! Would you like to learn more?", "This is a bee hotel, a safe home for wild bees like mason bees."];
-    expect(route("would you like to learn more", caps)).toBe("echo");
-    expect(route("Would you like to learn more?", caps)).toBe("echo");
-    expect(route("a safe home for wild bees like mason", caps)).toBe("echo");
-    // shares words with the caption but is the kid's own question
-    expect(route("what is a bee hotel", caps)).toBe("ask");
-    expect(isEcho("bee hotel", caps)).toBe(true);
+    expect(kind("would you like to learn more", caps)).toBe("echo");
+    expect(kind("a safe home for wild bees like mason", caps)).toBe("echo");
+    // the kid's own question that shares words with what he said is not an echo
+    expect(kind("Hey Beeswax, what is a bee hotel", caps)).toBe("ask");
+    expect(kind("Hey Beeswax, what is a bee hotel", [intro, ...caps])).toBe("ask");
     expect(isEcho("why", caps)).toBe(false);
   });
 
-  test("right after 'Got any questions?' anything but yes/no/thanks is a question", () => {
-    expect(route("honey", [], true)).toBe("ask");
-    expect(route("the bees on the flower", [], true)).toBe("ask");
-    expect(route("I like the pebbles", [], true)).toBe("ask");
-    for (const s of ["no", "yes", "nope", "thanks", "thank you beeswax", "no questions", "I'm good", "okay", "um", ""]) {
-      expect([s, route(s, [], true)]).toEqual([s, "game"]);
-    }
-    expect(route("Got any questions? Bee my guest!", ["Got any questions? Bee my guest!"], true)).toBe("echo");
+  test("looksLikeQuestion still reads question shapes (glasses mirror)", () => {
+    expect(looksLikeQuestion("why do bees need pebbles")).toBe(true);
+    expect(looksLikeQuestion("I like this one")).toBe(false);
   });
 });
 
@@ -393,9 +405,10 @@ describe("barge-in (real ScoutGame, fake clock)", () => {
     expect(says.map((s) => s.line_id)).toContain("scout_fact_pebble_dish");
     advance(1000); // mid-fact
 
-    const text = "why do bees need pebbles";
-    expect(ask.route(text, classifyAnswer(text))).toBe("ask");
-    const st = await ask.ask(text);
+    const text = "Hey Beeswax, why do bees need pebbles";
+    expect(ask.route(text, classifyAnswer)).toEqual({ kind: "ask", question: "why do bees need pebbles" });
+    expect(ask.route("why do bees need pebbles", classifyAnswer)).toEqual({ kind: "game", text: "why do bees need pebbles" });
+    const st = await ask.ask("why do bees need pebbles");
     expect(stops.length).toBe(1); // the glasses were told to cut the ear
     expect(events.some((e) => e.type === "stop")).toBe(true);
     expect(st.label).toBe("pebble_dish");
@@ -415,31 +428,32 @@ describe("barge-in (real ScoutGame, fake clock)", () => {
     expect(game.state().phase).toBe("looking");
   });
 
-  test("right after a scout_any_q line, the next utterance is a question by default", () => {
+  test("a bare 'Hey Beeswax' cuts Beeswax off, says the ack, and the next utterance within the window is the question", () => {
     let clock = 5000;
-    const a = new ScoutAsk({ game: fakeGame([]), now: () => clock, base: () => "h", say: () => {}, llm: fakeLlm([]), tts: fakeTts() });
-    expect(a.route("the honey", classifyAnswer("the honey"))).toBe("game");
-    a.event({ type: "say", line_id: "scout_any_q_2", caption: "Got any questions? Bee my guest!", audio_url: null, at: clock });
-    expect(a.expectingQuestion).toBe(true);
-    expect(a.route("the honey", classifyAnswer("the honey"))).toBe("ask");
-    expect(a.route("no thanks", classifyAnswer("no thanks"))).toBe("game");
-    clock += 2500 + ANY_Q_WINDOW_MS + 100;
-    expect(a.expectingQuestion).toBe(false);
-    expect(a.route("the honey", classifyAnswer("the honey"))).toBe("game");
-  });
+    const calls: string[] = [];
+    const says: AskSay[] = [];
+    const a = new ScoutAsk({
+      game: fakeGame(calls),
+      now: () => clock,
+      base: () => "h",
+      say: (s) => says.push(s),
+      llm: fakeLlm([]),
+      tts: fakeTts(),
+      line: (id) => (id === "scout_wake_ack" ? { caption: "Yes? I'm all antennae!", audio_url: "h/scout/audio/scout_wake_ack.mp3", ms: 1500 } : null),
+    });
+    expect(a.route("Hey Beeswax", classifyAnswer)).toEqual({ kind: "wake" });
+    a.wake();
+    expect(calls).toEqual(["interrupt", "begin", `end:${700 + 1500 + WAKE_WINDOW_MS}`]);
+    expect(says).toEqual([{ line_id: "scout_wake_ack", caption: "Yes? I'm all antennae!", audio_url: "h/scout/audio/scout_wake_ack.mp3" }]);
+    expect(a.route("yes I'm all antennae", classifyAnswer)).toEqual({ kind: "echo" }); // its own ack heard back
+    expect(a.route("the honey jar", classifyAnswer)).toEqual({ kind: "ask", question: "the honey jar" });
+    clock += 700 + 1500 + WAKE_WINDOW_MS + 1;
+    expect(a.route("the honey jar", classifyAnswer)).toEqual({ kind: "game", text: "the honey jar" });
 
-  test("the any-q window opens when the line plays (after the fact queued before it), not when it is sent", () => {
-    let clock = 10_000;
-    const game = { ...fakeGame([]), busyUntil: clock + 9000 }; // fact lines + the any-q line end 9 s from now
-    const a = new ScoutAsk({ game, now: () => clock, base: () => "h", say: () => {}, llm: fakeLlm([]), tts: fakeTts() });
-    a.event({ type: "say", line_id: "scout_any_q_1", caption: "Got any questions? Bee my guest!", audio_url: null, at: clock });
-    expect(a.expectingQuestion).toBe(false); // the fact is still playing
-    clock += 7000; // the any-q line is playing
-    expect(a.expectingQuestion).toBe(true);
-    clock += 2000 + ANY_Q_WINDOW_MS - 100;
-    expect(a.expectingQuestion).toBe(true);
-    clock += 200;
-    expect(a.expectingQuestion).toBe(false);
+    // no ack line yet: the fallback caption goes out (the glasses speak it)
+    const b = new ScoutAsk({ game: fakeGame([]), base: () => "h", say: (s) => says.push(s), llm: fakeLlm([]), tts: fakeTts() });
+    b.wake();
+    expect(says.at(-1)).toEqual({ line_id: "scout_wake_ack", caption: "Yes? I'm all antennae!", audio_url: null });
   });
 });
 
@@ -461,7 +475,10 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     const post = (path: string, body: unknown) =>
       app.request(`${path}?token=t`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     try {
-      const r = await (await post("/scout/utterance", { text: "why do bees need pebbles", at: Date.now() })).json();
+      const plain = await (await post("/scout/utterance", { text: "why do bees need pebbles", at: Date.now() })).json();
+      expect(plain.routed).toBeUndefined(); // no wake word: only shown as heard
+      expect(sent.some((m) => m.tts_id === SCOUT_STOP_ID)).toBe(false); // and Beeswax is not cut off
+      const r = await (await post("/scout/utterance", { text: "Hey Beeswax, why do bees need pebbles?", at: Date.now() })).json();
       expect(r.routed).toBe("ask");
       for (let i = 0; i < 100 && !sent.some((m) => String(m.tts_id).startsWith("scout_ask_")); i++) await sleep(5);
       const say = sent.find((m) => String(m.tts_id).startsWith("scout_ask_"))!;
@@ -485,7 +502,7 @@ describe("/scout/utterance routing (registerScoutRoutes with fakes)", () => {
     const app = new Hono();
     let stopped = false;
     registerScoutRoutes(app, { bus: { broadcast: () => {} } as never, authed: () => true, base: () => "h", stopped: () => stopped });
-    const r = await (await app.request("/scout/utterance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "why do bees sting" }) })).json();
+    const r = await (await app.request("/scout/utterance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "hey beeswax why do bees sting" }) })).json();
     expect(r.routed).toBeUndefined();
     stopped = true;
   });

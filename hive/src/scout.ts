@@ -806,6 +806,13 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
         if (e.type === "say") log(`scout: say ${JSON.stringify(e).slice(0, 160)}`);
       },
       say: (s) => ctx.bus.broadcast({ type: "say", channel: "ear", line_id: null, tts_id: s.line_id, audio_url: s.audio_url, caption: s.caption }, ["glasses"]),
+      // the wake ack (scout_wake_ack) comes from the scout lines files like any other line
+      line: (id) => {
+        const l = loadScoutLines().find((x) => x.id === id);
+        if (!l?.text) return null;
+        const has = existsSync(join(audioDir(), `${id}.mp3`));
+        return { caption: l.text, audio_url: has ? `${ctx.base()}/scout/audio/${id}.mp3` : null, ms: manifestMs(id) };
+      },
     });
     if (!ctx.ask) {
       // warm Claude's connection and a spare ElevenLabs websocket now, and again whenever a card is found
@@ -912,13 +919,21 @@ export function registerScoutRoutes(app: Hono, ctx: ScoutRouteCtx): ScoutGame {
     const body = await readJson(c);
     const text = typeof body?.text === "string" ? body.text.trim() : "";
     if (!text) return c.json({ error: "text required" }, 400);
-    // A question goes to Ask Beeswax (it cuts Beeswax off and answers); short yes/no and the rest stay with the game.
-    if (ask && ask.route(text, classifyAnswer(text)) === "ask") {
-      fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now() });
-      void ask.ask(text.slice(0, 300));
-      return c.json({ ok: true, answer: "other", routed: "ask", phase: game.state().phase });
+    // Wake word only: "Hey Beeswax, <question>" goes to Ask Beeswax (it cuts Beeswax off and answers), a bare
+    // "Hey Beeswax" gets the ack and the next utterance is the question; everything else stays with the game
+    // (yes / no) and shows on the judge screen as heard.
+    let forGame = text;
+    if (ask) {
+      const r = ask.route(text, classifyAnswer);
+      if (r.kind === "ask" || r.kind === "wake") {
+        fanout({ type: "heard", text: text.slice(0, 300), answer: "other", at: Date.now() });
+        if (r.kind === "wake") ask.wake();
+        else void ask.ask(r.question.slice(0, 300));
+        return c.json({ ok: true, answer: "other", routed: r.kind, phase: game.state().phase });
+      }
+      if (r.kind === "game") forGame = r.text || text;
     }
-    const answer = game.utterance(text, typeof body?.at === "number" ? body.at : undefined);
+    const answer = game.utterance(forGame, typeof body?.at === "number" ? body.at : undefined);
     return c.json({ ok: true, answer, phase: game.state().phase });
   });
 

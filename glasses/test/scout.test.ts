@@ -5,7 +5,8 @@ import {Bus as HiveBus, setQuiet} from "../../hive/src/bus"
 import {createState} from "../../hive/src/state"
 import {start} from "../src/background/app"
 import {makeConfig, type LocalConfig} from "../src/background/config"
-import {isEchoOf, looksLikeQuestion, Scout, scoutLineId} from "../src/background/scout"
+import {hasWake, isEchoOf, Scout, scoutLineId} from "../src/background/scout"
+import {Ear} from "../src/background/ear"
 import {fakeSession, sleep, until, type FakeOptions} from "./fakes"
 
 const TOKEN = "test-token"
@@ -140,27 +141,31 @@ describe("scout stop", () => {
 describe("Ask Beeswax barge-in", () => {
   const SCOUT = {scoutMode: true, streamUrl: "rtmp://127.0.0.1:1935/scout"}
 
-  test("a spoken question cuts Beeswax at once (before the Hive answers) and still goes to the Hive", async () => {
+  test("'Hey Beeswax, ...' cuts Beeswax at once (before the Hive answers) and still goes to the Hive", async () => {
     const fake = await boot(SCOUT, {speakMs: 500})
     sayOnBus("scout_fact_pebble_dish", "Bees can't swim, so pebbles are their landing pads.")
     sayOnBus("scout_fact_pebble_dish_2", "Queued second fact.")
     await until(() => fake.audio.length >= 1, 2000, "fact starts")
-    fake.say("why do bees need pebbles")
+    fake.say("Hey Beeswax, why do bees need pebbles?")
     await until(() => paths().includes("/scout/utterance"), 2000, "utterance")
     await sleep(700)
     expect(fake.audio.map((a) => (a.kind === "speak" ? a.text : a.kind))).toEqual(["Bees can't swim, so pebbles are their landing pads."])
     expect(fake.status.last?.log.some((l) => l.includes("ear stopped"))).toBe(true)
   })
 
-  test("Beeswax's own words heard back, and yes/no answers, do not cut him", async () => {
-    const fake = await boot(SCOUT, {speakMs: 400})
+  test("questions without the wake word, Beeswax's own voice, and yes/no never cut him", async () => {
+    const fake = await boot(SCOUT, {speakMs: 300})
+    sayOnBus("scout_intro_1", "Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant.")
     sayOnBus("scout_chime_ask", "Bee fact found! Would you like to learn more?")
     sayOnBus("scout_fact_honey_jar", "This is honey.")
-    await until(() => fake.audio.length >= 1, 2000, "chime starts")
-    fake.say("would you like to learn more") // echo of the line playing
+    await until(() => fake.audio.length >= 1, 2000, "intro starts")
+    fake.say("Hey class, I'm Beeswax, your unbelievably charming") // his own intro heard back, name included
+    fake.say("so by the way, where's the judge view?") // people talking, not to Beeswax
+    fake.say("would you like to learn more")
     fake.say("yes")
-    await until(() => fake.audio.length >= 2, 2000, "the fact still plays")
+    await until(() => fake.audio.length >= 3, 3000, "all three lines play")
     expect(fake.status.last?.log.some((l) => l.includes("ear stopped"))).toBe(false)
+    expect(hits.filter((h) => h.path === "/scout/utterance").length).toBe(4) // all still reach the Hive (judge screen)
   })
 
   test("an Ask Beeswax answer (tts_id scout_ask_*) cuts whatever is playing or queued", async () => {
@@ -180,7 +185,9 @@ describe("Ask Beeswax barge-in", () => {
     sayOnBus("scout_fact_beehive", "This is a beehive.")
     sayOnBus("scout_fact_beehive_2", "Queued.")
     await until(() => fake.audio.length >= 1, 2000, "fact starts")
-    fake.say("how do bees", false)
+    fake.say("how do bees", false) // no wake word: nothing
+    await sleep(100)
+    fake.say("hey beeswax how do", false)
     await sleep(700)
     expect(fake.audio.length).toBe(1)
     expect(paths()).not.toContain("/scout/utterance") // a partial is never sent
@@ -221,21 +228,20 @@ describe("Scout unit", () => {
     expect(sent).toEqual(["/scout/start"])
   })
 
-  test("question detection mirrors the Hive's; after a scout_any_q line anything but yes/no/thanks counts", () => {
-    for (const q of ["why do bees need pebbles", "why though", "tell me more about honey", "um beeswax what is foulbrood", "honey? really"]) expect([q, looksLikeQuestion(q)]).toEqual([q, true])
-    for (const a of ["yes", "no thanks", "cool", "I like this one", ""]) expect([a, looksLikeQuestion(a)]).toEqual([a, false])
+  test("wake word mirrors the Hive's; his own name in his own line is an echo", () => {
+    for (const w of ["Hey Beeswax, why", "hey bees wax", "Hey, bee's wax.", "hay beeswax", "A beeswax tell me", "hey beezwax", "Hey bees, why", "okay beeswax", "what's that, hey beeswax?", "Hey Bs wax"])
+      expect([w, hasWake(w)]).toEqual([w, true])
+    for (const n of ["why do bees need pebbles", "the bees are cute", "Hey B, hello?", "Hey, can you tell me a little bit more?", ""]) expect([n, hasWake(n)]).toEqual([n, false])
     expect(isEchoOf("would you like to learn more", ["Bee fact found! Would you like to learn more?"])).toBe(true)
     expect(isEchoOf("what is a bee hotel", ["This is a bee hotel."])).toBe(false)
 
     const s = new Scout({hive: {send: async () => true}, led: {turnOn: async () => ({}) as any}, log: () => {}})
-    expect(s.isQuestion("the honey")).toBe(false)
-    s.said({tts_id: "scout_any_q_1", caption: "Got any questions? Bee my guest!"})
-    expect(s.isQuestion("the honey")).toBe(false) // still queued behind the fact
-    s.noteSaid("Got any questions? Bee my guest!") // starts playing
-    expect(s.isQuestion("the honey")).toBe(true)
-    expect(s.isQuestion("no thanks")).toBe(false)
-    expect(s.isQuestion("thank you beeswax")).toBe(false)
-    expect(s.isQuestion("got any questions")).toBe(false) // echo
+    expect(s.callsBeeswax("why the honey")).toBe(false)
+    expect(s.callsBeeswax("Hey Beeswax, why the honey")).toBe(true)
+    s.noteSaid("Hey class! I'm Beeswax, your unbeelievably charming and handsome bee assistant.")
+    expect(s.callsBeeswax("I'm Beeswax")).toBe(false)
+    expect(s.callsBeeswax("I'm Beeswax your unbelievably charming")).toBe(false)
+    expect(s.callsBeeswax("Hey Beeswax, what is honey")).toBe(true)
   })
 
   test("LED failures are swallowed and it gives up after three", async () => {
@@ -246,5 +252,70 @@ describe("Scout unit", () => {
       await sleep(5)
     }
     expect(calls).toBe(3)
+  })
+})
+
+describe("Ear: queued scout lines play fully and in order", () => {
+  /** A speaker whose url play() can hang; it reports playing, then stopped after `ms` (unless silent). */
+  function speaker(o: {ms: number; hang?: boolean; silentStates?: boolean}) {
+    const played: string[] = []
+    const listeners = new Set<(e: {state: string}) => void>()
+    const emit = (state: string) => listeners.forEach((l) => l({state}))
+    return {
+      played,
+      sp: {
+        async createStream() {
+          throw new Error("no clips")
+        },
+        async play(p: {audioUrl: string}) {
+          played.push(p.audioUrl)
+          if (!o.silentStates) emit("playing")
+          await sleep(o.ms)
+          if (!o.silentStates) emit("stopped")
+          if (o.hang) await new Promise(() => {}) // the host never sends the result
+        },
+        async speak() {
+          return {completed: true}
+        },
+        stop() {},
+        onStateChange(h: (e: {state: string}) => void) {
+          listeners.add(h)
+          return () => listeners.delete(h)
+        },
+      } as any,
+    }
+  }
+  const intro = ["intro_1", "intro_2", "intro_3", "chime", "fact", "fact_2", "any_q"]
+
+  test("a long queued sequence is not dropped as stale in scout mode (it was at the 10 s default)", async () => {
+    const short = speaker({ms: 40})
+    const dropping = new Ear(short.sp, () => {}, {}, {maxQueueWaitMs: 100})
+    await Promise.all(intro.map((id) => dropping.play({line_id: null, audio_url: `u/${id}`, caption: id})))
+    expect(short.played.length).toBeLessThan(intro.length) // the old behaviour: the tail is dropped
+
+    const s = speaker({ms: 40})
+    const ear = new Ear(s.sp, () => {}, {}, {maxQueueWaitMs: 120_000})
+    await Promise.all(intro.map((id) => ear.play({line_id: null, audio_url: `u/${id}`, caption: id})))
+    expect(s.played).toEqual(intro.map((id) => `u/${id}`))
+  })
+
+  test("a play() the host never resolves still ends on 'stopped', and the queue goes on", async () => {
+    const s = speaker({ms: 30, hang: true})
+    const ear = new Ear(s.sp, () => {}, {}, {maxQueueWaitMs: 120_000})
+    const t0 = Date.now()
+    await Promise.all(["a", "b", "c"].map((id) => ear.play({line_id: null, audio_url: `u/${id}`, caption: id})))
+    await until(() => s.played.length === 3, 2000, "all three")
+    expect(s.played).toEqual(["u/a", "u/b", "u/c"])
+    expect(Date.now() - t0).toBeLessThan(1500)
+  })
+
+  test("no result and no state events: the caption-based limit ends it instead of 45 s", async () => {
+    const s = speaker({ms: 10, hang: true, silentStates: true})
+    const logs: string[] = []
+    const ear = new Ear(s.sp, (l: string) => logs.push(l), {}, {maxQueueWaitMs: 120_000})
+    void ear.play({line_id: null, audio_url: "u/a", caption: "a"}, {maxMs: 150})
+    void ear.play({line_id: null, audio_url: "u/b", caption: "b"}, {maxMs: 150})
+    await until(() => s.played.length === 2, 2000, "second line")
+    expect(s.played).toEqual(["u/a", "u/b"])
   })
 })
