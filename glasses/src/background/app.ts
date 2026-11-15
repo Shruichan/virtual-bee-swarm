@@ -2,7 +2,7 @@
 import type {TypedMiniappSession} from "@mentra/miniapp/background"
 import type {Channels, GlassesStatus} from "../shared/channels"
 import {CONFIG, type Config} from "./config"
-import {Ear} from "./ear"
+import {Ear, lineLimitMs} from "./ear"
 import {Bus, Hive} from "./hive"
 import {Led} from "./led"
 import {LiveStream} from "./live"
@@ -50,7 +50,8 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
     mirror = (line) => {
       if (!line.startsWith("hive") && !line.startsWith("bus")) void hive.send("/glasses/event", {kind: "log", line})
     }
-  const ear = new Ear(session.speaker, log)
+  // Scout: queued sequences (intro, chime + facts + any-questions) must all play; the Hive's scout_stop drops them.
+  const ear = new Ear(session.speaker, log, undefined, config.scoutMode ? {maxQueueWaitMs: 120_000} : {})
   const led = new Led(session.led, log)
   const transcript = new Transcript()
   let beat: BeatName | null = null
@@ -145,7 +146,12 @@ export function start(session: Session, config: Config = CONFIG): {stop(): void}
         }
         scout?.said(msg)
         // an Ask Beeswax answer cuts whatever is still playing or queued (barge-in)
-        void ear.play({line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption}, scout && isAskLine(msg) ? {interrupt: "all"} : {})
+        // A scout line's caption is complete, so its length bounds the playback (a host that never says "done" can't
+        // stall the queue); an Ask Beeswax answer's caption is only its first sentence, so it keeps the default.
+        void ear.play(
+          {line_id: msg.line_id, audio_url: msg.audio_url, caption: msg.caption},
+          scout && isAskLine(msg) ? {interrupt: "all"} : scout && msg.caption ? {maxMs: lineLimitMs(msg.caption)} : {},
+        )
         return
       case "group.reset":
         log(`new group ${msg.group_id ?? ""}`)

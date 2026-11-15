@@ -19,6 +19,8 @@ type Source = {kind: "clip"; pcm: string; ms: number} | {kind: "url"; url: strin
 interface Job {
   ref: LineRef
   label: string
+  /** Longest a url / speak source may take (null = the default limit). */
+  maxMs: number | null
   caption: string
   sources: Source[]
   filler: boolean
@@ -38,8 +40,20 @@ type Speaker = Pick<SpeakerModule, "createStream" | "play" | "speak" | "stop" | 
  */
 const FIRST_CHUNK_B64 = 12_800
 
-/** A queued line that waited longer than this is stale (e.g. the scene moved on). */
+/** A queued line that waited longer than this is stale (e.g. the scene moved on). Scout mode raises it: its lines
+ *  come as sequences (intro, chime + fact + fact + any-questions) that must all play in order, and the Hive's
+ *  scout_stop is what drops them. */
 const MAX_QUEUE_WAIT_MS = 10_000
+
+export interface EarOptions {
+  maxQueueWaitMs?: number
+}
+
+/** A rough upper bound for how long a caption takes to say (mp3s run ~14 chars/s): url/speak playback past this
+ *  is treated as finished, so a host that never reports the end can't stall the queue. */
+export function lineLimitMs(caption: string): number {
+  return Math.round(((caption.length / 14.4) * 1000 + 300) * 1.5 + 6000)
+}
 
 export class Ear {
   /** Last non-filler line, for the replay gesture. */
@@ -53,11 +67,16 @@ export class Ear {
   private queue: Job[] = []
   private current: Job | null = null
 
+  private maxQueueWaitMs: number
+
   constructor(
     private speaker: Speaker,
     private log: Log,
     private lines: Lines = LINES,
-  ) {}
+    opts: EarOptions = {},
+  ) {
+    this.maxQueueWaitMs = opts.maxQueueWaitMs ?? MAX_QUEUE_WAIT_MS
+  }
 
   hasClip(lineId: string): boolean {
     return Boolean(this.lines[lineId]?.pcm)
@@ -67,7 +86,7 @@ export class Ear {
    * Queue a line. Resolves with Date.now() when its audio starts, or null if it was dropped,
    * cut, or failed. Never rejects.
    */
-  play(ref: LineRef, opts: {interrupt?: Interrupt; filler?: boolean} = {}): Promise<number | null> {
+  play(ref: LineRef, opts: {interrupt?: Interrupt; filler?: boolean; maxMs?: number} = {}): Promise<number | null> {
     const line = ref.line_id ? this.lines[ref.line_id] : undefined
     const caption = ref.caption || line?.caption || (ref.line_id && CAPTIONS[ref.line_id]) || ""
     const sources: Source[] = []
@@ -85,6 +104,7 @@ export class Ear {
     const job: Job = {
       ref,
       label: ref.line_id ?? caption.slice(0, 24),
+      maxMs: opts.maxMs ?? null,
       caption,
       sources,
       filler: opts.filler ?? false,
@@ -139,7 +159,7 @@ export class Ear {
     if (this.current) return
     const job = this.queue.shift()
     if (!job) return
-    if (Date.now() - job.queuedAt > MAX_QUEUE_WAIT_MS) {
+    if (Date.now() - job.queuedAt > this.maxQueueWaitMs) {
       this.log(`ear: dropped stale ${job.label}`)
       job.started.resolve(null)
       return this.pump()
@@ -165,7 +185,8 @@ export class Ear {
     for (const src of job.sources) {
       if (job.cancelled) return
       try {
-        await withTimeout(this.renderSource(job, src), limitFor(src), `ear ${job.label} (${src.kind})`)
+        const limit = src.kind !== "clip" && job.maxMs ? job.maxMs : limitFor(src)
+        await withTimeout(this.renderSource(job, src), limit, `ear ${job.label} (${src.kind})`)
         return
       } catch (err) {
         this.log(`ear: ${job.label} via ${src.kind} failed: ${describe(err)}`)
@@ -200,12 +221,20 @@ export class Ear {
 
     const calledAt = Date.now()
     job.stop = () => this.speaker.stop()
+    // The host resolves play()/speak() when playback ends, but sometimes never does (seen live: the queue stalled
+    // 45 s, then everything behind it was dropped). A "stopped"/"idle" after "playing" also counts as the end.
+    let sawPlaying = false
+    let endedByState!: () => void
+    const ended = new Promise<void>((r) => (endedByState = r))
     const off = this.speaker.onStateChange((e) => {
-      if (e.state === "playing") markStarted()
+      if (e.state === "playing") {
+        sawPlaying = true
+        markStarted()
+      } else if (sawPlaying && (e.state === "stopped" || e.state === "idle")) endedByState()
     })
     try {
-      if (src.kind === "url") await this.speaker.play({audioUrl: src.url, stopOtherAudio: true})
-      else await this.speaker.speak(src.text, {stopOtherAudio: true})
+      const done = src.kind === "url" ? this.speaker.play({audioUrl: src.url, stopOtherAudio: true}) : this.speaker.speak(src.text, {stopOtherAudio: true})
+      await Promise.race([done, ended])
       markStarted(calledAt) // host that never reported "playing"
     } finally {
       off()
