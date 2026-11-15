@@ -100,6 +100,8 @@ namespace VirtualBeeSwarm
         public event Action<VoiceLineInfo> VoiceLineStarted;       // the same line: id, clip or caption only, preloaded
         /// <summary>Board operator twin of a player's choice (protocol v2.1 choice.request). Already validated.</summary>
         public event Action<GameStation, string> ChoiceRequested;
+        /// <summary>Every station pick, however it was made (prop, button, key, Board): (station, choice, correct).</summary>
+        public event Action<GameStation, string, bool> ChoiceMade;
 
         // ---------------------------------------------------------------- state
         public bool Online => !forceOffline && _bound != null && _bound.IsConnected;
@@ -396,7 +398,9 @@ namespace VirtualBeeSwarm
         public bool MakeChoice(GameStation station, string choice, string localScene)
         {
             string s = GameIds.StationName(station);
-            if (logEvents) Debug.Log("[VBS] choice " + s + "/" + choice + (GameIds.IsCorrect(station, choice) ? " (correct)" : " (wrong)"));
+            bool correct = GameIds.IsCorrect(station, choice);
+            if (logEvents) Debug.Log("[VBS] choice " + s + "/" + choice + (correct ? " (correct)" : " (wrong)"));
+            try { ChoiceMade?.Invoke(station, choice, correct); } catch (Exception e) { Debug.LogException(e); }
             if (!string.IsNullOrEmpty(localScene))
             {
                 SetSceneLocal(localScene);
