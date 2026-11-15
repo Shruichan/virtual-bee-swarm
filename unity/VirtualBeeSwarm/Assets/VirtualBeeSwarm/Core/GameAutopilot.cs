@@ -152,6 +152,13 @@ namespace VirtualBeeSwarm
         void Stop(string why)
         {
             if (_routine != null) StopCoroutine(_routine);
+            // a stopped coroutine skips RockHive's finally: undo its frame step and let go of the hive here
+            if (_rockHive != null)
+            {
+                if (_rockHive.Held) _rockHive.EndGrab();
+                Time.captureDeltaTime = _rockPrevCapture;
+                _rockHive = null;
+            }
             Running = false;
             RidePacing.AutopilotLock = false;
             Time.timeScale = 1f;
@@ -253,6 +260,51 @@ namespace VirtualBeeSwarm
             }
         }
 
+        /// <summary>dartiros: a real pick-up and rock (lift, one stroke each way, let go) so recordings and room playtests show
+        /// the success path (EMPTY HIVE card, "light" line). It used to lift once and let go, which only played the retry.
+        /// One steady tracking sample per frame at x1 time, like the smoke test's RockHive; both are restored after.</summary>
+        HiveBody _rockHive;
+        float _rockPrevCapture;
+
+        IEnumerator RockHive(HiveBody hive)
+        {
+            float prevScale = Time.timeScale, prevCapture = Time.captureDeltaTime;
+            _rockHive = hive;
+            _rockPrevCapture = prevCapture;
+            try
+            {
+                Time.timeScale = 1f;
+                if (prevCapture <= 0f) Time.captureDeltaTime = 1f / 72f; // a capture already runs a fixed step: keep its timing
+                Vector3 origin = hive.transform.position;
+                Vector3 raised = origin + Vector3.up * 0.09f;
+                Vector3 side = Vector3.ProjectOnPlane(hive.transform.right, Vector3.up).normalized * 0.05f;
+                hive.BeginGrab(origin);
+                yield return Stroke(hive, origin, raised, 12);
+                yield return Stroke(hive, raised, raised + side, 12);
+                yield return Stroke(hive, raised + side, raised - side, 28);
+                yield return Stroke(hive, raised - side, raised, 10);
+                if (!hive.RockCompleted) Debug.LogWarning("[VBSAutopilot] the rock didn't register (the station assists)");
+                if (hive.Held) hive.EndGrab();
+            }
+            finally
+            {
+                Time.captureDeltaTime = prevCapture;
+                Time.timeScale = prevScale;
+                if (hive != null && hive.Held) hive.EndGrab();
+                _rockHive = null;
+            }
+        }
+
+        static IEnumerator Stroke(HiveBody hive, Vector3 from, Vector3 to, int frames)
+        {
+            for (int frame = 1; frame <= frames; frame++)
+            {
+                yield return null;
+                if (!hive.Held) yield break;
+                hive.UpdateGrab(Vector3.Lerp(from, to, (float)frame / frames));
+            }
+        }
+
         IEnumerator RunOnce()
         {
             var prevHornet = director.Hornet;
@@ -268,13 +320,7 @@ namespace VirtualBeeSwarm
 
             var hive = FindAnyObjectByType<HiveBody>();
             yield return WaitFor(() => hive != null && hive.LiftEnabled, "hive lift enabled");
-            if (hive != null)
-            {
-                hive.BeginGrab(hive.transform.position);
-                hive.UpdateGrab(hive.transform.position + Vector3.up * 0.05f);
-                yield return null;
-                hive.EndGrab();
-            }
+            if (hive != null) yield return RockHive(hive);
             yield return Station<FeedStation>(GameIds.Choice.StoreHoney);
             yield return WaitBeat(GameBeat.Wasps);
             yield return Station<WaspsStation>(GameIds.Choice.BiggerDoor);

@@ -235,7 +235,8 @@ namespace VirtualBeeSwarm.BatOff
                 ref var w = ref _w[i];
                 w = default;
                 w.state = S.Wait;
-                w.spawnAt = _startedAt + Mathf.Lerp(0.35f, BatOffTuning.Seconds - 2.6f, i / (float)(_n - 1));
+                // dartiros: the last spawn leaves room for the slower dive (up to 4 s) to arrive before the raid
+                w.spawnAt = _startedAt + Mathf.Lerp(0.35f, Mathf.Max(1.5f, BatOffTuning.Seconds - 4.4f), i / (float)(_n - 1));
                 w.autoBat = i % 4 != 3; // exercise the missed-wasp payoff on desktop
                 w.phase = Random.Range(0f, 10f);
             }
@@ -445,7 +446,7 @@ namespace VirtualBeeSwarm.BatOff
             }
             w.from = from;
             w.to = HoverPoint(i, headPos);
-            Path(ref w, Random.Range(0.22f, 0.45f), Random.Range(1.25f, 1.80f));
+            Path(ref w, Random.Range(0.22f, 0.45f), Random.Range(0.7f, 1.0f)); // dartiros: slower than the original 0.9-1.25 (an audit found 1.25-1.8, faster)
             if (Vector3.Dot(from - _hiveC, _toPlayer) < _frontD + 0.1f) OverRoof(ref w); // spawned behind the hive: never through it
             w.state = S.Dive;
             w.at = Time.time;
@@ -461,7 +462,7 @@ namespace VirtualBeeSwarm.BatOff
             Vector3 d = w.to - w.from;
             Vector3 side = Vector3.Cross(Vector3.up, d.sqrMagnitude > 1e-4f ? d.normalized : Vector3.forward);
             w.ctrl = Vector3.Lerp(w.from, w.to, 0.5f) + Vector3.up * arc + side * Random.Range(-0.45f, 0.45f);
-            w.dur = Mathf.Clamp(d.magnitude / speed, 1.25f, 2.5f);
+            w.dur = Mathf.Clamp(d.magnitude / speed, 1.6f, 4.0f); // easy to follow with a swatter
         }
 
         /// <summary>Behind the hive: start above the roof and bend in over the front edge, so the dive drops onto the door

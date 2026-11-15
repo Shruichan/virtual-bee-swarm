@@ -26,7 +26,8 @@ namespace VirtualBeeSwarm
         protected override GameLine Hint => RideLines.HintFeed;
 
         bool _rocked, _triedHoney;
-        float _retryUntil = -1f;
+        float _retryUntil = -1f, _retrySpokenAt = -100f;
+        const float RetryVoiceCooldown = 12f; // the red card can flash on every early let-go; his line can't
         HandsOnPrompt _weightPrompt;
         public bool WarningVisible => _weightPrompt != null && _weightPrompt.Visible && Time.time < _retryUntil;
         Transform _emptyCard;
@@ -48,6 +49,7 @@ namespace VirtualBeeSwarm
             {
                 hive.Rocked += HandleRocked;
                 hive.RockReleasedEarly += HandleEarlyRelease;
+                hive.Shaken += HandleShaken;
             }
         }
 
@@ -58,7 +60,14 @@ namespace VirtualBeeSwarm
             {
                 hive.Rocked -= HandleRocked;
                 hive.RockReleasedEarly -= HandleEarlyRelease;
+                hive.Shaken -= HandleShaken;
             }
+        }
+
+        // dartiros: shaking the box stirs the colony (a short buzz-up that settles back to calm on its own)
+        void HandleShaken()
+        {
+            if (swarm != null) swarm.Agitation = Mathf.Max(swarm.Agitation, 0.3f); // capped: repeated shakes don't stack
         }
 
         void HandleRocked()
@@ -74,9 +83,10 @@ namespace VirtualBeeSwarm
             _retryUntil = Time.time + 3f;
             ShowWeightPrompt("! PICK UP AND ROCK", HandsOnKit.Bad);
             GameSound.Cue("stamp_grievance", hive.transform);
-            if (net != null)
+            // dartiros: never cut Beeswax off mid-line, and say the retry at most once every 12 s
+            if (net != null && !net.IsSpeaking && Time.time - _retrySpokenAt >= RetryVoiceCooldown)
             {
-                net.StopVoice();
+                _retrySpokenAt = Time.time;
                 net.Say(GameLines.RoomFeedRockRetry);
             }
         }
@@ -94,6 +104,7 @@ namespace VirtualBeeSwarm
         {
             _rocked = false;
             _retryUntil = -1f;
+            _retrySpokenAt = -100f;
             if (swarm != null) swarm.SetMode(SwarmMode.Calm);
         }
 
@@ -104,7 +115,7 @@ namespace VirtualBeeSwarm
             if (hive != null) hive.LiftEnabled = true;
             ShowWeightPrompt("PICK UP THE HIVE", HandsOnKit.Honey);
             yield return SayAndWait(Prompt, 0.8f, 5.5f);
-            if (!_rocked && Time.time >= _retryUntil && net != null) net.Say(GameLines.FeedLiftHint);
+            // dartiros: no hint straight after the prompt (it doubled up); the lift hint comes after liftHintSeconds below
             float start = Time.time;
             bool hinted = false;
             while (!_rocked && hive != null && Time.time - start < liftGiveUpSeconds + 5f)
@@ -164,7 +175,7 @@ namespace VirtualBeeSwarm
             {
                 Vector3 home = prop.position;
                 Quaternion rot = prop.rotation;
-                yield return MoveTo(prop, pourPoint.position, 0.7f);
+                yield return ArcTo(prop, PourTarget(prop), 0.7f);
                 GameSound.Cue("jar_tip", prop);
                 float t0 = Time.time;
                 while (Time.time - t0 < 0.5f)
@@ -176,9 +187,44 @@ namespace VirtualBeeSwarm
                 if (hive != null) hive.SetSick(honey);
                 if (swarm != null) swarm.SetMode(SwarmMode.Calm);
                 prop.rotation = rot;
-                yield return MoveTo(prop, home, 0.6f);
+                yield return ArcTo(prop, home, 0.6f, 0.06f);
             }
             else if (hive != null) hive.SetSick(honey);
+        }
+
+        /// <summary>dartiros: the pour spot, lifted clear of the hive roof (PourPoint at 0.40 m sat in the roof on a scaled
+        /// rig, so the jar clipped through it). Uses the hive's rendered top plus the prop's own height.</summary>
+        Vector3 PourTarget(Transform prop)
+        {
+            Vector3 target = pourPoint.position;
+            if (hive == null) return target;
+            bool any = false;
+            Bounds b = default;
+            foreach (var r in hive.GetComponentsInChildren<Renderer>())
+            {
+                if (!r.enabled || r is ParticleSystemRenderer || r is TrailRenderer) continue;
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            }
+            if (!any) return target;
+            float propHeight = 0.12f;
+            var pr = prop.GetComponentInChildren<Renderer>();
+            if (pr != null) propHeight = Mathf.Max(0.05f, pr.bounds.size.y);
+            target.y = Mathf.Clamp(b.max.y + propHeight + 0.06f, target.y, target.y + 0.5f);
+            return target;
+        }
+
+        /// <summary>A short hop up and over onto the pour spot (it used to slide straight through the roof's edge).</summary>
+        IEnumerator ArcTo(Transform t, Vector3 target, float seconds, float hop = 0.1f)
+        {
+            Vector3 from = t.position;
+            float start = Time.time;
+            while (Time.time - start < seconds)
+            {
+                float k = Mathf.SmoothStep(0f, 1f, (Time.time - start) / seconds);
+                t.position = Vector3.LerpUnclamped(from, target, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * hop);
+                yield return null;
+            }
+            t.position = target;
         }
 
         void ShowEmptyHive()

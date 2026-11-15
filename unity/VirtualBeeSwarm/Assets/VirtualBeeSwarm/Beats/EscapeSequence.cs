@@ -35,7 +35,7 @@ namespace VirtualBeeSwarm
         [Header("End card (v2, map beat)")]
         [Tooltip("Reading distance ahead of the head. The vertical offset is capped to keep the contract in view.")]
         [SerializeField] float endCardAhead = 0.78f;
-        [SerializeField] float endCardAboveEye = 0.09f;
+        [SerializeField] float endCardAboveEye = -0.15f; // dartiros: the win card sat too high; below eye level now
         [SerializeField] float endCardTiltDegrees = 22f;
         [SerializeField] int endCardCrew = 6;
 
@@ -202,7 +202,7 @@ namespace VirtualBeeSwarm
             Quaternion rot = Quaternion.LookRotation(fwd, up) * Quaternion.Euler(endCardTiltDegrees, 0f, 0f);
             // Leave room below the contract for Beeswax's closing captions.
             float below = (_cardBottom + 0.012f + _endPanelHeight) * 0.5f;
-            float eyeOffset = Mathf.Clamp(endCardAboveEye, 0f, endCardAhead * 0.12f);
+            float eyeOffset = Mathf.Clamp(endCardAboveEye, -endCardAhead * 0.4f, endCardAhead * 0.12f); // may sit below the eyes
             Vector3 centre = eye + fwd * endCardAhead + up * eyeOffset;
             Vector3 pivot = centre + rot * Vector3.up * below;
             Vector3 scale = SetDisplayScale(t);

@@ -63,7 +63,7 @@ namespace VirtualBeeSwarm
             if (beeswax == null) beeswax = FindAnyObjectByType<BeeswaxController>();
             if (window == null) window = FindAnyObjectByType<FutureWindow>();
             if (swarm == null) swarm = FindAnyObjectByType<SwarmSystem>();
-            _hive = FindAnyObjectByType<HiveBody>();
+            _hive = FindAnyObjectByType<HiveBody>(FindObjectsInactive.Include); // the hive may still be off in pre
             if (rocket != null) { _rocketHomePos = rocket.localPosition; _rocketHomeRot = rocket.localRotation; }
             if (earth != null) _earthHome = earth.localPosition;
             if (moon != null) { _moonScale = moon.transform.localScale; _moonHome = moon.transform.localPosition; }
