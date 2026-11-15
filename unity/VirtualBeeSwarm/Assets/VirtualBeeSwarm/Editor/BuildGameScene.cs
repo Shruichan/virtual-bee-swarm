@@ -264,7 +264,7 @@ namespace VirtualBeeSwarm.Editor
             // what-if UI over the window
             var whatIfUi = Child("WhatIfUI", windowT, new Vector3(0f, 0f, -0.02f));
             var prompt = Text("Prompt", whatIfUi, new Vector3(0f, paneH / 2f + 0.07f, 0f), "Ask me anything.\n\"What if...?\"", 0.006f, Color.white, TextAnchor.MiddleCenter);
-            var transcript = Text("Transcript", whatIfUi, new Vector3(0f, -paneH / 2f - 0.05f, 0f), "", 0.0045f, new Color(1f, 0.95f, 0.7f), TextAnchor.UpperCenter);
+            var transcript = Text("Transcript", whatIfUi, new Vector3(0f, paneH / 2f - 0.02f, 0f), "", 0.0045f, new Color(1f, 0.95f, 0.7f), TextAnchor.UpperCenter);
             var hint = Text("Hint", whatIfUi, new Vector3(0f, paneH / 2f + 0.025f, 0f), "", 0.0032f, new Color(0.8f, 0.85f, 0.9f), TextAnchor.MiddleCenter);
             var mic = Prim(PrimitiveType.Sphere, "MicIndicator", whatIfUi, new Vector3(paneW / 2f + 0.05f, paneH / 2f + 0.07f, 0f), Vector3.one * 0.02f, M("VBS_MicLight"));
 
@@ -526,7 +526,7 @@ namespace VirtualBeeSwarm.Editor
             var escape = beats.gameObject.AddComponent<EscapeSequence>();
             var card = Child("ScoreCard", anchor, new Vector3(0f, 0.5f, 0.05f));
             Prim(PrimitiveType.Cube, "Backing", card, new Vector3(0f, 0f, 0.006f), new Vector3(0.44f, 0.11f, 0.01f), M("VBS_Card"));
-            var scoreText = Text("Score", card, Vector3.zero, "Hive saved in 0:00", 0.0075f, new Color(1f, 0.85f, 0.25f), TextAnchor.MiddleCenter);
+            var scoreText = Text("Score", card, Vector3.zero, "Hive saved in 0:00", 0.006f, new Color(1f, 0.85f, 0.25f), TextAnchor.MiddleCenter);
             CommonBeat(escape, director, net);
             Set(escape, "hexagons", hexPanel);
             Set(escape, "hive", hive);
